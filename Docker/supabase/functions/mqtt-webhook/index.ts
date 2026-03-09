@@ -1,5 +1,5 @@
-import { createClient } from 'jsr:@supabase/supabase-js@2'
-import { decodeBase64 } from 'jsr:@std/encoding/base64'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { decodeBase64 } from 'https://deno.land/std@0.224.0/encoding/base64.ts'
 import { sendPushToUsers } from '../_shared/web-push.ts'
 
 function fromScaleFactor(p: number, x: number, y: number): number {

@@ -1,4 +1,4 @@
-import { createClient } from 'jsr:@supabase/supabase-js@2'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { sendPushToUsers } from '../_shared/web-push.ts'
 
 Deno.serve(async (req) => {

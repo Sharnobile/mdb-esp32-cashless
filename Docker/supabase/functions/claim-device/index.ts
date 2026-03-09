@@ -1,4 +1,4 @@
-import { createClient } from 'jsr:@supabase/supabase-js@2'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 // Generates a random 18-character passkey (printable ASCII 33-126, excluding ' " \ for NVS safety)
 function generatePasskey(): string {

@@ -1,4 +1,4 @@
-import { createClient } from 'jsr:@supabase/supabase-js@2'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { mqttPublish } from '../_shared/mqtt-publish.ts'
 
 function toScaleFactor(p: number, x: number, y: number): number {

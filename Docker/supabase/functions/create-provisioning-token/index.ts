@@ -1,4 +1,4 @@
-import { createClient } from 'jsr:@supabase/supabase-js@2'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 // Unambiguous characters: no 0/O, 1/I/L
 const CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
