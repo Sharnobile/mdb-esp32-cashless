@@ -1,36 +1,16 @@
 /// <reference lib="webworker" />
-import { precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching'
+import { precacheAndRoute } from 'workbox-precaching'
 
 declare let self: ServiceWorkerGlobalScope
 
-// ─── Precache: only offline.html (configured via globPatterns in nuxt.config) ─
-// We intentionally limit precaching to avoid all-or-nothing failures that
-// prevent SW activation and break push notifications.
-cleanupOutdatedCaches()
+// ─── Precache manifest (required by vite-plugin-pwa injectManifest build) ───
+// globPatterns is [] so this receives an empty array — nothing to cache.
+// The SW exists solely for push notification handling.
 precacheAndRoute(self.__WB_MANIFEST)
 
 // ─── Lifecycle: activate immediately ────────────────────────────────────────
 self.addEventListener('install', () => self.skipWaiting())
 self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()))
-
-// ─── Offline fallback for navigation requests ───────────────────────────────
-self.addEventListener('fetch', (event) => {
-  if (event.request.mode !== 'navigate') return
-
-  event.respondWith(
-    fetch(event.request).catch(async () => {
-      // Try to serve the precached offline page
-      const cache = await caches.open('workbox-precache-v2')
-      const keys = await cache.keys()
-      const offlineKey = keys.find((k) => new URL(k.url).pathname.endsWith('/offline'))
-      if (offlineKey) {
-        const response = await cache.match(offlineKey)
-        if (response) return response
-      }
-      return Response.error()
-    }),
-  )
-})
 
 // ─── SKIP_WAITING message handler (for app update flow) ─────────────────────
 self.addEventListener('message', (event) => {
@@ -69,7 +49,6 @@ self.addEventListener('notificationclick', (event) => {
 
   const data = event.notification.data as Record<string, unknown> | undefined
 
-  // Determine target URL based on notification type
   let targetUrl = '/'
   if (data?.type === 'sale' && data?.embedded_id) {
     targetUrl = `/machines`

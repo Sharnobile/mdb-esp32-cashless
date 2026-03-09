@@ -13,7 +13,9 @@ export default defineNuxtConfig({
         { name: 'theme-color', content: '#ffffff', media: '(prefers-color-scheme: light)' },
         { name: 'theme-color', content: '#09090b', media: '(prefers-color-scheme: dark)' },
       ],
-      link: [],
+      link: [
+        { rel: 'manifest', href: '/manifest.webmanifest' },
+      ],
     },
   },
   supabase: {
@@ -40,11 +42,10 @@ export default defineNuxtConfig({
     },
   },
   pwa: {
-    strategies: 'injectManifest',
-    srcDir: 'service-worker',
-    filename: 'sw.ts',
-    registerType: 'autoUpdate',
-    injectRegister: 'auto',
+    // SW is a plain file in public/sw.js — no workbox, no precache.
+    // Workbox precaching caused all-or-nothing install failures on iOS,
+    // preventing SW activation and breaking push notifications.
+    disable: true,
     manifest: {
       name: 'VMflow',
       short_name: 'VMflow',
@@ -58,15 +59,6 @@ export default defineNuxtConfig({
         { name: 'Machines', url: '/machines' },
         { name: 'Warehouse', url: '/warehouse' },
       ],
-    },
-    injectManifest: {
-      // Only precache the offline fallback — caching all assets caused
-      // SW installation failures that broke push notifications.
-      globPatterns: ['offline'],
-    },
-    devOptions: {
-      enabled: true,
-      type: 'module',
     },
   },
 })
