@@ -127,8 +127,14 @@ export function useNotifications() {
       }
 
       // Register service worker and wait for it to activate
+      // updateViaCache: 'none' forces the browser to bypass HTTP cache
+      // and fetch the SW file fresh — prevents stale workbox SW from causing
+      // "redundant" state on iOS
       console.info('[Push] Registering service worker…')
-      const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' })
+      const reg = await navigator.serviceWorker.register('/sw.js', {
+        scope: '/',
+        updateViaCache: 'none',
+      })
 
       // Wait for the SW to become active (it may be installing/waiting)
       const sw = reg.active ?? reg.waiting ?? reg.installing
@@ -226,7 +232,10 @@ export function useNotifications() {
   async function checkSubscription() {
     if (!isSupported.value) return
     try {
-      const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' })
+      const reg = await navigator.serviceWorker.register('/sw.js', {
+        scope: '/',
+        updateViaCache: 'none',
+      })
       // Wait briefly for activation if needed
       const sw = reg.active ?? reg.waiting ?? reg.installing
       if (sw && sw.state !== 'activated') {

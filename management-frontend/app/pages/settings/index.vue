@@ -79,7 +79,7 @@ async function checkSwStatus() {
     if (regs.length === 0) {
       lines.push('⚠️ No SW registered. Attempting manual registration…')
       try {
-        const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' })
+        const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/', updateViaCache: 'none' })
         const sw = reg.installing ?? reg.waiting ?? reg.active
         lines.push(`✅ Manual register OK: ${sw?.state ?? 'unknown'}`)
       } catch (regErr: any) {
