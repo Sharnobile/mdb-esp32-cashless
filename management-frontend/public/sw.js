@@ -1,8 +1,12 @@
-// Plain service worker — no workbox, no precache.
+// v2 — Plain service worker — no workbox, no precache.
 // Exists solely for push notification handling.
 
-self.addEventListener('install', () => self.skipWaiting())
-self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()))
+self.addEventListener('install', (event) => {
+  event.waitUntil(self.skipWaiting())
+})
+self.addEventListener('activate', (event) => {
+  event.waitUntil(self.clients.claim())
+})
 
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
