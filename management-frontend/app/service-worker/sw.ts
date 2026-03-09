@@ -22,7 +22,7 @@ self.addEventListener('fetch', (event) => {
       // Try to serve the precached offline page
       const cache = await caches.open('workbox-precache-v2')
       const keys = await cache.keys()
-      const offlineKey = keys.find((k) => new URL(k.url).pathname.endsWith('/offline.html'))
+      const offlineKey = keys.find((k) => new URL(k.url).pathname.endsWith('/offline'))
       if (offlineKey) {
         const response = await cache.match(offlineKey)
         if (response) return response

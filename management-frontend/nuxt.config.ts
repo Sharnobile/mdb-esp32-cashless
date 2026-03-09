@@ -62,7 +62,7 @@ export default defineNuxtConfig({
     injectManifest: {
       // Only precache the offline fallback — caching all assets caused
       // SW installation failures that broke push notifications.
-      globPatterns: ['offline.html'],
+      globPatterns: ['offline'],
     },
     devOptions: {
       enabled: true,
