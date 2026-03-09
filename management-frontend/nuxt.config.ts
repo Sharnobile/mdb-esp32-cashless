@@ -19,6 +19,10 @@ export default defineNuxtConfig({
   supabase: {
     // URL and key are read from SUPABASE_URL / SUPABASE_KEY in .env
     redirect: false,
+    // Fixed cookie prefix so it does not depend on the Supabase URL.
+    // This allows the Docker image to be built generically (with a placeholder URL)
+    // and configured at runtime via NUXT_PUBLIC_SUPABASE_URL.
+    cookiePrefix: 'sb-vmflow-auth-token',
     cookieOptions: {
       // Allow cookies over plain HTTP during local/LAN development
       secure: false,

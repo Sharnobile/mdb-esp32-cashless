@@ -8,6 +8,10 @@
  *   usePullToRefresh(() => fetchMyData())
  */
 export function usePullToRefresh(handler: () => Promise<void> | void) {
+  // Only register on client — useState serializes values for SSR hydration,
+  // and functions cannot be serialized to JSON (causes 500 during SSR).
+  if (import.meta.server) return
+
   const refreshHandler = useState<(() => Promise<void> | void) | null>('pull-refresh-handler', () => null)
   refreshHandler.value = handler
 

@@ -13,19 +13,17 @@ services:
   # ==========================================================================
 
   frontend:
+    image: ghcr.io/lucienkerl/mdb-esp32-cashless/frontend:latest
     build:
       context: ../management-frontend
-      args:
-        SUPABASE_URL: ${SUPABASE_PUBLIC_URL}
-        SUPABASE_KEY: ${ANON_KEY}
-        VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY}
-        GITHUB_FIRMWARE_REPO: ${GITHUB_FIRMWARE_REPO:-}
     restart: unless-stopped
     ports:
       - "3000:3000"
     environment:
-      SUPABASE_URL: ${SUPABASE_PUBLIC_URL}
-      SUPABASE_KEY: ${ANON_KEY}
+      NUXT_PUBLIC_SUPABASE_URL: ${SUPABASE_PUBLIC_URL}
+      NUXT_PUBLIC_SUPABASE_KEY: ${ANON_KEY}
+      NUXT_PUBLIC_VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      NUXT_PUBLIC_GITHUB_FIRMWARE_REPO: ${GITHUB_FIRMWARE_REPO:-}
 
   # ==========================================================================
   # MQTT Broker & Forwarder

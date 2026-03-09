@@ -490,7 +490,10 @@ fi
 # ═══════════════════════════════════════════════════════════════════════════════
 step "3/5 — Starting Docker Stack"
 
-info "Pulling images and starting all services..."
+info "Pulling pre-built frontend image..."
+docker compose pull frontend 2>/dev/null && success "Frontend image pulled" || warn "Could not pull frontend image — will build locally"
+
+info "Starting all services..."
 docker compose up -d
 
 # ═══════════════════════════════════════════════════════════════════════════════

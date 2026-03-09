@@ -265,16 +265,21 @@ fi
 # ── Frontend ─────────────────────────────────────────────────────────────────
 if [ "$SKIP_FRONTEND" = true ]; then
     if [ "$FRONTEND_CHANGED" = true ]; then
-        warn "Frontend has changes but rebuild skipped (--no-frontend). Rebuild later with: docker compose build --no-cache frontend"
+        warn "Frontend has changes but update skipped (--no-frontend). Update later with: docker compose pull frontend"
     else
-        info "Frontend rebuild skipped (--no-frontend)"
+        info "Frontend update skipped (--no-frontend)"
     fi
 elif [ "$FRONTEND_CHANGED" = true ]; then
-    info "Frontend files changed — rebuilding..."
-    docker compose build --no-cache frontend
-    success "Frontend image built"
+    info "Frontend files changed — pulling latest image..."
+    if docker compose pull frontend 2>/dev/null; then
+        success "Frontend image pulled"
+    else
+        warn "Failed to pull frontend image — falling back to local build..."
+        docker compose build --no-cache frontend
+        success "Frontend image built locally"
+    fi
 else
-    info "No frontend changes — skipping rebuild"
+    info "No frontend changes — skipping update"
 fi
 
 # ── Forwarder ────────────────────────────────────────────────────────────────
