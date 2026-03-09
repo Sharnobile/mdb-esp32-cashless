@@ -126,6 +126,13 @@ export function useNotifications() {
         return false
       }
 
+      // Ensure service worker is registered (PWA plugin may have failed silently)
+      const existingRegs = await navigator.serviceWorker.getRegistrations()
+      if (existingRegs.length === 0) {
+        console.info('[Push] No SW registered — registering manually…')
+        await navigator.serviceWorker.register('/sw.js', { scope: '/' })
+      }
+
       // Get service worker registration (with timeout — .ready never rejects,
       // it just waits forever if no SW is active)
       console.info('[Push] Waiting for service worker…')
@@ -206,6 +213,13 @@ export function useNotifications() {
   async function checkSubscription() {
     if (!isSupported.value) return
     try {
+      // Ensure SW is registered (PWA plugin may have failed silently)
+      const existingRegs = await navigator.serviceWorker.getRegistrations()
+      if (existingRegs.length === 0) {
+        console.info('[Push] No SW registered — registering manually…')
+        await navigator.serviceWorker.register('/sw.js', { scope: '/' })
+      }
+
       // Use timeout — .ready hangs forever if no SW is active
       const registration = await Promise.race([
         navigator.serviceWorker.ready,
