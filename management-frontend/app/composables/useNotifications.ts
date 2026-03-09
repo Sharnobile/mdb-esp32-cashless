@@ -126,23 +126,36 @@ export function useNotifications() {
         return false
       }
 
-      // Ensure service worker is registered (PWA plugin may have failed silently)
-      const existingRegs = await navigator.serviceWorker.getRegistrations()
-      if (existingRegs.length === 0) {
-        console.info('[Push] No SW registered — registering manually…')
-        await navigator.serviceWorker.register('/sw.js', { scope: '/' })
+      // Register service worker and wait for it to activate
+      console.info('[Push] Registering service worker…')
+      const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' })
+
+      // Wait for the SW to become active (it may be installing/waiting)
+      const sw = reg.active ?? reg.waiting ?? reg.installing
+      if (sw && sw.state !== 'activated') {
+        console.info('[Push] SW state:', sw.state, '— waiting for activation…')
+        await new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(() => reject(new Error('Service worker activation timed out.')), 15_000)
+          sw.addEventListener('statechange', () => {
+            console.info('[Push] SW state changed to:', sw.state)
+            if (sw.state === 'activated') {
+              clearTimeout(timeout)
+              resolve()
+            } else if (sw.state === 'redundant') {
+              clearTimeout(timeout)
+              reject(new Error('Service worker became redundant.'))
+            }
+          })
+          // Already activated
+          if (sw.state === 'activated') {
+            clearTimeout(timeout)
+            resolve()
+          }
+        })
       }
 
-      // Get service worker registration (with timeout — .ready never rejects,
-      // it just waits forever if no SW is active)
-      console.info('[Push] Waiting for service worker…')
-      const registration = await Promise.race([
-        navigator.serviceWorker.ready,
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('Service worker not available. Try closing and reopening the app.')), 10_000),
-        ),
-      ])
-      console.info('[Push] Service worker ready')
+      const registration = reg
+      console.info('[Push] Service worker active')
 
       // Subscribe to push manager
       console.info('[Push] Subscribing to push manager…')
@@ -213,21 +226,20 @@ export function useNotifications() {
   async function checkSubscription() {
     if (!isSupported.value) return
     try {
-      // Ensure SW is registered (PWA plugin may have failed silently)
-      const existingRegs = await navigator.serviceWorker.getRegistrations()
-      if (existingRegs.length === 0) {
-        console.info('[Push] No SW registered — registering manually…')
-        await navigator.serviceWorker.register('/sw.js', { scope: '/' })
+      const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' })
+      // Wait briefly for activation if needed
+      const sw = reg.active ?? reg.waiting ?? reg.installing
+      if (sw && sw.state !== 'activated') {
+        await new Promise<void>((resolve) => {
+          const timeout = setTimeout(resolve, 3_000) // don't block too long
+          sw.addEventListener('statechange', () => {
+            if (sw.state === 'activated') { clearTimeout(timeout); resolve() }
+          })
+          if (sw.state === 'activated') { clearTimeout(timeout); resolve() }
+        })
       }
-
-      // Use timeout — .ready hangs forever if no SW is active
-      const registration = await Promise.race([
-        navigator.serviceWorker.ready,
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('SW not ready')), 5_000),
-        ),
-      ])
-      const subscription = await registration.pushManager.getSubscription()
+      if (!reg.active) { isSubscribed.value = false; return }
+      const subscription = await reg.pushManager.getSubscription()
       isSubscribed.value = !!subscription
     } catch {
       isSubscribed.value = false
