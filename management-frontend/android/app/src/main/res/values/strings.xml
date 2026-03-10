@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">VMflow</string>
+    <string name="title_activity_main">VMflow</string>
+    <string name="package_name">de.kerlhandel.app</string>
+    <string name="custom_url_scheme">de.kerlhandel.app</string>
+</resources>
