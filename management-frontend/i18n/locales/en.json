@@ -230,8 +230,7 @@
     "creditQueued": "Credit queued (device is {status})",
     "creditCancelled": "Credit cancelled",
     "setThresholds": "Set thresholds",
-    "createCount": "Create {count} trays",
-    "sending": "Sending…"
+    "createCount": "Create {count} trays"
   },
   "products": {
     "title": "Products",
