@@ -1,13 +1,15 @@
 <script setup lang="ts">
 definePageMeta({ middleware: 'auth' })
 
-import ChartAreaInteractive from "@/components/ChartAreaInteractive.vue"
 import SectionCards from "@/components/SectionCards.vue"
 import DashboardMachineList from "@/components/DashboardMachineList.vue"
+import DashboardRecentSales from "@/components/DashboardRecentSales.vue"
 import DashboardActivityFeed from "@/components/DashboardActivityFeed.vue"
 import type { DashboardMachine } from "@/components/DashboardMachineList.vue"
+import type { RecentSale } from "@/components/DashboardRecentSales.vue"
 import type { ActivityEntry } from "@/components/DashboardActivityFeed.vue"
 import { expirationStatus } from '@/composables/useWarehouse'
+import { getProductImageUrl } from '@/composables/useProducts'
 
 const supabase = useSupabaseClient()
 const { fetchOrganization } = useOrganization()
@@ -29,14 +31,10 @@ const warehouseBelowMin = ref(0)
 const warehouseExpiringSoon = ref(0)
 
 // ── Chart + sections ──────────────────────────────────────────────────────────
-const salesChartData = ref<{ date: Date; total: number }[]>([])
 const dashboardMachines = ref<DashboardMachine[]>([])
+const recentSales = ref<RecentSale[]>([])
 const recentActivity = ref<ActivityEntry[]>([])
 
-// ── Sparkline data for KPI card backgrounds ─────────────────────────────────
-const todaySparkline = ref<number[]>([])
-const weekSparkline = ref<number[]>([])
-const monthSparkline = ref<number[]>([])
 
 // Re-fetch all dashboard data when app resumes from background (iOS PWA etc.)
 onResume(() => loadDashboard())
@@ -74,21 +72,6 @@ onMounted(async () => {
         if (saleDate >= weekStart) weekSales.value += price
         if (saleDate >= monthStart) monthSales.value += price
 
-        // Update chart data
-        const day = saleDate.toISOString().slice(0, 10)
-        const existing = salesChartData.value.find(
-          (d) => d.date.toISOString().slice(0, 10) === day
-        )
-        if (existing) {
-          existing.total += price
-          salesChartData.value = [...salesChartData.value]
-        } else {
-          salesChartData.value = [
-            ...salesChartData.value,
-            { date: new Date(day), total: price },
-          ].sort((a, b) => a.date.getTime() - b.date.getTime())
-        }
-
         // Update machine revenue in list
         if (sale.machine_id) {
           const m = dashboardMachines.value.find(dm => dm.id === sale.machine_id)
@@ -97,6 +80,39 @@ onMounted(async () => {
             m.last_sale_at = sale.created_at
           }
         }
+
+        // Prepend to recent sales (resolve product name async)
+        const newSale: RecentSale = {
+          id: sale.id,
+          created_at: sale.created_at,
+          item_price: price,
+          item_number: sale.item_number ?? 0,
+          channel: sale.channel ?? '',
+          machine_name: sale.machine_id
+            ? (dashboardMachines.value.find(dm => dm.id === sale.machine_id)?.name ?? null)
+            : null,
+          product_name: null,
+          product_image_url: null,
+        }
+        // Try to resolve product from machine_trays
+        if (sale.machine_id && sale.item_number != null) {
+          supabase
+            .from('machine_trays')
+            .select('products(name, image_path)')
+            .eq('machine_id', sale.machine_id)
+            .eq('item_number', sale.item_number)
+            .maybeSingle()
+            .then(({ data }) => {
+              const p = (data as any)?.products
+              if (p) {
+                newSale.product_name = p.name
+                newSale.product_image_url = p.image_path ? getProductImageUrl(p.image_path) : null
+                recentSales.value = [...recentSales.value]
+              }
+            })
+        }
+        recentSales.value.unshift(newSale)
+        if (recentSales.value.length > 10) recentSales.value.pop()
       }
     )
     .on(
@@ -154,8 +170,6 @@ async function loadDashboard() {
   const lastWeekStart = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000).toISOString()
   const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
   const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString()
-  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString()
-
   const [
     todaySalesRes,
     yesterdaySalesRes,
@@ -164,7 +178,7 @@ async function loadDashboard() {
     monthSalesRes,
     lastMonthSalesRes,
     machinesRes,
-    salesHistoryRes,
+    recentSalesRes,
     activityRes,
   ] = await Promise.all([
     supabase.from('sales').select('item_price').gte('created_at', todayStart),
@@ -174,7 +188,7 @@ async function loadDashboard() {
     supabase.from('sales').select('item_price').gte('created_at', thisMonthStart),
     supabase.from('sales').select('item_price').gte('created_at', lastMonthStart).lt('created_at', thisMonthStart),
     supabase.from('vendingMachine').select('id, name, embedded, embeddeds(id, status)'),
-    supabase.from('sales').select('created_at, item_price').gte('created_at', thirtyDaysAgo),
+    supabase.from('sales').select('id, created_at, item_price, item_number, channel, machine_id').order('created_at', { ascending: false }).limit(10),
     (supabase as any).from('activity_log').select('*').order('created_at', { ascending: false }).limit(8),
   ])
 
@@ -312,48 +326,42 @@ async function loadDashboard() {
     warehouseExpiringSoon.value = expiringSoon
   }
 
-  // ── Sales chart + sparklines ────────────────────────────────────────────────
-  const allSales = (salesHistoryRes.data ?? []) as { created_at: string; item_price: number }[]
-  const byDay: Record<string, number> = {}
-  for (const sale of allSales) {
-    const day = new Date(sale.created_at).toISOString().slice(0, 10)
-    byDay[day] = (byDay[day] ?? 0) + (sale.item_price ?? 0)
-  }
-  salesChartData.value = Object.entries(byDay)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, total]) => ({ date: new Date(date), total }))
+  // ── Recent sales ───────────────────────────────────────────────────────────
+  const rawSales = (recentSalesRes.data ?? []) as {
+    id: string; created_at: string; item_price: number; item_number: number
+    channel: string; machine_id: string | null
+  }[]
 
-  // Today sparkline: hourly buckets (24 hours)
-  const todayBuckets = new Array(24).fill(0)
-  const todayDate = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  for (const sale of allSales) {
-    const d = new Date(sale.created_at)
-    if (d >= todayDate) {
-      todayBuckets[d.getHours()] += sale.item_price ?? 0
+  // Build machine name map from already-fetched machines
+  const machineNameMap = new Map<string, string>()
+  for (const m of machines) machineNameMap.set(m.id, m.name)
+
+  // Resolve product names via machine_trays for sales that have a machine_id
+  const saleMachineIds = [...new Set(rawSales.filter(s => s.machine_id).map(s => s.machine_id!))]
+  let trayProductMap = new Map<string, { name: string; image_path: string | null }>()
+  if (saleMachineIds.length > 0) {
+    const { data: trayData } = await supabase
+      .from('machine_trays')
+      .select('machine_id, item_number, products(name, image_path)')
+      .in('machine_id', saleMachineIds)
+    for (const t of (trayData ?? []) as { machine_id: string; item_number: number; products: { name: string; image_path: string | null } | null }[]) {
+      if (t.products) trayProductMap.set(`${t.machine_id}:${t.item_number}`, { name: t.products.name, image_path: t.products.image_path })
     }
   }
-  todaySparkline.value = todayBuckets
 
-  // Week sparkline: daily buckets (7 days)
-  const weekBuckets = new Array(7).fill(0)
-  const weekDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
-  for (const sale of allSales) {
-    const d = new Date(sale.created_at)
-    if (d >= weekDate) {
-      const dayIdx = Math.floor((d.getTime() - weekDate.getTime()) / (24 * 60 * 60 * 1000))
-      if (dayIdx >= 0 && dayIdx < 7) weekBuckets[dayIdx] += sale.item_price ?? 0
+  recentSales.value = rawSales.map(s => {
+    const product = s.machine_id ? trayProductMap.get(`${s.machine_id}:${s.item_number}`) : null
+    return {
+      id: s.id,
+      created_at: s.created_at,
+      item_price: s.item_price,
+      item_number: s.item_number,
+      channel: s.channel,
+      machine_name: s.machine_id ? (machineNameMap.get(s.machine_id) ?? null) : null,
+      product_name: product?.name ?? null,
+      product_image_url: product?.image_path ? getProductImageUrl(product.image_path) : null,
     }
-  }
-  weekSparkline.value = weekBuckets
-
-  // Month sparkline: daily buckets (30 days) — reuse byDay
-  const monthBuckets: number[] = []
-  for (let i = 29; i >= 0; i--) {
-    const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000)
-    const key = d.toISOString().slice(0, 10)
-    monthBuckets.push(byDay[key] ?? 0)
-  }
-  monthSparkline.value = monthBuckets
+  })
 
   // ── Activity feed ───────────────────────────────────────────────────────────
   recentActivity.value = ((activityRes.data ?? []) as ActivityEntry[]).map(e => ({
@@ -382,15 +390,16 @@ async function loadDashboard() {
           :stock-low="stockLow"
           :warehouse-below-min="warehouseBelowMin"
           :warehouse-expiring-soon="warehouseExpiringSoon"
-          :today-sparkline="todaySparkline"
-          :week-sparkline="weekSparkline"
-          :month-sparkline="monthSparkline"
         />
 
-        <!-- Chart + Machines side by side -->
-        <div class="grid grid-cols-1 gap-4 px-4 lg:grid-cols-2 lg:px-6">
-          <ChartAreaInteractive :data="salesChartData" />
+        <!-- Machines -->
+        <div class="px-4 lg:px-6">
           <DashboardMachineList :machines="dashboardMachines" />
+        </div>
+
+        <!-- Recent Sales -->
+        <div class="px-4 lg:px-6">
+          <DashboardRecentSales :sales="recentSales" />
         </div>
 
         <!-- Activity Feed -->

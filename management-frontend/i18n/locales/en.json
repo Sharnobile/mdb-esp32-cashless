@@ -105,6 +105,8 @@
     "dailySales": "Daily Sales",
     "revenuePerDay": "Revenue per day for the last 30 days",
     "noSalesData": "No sales data yet",
+    "recentSales": "Recent Sales",
+    "noRecentSales": "No recent sales",
     "recentActivity": "Recent Activity",
     "noRecentActivity": "No recent activity",
     "viewAll": "View all →",

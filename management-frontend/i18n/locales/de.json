@@ -105,6 +105,8 @@
     "dailySales": "Tägliche Verkäufe",
     "revenuePerDay": "Umsatz pro Tag der letzten 30 Tage",
     "noSalesData": "Noch keine Verkaufsdaten",
+    "recentSales": "Letzte Verkäufe",
+    "noRecentSales": "Keine aktuellen Verkäufe",
     "recentActivity": "Letzte Aktivitäten",
     "noRecentActivity": "Keine aktuellen Aktivitäten",
     "viewAll": "Alle anzeigen →",

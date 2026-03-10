@@ -26,9 +26,9 @@ const props = defineProps<{
   stockLow: number
   warehouseBelowMin: number
   warehouseExpiringSoon: number
-  todaySparkline: number[]
-  weekSparkline: number[]
-  monthSparkline: number[]
+  todaySparkline?: number[]
+  weekSparkline?: number[]
+  monthSparkline?: number[]
 }>()
 
 function pctChange(current: number, previous: number): number | null {
@@ -62,7 +62,7 @@ function sparklinePath(values: number[], width: number, height: number): { line:
   <div class="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card grid grid-cols-1 gap-4 px-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs lg:px-6 @xl/main:grid-cols-2 @5xl/main:grid-cols-3">
     <!-- Today's Revenue -->
     <Card class="@container/card relative overflow-hidden">
-      <svg v-if="todaySparkline.length >= 2" class="pointer-events-none absolute inset-0 h-full w-full" preserveAspectRatio="none" viewBox="0 0 200 100">
+      <svg v-if="todaySparkline?.length >= 2" class="pointer-events-none absolute inset-0 h-full w-full" preserveAspectRatio="none" viewBox="0 0 200 100">
         <defs>
           <linearGradient id="spark-today-vfade" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stop-color="currentColor" stop-opacity="0.1" />
@@ -78,8 +78,8 @@ function sparklinePath(values: number[], width: number, height: number): { line:
           </mask>
         </defs>
         <g mask="url(#spark-today-mask)">
-          <path :d="sparklinePath(todaySparkline, 200, 100).area" fill="url(#spark-today-vfade)" class="text-primary" />
-          <path :d="sparklinePath(todaySparkline, 200, 100).line" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-primary opacity-20" />
+          <path :d="sparklinePath(todaySparkline!, 200, 100).area" fill="url(#spark-today-vfade)" class="text-primary" />
+          <path :d="sparklinePath(todaySparkline!, 200, 100).line" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-primary opacity-20" />
         </g>
       </svg>
       <CardHeader class="relative">
@@ -102,7 +102,7 @@ function sparklinePath(values: number[], width: number, height: number): { line:
 
     <!-- This Week -->
     <Card class="@container/card relative overflow-hidden">
-      <svg v-if="weekSparkline.length >= 2" class="pointer-events-none absolute inset-0 h-full w-full" preserveAspectRatio="none" viewBox="0 0 200 100">
+      <svg v-if="weekSparkline?.length >= 2" class="pointer-events-none absolute inset-0 h-full w-full" preserveAspectRatio="none" viewBox="0 0 200 100">
         <defs>
           <linearGradient id="spark-week-vfade" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stop-color="currentColor" stop-opacity="0.1" />
@@ -118,8 +118,8 @@ function sparklinePath(values: number[], width: number, height: number): { line:
           </mask>
         </defs>
         <g mask="url(#spark-week-mask)">
-          <path :d="sparklinePath(weekSparkline, 200, 100).area" fill="url(#spark-week-vfade)" class="text-primary" />
-          <path :d="sparklinePath(weekSparkline, 200, 100).line" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-primary opacity-20" />
+          <path :d="sparklinePath(weekSparkline!, 200, 100).area" fill="url(#spark-week-vfade)" class="text-primary" />
+          <path :d="sparklinePath(weekSparkline!, 200, 100).line" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-primary opacity-20" />
         </g>
       </svg>
       <CardHeader class="relative">
@@ -142,7 +142,7 @@ function sparklinePath(values: number[], width: number, height: number): { line:
 
     <!-- This Month -->
     <Card class="@container/card relative overflow-hidden">
-      <svg v-if="monthSparkline.length >= 2" class="pointer-events-none absolute inset-0 h-full w-full" preserveAspectRatio="none" viewBox="0 0 200 100">
+      <svg v-if="monthSparkline?.length >= 2" class="pointer-events-none absolute inset-0 h-full w-full" preserveAspectRatio="none" viewBox="0 0 200 100">
         <defs>
           <linearGradient id="spark-month-vfade" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stop-color="currentColor" stop-opacity="0.1" />
@@ -158,8 +158,8 @@ function sparklinePath(values: number[], width: number, height: number): { line:
           </mask>
         </defs>
         <g mask="url(#spark-month-mask)">
-          <path :d="sparklinePath(monthSparkline, 200, 100).area" fill="url(#spark-month-vfade)" class="text-primary" />
-          <path :d="sparklinePath(monthSparkline, 200, 100).line" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-primary opacity-20" />
+          <path :d="sparklinePath(monthSparkline!, 200, 100).area" fill="url(#spark-month-vfade)" class="text-primary" />
+          <path :d="sparklinePath(monthSparkline!, 200, 100).line" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-primary opacity-20" />
         </g>
       </svg>
       <CardHeader class="relative">

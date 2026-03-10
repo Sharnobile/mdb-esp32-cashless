@@ -1,6 +1,5 @@
 /**
  * Handles iOS PWA (and general browser) resume from background.
- * Also handles Capacitor native app state changes.
  *
  * When the app becomes visible again after being backgrounded:
  * 1. Refreshes the Supabase session (prevents "session expired" re-login)
@@ -10,8 +9,6 @@
  *   const { onResume } = useAppResume()
  *   onResume(() => fetchMachines())
  */
-
-import { Capacitor } from '@capacitor/core'
 
 type ResumeCallback = () => void | Promise<void>
 
@@ -78,15 +75,6 @@ export function useAppResume() {
 
     onMounted(() => {
       document.addEventListener('visibilitychange', handleVisibilityChange)
-
-      // Capacitor native: also listen for app state changes
-      if (Capacitor.isNativePlatform()) {
-        import('@capacitor/app').then(({ App }) => {
-          App.addListener('appStateChange', ({ isActive }) => {
-            if (isActive) handleResume()
-          })
-        }).catch(() => {})
-      }
     })
 
     onUnmounted(() => {
