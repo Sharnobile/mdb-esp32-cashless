@@ -5,6 +5,8 @@ import { timeAgo } from '@/lib/utils'
 import { useActivityLog } from '@/composables/useActivityLog'
 import { Badge } from '@/components/ui/badge'
 
+const { t } = useI18n()
+
 const {
   logs,
   loading,
@@ -19,14 +21,14 @@ const {
   entityTypeVariant,
 } = useActivityLog()
 
-const ENTITY_TYPES = [
-  { value: '', label: 'All events' },
-  { value: 'sale', label: 'Sales' },
-  { value: 'credit', label: 'Credit sends' },
-  { value: 'stock', label: 'Stock changes' },
-  { value: 'firmware', label: 'Firmware' },
-  { value: 'device', label: 'Devices' },
-]
+const ENTITY_TYPES = computed(() => [
+  { value: '', label: t('history.allEvents') },
+  { value: 'sale', label: t('history.salesFilter') },
+  { value: 'credit', label: t('history.creditSends') },
+  { value: 'stock', label: t('history.stockChanges') },
+  { value: 'firmware', label: t('history.firmwareFilter') },
+  { value: 'device', label: t('history.devicesFilter') },
+])
 
 // Reload when filters change
 watch([entityTypeFilter, dateFrom, dateTo], () => fetchLogs())
@@ -43,7 +45,7 @@ onUnmounted(() => {
 })
 
 function entityTypeLabel(type: string) {
-  const found = ENTITY_TYPES.find(e => e.value === type)
+  const found = ENTITY_TYPES.value.find(e => e.value === type)
   return found?.label ?? type
 }
 
@@ -110,8 +112,8 @@ function metadataChips(entry: { action: string; metadata: Record<string, unknown
     <!-- Header -->
     <div class="flex flex-wrap items-center justify-between gap-4">
       <div>
-        <h1 class="text-2xl font-bold tracking-tight">History</h1>
-        <p class="text-sm text-muted-foreground">Platform activity log — updated in real time</p>
+        <h1 class="text-2xl font-bold tracking-tight">{{ t('history.title') }}</h1>
+        <p class="text-sm text-muted-foreground">{{ t('history.subtitle') }}</p>
       </div>
     </div>
 
@@ -144,7 +146,7 @@ function metadataChips(entry: { action: string; metadata: Record<string, unknown
         class="h-9 rounded-md border border-input px-3 py-1 text-sm text-muted-foreground hover:bg-muted"
         @click="entityTypeFilter = ''; dateFrom = ''; dateTo = ''"
       >
-        Clear filters
+        {{ t('history.clearFilters') }}
       </button>
     </div>
 
@@ -163,8 +165,8 @@ function metadataChips(entry: { action: string; metadata: Record<string, unknown
       class="flex flex-col items-center justify-center gap-2 py-24 text-center text-muted-foreground"
     >
       <span class="text-4xl">📋</span>
-      <p class="font-medium">No activity yet</p>
-      <p class="text-sm">Events will appear here as they happen.</p>
+      <p class="font-medium">{{ t('history.noActivity') }}</p>
+      <p class="text-sm">{{ t('history.eventsWillAppear') }}</p>
     </div>
 
     <!-- Log table -->
@@ -172,11 +174,11 @@ function metadataChips(entry: { action: string; metadata: Record<string, unknown
       <table class="w-full text-sm">
         <thead>
           <tr class="border-b bg-muted/50">
-            <th class="px-4 py-3 text-left font-medium text-muted-foreground">Time</th>
-            <th class="px-4 py-3 text-left font-medium text-muted-foreground">Type</th>
-            <th class="px-4 py-3 text-left font-medium text-muted-foreground">Action</th>
-            <th class="px-4 py-3 text-left font-medium text-muted-foreground">Details</th>
-            <th class="px-4 py-3 text-left font-medium text-muted-foreground">User</th>
+            <th class="px-4 py-3 text-left font-medium text-muted-foreground">{{ t('history.timeCol') }}</th>
+            <th class="px-4 py-3 text-left font-medium text-muted-foreground">{{ t('history.typeCol') }}</th>
+            <th class="px-4 py-3 text-left font-medium text-muted-foreground">{{ t('history.actionCol') }}</th>
+            <th class="px-4 py-3 text-left font-medium text-muted-foreground">{{ t('history.detailsCol') }}</th>
+            <th class="px-4 py-3 text-left font-medium text-muted-foreground">{{ t('history.userCol') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -187,7 +189,7 @@ function metadataChips(entry: { action: string; metadata: Record<string, unknown
           >
             <td class="whitespace-nowrap px-4 py-3 text-muted-foreground">
               <span :title="new Date(entry.created_at).toLocaleString()">
-                {{ timeAgo(entry.created_at) }}
+                {{ timeAgo(entry.created_at, t) }}
               </span>
             </td>
             <td class="px-4 py-3">
@@ -231,7 +233,7 @@ function metadataChips(entry: { action: string; metadata: Record<string, unknown
         class="rounded-md border border-input px-4 py-2 text-sm hover:bg-muted disabled:opacity-50"
         @click="fetchMore"
       >
-        {{ loading ? 'Loading…' : 'Load more' }}
+        {{ loading ? t('common.loading') : t('history.loadMore') }}
       </button>
     </div>
   </div>

@@ -7,6 +7,7 @@ import { VisArea, VisAxis, VisLine, VisXYContainer } from '@unovis/vue'
 import { IconCreditCard, IconCoins, IconSend } from '@tabler/icons-vue'
 import { timeAgo, formatCurrency } from '@/lib/utils'
 
+const { t, locale } = useI18n()
 const route = useRoute()
 const defaultTab = computed(() => {
   const tab = route.query.tab as string
@@ -137,7 +138,7 @@ onMounted(async () => {
     const unsubTrays = subscribeToTrayUpdates(id)
     onUnmounted(unsubTrays)
   } catch (err: unknown) {
-    errorMsg.value = err instanceof Error ? err.message : 'Failed to load machine'
+    errorMsg.value = err instanceof Error ? err.message : t('machineDetail.failedToLoad')
   } finally {
     loading.value = false
   }
@@ -237,7 +238,7 @@ async function openDeviceModal() {
   try {
     availableDevices.value = await fetchUnassignedEmbeddeds()
   } catch {
-    deviceSwapError.value = 'Failed to load available devices'
+    deviceSwapError.value = t('common.failedTo', { action: 'load devices' })
   }
 }
 
@@ -256,7 +257,7 @@ async function submitDeviceSwap() {
     if (data) machine.value = data
     showDeviceModal.value = false
   } catch (err: unknown) {
-    deviceSwapError.value = err instanceof Error ? err.message : 'Failed to swap device'
+    deviceSwapError.value = err instanceof Error ? err.message : t('machineDetail.failedToSwapDevice')
   } finally {
     deviceSwapLoading.value = false
   }
@@ -297,7 +298,7 @@ function openCreditModal() {
 async function submitCredit() {
   const amount = parseFloat(creditAmount.value)
   if (!amount || amount <= 0) {
-    creditError.value = 'Enter a valid amount'
+    creditError.value = t('machineDetail.enterValidAmount')
     return
   }
   creditLoading.value = true
@@ -315,14 +316,14 @@ async function submitCredit() {
       body: { device_id: machine.value.embeddeds.id, amount },
     })
     if (result?.status === 'online') {
-      creditSuccess.value = `Credit of ${formatCurrency(amount)} sent successfully`
+      creditSuccess.value = t('machineDetail.creditSentSuccess', { amount: formatCurrency(amount, locale.value) })
     } else {
-      creditSuccess.value = `Credit queued (device is ${result?.status ?? 'unknown'})`
+      creditSuccess.value = t('machineDetail.creditQueued', { status: result?.status ?? 'unknown' })
     }
     creditAmount.value = ''
   } catch (err: unknown) {
     const fetchErr = err as any
-    creditError.value = fetchErr?.data?.error ?? fetchErr?.data?.message ?? fetchErr?.message ?? 'Failed to send credit'
+    creditError.value = fetchErr?.data?.error ?? fetchErr?.data?.message ?? fetchErr?.message ?? t('machineDetail.failedToSendCredit')
   } finally {
     creditLoading.value = false
   }
@@ -345,10 +346,10 @@ async function cancelCredit() {
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: { device_id: machine.value.embeddeds.id, amount: 0 },
     })
-    creditSuccess.value = 'Credit cancelled'
+    creditSuccess.value = t('machineDetail.creditCancelled')
   } catch (err: unknown) {
     const fetchErr = err as any
-    creditError.value = fetchErr?.data?.error ?? fetchErr?.data?.message ?? fetchErr?.message ?? 'Failed to cancel credit'
+    creditError.value = fetchErr?.data?.error ?? fetchErr?.data?.message ?? fetchErr?.message ?? t('machineDetail.failedToCancelCredit')
   } finally {
     cancelCreditLoading.value = false
   }
@@ -381,7 +382,7 @@ async function setMdbAddress(address: 1 | 2) {
     // Optimistically update the local state
     ;(machine.value.embeddeds as any).mdb_address = address
   } catch (err: unknown) {
-    mdbAddressError.value = err instanceof Error ? err.message : 'Failed to update MDB address'
+    mdbAddressError.value = err instanceof Error ? err.message : t('machineDetail.failedToUpdateMdb')
   } finally {
     mdbAddressLoading.value = false
   }
@@ -404,15 +405,15 @@ function openAddTray() {
 
 async function submitTray() {
   if (trayForm.value.item_number < 0) {
-    trayError.value = 'Slot number must be 0 or greater'
+    trayError.value = t('machineDetail.slotMustBePositive')
     return
   }
   if (trayForm.value.capacity < 1) {
-    trayError.value = 'Capacity must be at least 1'
+    trayError.value = t('machineDetail.capacityAtLeastOne')
     return
   }
   if (trayForm.value.current_stock > trayForm.value.capacity) {
-    trayError.value = 'Stock cannot exceed capacity'
+    trayError.value = t('machineDetail.stockCannotExceed')
     return
   }
   trayLoading.value = true
@@ -427,7 +428,7 @@ async function submitTray() {
     })
     showTrayModal.value = false
   } catch (err: unknown) {
-    trayError.value = err instanceof Error ? err.message : 'Failed to save tray'
+    trayError.value = err instanceof Error ? err.message : t('machineDetail.failedToSaveTray')
   } finally {
     trayLoading.value = false
   }
@@ -661,19 +662,19 @@ function openBatchAdd() {
 
 async function submitBatch() {
   if (batchForm.value.count < 1) {
-    batchError.value = 'Count must be at least 1'
+    batchError.value = t('machineDetail.countAtLeastOne')
     return
   }
   if (batchForm.value.count > 100) {
-    batchError.value = 'Maximum 100 trays at once'
+    batchError.value = t('machineDetail.maxTrays')
     return
   }
   if (batchForm.value.startSlot < 0) {
-    batchError.value = 'Start slot must be 0 or greater'
+    batchError.value = t('machineDetail.startSlotPositive')
     return
   }
   if (batchForm.value.capacity < 1) {
-    batchError.value = 'Capacity must be at least 1'
+    batchError.value = t('machineDetail.capacityAtLeastOne')
     return
   }
   batchLoading.value = true
@@ -682,7 +683,7 @@ async function submitBatch() {
     await batchCreateTrays(machine.value.id, batchForm.value.startSlot, batchForm.value.count, batchForm.value.capacity)
     showBatchModal.value = false
   } catch (err: unknown) {
-    batchError.value = err instanceof Error ? err.message : 'Failed to create trays'
+    batchError.value = err instanceof Error ? err.message : t('machineDetail.failedToCreateTrays')
   } finally {
     batchLoading.value = false
   }
@@ -769,7 +770,7 @@ const packingList = computed(() => {
     const deficit = tray.capacity - tray.current_stock
     if (deficit <= 0) continue
     const key = tray.product_id || `slot-${tray.item_number}`
-    const name = tray.product_name || `Slot #${tray.item_number}`
+    const name = tray.product_name || `${t('machineDetail.slot')} ${tray.item_number}`
     const existing = map.get(key)
     if (existing) {
       existing.needed += deficit
@@ -833,7 +834,7 @@ function stockColor(tray: any) {
 
 <template>
   <div class="flex flex-1 flex-col gap-6 overflow-x-hidden p-4 md:p-6">
-        <div v-if="loading" class="text-muted-foreground">Loading…</div>
+        <div v-if="loading" class="text-muted-foreground">{{ t('common.loading') }}</div>
         <div v-else-if="errorMsg" class="text-destructive">{{ errorMsg }}</div>
         <template v-else-if="machine">
           <!-- Machine info -->
@@ -855,7 +856,7 @@ function stockColor(tray: any) {
                 class="group flex cursor-pointer items-center gap-2 text-xl font-semibold sm:text-2xl"
                 @click="startEditName"
               >
-                {{ machine.name ?? 'Unnamed machine' }}
+                {{ machine.name ?? t('machines.unnamedMachine') }}
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
               </h1>
               <p v-if="machine.location_lat && machine.location_lon" class="mt-1 text-sm text-muted-foreground">
@@ -874,7 +875,7 @@ function stockColor(tray: any) {
                     'bg-muted text-muted-foreground': !['online', 'ota_updating', 'ota_success', 'ota_failed'].includes(machine.embeddeds.status),
                   }"
                 >
-                  {{ machine.embeddeds.status === 'ota_updating' ? 'updating' : machine.embeddeds.status === 'ota_success' ? 'updated' : machine.embeddeds.status === 'ota_failed' ? 'update failed' : machine.embeddeds.status }}
+                  {{ machine.embeddeds.status === 'ota_updating' ? t('machineDetail.updating') : machine.embeddeds.status === 'ota_success' ? t('machineDetail.updated') : machine.embeddeds.status === 'ota_failed' ? t('machineDetail.updateFailed') : machine.embeddeds.status === 'online' ? t('machineDetail.online') : machine.embeddeds.status === 'offline' ? t('machineDetail.offline') : machine.embeddeds.status }}
                 </span>
                 <button
                   v-if="isAdmin"
@@ -882,11 +883,11 @@ function stockColor(tray: any) {
                   @click="openCreditModal"
                 >
                   <IconSend class="size-3" />
-                  <span class="hidden sm:inline">Send Credit</span>
+                  <span class="hidden sm:inline">{{ t('machineDetail.sendCredit') }}</span>
                 </button>
                 <button
                   class="inline-flex h-8 w-8 items-center justify-center rounded-md border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                  title="Device settings"
+                  :title="t('machineDetail.deviceDetails')"
                   @click="showDeviceInfoModal = true"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -894,14 +895,14 @@ function stockColor(tray: any) {
               </template>
               <template v-else>
                 <span class="rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
-                  No device
+                  {{ t('machineDetail.noDevice') }}
                 </span>
                 <button
                   v-if="isAdmin"
                   class="text-xs text-primary hover:underline"
                   @click="openDeviceModal"
                 >
-                  Assign device
+                  {{ t('machineDetail.assignDevice') }}
                 </button>
               </template>
             </div>
@@ -910,23 +911,23 @@ function stockColor(tray: any) {
           <!-- Tabs: Sales | Trays & Stock | MDB -->
           <Tabs :default-value="defaultTab">
             <TabsList>
-              <TabsTrigger value="sales">Sales</TabsTrigger>
-              <TabsTrigger v-if="isAdmin" value="mdb">MDB</TabsTrigger>
-              <TabsTrigger value="trays">Trays & Stock</TabsTrigger>
+              <TabsTrigger value="sales">{{ t('machineDetail.sales') }}</TabsTrigger>
+              <TabsTrigger v-if="isAdmin" value="mdb">{{ t('machineDetail.mdb') }}</TabsTrigger>
+              <TabsTrigger value="trays">{{ t('machineDetail.traysAndStock') }}</TabsTrigger>
             </TabsList>
 
             <!-- Sales tab -->
             <TabsContent value="sales" class="mt-4 space-y-6">
               <!-- Sales chart -->
               <div v-if="salesChartData.length > 0" class="rounded-xl border bg-card p-6">
-                <h2 class="mb-4 text-sm font-medium">Daily revenue (last 30 days)</h2>
+                <h2 class="mb-4 text-sm font-medium">{{ t('machineDetail.dailyRevenue') }}</h2>
                 <VisXYContainer :data="salesChartData" class="h-48 w-full">
                   <VisArea :x="(d: ChartPoint) => d.date" :y="(d: ChartPoint) => d.total" color="var(--primary)" :opacity="0.3" />
                   <VisLine :x="(d: ChartPoint) => d.date" :y="(d: ChartPoint) => d.total" color="var(--primary)" :line-width="2" />
                   <VisAxis
                     type="x"
                     :x="(d: ChartPoint) => d.date"
-                    :tick-format="(d: number) => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })"
+                    :tick-format="(d: number) => new Date(d).toLocaleDateString(locale, { month: 'short', day: 'numeric' })"
                     :num-ticks="6"
                     :tick-line="false"
                     :domain-line="false"
@@ -938,8 +939,8 @@ function stockColor(tray: any) {
 
               <!-- Sales list -->
               <div>
-                <h2 class="mb-3 text-lg font-medium">Sales history</h2>
-                <div v-if="sales.length === 0" class="text-sm text-muted-foreground">No sales recorded in the last 30 days.</div>
+                <h2 class="mb-3 text-lg font-medium">{{ t('machineDetail.salesHistory') }}</h2>
+                <div v-if="sales.length === 0" class="text-sm text-muted-foreground">{{ t('machineDetail.noSalesLast30') }}</div>
                 <div v-else class="space-y-2">
                   <div
                     v-for="sale in sales"
@@ -955,15 +956,15 @@ function stockColor(tray: any) {
                         class="h-11 w-11 shrink-0 rounded-full object-cover"
                       />
                       <div v-else class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
-                        {{ formatCurrency(sale.item_price) }}
+                        {{ formatCurrency(sale.item_price, locale) }}
                       </div>
                       <!-- Main info -->
                       <div class="flex-1 min-w-0">
                         <p class="font-medium break-words">
-                          {{ trayProductMap.get(sale.item_number)?.name ?? `Item #${sale.item_number}` }}
+                          {{ trayProductMap.get(sale.item_number)?.name ?? `${t('machineDetail.item')} #${sale.item_number}` }}
                         </p>
                         <div class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-                          <span>Slot {{ sale.item_number }}</span>
+                          <span>{{ t('machineDetail.slot') }} {{ sale.item_number }}</span>
                           <span class="text-muted-foreground/40">·</span>
                           <span
                             class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide"
@@ -979,8 +980,8 @@ function stockColor(tray: any) {
                       </div>
                       <!-- Price + Timestamp -->
                       <div class="shrink-0 text-right">
-                        <span class="text-sm font-medium">{{ formatCurrency(sale.item_price) }}</span>
-                        <p class="mt-0.5 text-[11px] text-muted-foreground">{{ new Date(sale.created_at).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }) }}</p>
+                        <span class="text-sm font-medium">{{ formatCurrency(sale.item_price, locale) }}</span>
+                        <p class="mt-0.5 text-[11px] text-muted-foreground">{{ new Date(sale.created_at).toLocaleString(locale, { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }) }}</p>
                       </div>
                     </div>
                   </div>
@@ -996,7 +997,7 @@ function stockColor(tray: any) {
                 <div class="flex items-center gap-3 px-4 py-3">
                   <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
                   <span class="text-sm font-medium text-amber-800 dark:text-amber-200">
-                    {{ lowStockCount }} tray{{ lowStockCount > 1 ? 's' : '' }} below minimum
+                    {{ t('machineDetail.belowMinimum', { count: lowStockCount }, lowStockCount) }}
                     <template v-if="fillBelowCount > 0">
                       <span class="text-blue-700 dark:text-blue-300">+ {{ fillBelowCount }} below fill threshold</span>
                     </template>
@@ -1008,9 +1009,9 @@ function stockColor(tray: any) {
                     @click="handleRefillAll"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
-                    <span v-if="refillAllLoading">Refilling…</span>
-                    <span v-else-if="packedQuantities">Refill packed ({{ lowStockCount + fillBelowCount }})</span>
-                    <span v-else>Refill all ({{ lowStockCount + fillBelowCount }})</span>
+                    <span v-if="refillAllLoading">{{ t('machineDetail.refilling') }}</span>
+                    <span v-else-if="packedQuantities">{{ t('machineDetail.refillAll') }} ({{ lowStockCount + fillBelowCount }})</span>
+                    <span v-else>{{ t('machineDetail.refillAll') }} ({{ lowStockCount + fillBelowCount }})</span>
                   </button>
                 </div>
                 <!-- Packing list -->
@@ -1050,25 +1051,25 @@ function stockColor(tray: any) {
               </div>
 
               <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <h2 class="text-base font-medium">Tray Configuration</h2>
+                <h2 class="text-base font-medium">{{ t('machineDetail.trayConfiguration') }}</h2>
                 <div v-if="isAdmin" class="flex items-center gap-2">
                   <button
                     class="inline-flex h-9 items-center justify-center rounded-md border px-4 text-sm font-medium shadow-sm transition-colors hover:bg-muted"
                     @click="openBatchAdd"
                   >
-                    Batch add
+                    {{ t('machineDetail.batchAdd') }}
                   </button>
                   <button
                     class="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90"
                     @click="openAddTray"
                   >
-                    Add tray
+                    {{ t('machineDetail.addTray') }}
                   </button>
                 </div>
               </div>
 
-              <div v-if="traysLoading" class="text-sm text-muted-foreground">Loading trays…</div>
-              <div v-else-if="trays.length === 0" class="text-sm text-muted-foreground">No trays configured. Add trays to track stock levels.</div>
+              <div v-if="traysLoading" class="text-sm text-muted-foreground">{{ t('machineDetail.loadingTrays') }}</div>
+              <div v-else-if="trays.length === 0" class="text-sm text-muted-foreground">{{ t('machineDetail.noTraysConfiguredDetail') }}</div>
               <template v-else>
                 <!-- ── Mobile card layout ── -->
                 <div class="space-y-3 md:hidden">
@@ -1103,7 +1104,7 @@ function stockColor(tray: any) {
                               :id="`product-input-${tray.id}`"
                               v-model="productQuery"
                               type="text"
-                              placeholder="Search products…"
+                              :placeholder="t('machineDetail.searchProducts')"
                               role="combobox"
                               aria-expanded="true"
                               aria-autocomplete="list"
@@ -1121,7 +1122,7 @@ function stockColor(tray: any) {
                                 role="option"
                                 @mousedown.prevent="selectProduct(tray.id, null)"
                               >
-                                <span class="text-muted-foreground italic">None</span>
+                                <span class="text-muted-foreground italic">{{ t('machineDetail.none') }}</span>
                               </button>
                               <button
                                 v-for="(p, idx) in filteredProducts"
@@ -1136,7 +1137,7 @@ function stockColor(tray: any) {
                                 {{ p.name }}
                               </button>
                               <div v-if="filteredProducts.length === 0 && productQuery.trim()" class="px-3 py-2 text-xs text-muted-foreground">
-                                No products found
+                                {{ t('machineDetail.noProductsFound') }}
                               </div>
                             </div>
                           </div>
@@ -1152,9 +1153,9 @@ function stockColor(tray: any) {
                         </template>
                         <span v-else class="block truncate text-sm font-medium">{{ tray.product_name ?? '—' }}</span>
                         <span class="text-xs text-muted-foreground">
-                          Slot {{ tray.item_number }}
+                          {{ t('machineDetail.slot') }} {{ tray.item_number }}
                           <template v-if="trayProductMap.get(tray.item_number)?.sellprice">
-                            &middot; {{ formatCurrency(trayProductMap.get(tray.item_number)!.sellprice!) }}
+                            &middot; {{ formatCurrency(trayProductMap.get(tray.item_number)!.sellprice!, locale) }}
                           </template>
                         </span>
                       </div>
@@ -1168,7 +1169,7 @@ function stockColor(tray: any) {
                         :disabled="tray.current_stock >= tray.capacity"
                         @click="handleRefillFull(tray.id)"
                       >
-                        Full
+                        {{ t('machineDetail.full') }}
                       </button>
                     </div>
                     <!-- Row 2: level bar -->
@@ -1222,17 +1223,17 @@ function stockColor(tray: any) {
                           class="inline-flex items-center gap-1 rounded px-1 py-0.5 transition-colors hover:bg-muted active:bg-muted/80"
                           @click="expandedMobileTray = expandedMobileTray === tray.id ? null : tray.id"
                         >
-                          <span v-if="tray.min_stock">Min: {{ tray.min_stock }}</span>
-                          <span v-if="tray.fill_when_below">Fill: {{ tray.fill_when_below }}</span>
-                          <span v-if="!tray.min_stock && !tray.fill_when_below" class="italic">Set thresholds</span>
+                          <span v-if="tray.min_stock">{{ t('machineDetail.min') }}: {{ tray.min_stock }}</span>
+                          <span v-if="tray.fill_when_below">{{ t('machineDetail.fill') }}: {{ tray.fill_when_below }}</span>
+                          <span v-if="!tray.min_stock && !tray.fill_when_below" class="italic">{{ t('machineDetail.setThresholds') }}</span>
                           <svg
                             xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 transition-transform" :class="expandedMobileTray === tray.id ? 'rotate-180' : ''"
                             viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
                           ><polyline points="6 9 12 15 18 9" /></svg>
                         </button>
                         <template v-else>
-                          <span v-if="tray.min_stock">Min: {{ tray.min_stock }}</span>
-                          <span v-if="tray.fill_when_below">Fill: {{ tray.fill_when_below }}</span>
+                          <span v-if="tray.min_stock">{{ t('machineDetail.min') }}: {{ tray.min_stock }}</span>
+                          <span v-if="tray.fill_when_below">{{ t('machineDetail.fill') }}: {{ tray.fill_when_below }}</span>
                         </template>
                         <span
                           v-if="trayDeficit(tray) > 0 && isLowStock(tray)"
@@ -1254,7 +1255,7 @@ function stockColor(tray: any) {
                       class="mt-2 flex items-center gap-4 rounded-md bg-muted/50 px-3 py-2"
                     >
                       <label class="flex items-center gap-1.5 text-xs text-muted-foreground">
-                        Min
+                        {{ t('machineDetail.min') }}
                         <input
                           type="number"
                           :value="tray.min_stock"
@@ -1265,7 +1266,7 @@ function stockColor(tray: any) {
                         />
                       </label>
                       <label class="flex items-center gap-1.5 text-xs text-muted-foreground">
-                        Fill
+                        {{ t('machineDetail.fill') }}
                         <input
                           type="number"
                           :value="tray.fill_when_below"
@@ -1284,20 +1285,20 @@ function stockColor(tray: any) {
                   <table class="w-full text-sm">
                     <thead>
                       <tr class="border-b bg-muted/50 text-left">
-                        <th class="w-20 px-4 py-3 font-medium">Slot #</th>
-                        <th class="px-4 py-3 font-medium">Product</th>
-                        <th class="w-36 px-4 py-3 font-medium">Stock</th>
+                        <th class="w-20 px-4 py-3 font-medium">{{ t('machineDetail.slot') }}</th>
+                        <th class="px-4 py-3 font-medium">{{ t('machineDetail.product') }}</th>
+                        <th class="w-36 px-4 py-3 font-medium">{{ t('machineDetail.stock') }}</th>
                         <th class="w-16 px-4 py-3 font-medium">
                           <TooltipProvider>
                             <Tooltip>
                               <TooltipTrigger as-child>
                                 <span class="inline-flex cursor-help items-center gap-1">
-                                  Min
+                                  {{ t('machineDetail.min') }}
                                   <span class="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-muted-foreground/20 text-[9px] font-semibold leading-none text-muted-foreground">i</span>
                                 </span>
                               </TooltipTrigger>
                               <TooltipContent>
-                                <p class="max-w-48">Minimum stock. Triggers a refill alert when stock drops to or below this number.</p>
+                                <p class="max-w-48">{{ t('machineDetail.minStockTooltip') }}</p>
                               </TooltipContent>
                             </Tooltip>
                           </TooltipProvider>
@@ -1307,18 +1308,18 @@ function stockColor(tray: any) {
                             <Tooltip>
                               <TooltipTrigger as-child>
                                 <span class="inline-flex cursor-help items-center gap-1">
-                                  Fill
+                                  {{ t('machineDetail.fill') }}
                                   <span class="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-muted-foreground/20 text-[9px] font-semibold leading-none text-muted-foreground">i</span>
                                 </span>
                               </TooltipTrigger>
                               <TooltipContent>
-                                <p class="max-w-48">Fill threshold. When already restocking, also top up trays below this level.</p>
+                                <p class="max-w-48">{{ t('machineDetail.fillThresholdTooltip') }}</p>
                               </TooltipContent>
                             </Tooltip>
                           </TooltipProvider>
                         </th>
-                        <th class="w-32 px-4 py-3 font-medium">Level</th>
-                        <th v-if="isAdmin" class="w-24 px-4 py-3 font-medium">Actions</th>
+                        <th class="w-32 px-4 py-3 font-medium">{{ t('machineDetail.level') }}</th>
+                        <th v-if="isAdmin" class="w-24 px-4 py-3 font-medium">{{ t('common.actions') }}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1337,7 +1338,7 @@ function stockColor(tray: any) {
                         <td class="px-4 py-2">
                           <span class="font-mono">{{ tray.item_number }}</span>
                           <span v-if="trayProductMap.get(tray.item_number)?.sellprice" class="ml-1 text-xs text-muted-foreground">
-                            {{ formatCurrency(trayProductMap.get(tray.item_number)!.sellprice!) }}
+                            {{ formatCurrency(trayProductMap.get(tray.item_number)!.sellprice!, locale) }}
                           </span>
                         </td>
 
@@ -1349,7 +1350,7 @@ function stockColor(tray: any) {
                                 :id="`product-input-${tray.id}`"
                                 v-model="productQuery"
                                 type="text"
-                                placeholder="Search products…"
+                                :placeholder="t('machineDetail.searchProducts')"
                                 role="combobox"
                                 aria-expanded="true"
                                 aria-autocomplete="list"
@@ -1367,7 +1368,7 @@ function stockColor(tray: any) {
                                   role="option"
                                   @mousedown.prevent="selectProduct(tray.id, null)"
                                 >
-                                  <span class="text-muted-foreground italic">None</span>
+                                  <span class="text-muted-foreground italic">{{ t('machineDetail.none') }}</span>
                                 </button>
                                 <button
                                   v-for="(p, idx) in filteredProducts"
@@ -1382,7 +1383,7 @@ function stockColor(tray: any) {
                                   {{ p.name }}
                                 </button>
                                 <div v-if="filteredProducts.length === 0 && productQuery.trim()" class="px-3 py-2 text-xs text-muted-foreground">
-                                  No products found
+                                  {{ t('machineDetail.noProductsFound') }}
                                 </div>
                               </div>
                             </div>
@@ -1525,13 +1526,13 @@ function stockColor(tray: any) {
                               :disabled="tray.current_stock >= tray.capacity"
                               @click="handleRefillFull(tray.id)"
                             >
-                              Full
+                              {{ t('machineDetail.full') }}
                             </button>
                             <button
                               class="text-xs text-destructive hover:underline"
                               @click="handleDeleteTray(tray.id)"
                             >
-                              Remove
+                              {{ t('common.remove') }}
                             </button>
                           </div>
                         </td>
@@ -1547,7 +1548,7 @@ function stockColor(tray: any) {
                     to="/machines"
                     class="inline-flex h-10 items-center justify-center rounded-md border px-6 text-sm font-medium hover:bg-muted"
                   >
-                    &larr; Done — back to machines
+                    &larr; {{ t('machineDetail.doneBackToMachines') }}
                   </NuxtLink>
                 </div>
             </TabsContent>
@@ -1557,11 +1558,11 @@ function stockColor(tray: any) {
 
               <!-- Current MDB Status Card -->
               <div class="rounded-xl border bg-card p-6">
-                <h2 class="mb-4 text-sm font-medium text-muted-foreground uppercase tracking-wide">Current MDB Status</h2>
+                <h2 class="mb-4 text-sm font-medium text-muted-foreground uppercase tracking-wide">{{ t('machineDetail.currentMdbStatus') }}</h2>
                 <template v-if="machine.embeddeds?.mdb_diagnostics">
                   <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
                     <div>
-                      <p class="text-xs text-muted-foreground">State</p>
+                      <p class="text-xs text-muted-foreground">{{ t('machineDetail.state') }}</p>
                       <span
                         class="mt-1 inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
                         :class="{
@@ -1575,39 +1576,39 @@ function stockColor(tray: any) {
                       </span>
                     </div>
                     <div>
-                      <p class="text-xs text-muted-foreground">Address</p>
+                      <p class="text-xs text-muted-foreground">{{ t('machineDetail.address') }}</p>
                       <p class="mt-1 text-sm font-mono font-medium">{{ machine.embeddeds.mdb_diagnostics.addr }}</p>
                     </div>
                     <div>
-                      <p class="text-xs text-muted-foreground">Polls</p>
+                      <p class="text-xs text-muted-foreground">{{ t('machineDetail.polls') }}</p>
                       <p class="mt-1 text-sm font-medium">{{ Number(machine.embeddeds.mdb_diagnostics.polls ?? 0).toLocaleString() }}</p>
                     </div>
                     <div>
-                      <p class="text-xs text-muted-foreground">Checksum Errors</p>
+                      <p class="text-xs text-muted-foreground">{{ t('machineDetail.checksumErrors') }}</p>
                       <p class="mt-1 text-sm font-medium" :class="machine.embeddeds.mdb_diagnostics.chkErr > 0 ? 'text-red-500' : ''">
                         {{ machine.embeddeds.mdb_diagnostics.chkErr ?? 0 }}
                       </p>
                     </div>
                     <div>
-                      <p class="text-xs text-muted-foreground">Last Command</p>
+                      <p class="text-xs text-muted-foreground">{{ t('machineDetail.lastCommand') }}</p>
                       <p class="mt-1 text-sm font-mono">{{ machine.embeddeds.mdb_diagnostics.lastCmd }}</p>
                     </div>
                   </div>
                   <p class="mt-3 text-xs text-muted-foreground">
-                    Updated {{ timeAgo(machine.embeddeds.mdb_diagnostics.updated_at) }}
+                    Updated {{ timeAgo(machine.embeddeds.mdb_diagnostics.updated_at, t) }}
                   </p>
                 </template>
                 <p v-else class="text-sm text-muted-foreground">
-                  No MDB diagnostics received yet. The device will start reporting after connecting.
+                  {{ t('machineDetail.noMdbDiagnostics') }}
                 </p>
               </div>
 
               <!-- State Change History -->
               <div>
-                <h2 class="mb-3 text-sm font-medium text-muted-foreground uppercase tracking-wide">State Change History</h2>
+                <h2 class="mb-3 text-sm font-medium text-muted-foreground uppercase tracking-wide">{{ t('machineDetail.stateChangeHistory') }}</h2>
 
                 <div v-if="mdbLogs.length === 0 && !mdbLogsLoading" class="rounded-xl border bg-card p-6 text-center text-sm text-muted-foreground">
-                  No state changes recorded yet.
+                  {{ t('machineDetail.noStateChanges') }}
                 </div>
 
                 <div v-else class="space-y-2">
@@ -1649,7 +1650,7 @@ function stockColor(tray: any) {
 
                     <!-- Timestamp -->
                     <p class="shrink-0 text-xs text-muted-foreground">
-                      {{ timeAgo(entry.created_at) }}
+                      {{ timeAgo(entry.created_at, t) }}
                     </p>
                   </div>
                 </div>
@@ -1661,7 +1662,7 @@ function stockColor(tray: any) {
                     :disabled="mdbLogsLoading"
                     @click="machine.embeddeds?.id && fetchMoreMdbLogs(machine.embeddeds.id)"
                   >
-                    {{ mdbLogsLoading ? 'Loading...' : 'Load more' }}
+                    {{ mdbLogsLoading ? t('common.loading') : t('history.loadMore') }}
                   </button>
                 </div>
               </div>
@@ -1679,7 +1680,7 @@ function stockColor(tray: any) {
       >
         <div class="w-full max-w-sm rounded-t-xl sm:rounded-xl border bg-card p-5 sm:p-6 shadow-lg">
           <div class="flex items-center justify-between mb-4">
-            <h2 class="text-lg font-semibold">Device Details</h2>
+            <h2 class="text-lg font-semibold">{{ t('machineDetail.deviceDetails') }}</h2>
             <button
               class="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
               @click="showDeviceInfoModal = false"
@@ -1691,7 +1692,7 @@ function stockColor(tray: any) {
           <div class="space-y-3 text-sm">
             <!-- Status -->
             <div class="flex justify-between items-center">
-              <span class="text-muted-foreground">Status</span>
+              <span class="text-muted-foreground">{{ t('common.status') }}</span>
               <span
                 class="rounded-full px-2.5 py-0.5 text-xs font-medium"
                 :class="{
@@ -1701,29 +1702,29 @@ function stockColor(tray: any) {
                   'bg-muted text-muted-foreground': !['online', 'ota_updating', 'ota_success', 'ota_failed'].includes(machine.embeddeds.status),
                 }"
               >
-                {{ machine.embeddeds.status === 'ota_updating' ? 'updating' : machine.embeddeds.status === 'ota_success' ? 'updated' : machine.embeddeds.status === 'ota_failed' ? 'update failed' : machine.embeddeds.status }}
+                {{ machine.embeddeds.status === 'ota_updating' ? t('machineDetail.updating') : machine.embeddeds.status === 'ota_success' ? t('machineDetail.updated') : machine.embeddeds.status === 'ota_failed' ? t('machineDetail.updateFailed') : machine.embeddeds.status === 'online' ? t('machineDetail.online') : machine.embeddeds.status === 'offline' ? t('machineDetail.offline') : machine.embeddeds.status }}
               </span>
             </div>
 
             <!-- MAC Address -->
             <div class="flex justify-between items-center">
-              <span class="text-muted-foreground">MAC Address</span>
+              <span class="text-muted-foreground">{{ t('machineDetail.macAddress') }}</span>
               <span class="font-mono text-xs">{{ machine.embeddeds.mac_address ?? '—' }}</span>
             </div>
 
             <!-- Subdomain -->
             <div class="flex justify-between items-center">
-              <span class="text-muted-foreground">Subdomain</span>
+              <span class="text-muted-foreground">{{ t('machineDetail.subdomain') }}</span>
               <span class="font-mono text-xs">{{ machine.embeddeds.subdomain }}</span>
             </div>
 
             <!-- Firmware -->
             <div class="flex justify-between items-center">
-              <span class="text-muted-foreground">Firmware</span>
+              <span class="text-muted-foreground">{{ t('machineDetail.firmwareLabel') }}</span>
               <span v-if="machine.embeddeds.firmware_version" class="text-right">
                 <span class="font-mono text-xs">v{{ machine.embeddeds.firmware_version }}</span>
                 <span v-if="machine.embeddeds.firmware_build_date" class="block text-xs text-muted-foreground">
-                  built {{ new Date(machine.embeddeds.firmware_build_date).toLocaleDateString() }}
+                  {{ t('settings.built') }} {{ new Date(machine.embeddeds.firmware_build_date).toLocaleDateString() }}
                 </span>
               </span>
               <span v-else class="text-xs text-muted-foreground">—</span>
@@ -1731,13 +1732,13 @@ function stockColor(tray: any) {
 
             <!-- Last seen -->
             <div class="flex justify-between items-center">
-              <span class="text-muted-foreground">Last Seen</span>
+              <span class="text-muted-foreground">{{ t('machineDetail.lastSeen') }}</span>
               <span class="text-xs">{{ formatDate(machine.embeddeds.status_at) }}</span>
             </div>
 
             <!-- MDB Address -->
             <div class="flex justify-between items-center">
-              <span class="text-muted-foreground">MDB Address</span>
+              <span class="text-muted-foreground">{{ t('machineDetail.mdbAddress') }}</span>
               <template v-if="isAdmin">
                 <div class="flex items-center gap-2">
                   <div class="inline-flex rounded-md border">
@@ -1778,14 +1779,14 @@ function stockColor(tray: any) {
               class="inline-flex h-9 flex-1 items-center justify-center rounded-md border text-sm font-medium transition-colors hover:bg-muted"
               @click="showDeviceInfoModal = false; openDeviceModal()"
             >
-              Change Device
+              {{ t('machineDetail.changeDevice') }}
             </button>
             <button
               class="inline-flex h-9 items-center justify-center rounded-md px-4 text-sm font-medium text-destructive transition-colors hover:bg-destructive/10"
               :disabled="deviceSwapLoading"
               @click="detachDevice(); showDeviceInfoModal = false"
             >
-              Detach
+              {{ t('machineDetail.detach') }}
             </button>
           </div>
         </div>
@@ -1798,24 +1799,24 @@ function stockColor(tray: any) {
         @click.self="showDeviceModal = false"
       >
         <div class="w-full max-w-sm rounded-xl border bg-card p-6 shadow-lg">
-          <h2 class="mb-4 text-lg font-semibold">{{ machine.embeddeds ? 'Change device' : 'Assign device' }}</h2>
+          <h2 class="mb-4 text-lg font-semibold">{{ machine.embeddeds ? t('machineDetail.changeDevice') : t('machineDetail.assignDevice') }}</h2>
           <p class="mb-4 text-sm text-muted-foreground">
-            Select an available device to assign to this machine. The machine configuration (trays, products, sales history) will be preserved.
+            {{ t('machineDetail.selectDevice') }}
           </p>
           <form class="space-y-4" @submit.prevent="submitDeviceSwap">
             <div class="space-y-1">
-              <label class="text-sm font-medium" for="device-select">Available devices</label>
+              <label class="text-sm font-medium" for="device-select">{{ t('machineDetail.availableDevices') }}</label>
               <select
                 id="device-select"
                 v-model="selectedDeviceId"
                 class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               >
-                <option value="" disabled>Select a device</option>
+                <option value="" disabled>{{ t('machineDetail.selectADevice') }}</option>
                 <option v-for="d in availableDevices" :key="d.id" :value="d.id">
                   {{ d.mac_address ?? 'Unknown MAC' }} — subdomain {{ d.subdomain }} ({{ d.status }}{{ d.firmware_version ? `, v${d.firmware_version}` : '' }})
                 </option>
               </select>
-              <p v-if="availableDevices.length === 0" class="text-xs text-muted-foreground">No unassigned devices available. Provision a new device first.</p>
+              <p v-if="availableDevices.length === 0" class="text-xs text-muted-foreground">{{ t('machineDetail.noUnassignedDevices') }}</p>
             </div>
             <p v-if="deviceSwapError" class="text-sm text-destructive">{{ deviceSwapError }}</p>
             <div class="flex gap-2">
@@ -1824,15 +1825,15 @@ function stockColor(tray: any) {
                 class="inline-flex h-9 flex-1 items-center justify-center rounded-md border px-4 text-sm font-medium shadow-sm transition-colors hover:bg-muted"
                 @click="showDeviceModal = false"
               >
-                Cancel
+                {{ t('common.cancel') }}
               </button>
               <button
                 type="submit"
                 :disabled="deviceSwapLoading || !selectedDeviceId"
                 class="inline-flex h-9 flex-1 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90 disabled:opacity-50"
               >
-                <span v-if="deviceSwapLoading">Assigning…</span>
-                <span v-else>Assign</span>
+                <span v-if="deviceSwapLoading">{{ t('machineDetail.assigning') }}</span>
+                <span v-else>{{ t('common.assign') }}</span>
               </button>
             </div>
           </form>
@@ -1846,10 +1847,10 @@ function stockColor(tray: any) {
         @click.self="showTrayModal = false"
       >
         <div class="w-full max-w-sm rounded-xl border bg-card p-6 shadow-lg">
-          <h2 class="mb-4 text-lg font-semibold">Add tray</h2>
+          <h2 class="mb-4 text-lg font-semibold">{{ t('machineDetail.addTray') }}</h2>
           <form class="space-y-4" @submit.prevent="submitTray">
             <div class="space-y-1">
-              <label class="text-sm font-medium" for="tray-slot">Slot number</label>
+              <label class="text-sm font-medium" for="tray-slot">{{ t('machineDetail.slot') }}</label>
               <input
                 id="tray-slot"
                 v-model.number="trayForm.item_number"
@@ -1860,18 +1861,18 @@ function stockColor(tray: any) {
               />
             </div>
             <div class="space-y-1">
-              <label class="text-sm font-medium" for="tray-product">Product</label>
+              <label class="text-sm font-medium" for="tray-product">{{ t('machineDetail.product') }}</label>
               <select
                 id="tray-product"
                 v-model="trayForm.product_id"
                 class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               >
-                <option value="">None</option>
+                <option value="">{{ t('machineDetail.none') }}</option>
                 <option v-for="p in products" :key="p.id" :value="p.id">{{ p.name }}</option>
               </select>
             </div>
             <div class="space-y-1">
-              <label class="text-sm font-medium" for="tray-capacity">Capacity</label>
+              <label class="text-sm font-medium" for="tray-capacity">{{ t('machineDetail.capacity') }}</label>
               <input
                 id="tray-capacity"
                 v-model.number="trayForm.capacity"
@@ -1882,7 +1883,7 @@ function stockColor(tray: any) {
               />
             </div>
             <div class="space-y-1">
-              <label class="text-sm font-medium" for="tray-stock">Current stock</label>
+              <label class="text-sm font-medium" for="tray-stock">{{ t('machineDetail.currentStock') }}</label>
               <input
                 id="tray-stock"
                 v-model.number="trayForm.current_stock"
@@ -1900,15 +1901,15 @@ function stockColor(tray: any) {
                 class="inline-flex h-9 flex-1 items-center justify-center rounded-md border px-4 text-sm font-medium shadow-sm transition-colors hover:bg-muted"
                 @click="showTrayModal = false"
               >
-                Cancel
+                {{ t('common.cancel') }}
               </button>
               <button
                 type="submit"
                 :disabled="trayLoading"
                 class="inline-flex h-9 flex-1 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90 disabled:opacity-50"
               >
-                <span v-if="trayLoading">Creating…</span>
-                <span v-else>Create</span>
+                <span v-if="trayLoading">{{ t('common.creating') }}</span>
+                <span v-else>{{ t('common.create') }}</span>
               </button>
             </div>
           </form>
@@ -1922,13 +1923,13 @@ function stockColor(tray: any) {
         @click.self="showBatchModal = false"
       >
         <div class="w-full max-w-sm rounded-xl border bg-card p-6 shadow-lg">
-          <h2 class="mb-4 text-lg font-semibold">Batch add trays</h2>
+          <h2 class="mb-4 text-lg font-semibold">{{ t('machineDetail.batchAddTrays') }}</h2>
           <p class="mb-4 text-sm text-muted-foreground">
-            Create multiple trays with sequential slot numbers. Existing slots are skipped.
+            {{ t('machineDetail.batchDescription') }}
           </p>
           <form class="space-y-4" @submit.prevent="submitBatch">
             <div class="space-y-1">
-              <label class="text-sm font-medium" for="batch-start">Starting slot</label>
+              <label class="text-sm font-medium" for="batch-start">{{ t('machineDetail.startingSlot') }}</label>
               <input
                 id="batch-start"
                 v-model.number="batchForm.startSlot"
@@ -1939,7 +1940,7 @@ function stockColor(tray: any) {
               />
             </div>
             <div class="space-y-1">
-              <label class="text-sm font-medium" for="batch-count">Number of trays</label>
+              <label class="text-sm font-medium" for="batch-count">{{ t('machineDetail.numberOfTrays') }}</label>
               <input
                 id="batch-count"
                 v-model.number="batchForm.count"
@@ -1951,7 +1952,7 @@ function stockColor(tray: any) {
               />
             </div>
             <div class="space-y-1">
-              <label class="text-sm font-medium" for="batch-capacity">Capacity per tray</label>
+              <label class="text-sm font-medium" for="batch-capacity">{{ t('machineDetail.capacityPerTray') }}</label>
               <input
                 id="batch-capacity"
                 v-model.number="batchForm.capacity"
@@ -1962,7 +1963,7 @@ function stockColor(tray: any) {
               />
             </div>
             <p class="text-xs text-muted-foreground">
-              This will create slots {{ batchForm.startSlot }} – {{ batchForm.startSlot + batchForm.count - 1 }}
+              {{ t('machineDetail.batchSlots', { start: batchForm.startSlot, end: batchForm.startSlot + batchForm.count - 1 }) }}
             </p>
             <p v-if="batchError" class="text-sm text-destructive">{{ batchError }}</p>
             <div class="flex gap-2">
@@ -1971,15 +1972,15 @@ function stockColor(tray: any) {
                 class="inline-flex h-9 flex-1 items-center justify-center rounded-md border px-4 text-sm font-medium shadow-sm transition-colors hover:bg-muted"
                 @click="showBatchModal = false"
               >
-                Cancel
+                {{ t('common.cancel') }}
               </button>
               <button
                 type="submit"
                 :disabled="batchLoading"
                 class="inline-flex h-9 flex-1 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90 disabled:opacity-50"
               >
-                <span v-if="batchLoading">Creating…</span>
-                <span v-else>Create {{ batchForm.count }} trays</span>
+                <span v-if="batchLoading">{{ t('common.creating') }}</span>
+                <span v-else>{{ t('machineDetail.createCount', { count: batchForm.count }) }}</span>
               </button>
             </div>
           </form>
@@ -1993,14 +1994,13 @@ function stockColor(tray: any) {
         @click.self="showCreditModal = false"
       >
         <div class="w-full max-w-sm rounded-xl border bg-card p-6 shadow-lg">
-          <h2 class="mb-2 text-lg font-semibold">Send Credit</h2>
+          <h2 class="mb-2 text-lg font-semibold">{{ t('machineDetail.sendCredit') }}</h2>
           <p class="mb-4 text-sm text-muted-foreground">
-            Send a credit amount to <span class="font-medium text-foreground">{{ machine?.name ?? 'this machine' }}</span>.
-            The device will dispense the next item selected.
+            {{ t('machineDetail.sendCreditDescription', { name: machine?.name ?? '' }) }}
           </p>
           <form class="space-y-4" @submit.prevent="submitCredit">
             <div class="space-y-1">
-              <label class="text-sm font-medium" for="credit-amount">Amount (EUR)</label>
+              <label class="text-sm font-medium" for="credit-amount">{{ t('machineDetail.creditAmount') }}</label>
               <input
                 id="credit-amount"
                 v-model="creditAmount"
@@ -2020,7 +2020,7 @@ function stockColor(tray: any) {
                 class="inline-flex h-9 flex-1 items-center justify-center rounded-md border px-4 text-sm font-medium shadow-sm transition-colors hover:bg-muted"
                 @click="showCreditModal = false"
               >
-                Close
+                {{ t('common.close') }}
               </button>
               <button
                 type="button"
@@ -2029,17 +2029,17 @@ function stockColor(tray: any) {
                 @click="cancelCredit"
               >
                 <span v-if="cancelCreditLoading">…</span>
-                <span v-else>Cancel Credit</span>
+                <span v-else>{{ t('machineDetail.cancelCredit') }}</span>
               </button>
               <button
                 type="submit"
                 :disabled="creditLoading"
                 class="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90 disabled:opacity-50"
               >
-                <span v-if="creditLoading">Sending…</span>
+                <span v-if="creditLoading">{{ t('machineDetail.sending') }}</span>
                 <template v-else>
                   <IconSend class="size-3.5" />
-                  Send
+                  {{ t('common.send') }}
                 </template>
               </button>
             </div>

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 definePageMeta({ layout: false })
 
+const { t } = useI18n()
 const supabase = useSupabaseClient()
 const name = ref('')
 const loading = ref(false)
@@ -29,19 +30,19 @@ async function createOrganization() {
     <div class="w-full max-w-sm">
       <div class="rounded-xl border bg-card p-8 shadow-sm">
         <div class="mb-6 text-center">
-          <h1 class="text-2xl font-semibold">Create your organization</h1>
-          <p class="mt-1 text-sm text-muted-foreground">You'll be set as the admin</p>
+          <h1 class="text-2xl font-semibold">{{ t('onboarding.createOrg') }}</h1>
+          <p class="mt-1 text-sm text-muted-foreground">{{ t('onboarding.youllBeAdmin') }}</p>
         </div>
 
         <form class="space-y-4" @submit.prevent="createOrganization">
           <div class="space-y-1">
-            <label class="text-sm font-medium" for="org-name">Organization name</label>
+            <label class="text-sm font-medium" for="org-name">{{ t('onboarding.orgName') }}</label>
             <input
               id="org-name"
               v-model="name"
               type="text"
               required
-              placeholder="Acme Corp"
+              :placeholder="t('onboarding.orgPlaceholder')"
               class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             />
           </div>
@@ -53,8 +54,8 @@ async function createOrganization() {
             :disabled="loading"
             class="inline-flex h-9 w-full items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-50"
           >
-            <span v-if="loading">Creating…</span>
-            <span v-else>Create organization</span>
+            <span v-if="loading">{{ t('common.creating') }}</span>
+            <span v-else>{{ t('onboarding.createOrgButton') }}</span>
           </button>
         </form>
       </div>

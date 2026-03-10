@@ -25,6 +25,7 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar'
 
+const { t } = useI18n()
 const supabase = useSupabaseClient()
 const user = useSupabaseUser()
 const { isMobile, setOpenMobile } = useSidebar()
@@ -116,14 +117,18 @@ async function logout() {
             <DropdownMenuItem as-child @click="isMobile && setOpenMobile(false)">
               <NuxtLink to="/settings">
                 <IconUserCircle />
-                Account
+                {{ t('nav.account') }}
               </NuxtLink>
             </DropdownMenuItem>
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
+          <DropdownMenuItem as="div" class="p-0">
+            <LanguageSwitcher />
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
           <DropdownMenuItem @click="logout">
             <IconLogout />
-            Log out
+            {{ t('nav.logout') }}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

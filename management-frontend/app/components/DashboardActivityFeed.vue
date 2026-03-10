@@ -8,6 +8,8 @@ import {
 } from '@/components/ui/card'
 import { timeAgo } from '@/lib/utils'
 
+const { t } = useI18n()
+
 export interface ActivityEntry {
   id: string
   created_at: string
@@ -23,19 +25,19 @@ defineProps<{
 
 function actionLabel(action: string): string {
   const labels: Record<string, string> = {
-    sale_recorded: 'Sale recorded',
-    credit_sent: 'Credit sent',
-    stock_updated: 'Stock updated',
-    stock_refill_all: 'All trays refilled',
-    device_online: 'Device online',
-    device_offline: 'Device offline',
-    ota_triggered: 'OTA triggered',
-    machine_created: 'Machine created',
-    product_created: 'Product created',
-    product_updated: 'Product updated',
-    tray_created: 'Tray added',
-    tray_updated: 'Tray updated',
-    warehouse_intake: 'Stock intake',
+    sale_recorded: t('activity.saleRecorded'),
+    credit_sent: t('activity.creditSent'),
+    stock_updated: t('activity.stockUpdated'),
+    stock_refill_all: t('activity.stockRefillAll'),
+    device_online: t('activity.deviceOnline'),
+    device_offline: t('activity.deviceOffline'),
+    ota_triggered: t('activity.otaTriggered'),
+    machine_created: t('activity.machineCreated'),
+    product_created: t('activity.productCreated'),
+    product_updated: t('activity.productUpdated'),
+    tray_created: t('activity.trayCreated'),
+    tray_updated: t('activity.trayUpdated'),
+    warehouse_intake: t('activity.warehouseIntake'),
   }
   return labels[action] ?? action.replace(/_/g, ' ')
 }
@@ -67,14 +69,14 @@ function metadataDetail(entry: ActivityEntry): string {
 <template>
   <Card>
     <CardHeader class="flex flex-row items-center justify-between pb-2">
-      <CardTitle class="text-base font-medium">Recent Activity</CardTitle>
+      <CardTitle class="text-base font-medium">{{ t('dashboard.recentActivity') }}</CardTitle>
       <NuxtLink to="/history" class="text-sm text-muted-foreground hover:text-foreground transition-colors">
-        View all &rarr;
+        {{ t('dashboard.viewAll') }}
       </NuxtLink>
     </CardHeader>
     <CardContent class="px-0 pb-0">
       <div v-if="entries.length === 0" class="flex items-center justify-center py-8 text-sm text-muted-foreground">
-        No recent activity
+        {{ t('dashboard.noRecentActivity') }}
       </div>
       <div v-else class="divide-y divide-border">
         <div
@@ -100,7 +102,7 @@ function metadataDetail(entry: ActivityEntry): string {
 
           <!-- Time -->
           <span class="shrink-0 text-xs text-muted-foreground tabular-nums">
-            {{ timeAgo(entry.created_at) }}
+            {{ timeAgo(entry.created_at, t) }}
           </span>
         </div>
       </div>

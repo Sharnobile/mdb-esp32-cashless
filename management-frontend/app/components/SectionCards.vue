@@ -3,6 +3,8 @@ import { IconTrendingUp, IconTrendingDown, IconAlertTriangle, IconPackages } fro
 
 import { Badge } from '@/components/ui/badge'
 import { formatCurrency } from '@/lib/utils'
+
+const { t } = useI18n()
 import {
   Card,
   CardAction,
@@ -81,7 +83,7 @@ function sparklinePath(values: number[], width: number, height: number): { line:
         </g>
       </svg>
       <CardHeader class="relative">
-        <CardDescription>Today's Revenue</CardDescription>
+        <CardDescription>{{ t('dashboard.todaysRevenue') }}</CardDescription>
         <CardTitle class="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
           {{ formatCurrency(todaySales) }}
         </CardTitle>
@@ -90,11 +92,11 @@ function sparklinePath(values: number[], width: number, height: number): { line:
             <component :is="todayVsYesterday >= 0 ? IconTrendingUp : IconTrendingDown" class="size-4" />
             {{ todayVsYesterday >= 0 ? '+' : '' }}{{ todayVsYesterday }}%
           </Badge>
-          <Badge v-else variant="outline">Today</Badge>
+          <Badge v-else variant="outline">{{ t('common.today') }}</Badge>
         </CardAction>
       </CardHeader>
       <CardFooter class="relative flex-col items-start gap-1.5 text-sm">
-        <div class="text-muted-foreground">{{ todaySalesCount }} sale{{ todaySalesCount !== 1 ? 's' : '' }} &middot; vs. yesterday</div>
+        <div class="text-muted-foreground">{{ t('dashboard.salesCount', todaySalesCount) }} &middot; {{ t('dashboard.vsYesterday') }}</div>
       </CardFooter>
     </Card>
 
@@ -121,7 +123,7 @@ function sparklinePath(values: number[], width: number, height: number): { line:
         </g>
       </svg>
       <CardHeader class="relative">
-        <CardDescription>This Week</CardDescription>
+        <CardDescription>{{ t('common.thisWeek') }}</CardDescription>
         <CardTitle class="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
           {{ formatCurrency(weekSales) }}
         </CardTitle>
@@ -130,11 +132,11 @@ function sparklinePath(values: number[], width: number, height: number): { line:
             <component :is="weekVsLastWeek >= 0 ? IconTrendingUp : IconTrendingDown" class="size-4" />
             {{ weekVsLastWeek >= 0 ? '+' : '' }}{{ weekVsLastWeek }}%
           </Badge>
-          <Badge v-else variant="outline">7 days</Badge>
+          <Badge v-else variant="outline">{{ t('dashboard.sevenDays') }}</Badge>
         </CardAction>
       </CardHeader>
       <CardFooter class="relative flex-col items-start gap-1.5 text-sm">
-        <div class="text-muted-foreground">vs. last week: {{ formatCurrency(lastWeekSales) }}</div>
+        <div class="text-muted-foreground">{{ t('dashboard.vsLastWeek', { amount: formatCurrency(lastWeekSales) }) }}</div>
       </CardFooter>
     </Card>
 
@@ -161,7 +163,7 @@ function sparklinePath(values: number[], width: number, height: number): { line:
         </g>
       </svg>
       <CardHeader class="relative">
-        <CardDescription>This Month</CardDescription>
+        <CardDescription>{{ t('common.thisMonth') }}</CardDescription>
         <CardTitle class="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
           {{ formatCurrency(monthSales) }}
         </CardTitle>
@@ -170,33 +172,33 @@ function sparklinePath(values: number[], width: number, height: number): { line:
             <component :is="monthVsLastMonth >= 0 ? IconTrendingUp : IconTrendingDown" class="size-4" />
             {{ monthVsLastMonth >= 0 ? '+' : '' }}{{ monthVsLastMonth }}%
           </Badge>
-          <Badge v-else variant="outline">Month</Badge>
+          <Badge v-else variant="outline">{{ t('dashboard.month') }}</Badge>
         </CardAction>
       </CardHeader>
       <CardFooter class="relative flex-col items-start gap-1.5 text-sm">
-        <div class="text-muted-foreground">vs. last month: {{ formatCurrency(lastMonthSales) }}</div>
+        <div class="text-muted-foreground">{{ t('dashboard.vsLastMonth', { amount: formatCurrency(lastMonthSales) }) }}</div>
       </CardFooter>
     </Card>
 
     <!-- Stock Alerts (only shown when there are alerts) -->
     <Card v-if="stockTotal > 0" class="@container/card">
       <CardHeader>
-        <CardDescription>Stock Alerts</CardDescription>
+        <CardDescription>{{ t('dashboard.stockAlerts') }}</CardDescription>
         <CardTitle class="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
           {{ stockTotal }}
         </CardTitle>
         <CardAction>
           <Badge variant="outline" class="text-red-600 dark:text-red-400">
             <IconAlertTriangle class="size-4" />
-            Action
+            {{ t('dashboard.action') }}
           </Badge>
         </CardAction>
       </CardHeader>
       <CardFooter class="flex-col items-start gap-1.5 text-sm">
         <div class="text-muted-foreground">
-          <span v-if="stockCritical > 0" class="text-red-600 dark:text-red-400">{{ stockCritical }} critical</span>
+          <span v-if="stockCritical > 0" class="text-red-600 dark:text-red-400">{{ t('dashboard.critical', { count: stockCritical }) }}</span>
           <span v-if="stockCritical > 0 && stockLow > 0"> &middot; </span>
-          <span v-if="stockLow > 0" class="text-amber-600 dark:text-amber-400">{{ stockLow }} low</span>
+          <span v-if="stockLow > 0" class="text-amber-600 dark:text-amber-400">{{ t('dashboard.low', { count: stockLow }) }}</span>
         </div>
       </CardFooter>
     </Card>
@@ -204,22 +206,22 @@ function sparklinePath(values: number[], width: number, height: number): { line:
     <!-- Warehouse Alerts (only shown when there are alerts) -->
     <Card v-if="warehouseBelowMin > 0 || warehouseExpiringSoon > 0" class="@container/card">
       <CardHeader>
-        <CardDescription>Warehouse</CardDescription>
+        <CardDescription>{{ t('nav.warehouse') }}</CardDescription>
         <CardTitle class="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
           {{ warehouseBelowMin + warehouseExpiringSoon }}
         </CardTitle>
         <CardAction>
           <Badge variant="outline" class="text-amber-600 dark:text-amber-400">
             <IconPackages class="size-4" />
-            Alert
+            {{ t('dashboard.alert') }}
           </Badge>
         </CardAction>
       </CardHeader>
       <CardFooter class="flex-col items-start gap-1.5 text-sm">
         <div class="text-muted-foreground">
-          <span v-if="warehouseBelowMin > 0">{{ warehouseBelowMin }} below min</span>
+          <span v-if="warehouseBelowMin > 0">{{ t('dashboard.belowMin', { count: warehouseBelowMin }) }}</span>
           <span v-if="warehouseBelowMin > 0 && warehouseExpiringSoon > 0"> &middot; </span>
-          <span v-if="warehouseExpiringSoon > 0">{{ warehouseExpiringSoon }} expiring</span>
+          <span v-if="warehouseExpiringSoon > 0">{{ t('dashboard.expiring', { count: warehouseExpiringSoon }) }}</span>
         </div>
       </CardFooter>
     </Card>
