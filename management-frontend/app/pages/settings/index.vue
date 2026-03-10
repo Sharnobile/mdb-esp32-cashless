@@ -6,6 +6,7 @@ import { Switch } from '~/components/ui/switch'
 import { notificationTypes } from '~/composables/useNotifications'
 import { timeAgo } from '~/lib/utils'
 
+const config = useRuntimeConfig()
 const supabase = useSupabaseClient()
 const user = useSupabaseUser()
 const { organization, role } = useOrganization()
@@ -620,6 +621,27 @@ async function changeEmail() {
               </div>
             </div>
           </ClientOnly>
+
+          <!-- App Version -->
+          <div class="rounded-xl border bg-card p-6 shadow-sm">
+            <h2 class="mb-1 text-lg font-semibold">About</h2>
+            <p class="mb-5 text-sm text-muted-foreground">Application version and build information.</p>
+
+            <div class="space-y-3 text-sm">
+              <div class="flex items-center justify-between">
+                <span class="text-muted-foreground">Version</span>
+                <span class="font-mono font-medium">v{{ config.public.appVersion }}</span>
+              </div>
+              <div class="flex items-center justify-between">
+                <span class="text-muted-foreground">Build</span>
+                <span class="font-mono text-muted-foreground">{{ config.public.gitHash === 'dev' ? 'Development' : config.public.gitHash.substring(0, 7) }}</span>
+              </div>
+              <div v-if="config.public.buildDate" class="flex items-center justify-between">
+                <span class="text-muted-foreground">Built</span>
+                <span class="text-muted-foreground">{{ new Date(config.public.buildDate).toLocaleDateString() }}</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 </template>

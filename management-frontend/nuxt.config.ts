@@ -1,3 +1,5 @@
+import pkg from './package.json'
+
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
@@ -39,6 +41,9 @@ export default defineNuxtConfig({
     public: {
       vapidPublicKey: process.env.VAPID_PUBLIC_KEY ?? '',
       githubFirmwareRepo: process.env.GITHUB_FIRMWARE_REPO ?? '',
+      appVersion: pkg.version,
+      gitHash: process.env.GIT_HASH ?? 'dev',
+      buildDate: process.env.BUILD_DATE ?? '',
     },
   },
   pwa: {

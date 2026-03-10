@@ -12,15 +12,12 @@ cd "$SCRIPT_DIR"
 
 # ── Parse flags ──────────────────────────────────────────────────────────────
 SKIP_FRONTEND=false
-FULL_REBUILD=false
 for arg in "$@"; do
     case "$arg" in
         --no-frontend)  SKIP_FRONTEND=true ;;
-        --full-rebuild) FULL_REBUILD=true ;;
         -h|--help)
             echo "Usage: bash update.sh [OPTIONS]"
             echo "  --no-frontend    Skip frontend rebuild"
-            echo "  --full-rebuild   Rebuild all services even if no changes detected"
             exit 0 ;;
     esac
 done
@@ -236,41 +233,13 @@ fi
 # ═══════════════════════════════════════════════════════════════════════════════
 # Step 3: Rebuild & restart services
 # ═══════════════════════════════════════════════════════════════════════════════
-step "3/4 — Rebuilding Services"
-
-# ── Detect which components changed ──────────────────────────────────────────
-FRONTEND_CHANGED=false
-FORWARDER_CHANGED=false
-BROKER_CHANGED=false
-
-if [ "$FULL_REBUILD" = true ]; then
-    info "Full rebuild requested — rebuilding all services"
-    FRONTEND_CHANGED=true
-    FORWARDER_CHANGED=true
-    BROKER_CHANGED=true
-elif [ "$BEFORE" != "$AFTER" ]; then
-    CHANGED_FILES=$(cd "$SCRIPT_DIR/.." && git diff --name-only "${BEFORE}" "${AFTER}" 2>/dev/null || echo "")
-
-    if echo "$CHANGED_FILES" | grep -q "^management-frontend/"; then
-        FRONTEND_CHANGED=true
-    fi
-    if echo "$CHANGED_FILES" | grep -q "^Docker/mqtt/forwarder/"; then
-        FORWARDER_CHANGED=true
-    fi
-    if echo "$CHANGED_FILES" | grep -q "^Docker/mqtt/config/"; then
-        BROKER_CHANGED=true
-    fi
-fi
+step "3/4 — Rebuilding & Restarting Services"
 
 # ── Frontend ─────────────────────────────────────────────────────────────────
 if [ "$SKIP_FRONTEND" = true ]; then
-    if [ "$FRONTEND_CHANGED" = true ]; then
-        warn "Frontend has changes but update skipped (--no-frontend). Update later with: docker compose pull frontend"
-    else
-        info "Frontend update skipped (--no-frontend)"
-    fi
-elif [ "$FRONTEND_CHANGED" = true ]; then
-    info "Frontend files changed — pulling latest image..."
+    info "Frontend update skipped (--no-frontend)"
+else
+    info "Pulling latest frontend image..."
     if docker compose pull frontend 2>/dev/null; then
         success "Frontend image pulled"
     else
@@ -278,36 +247,18 @@ elif [ "$FRONTEND_CHANGED" = true ]; then
         docker compose build --no-cache frontend
         success "Frontend image built locally"
     fi
-else
-    info "No frontend changes — skipping update"
 fi
 
 # ── Forwarder ────────────────────────────────────────────────────────────────
-if [ "$FORWARDER_CHANGED" = true ]; then
-    info "Forwarder files changed — rebuilding..."
-    docker compose build forwarder
-    success "Forwarder image built"
-else
-    info "No forwarder changes — skipping rebuild"
-fi
+info "Rebuilding forwarder..."
+docker compose build forwarder
+success "Forwarder image built"
 
-# ── Broker (restart only if config changed) ──────────────────────────────────
-if [ "$BROKER_CHANGED" = true ]; then
-    info "Broker config changed — restarting broker..."
-    docker compose restart broker
-    success "Broker restarted"
-else
-    info "No broker config changes — skipping restart"
-fi
+# ── Restart all services ─────────────────────────────────────────────────────
+RESTART_SERVICES="functions forwarder broker"
 
-# ── Restart services ─────────────────────────────────────────────────────────
-RESTART_SERVICES="functions"
-
-if [ "$FRONTEND_CHANGED" = true ] && [ "$SKIP_FRONTEND" = false ]; then
+if [ "$SKIP_FRONTEND" = false ]; then
     RESTART_SERVICES="$RESTART_SERVICES frontend"
-fi
-if [ "$FORWARDER_CHANGED" = true ]; then
-    RESTART_SERVICES="$RESTART_SERVICES forwarder"
 fi
 
 info "Restarting: ${RESTART_SERVICES}..."

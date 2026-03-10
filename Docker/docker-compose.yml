@@ -16,6 +16,9 @@ services:
     image: ghcr.io/lucienkerl/mdb-esp32-cashless/frontend:latest
     build:
       context: ../management-frontend
+      args:
+        GIT_HASH: ${GIT_HASH:-unknown}
+        BUILD_DATE: ${BUILD_DATE:-}
     restart: unless-stopped
     ports:
       - "3000:3000"
