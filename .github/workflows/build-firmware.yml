@@ -37,7 +37,7 @@ jobs:
         working-directory: ${{ steps.project.outputs.dir }}
         run: |
           . $IDF_PATH/export.sh
-          idf.py build
+          idf.py build -- -DPROJECT_VER="${{ steps.project.outputs.version }}"
 
       - name: Rename build artifact
         run: |
