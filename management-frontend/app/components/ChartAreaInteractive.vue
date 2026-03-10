@@ -8,6 +8,8 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 
+const { t, locale } = useI18n()
+
 interface SalesByDay {
   date: Date
   total: number
@@ -24,15 +26,15 @@ type Data = SalesByDay
   <Card class="pt-0">
     <CardHeader class="flex items-center gap-2 space-y-0 border-b py-5 sm:flex-row">
       <div class="grid flex-1 gap-1">
-        <CardTitle>Daily Sales</CardTitle>
+        <CardTitle>{{ t('dashboard.dailySales') }}</CardTitle>
         <CardDescription>
-          Revenue per day for the last 30 days
+          {{ t('dashboard.revenuePerDay') }}
         </CardDescription>
       </div>
     </CardHeader>
     <CardContent class="px-2 pt-4 sm:px-6 sm:pt-6 pb-4">
       <div v-if="data.length === 0" class="flex h-[250px] items-center justify-center text-sm text-muted-foreground">
-        No sales data yet
+        {{ t('dashboard.noSalesData') }}
       </div>
       <VisXYContainer v-else :data="data" class="h-[250px] w-full">
         <VisArea
@@ -54,7 +56,7 @@ type Data = SalesByDay
           :domain-line="false"
           :grid-line="false"
           :num-ticks="6"
-          :tick-format="(d: number) => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })"
+          :tick-format="(d: number) => new Date(d).toLocaleDateString(locale, { month: 'short', day: 'numeric' })"
         />
         <VisAxis
           type="y"

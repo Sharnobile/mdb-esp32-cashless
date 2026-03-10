@@ -1,6 +1,7 @@
 <script setup lang="ts">
 definePageMeta({ middleware: 'auth' })
 
+const { t } = useI18n()
 const supabase = useSupabaseClient()
 const { role } = useOrganization()
 
@@ -68,7 +69,7 @@ async function sendInvite() {
     inviteRole.value = 'viewer'
     await loadData()
   } catch (err: unknown) {
-    inviteError.value = err instanceof Error ? err.message : 'Failed to send invitation'
+    inviteError.value = err instanceof Error ? err.message : t('common.failedTo', { action: t('members.sendInvite').toLowerCase() })
   } finally {
     inviteLoading.value = false
   }
@@ -115,30 +116,30 @@ function formatDate(dt: string) {
 <template>
   <div class="flex flex-1 flex-col gap-6 p-4 md:p-6">
         <div class="flex items-center justify-between">
-          <h1 class="text-2xl font-semibold">Members</h1>
+          <h1 class="text-2xl font-semibold">{{ t('members.title') }}</h1>
           <button
             v-if="isAdmin"
             class="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90"
             @click="showInviteModal = true"
           >
-            Invite member
+            {{ t('members.inviteMember') }}
           </button>
         </div>
 
-        <div v-if="loading" class="text-muted-foreground">Loading members…</div>
+        <div v-if="loading" class="text-muted-foreground">{{ t('members.loadingMembers') }}</div>
 
         <template v-else>
           <!-- Active members -->
           <div>
-            <h2 class="mb-3 text-base font-medium">Active members</h2>
+            <h2 class="mb-3 text-base font-medium">{{ t('members.activeMembers') }}</h2>
             <div class="rounded-md border">
               <table class="w-full text-sm">
                 <thead>
                   <tr class="border-b bg-muted/50 text-left">
-                    <th class="px-4 py-3 font-medium">Name</th>
-                    <th class="px-4 py-3 font-medium">Role</th>
-                    <th class="px-4 py-3 font-medium">Joined</th>
-                    <th v-if="isAdmin" class="px-4 py-3 font-medium">Actions</th>
+                    <th class="px-4 py-3 font-medium">{{ t('members.nameCol') }}</th>
+                    <th class="px-4 py-3 font-medium">{{ t('members.roleCol') }}</th>
+                    <th class="px-4 py-3 font-medium">{{ t('members.joinedCol') }}</th>
+                    <th v-if="isAdmin" class="px-4 py-3 font-medium">{{ t('common.actions') }}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -176,7 +177,7 @@ function formatDate(dt: string) {
                           class="text-xs text-destructive hover:underline"
                           @click="removeMember(member.id)"
                         >
-                          Remove
+                          {{ t('common.remove') }}
                         </button>
                       </div>
                     </td>
@@ -188,16 +189,16 @@ function formatDate(dt: string) {
 
           <!-- Pending invitations -->
           <div v-if="isAdmin">
-            <h2 class="mb-3 text-base font-medium">Pending invitations</h2>
-            <div v-if="invitations.length === 0" class="text-sm text-muted-foreground">No pending invitations.</div>
+            <h2 class="mb-3 text-base font-medium">{{ t('members.pendingInvitations') }}</h2>
+            <div v-if="invitations.length === 0" class="text-sm text-muted-foreground">{{ t('members.noPendingInvitations') }}</div>
             <div v-else class="rounded-md border">
               <table class="w-full text-sm">
                 <thead>
                   <tr class="border-b bg-muted/50 text-left">
-                    <th class="px-4 py-3 font-medium">Email</th>
-                    <th class="px-4 py-3 font-medium">Role</th>
-                    <th class="px-4 py-3 font-medium">Expires</th>
-                    <th class="px-4 py-3 font-medium">Actions</th>
+                    <th class="px-4 py-3 font-medium">{{ t('members.emailCol') }}</th>
+                    <th class="px-4 py-3 font-medium">{{ t('members.roleCol') }}</th>
+                    <th class="px-4 py-3 font-medium">{{ t('members.expiresCol') }}</th>
+                    <th class="px-4 py-3 font-medium">{{ t('common.actions') }}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -218,7 +219,7 @@ function formatDate(dt: string) {
                         class="text-xs text-destructive hover:underline"
                         @click="revokeInvitation(invitation.id)"
                       >
-                        Revoke
+                        {{ t('common.revoke') }}
                       </button>
                     </td>
                   </tr>
@@ -238,10 +239,10 @@ function formatDate(dt: string) {
         <div class="w-full max-w-md rounded-xl border bg-card p-6 shadow-lg">
           <!-- Step 1: Form -->
           <template v-if="!inviteUrl">
-            <h2 class="mb-4 text-lg font-semibold">Invite a member</h2>
+            <h2 class="mb-4 text-lg font-semibold">{{ t('members.inviteAMember') }}</h2>
             <form class="space-y-4" @submit.prevent="sendInvite">
               <div class="space-y-1">
-                <label class="text-sm font-medium" for="invite-email">Email</label>
+                <label class="text-sm font-medium" for="invite-email">{{ t('common.email') }}</label>
                 <input
                   id="invite-email"
                   v-model="inviteEmail"
@@ -252,7 +253,7 @@ function formatDate(dt: string) {
                 />
               </div>
               <div class="space-y-1">
-                <label class="text-sm font-medium" for="invite-role">Role</label>
+                <label class="text-sm font-medium" for="invite-role">{{ t('members.roleCol') }}</label>
                 <select
                   id="invite-role"
                   v-model="inviteRole"
@@ -269,15 +270,15 @@ function formatDate(dt: string) {
                   class="inline-flex h-9 flex-1 items-center justify-center rounded-md border px-4 text-sm font-medium shadow-sm transition-colors hover:bg-muted"
                   @click="showInviteModal = false"
                 >
-                  Cancel
+                  {{ t('common.cancel') }}
                 </button>
                 <button
                   type="submit"
                   :disabled="inviteLoading"
                   class="inline-flex h-9 flex-1 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90 disabled:opacity-50"
                 >
-                  <span v-if="inviteLoading">Sending…</span>
-                  <span v-else>Send invite</span>
+                  <span v-if="inviteLoading">{{ t('members.sending') }}</span>
+                  <span v-else>{{ t('members.sendInvite') }}</span>
                 </button>
               </div>
             </form>
@@ -285,9 +286,9 @@ function formatDate(dt: string) {
 
           <!-- Step 2: Invite link -->
           <template v-else>
-            <h2 class="mb-1 text-lg font-semibold">Invitation link</h2>
+            <h2 class="mb-1 text-lg font-semibold">{{ t('members.invitationLink') }}</h2>
             <p class="mb-4 text-sm text-muted-foreground">
-              Share this link with the invited user. They can register and join your organization in one step.
+              {{ t('members.inviteLinkDescription') }}
             </p>
 
             <div class="mb-4 flex items-stretch gap-2">
@@ -298,7 +299,7 @@ function formatDate(dt: string) {
                 class="inline-flex shrink-0 items-center justify-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90"
                 @click="copyInviteUrl"
               >
-                {{ copied ? 'Copied!' : 'Copy' }}
+                {{ copied ? t('common.copied') : t('common.copy') }}
               </button>
             </div>
 
@@ -306,7 +307,7 @@ function formatDate(dt: string) {
               class="inline-flex h-9 w-full items-center justify-center rounded-md border px-4 text-sm font-medium shadow-sm transition-colors hover:bg-muted"
               @click="showInviteModal = false; inviteUrl = ''"
             >
-              Done
+              {{ t('common.done') }}
             </button>
           </template>
         </div>

@@ -7,7 +7,7 @@ export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   // Capacitor requires SPA mode (no Node.js server in native shell)
   ...(isCapacitorBuild ? { ssr: false } : {}),
-  modules: ['@nuxtjs/supabase', '@nuxtjs/tailwindcss', 'shadcn-nuxt', '@vite-pwa/nuxt'],
+  modules: ['@nuxtjs/supabase', '@nuxtjs/tailwindcss', 'shadcn-nuxt', '@vite-pwa/nuxt', '@nuxtjs/i18n'],
   devtools: { enabled: true },
   app: {
     head: {
@@ -49,6 +49,21 @@ export default defineNuxtConfig({
       gitHash: process.env.GIT_HASH ?? 'dev',
       buildDate: process.env.BUILD_DATE ?? '',
     },
+  },
+  i18n: {
+    locales: [
+      { code: 'en', name: 'English', file: 'en.json' },
+      { code: 'de', name: 'Deutsch', file: 'de.json' },
+    ],
+    defaultLocale: 'en',
+    strategy: 'no_prefix',
+    detectBrowserLanguage: {
+      useCookie: true,
+      cookieKey: 'i18n_locale',
+      fallbackLocale: 'en',
+    },
+    lazy: true,
+    langDir: 'locales',
   },
   pwa: {
     // SW is a plain file in public/sw.js — no workbox, no precache.

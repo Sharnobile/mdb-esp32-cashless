@@ -4,6 +4,7 @@ definePageMeta({ middleware: 'auth' })
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { formatCurrency } from '@/lib/utils'
 
+const { t, locale } = useI18n()
 const { organization, role } = useOrganization()
 const { products, categories, loading, fetchProducts, createProduct, updateProduct, deleteProduct, uploadProductImage, deleteProductImage, createCategory, deleteCategory } = useProducts()
 const { barcodes: allBarcodes, fetchBarcodes, addBarcode, removeBarcode } = useWarehouse()
@@ -44,7 +45,7 @@ async function addProductBarcode() {
     await addBarcode({ product_id: editingProduct.value.id, barcode: newBarcodeInput.value.trim() })
     newBarcodeInput.value = ''
   } catch (err: any) {
-    barcodeAddError.value = err.message ?? 'Failed to add barcode'
+    barcodeAddError.value = err.message ?? t('common.failedTo', { action: 'add barcode' })
   }
 }
 
@@ -114,7 +115,7 @@ function clearImage() {
 
 async function submitProduct() {
   if (!productForm.value.name.trim()) {
-    productError.value = 'Name is required'
+    productError.value = t('products.nameRequired')
     return
   }
   productLoading.value = true
@@ -149,7 +150,7 @@ async function submitProduct() {
 
     showProductModal.value = false
   } catch (err: unknown) {
-    productError.value = err instanceof Error ? err.message : 'Failed to save product'
+    productError.value = err instanceof Error ? err.message : t('products.failedToSave')
   } finally {
     productLoading.value = false
   }
@@ -177,7 +178,7 @@ function openAddCategory() {
 
 async function submitCategory() {
   if (!categoryName.value.trim()) {
-    categoryError.value = 'Name is required'
+    categoryError.value = t('products.nameRequired')
     return
   }
   categoryLoading.value = true
@@ -189,7 +190,7 @@ async function submitCategory() {
     })
     showCategoryModal.value = false
   } catch (err: unknown) {
-    categoryError.value = err instanceof Error ? err.message : 'Failed to create category'
+    categoryError.value = err instanceof Error ? err.message : t('products.failedToCreateCategory')
   } finally {
     categoryLoading.value = false
   }
@@ -261,46 +262,46 @@ async function runImport() {
 
 <template>
   <div class="flex flex-1 flex-col gap-6 p-4 md:p-6">
-        <h1 class="text-2xl font-semibold">Products</h1>
+        <h1 class="text-2xl font-semibold">{{ t('products.title') }}</h1>
 
-        <div v-if="loading" class="text-muted-foreground">Loading…</div>
+        <div v-if="loading" class="text-muted-foreground">{{ t('common.loading') }}</div>
 
         <Tabs v-else default-value="products">
           <TabsList>
-            <TabsTrigger value="products">Products</TabsTrigger>
-            <TabsTrigger value="categories">Categories</TabsTrigger>
+            <TabsTrigger value="products">{{ t('products.productsTab') }}</TabsTrigger>
+            <TabsTrigger value="categories">{{ t('products.categoriesTab') }}</TabsTrigger>
           </TabsList>
 
           <!-- Products tab -->
           <TabsContent value="products" class="mt-4">
             <div class="mb-4 flex items-center justify-between">
-              <h2 class="text-base font-medium">All products</h2>
+              <h2 class="text-base font-medium">{{ t('products.allProducts') }}</h2>
               <div v-if="isAdmin" class="flex gap-2">
                 <button
                   class="inline-flex h-9 items-center justify-center rounded-md border px-4 text-sm font-medium transition-colors hover:bg-muted"
                   @click="openImportModal"
                 >
-                  Import
+                  {{ t('common.import') }}
                 </button>
                 <button
                   class="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90"
                   @click="openAddProduct"
                 >
-                  Add product
+                  {{ t('products.addProduct') }}
                 </button>
               </div>
             </div>
 
-            <div v-if="products.length === 0" class="text-sm text-muted-foreground">No products yet.</div>
+            <div v-if="products.length === 0" class="text-sm text-muted-foreground">{{ t('products.noProducts') }}</div>
             <div v-else class="rounded-md border">
               <table class="w-full text-sm">
                 <thead>
                   <tr class="border-b bg-muted/50 text-left">
                     <th class="w-14 px-4 py-3 font-medium"></th>
-                    <th class="px-4 py-3 font-medium">Name</th>
-                    <th class="px-4 py-3 font-medium">Category</th>
-                    <th class="px-4 py-3 font-medium">Price</th>
-                    <th v-if="isAdmin" class="px-4 py-3 font-medium">Actions</th>
+                    <th class="px-4 py-3 font-medium">{{ t('common.name') }}</th>
+                    <th class="px-4 py-3 font-medium">{{ t('products.category') }}</th>
+                    <th class="px-4 py-3 font-medium">{{ t('products.price') }}</th>
+                    <th v-if="isAdmin" class="px-4 py-3 font-medium">{{ t('common.actions') }}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -325,20 +326,20 @@ async function runImport() {
                     </td>
                     <td class="px-4 py-3 font-medium">{{ product.name }}</td>
                     <td class="px-4 py-3 text-muted-foreground">{{ product.category_name ?? '—' }}</td>
-                    <td class="px-4 py-3">{{ formatCurrency(product.sellprice) }}</td>
+                    <td class="px-4 py-3">{{ formatCurrency(product.sellprice, locale) }}</td>
                     <td v-if="isAdmin" class="px-4 py-3">
                       <div class="flex items-center gap-2">
                         <button
                           class="text-xs text-primary hover:underline"
                           @click="openEditProduct(product)"
                         >
-                          Edit
+                          {{ t('common.edit') }}
                         </button>
                         <button
                           class="text-xs text-destructive hover:underline"
                           @click="handleDeleteProduct(product.id)"
                         >
-                          Delete
+                          {{ t('common.delete') }}
                         </button>
                       </div>
                     </td>
@@ -351,23 +352,23 @@ async function runImport() {
           <!-- Categories tab -->
           <TabsContent value="categories" class="mt-4">
             <div class="mb-4 flex items-center justify-between">
-              <h2 class="text-base font-medium">All categories</h2>
+              <h2 class="text-base font-medium">{{ t('products.allCategories') }}</h2>
               <button
                 v-if="isAdmin"
                 class="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90"
                 @click="openAddCategory"
               >
-                Add category
+                {{ t('products.addCategory') }}
               </button>
             </div>
 
-            <div v-if="categories.length === 0" class="text-sm text-muted-foreground">No categories yet.</div>
+            <div v-if="categories.length === 0" class="text-sm text-muted-foreground">{{ t('products.noCategories') }}</div>
             <div v-else class="rounded-md border">
               <table class="w-full text-sm">
                 <thead>
                   <tr class="border-b bg-muted/50 text-left">
-                    <th class="px-4 py-3 font-medium">Name</th>
-                    <th v-if="isAdmin" class="px-4 py-3 font-medium">Actions</th>
+                    <th class="px-4 py-3 font-medium">{{ t('common.name') }}</th>
+                    <th v-if="isAdmin" class="px-4 py-3 font-medium">{{ t('common.actions') }}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -382,7 +383,7 @@ async function runImport() {
                         class="text-xs text-destructive hover:underline"
                         @click="handleDeleteCategory(cat.id)"
                       >
-                        Delete
+                        {{ t('common.delete') }}
                       </button>
                     </td>
                   </tr>
@@ -400,23 +401,23 @@ async function runImport() {
         @click.self="showProductModal = false"
       >
         <div class="w-full max-w-sm rounded-xl border bg-card p-6 shadow-lg">
-          <h2 class="mb-4 text-lg font-semibold">{{ editingProduct ? 'Edit product' : 'Add product' }}</h2>
+          <h2 class="mb-4 text-lg font-semibold">{{ editingProduct ? t('products.editProduct') : t('products.addProduct') }}</h2>
           <form class="space-y-4" @submit.prevent="submitProduct">
             <div class="space-y-1">
-              <label class="text-sm font-medium" for="product-name">Name</label>
+              <label class="text-sm font-medium" for="product-name">{{ t('common.name') }}</label>
               <input
                 id="product-name"
                 v-model="productForm.name"
                 type="text"
                 required
-                placeholder="Product name"
+                :placeholder="t('products.productName')"
                 class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               />
             </div>
 
             <!-- Image upload -->
             <div class="space-y-1">
-              <label class="text-sm font-medium">Image</label>
+              <label class="text-sm font-medium">{{ t('products.image') }}</label>
               <div v-if="imagePreview" class="relative inline-block">
                 <img :src="imagePreview" alt="Preview" class="h-24 w-24 rounded-lg object-cover border" />
                 <button
@@ -434,7 +435,7 @@ async function runImport() {
                 >
                   <div class="text-center">
                     <svg xmlns="http://www.w3.org/2000/svg" class="mx-auto mb-1 h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
-                    <span>Click to upload</span>
+                    <span>{{ t('products.clickToUpload') }}</span>
                   </div>
                 </label>
                 <input
@@ -448,41 +449,41 @@ async function runImport() {
             </div>
 
             <div class="space-y-1">
-              <label class="text-sm font-medium" for="product-price">Price</label>
+              <label class="text-sm font-medium" for="product-price">{{ t('products.price') }}</label>
               <input
                 id="product-price"
                 v-model.number="productForm.sellprice"
                 type="number"
                 step="0.01"
                 min="0"
-                placeholder="0.00"
+                :placeholder="t('products.pricePlaceholder')"
                 class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               />
             </div>
             <div class="space-y-1">
-              <label class="text-sm font-medium" for="product-category">Category</label>
+              <label class="text-sm font-medium" for="product-category">{{ t('products.category') }}</label>
               <select
                 id="product-category"
                 v-model="productForm.category"
                 class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               >
-                <option value="">None</option>
+                <option value="">—</option>
                 <option v-for="cat in categories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
               </select>
             </div>
             <div class="space-y-1">
-              <label class="text-sm font-medium" for="product-description">Description</label>
+              <label class="text-sm font-medium" for="product-description">{{ t('common.description') }}</label>
               <textarea
                 id="product-description"
                 v-model="productForm.description"
                 rows="3"
-                placeholder="Optional description"
+                :placeholder="t('products.optionalDescription')"
                 class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               />
             </div>
             <!-- Barcodes (only when editing existing product) -->
             <div v-if="editingProduct && isAdmin" class="space-y-2">
-              <label class="text-sm font-medium">Barcodes</label>
+              <label class="text-sm font-medium">{{ t('products.barcodes') }}</label>
               <div v-if="productBarcodes.length > 0" class="flex flex-wrap gap-1.5">
                 <span
                   v-for="b in productBarcodes"
@@ -503,7 +504,7 @@ async function runImport() {
                 <input
                   v-model="newBarcodeInput"
                   type="text"
-                  placeholder="EAN barcode..."
+                  :placeholder="t('products.barcodePlaceholder')"
                   class="flex h-8 flex-1 rounded-md border border-input bg-background px-2 text-xs font-mono shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   @keydown.enter.prevent="addProductBarcode"
                 />
@@ -512,7 +513,7 @@ async function runImport() {
                   class="h-8 rounded-md border px-2 text-xs font-medium hover:bg-muted"
                   @click="addProductBarcode"
                 >
-                  Add
+                  {{ t('common.add') }}
                 </button>
               </div>
               <p v-if="barcodeAddError" class="text-xs text-destructive">{{ barcodeAddError }}</p>
@@ -525,15 +526,15 @@ async function runImport() {
                 class="inline-flex h-9 flex-1 items-center justify-center rounded-md border px-4 text-sm font-medium shadow-sm transition-colors hover:bg-muted"
                 @click="showProductModal = false"
               >
-                Cancel
+                {{ t('common.cancel') }}
               </button>
               <button
                 type="submit"
                 :disabled="productLoading"
                 class="inline-flex h-9 flex-1 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90 disabled:opacity-50"
               >
-                <span v-if="productLoading">Saving…</span>
-                <span v-else>{{ editingProduct ? 'Save' : 'Create' }}</span>
+                <span v-if="productLoading">{{ t('common.saving') }}</span>
+                <span v-else>{{ editingProduct ? t('common.save') : t('common.create') }}</span>
               </button>
             </div>
           </form>
@@ -547,16 +548,16 @@ async function runImport() {
         @click.self="showCategoryModal = false"
       >
         <div class="w-full max-w-sm rounded-xl border bg-card p-6 shadow-lg">
-          <h2 class="mb-4 text-lg font-semibold">Add category</h2>
+          <h2 class="mb-4 text-lg font-semibold">{{ t('products.addCategory') }}</h2>
           <form class="space-y-4" @submit.prevent="submitCategory">
             <div class="space-y-1">
-              <label class="text-sm font-medium" for="category-name">Name</label>
+              <label class="text-sm font-medium" for="category-name">{{ t('common.name') }}</label>
               <input
                 id="category-name"
                 v-model="categoryName"
                 type="text"
                 required
-                placeholder="Category name"
+                :placeholder="t('products.categoryName')"
                 class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               />
             </div>
@@ -567,15 +568,15 @@ async function runImport() {
                 class="inline-flex h-9 flex-1 items-center justify-center rounded-md border px-4 text-sm font-medium shadow-sm transition-colors hover:bg-muted"
                 @click="showCategoryModal = false"
               >
-                Cancel
+                {{ t('common.cancel') }}
               </button>
               <button
                 type="submit"
                 :disabled="categoryLoading"
                 class="inline-flex h-9 flex-1 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90 disabled:opacity-50"
               >
-                <span v-if="categoryLoading">Creating…</span>
-                <span v-else>Create</span>
+                <span v-if="categoryLoading">{{ t('common.creating') }}</span>
+                <span v-else>{{ t('common.create') }}</span>
               </button>
             </div>
           </form>
@@ -592,9 +593,9 @@ async function runImport() {
 
           <!-- Step 1: File upload -->
           <template v-if="importStep === 1">
-            <h2 class="mb-1 text-lg font-semibold">Import Products</h2>
+            <h2 class="mb-1 text-lg font-semibold">{{ t('products.importProducts') }}</h2>
             <p class="mb-5 text-sm text-muted-foreground">
-              Upload a Nayax product export (.xlsx). Products, categories, and images will be imported automatically.
+              {{ t('products.importDescription') }}
             </p>
 
             <label
@@ -604,10 +605,10 @@ async function runImport() {
             >
               <div class="text-center">
                 <svg xmlns="http://www.w3.org/2000/svg" class="mx-auto mb-2 h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
-                <span v-if="importParsing" class="text-sm">Parsing file…</span>
+                <span v-if="importParsing" class="text-sm">{{ t('products.parsingFile') }}</span>
                 <template v-else>
-                  <span class="text-sm font-medium">Drop .xlsx file here or click to browse</span>
-                  <span class="mt-1 block text-xs">Supports Nayax product exports</span>
+                  <span class="text-sm font-medium">{{ t('products.dropFile') }}</span>
+                  <span class="mt-1 block text-xs">{{ t('products.supportsNayax') }}</span>
                 </template>
               </div>
               <input
@@ -625,7 +626,7 @@ async function runImport() {
                 class="inline-flex h-9 items-center justify-center rounded-md border px-4 text-sm font-medium hover:bg-muted"
                 @click="closeImportModal"
               >
-                Cancel
+                {{ t('common.cancel') }}
               </button>
             </div>
           </template>
@@ -634,11 +635,11 @@ async function runImport() {
           <template v-else-if="importStep === 2">
             <div class="mb-4 flex items-center justify-between">
               <div>
-                <h2 class="text-lg font-semibold">Review Products</h2>
+                <h2 class="text-lg font-semibold">{{ t('products.reviewProducts') }}</h2>
                 <p class="text-sm text-muted-foreground">
-                  {{ importSelectedCount }} of {{ importProducts.length }} products selected
+                  {{ t('products.selectedCount', { selected: importSelectedCount, total: importProducts.length }) }}
                   <template v-if="emptyPriceCount > 0">
-                    · <span class="text-yellow-600">{{ emptyPriceCount }} without price</span>
+                    · <span class="text-yellow-600">{{ t('products.withoutPrice', { count: emptyPriceCount }) }}</span>
                   </template>
                 </p>
               </div>
@@ -648,7 +649,7 @@ async function runImport() {
                   type="number"
                   step="0.01"
                   min="0"
-                  placeholder="Price"
+                  :placeholder="t('products.price')"
                   class="h-8 w-24 rounded-md border border-input bg-background px-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 />
                 <button
@@ -656,7 +657,7 @@ async function runImport() {
                   :disabled="!bulkPrice"
                   @click="applyBulkPrice"
                 >
-                  Fill empty prices
+                  {{ t('products.fillEmptyPrices') }}
                 </button>
               </div>
             </div>
@@ -673,10 +674,10 @@ async function runImport() {
                         @change="importToggleAll(($event.target as HTMLInputElement).checked)"
                       />
                     </th>
-                    <th class="px-3 py-2 font-medium">Name</th>
-                    <th class="px-3 py-2 font-medium">Category</th>
-                    <th class="px-3 py-2 font-medium">Price</th>
-                    <th class="w-16 px-3 py-2 font-medium text-center">Image</th>
+                    <th class="px-3 py-2 font-medium">{{ t('common.name') }}</th>
+                    <th class="px-3 py-2 font-medium">{{ t('products.category') }}</th>
+                    <th class="px-3 py-2 font-medium">{{ t('products.price') }}</th>
+                    <th class="w-16 px-3 py-2 font-medium text-center">{{ t('products.image') }}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -722,13 +723,13 @@ async function runImport() {
                 class="inline-flex h-9 items-center justify-center rounded-md border px-4 text-sm font-medium hover:bg-muted"
                 @click="closeImportModal"
               >
-                Cancel
+                {{ t('common.cancel') }}
               </button>
               <button
                 class="inline-flex h-9 items-center justify-center rounded-md border px-4 text-sm font-medium hover:bg-muted"
                 @click="importStep = 1; importReset()"
               >
-                Back
+                {{ t('common.back') }}
               </button>
               <div class="flex-1" />
               <button
@@ -738,10 +739,10 @@ async function runImport() {
               >
                 <template v-if="importRunning">
                   <svg class="mr-2 h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/></svg>
-                  Importing…
+                  {{ t('products.importing') }}
                 </template>
                 <template v-else>
-                  Import {{ importSelectedCount }} products
+                  {{ t('common.import') }} {{ importSelectedCount }} {{ t('products.productsTab').toLowerCase() }}
                 </template>
               </button>
             </div>
@@ -749,7 +750,7 @@ async function runImport() {
 
           <!-- Step 3: Results -->
           <template v-else>
-            <h2 class="mb-4 text-lg font-semibold">Import Complete</h2>
+            <h2 class="mb-4 text-lg font-semibold">{{ t('products.importComplete') }}</h2>
 
             <div class="space-y-3">
               <div class="flex items-center gap-3 rounded-lg border p-4">
@@ -757,9 +758,9 @@ async function runImport() {
                   <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-green-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                 </div>
                 <div>
-                  <p class="font-medium">{{ importResult?.created ?? 0 }} products created</p>
+                  <p class="font-medium">{{ t('products.productsCreated', { count: importResult?.created ?? 0 }) }}</p>
                   <p v-if="(importResult?.skipped ?? 0) > 0" class="text-sm text-muted-foreground">
-                    {{ importResult?.skipped }} skipped (already exist)
+                    {{ t('products.skipped', { count: importResult?.skipped }) }}
                   </p>
                 </div>
               </div>
@@ -769,14 +770,14 @@ async function runImport() {
                   <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-yellow-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
                 </div>
                 <div>
-                  <p class="font-medium">{{ importResult?.image_errors }} image downloads failed</p>
-                  <p class="text-sm text-muted-foreground">Products were created without images</p>
+                  <p class="font-medium">{{ t('products.imageErrors', { count: importResult?.image_errors }) }}</p>
+                  <p class="text-sm text-muted-foreground">{{ t('products.productsWithoutImages') }}</p>
                 </div>
               </div>
 
               <details v-if="importResult?.errors?.length" class="rounded-lg border p-4">
                 <summary class="cursor-pointer text-sm font-medium text-muted-foreground">
-                  Show {{ importResult.errors.length }} error details
+                  {{ t('products.showErrorDetails', { count: importResult.errors.length }) }}
                 </summary>
                 <ul class="mt-2 max-h-40 space-y-1 overflow-auto text-xs text-muted-foreground">
                   <li v-for="(err, i) in importResult.errors" :key="i">{{ err }}</li>
@@ -789,7 +790,7 @@ async function runImport() {
                 class="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90"
                 @click="closeImportModal"
               >
-                Done
+                {{ t('common.done') }}
               </button>
             </div>
           </template>

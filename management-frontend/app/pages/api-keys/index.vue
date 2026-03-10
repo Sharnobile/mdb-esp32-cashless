@@ -3,6 +3,7 @@ definePageMeta({ middleware: 'auth' })
 
 import { timeAgo } from '@/lib/utils'
 
+const { t } = useI18n()
 const supabase = useSupabaseClient()
 const { role } = useOrganization()
 
@@ -54,7 +55,7 @@ function openCreateModal() {
 async function submitCreate() {
   const name = createName.value.trim()
   if (!name) {
-    createError.value = 'Name is required'
+    createError.value = t('common.required', { field: t('common.name') })
     return
   }
   createLoading.value = true
@@ -68,7 +69,7 @@ async function submitCreate() {
     createdKey.value = data.key
     await fetchKeys()
   } catch (err: unknown) {
-    createError.value = err instanceof Error ? err.message : 'Failed to create API key'
+    createError.value = err instanceof Error ? err.message : t('common.failedTo', { action: 'create API key' })
   } finally {
     createLoading.value = false
   }
@@ -111,32 +112,32 @@ function formatDate(dt: string | null) {
   <div class="flex flex-1 flex-col gap-6 p-4 md:p-6">
     <div class="flex items-center justify-between">
       <div>
-        <h1 class="text-2xl font-semibold">API Keys</h1>
-        <p class="mt-1 text-sm text-muted-foreground">Manage API keys for external integrations. Use these keys to call the API from your own applications.</p>
+        <h1 class="text-2xl font-semibold">{{ t('apiKeys.title') }}</h1>
+        <p class="mt-1 text-sm text-muted-foreground">{{ t('apiKeys.description') }}</p>
       </div>
       <button
         v-if="isAdmin"
         class="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90"
         @click="openCreateModal"
       >
-        Create API Key
+        {{ t('apiKeys.createApiKey') }}
       </button>
     </div>
 
-    <div v-if="loading" class="text-muted-foreground">Loading…</div>
+    <div v-if="loading" class="text-muted-foreground">{{ t('common.loading') }}</div>
 
     <template v-else>
-      <div v-if="keys.length === 0" class="text-sm text-muted-foreground">No API keys created yet.</div>
+      <div v-if="keys.length === 0" class="text-sm text-muted-foreground">{{ t('apiKeys.noKeysYet') }}</div>
       <div v-else class="rounded-md border">
         <table class="w-full text-sm">
           <thead>
             <tr class="border-b bg-muted/50 text-left">
-              <th class="px-4 py-3 font-medium">Name</th>
-              <th class="px-4 py-3 font-medium">Key</th>
-              <th class="px-4 py-3 font-medium">Created</th>
-              <th class="px-4 py-3 font-medium">Last used</th>
-              <th class="px-4 py-3 font-medium">Status</th>
-              <th v-if="isAdmin" class="px-4 py-3 font-medium">Actions</th>
+              <th class="px-4 py-3 font-medium">{{ t('apiKeys.nameCol') }}</th>
+              <th class="px-4 py-3 font-medium">{{ t('apiKeys.keyCol') }}</th>
+              <th class="px-4 py-3 font-medium">{{ t('apiKeys.createdCol') }}</th>
+              <th class="px-4 py-3 font-medium">{{ t('apiKeys.lastUsedCol') }}</th>
+              <th class="px-4 py-3 font-medium">{{ t('apiKeys.statusCol') }}</th>
+              <th v-if="isAdmin" class="px-4 py-3 font-medium">{{ t('common.actions') }}</th>
             </tr>
           </thead>
           <tbody>
@@ -151,7 +152,7 @@ function formatDate(dt: string | null) {
                 <code class="rounded bg-muted px-1.5 py-0.5 text-xs">{{ key.key_prefix }}…</code>
               </td>
               <td class="px-4 py-3 text-muted-foreground">{{ formatDate(key.created_at) }}</td>
-              <td class="px-4 py-3 text-muted-foreground">{{ timeAgo(key.last_used_at) }}</td>
+              <td class="px-4 py-3 text-muted-foreground">{{ timeAgo(key.last_used_at, t) }}</td>
               <td class="px-4 py-3">
                 <span
                   class="rounded-full px-2 py-0.5 text-xs font-medium"
@@ -159,7 +160,7 @@ function formatDate(dt: string | null) {
                     ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
                     : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'"
                 >
-                  {{ key.revoked_at ? 'Revoked' : 'Active' }}
+                  {{ key.revoked_at ? t('apiKeys.revoked') : t('apiKeys.active') }}
                 </span>
               </td>
               <td v-if="isAdmin" class="px-4 py-3">
@@ -168,7 +169,7 @@ function formatDate(dt: string | null) {
                   class="text-xs text-destructive hover:underline"
                   @click="revokeKey(key.id)"
                 >
-                  Revoke
+                  {{ t('common.revoke') }}
                 </button>
               </td>
             </tr>
@@ -178,9 +179,9 @@ function formatDate(dt: string | null) {
 
       <!-- Usage instructions -->
       <div class="rounded-xl border bg-card p-6">
-        <h2 class="mb-2 text-base font-medium">Usage</h2>
+        <h2 class="mb-2 text-base font-medium">{{ t('apiKeys.usage') }}</h2>
         <p class="mb-3 text-sm text-muted-foreground">
-          Use your API key with the <code class="rounded bg-muted px-1 py-0.5 text-xs">X-API-Key</code> header to authenticate requests.
+          {{ t('apiKeys.usageInstruction', { header: 'X-API-Key' }) }}
         </p>
         <div class="rounded-md bg-muted p-4">
           <pre class="overflow-x-auto text-xs"><code>curl -X POST {{ useRuntimeConfig().public.supabase?.url ?? 'https://your-supabase-url' }}/functions/v1/send-credit \
@@ -201,16 +202,16 @@ function formatDate(dt: string | null) {
     <div class="w-full max-w-md rounded-xl border bg-card p-6 shadow-lg">
       <!-- Step 1: Name form -->
       <template v-if="!createdKey">
-        <h2 class="mb-4 text-lg font-semibold">Create API Key</h2>
+        <h2 class="mb-4 text-lg font-semibold">{{ t('apiKeys.createApiKey') }}</h2>
         <form class="space-y-4" @submit.prevent="submitCreate">
           <div class="space-y-1">
-            <label class="text-sm font-medium" for="key-name">Name</label>
+            <label class="text-sm font-medium" for="key-name">{{ t('common.name') }}</label>
             <input
               id="key-name"
               v-model="createName"
               type="text"
               required
-              placeholder="e.g. Production integration"
+              :placeholder="t('apiKeys.namePlaceholder')"
               class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             />
           </div>
@@ -221,15 +222,15 @@ function formatDate(dt: string | null) {
               class="inline-flex h-9 flex-1 items-center justify-center rounded-md border px-4 text-sm font-medium shadow-sm transition-colors hover:bg-muted"
               @click="showCreateModal = false"
             >
-              Cancel
+              {{ t('common.cancel') }}
             </button>
             <button
               type="submit"
               :disabled="createLoading"
               class="inline-flex h-9 flex-1 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90 disabled:opacity-50"
             >
-              <span v-if="createLoading">Creating…</span>
-              <span v-else>Create</span>
+              <span v-if="createLoading">{{ t('common.creating') }}</span>
+              <span v-else>{{ t('common.create') }}</span>
             </button>
           </div>
         </form>
@@ -237,9 +238,9 @@ function formatDate(dt: string | null) {
 
       <!-- Step 2: Show key -->
       <template v-else>
-        <h2 class="mb-1 text-lg font-semibold">API Key Created</h2>
+        <h2 class="mb-1 text-lg font-semibold">{{ t('apiKeys.apiKeyCreated') }}</h2>
         <p class="mb-4 text-sm text-destructive font-medium">
-          Copy this key now. It will not be shown again.
+          {{ t('apiKeys.copyWarning') }}
         </p>
 
         <div class="mb-4 flex items-stretch gap-2">
@@ -250,7 +251,7 @@ function formatDate(dt: string | null) {
             class="inline-flex shrink-0 items-center justify-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90"
             @click="copyKey"
           >
-            {{ copied ? 'Copied!' : 'Copy' }}
+            {{ copied ? t('common.copied') : t('common.copy') }}
           </button>
         </div>
 
@@ -258,7 +259,7 @@ function formatDate(dt: string | null) {
           class="inline-flex h-9 w-full items-center justify-center rounded-md border px-4 text-sm font-medium shadow-sm transition-colors hover:bg-muted"
           @click="showCreateModal = false; createdKey = ''"
         >
-          Done
+          {{ t('common.done') }}
         </button>
       </template>
     </div>

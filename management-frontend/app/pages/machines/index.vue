@@ -6,6 +6,7 @@ import { Separator } from '@/components/ui/separator'
 import { getProductImageUrl } from '@/composables/useProducts'
 import { formatCurrency } from '@/lib/utils'
 
+const { t } = useI18n()
 const { organization } = useOrganization()
 const {
   machines, loading, fetchMachines, subscribeToStatusUpdates, createMachine,
@@ -65,7 +66,7 @@ function openMachineModal() {
 
 async function submitCreateMachine() {
   if (!machineName.value.trim()) {
-    machineError.value = 'Name is required'
+    machineError.value = t('machines.nameRequired')
     return
   }
   creatingMachine.value = true
@@ -74,7 +75,7 @@ async function submitCreateMachine() {
     await createMachine(machineName.value.trim(), organization.value!.id)
     showMachineModal.value = false
   } catch (err: unknown) {
-    machineError.value = err instanceof Error ? err.message : 'Failed to create machine'
+    machineError.value = err instanceof Error ? err.message : t('machines.failedToCreate')
   } finally {
     creatingMachine.value = false
   }
@@ -182,8 +183,8 @@ async function handleUpdateWarehouseAndContinue(machine: any) {
     router.push(`/machines/${machine.id}?tab=stock`)
   } catch (err: any) {
     deductError.value[machine.id] = err.message?.includes('Insufficient')
-      ? 'Insufficient warehouse stock'
-      : (err.message ?? 'Deduction failed')
+      ? t('machines.insufficientStock')
+      : (err.message ?? t('machines.deductionFailed'))
   } finally {
     deductingMachineId.value = null
   }
@@ -193,18 +194,18 @@ async function handleUpdateWarehouseAndContinue(machine: any) {
 <template>
   <div class="flex flex-1 flex-col gap-4 p-4 md:p-6">
         <div class="flex items-center justify-between">
-          <h1 class="text-2xl font-semibold">Vending Machines</h1>
+          <h1 class="text-2xl font-semibold">{{ t('machines.title') }}</h1>
           <button
             class="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90"
             @click="openMachineModal"
           >
-            Add Machine
+            {{ t('machines.addMachine') }}
           </button>
         </div>
 
         <!-- Warehouse selector -->
         <div v-if="warehouses.length > 0" class="flex items-center gap-2 rounded-lg border bg-muted/30 px-4 py-2.5">
-          <label class="text-sm text-muted-foreground">Warehouse:</label>
+          <label class="text-sm text-muted-foreground">{{ t('machines.warehouse') }}</label>
           <select
             v-model="selectedWarehouseId"
             class="h-8 rounded-md border border-input bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
@@ -213,10 +214,10 @@ async function handleUpdateWarehouseAndContinue(machine: any) {
           </select>
         </div>
 
-        <div v-if="loading" class="text-muted-foreground">Loading machines...</div>
+        <div v-if="loading" class="text-muted-foreground">{{ t('machines.loadingMachines') }}</div>
 
         <div v-else-if="machines.length === 0" class="text-muted-foreground">
-          No vending machines registered yet.
+          {{ t('machines.noMachinesYet') }}
         </div>
 
         <div v-else class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -229,7 +230,7 @@ async function handleUpdateWarehouseAndContinue(machine: any) {
               <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
                 <NuxtLink :to="`/machines/${machine.id}`" class="min-w-0 flex-1">
                   <CardTitle class="text-base font-semibold truncate">
-                    {{ machine.name ?? 'Unnamed Machine' }}
+                    {{ machine.name ?? t('machines.unnamedMachine') }}
                   </CardTitle>
                 </NuxtLink>
                 <!-- Stock health dot -->
@@ -247,19 +248,19 @@ async function handleUpdateWarehouseAndContinue(machine: any) {
                 <!-- Sales analytics -->
                 <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
                   <div class="flex justify-between">
-                    <span class="text-muted-foreground">Today</span>
+                    <span class="text-muted-foreground">{{ t('common.today') }}</span>
                     <span class="font-medium tabular-nums">{{ formatCurrency(machine.today_revenue ?? 0) }} <span class="text-muted-foreground font-normal">({{ machine.today_sales_count ?? 0 }})</span></span>
                   </div>
                   <div class="flex justify-between">
-                    <span class="text-muted-foreground">This month</span>
+                    <span class="text-muted-foreground">{{ t('common.thisMonth') }}</span>
                     <span class="font-medium tabular-nums">{{ formatCurrency(machine.this_month_revenue ?? 0) }} <span class="text-muted-foreground font-normal">({{ machine.this_month_sales_count ?? 0 }})</span></span>
                   </div>
                   <div class="flex justify-between">
-                    <span class="text-muted-foreground">Yesterday</span>
+                    <span class="text-muted-foreground">{{ t('common.yesterday') }}</span>
                     <span class="font-medium tabular-nums">{{ formatCurrency(machine.yesterday_revenue ?? 0) }} <span class="text-muted-foreground font-normal">({{ machine.yesterday_sales_count ?? 0 }})</span></span>
                   </div>
                   <div class="flex justify-between">
-                    <span class="text-muted-foreground">Last month</span>
+                    <span class="text-muted-foreground">{{ t('common.lastMonth') }}</span>
                     <span class="font-medium tabular-nums">{{ formatCurrency(machine.last_month_revenue ?? 0) }} <span class="text-muted-foreground font-normal">({{ machine.last_month_sales_count ?? 0 }})</span></span>
                   </div>
                 </div>
@@ -270,10 +271,10 @@ async function handleUpdateWarehouseAndContinue(machine: any) {
                 <template v-if="machine.stock_health === 'ok' || !machine.stock_health">
                   <p class="text-sm text-muted-foreground">
                     <template v-if="(machine.total_trays ?? 0) > 0">
-                      All stocked ({{ machine.total_trays }} trays)
+                      {{ t('machines.allStocked', { count: machine.total_trays }) }}
                     </template>
                     <template v-else>
-                      No trays configured
+                      {{ t('machines.noTraysConfigured') }}
                     </template>
                   </p>
                 </template>
@@ -282,10 +283,10 @@ async function handleUpdateWarehouseAndContinue(machine: any) {
                 <template v-else>
                   <!-- Urgency summary -->
                   <p class="text-sm">
-                    <span v-if="(machine.empty_trays ?? 0) > 0" class="font-medium text-red-500">{{ machine.empty_trays }} empty</span>
+                    <span v-if="(machine.empty_trays ?? 0) > 0" class="font-medium text-red-500">{{ t('machines.emptyTrays', { count: machine.empty_trays }) }}</span>
                     <span v-if="(machine.empty_trays ?? 0) > 0 && ((machine.low_trays ?? 0) - (machine.empty_trays ?? 0)) > 0"> &middot; </span>
-                    <span v-if="((machine.low_trays ?? 0) - (machine.empty_trays ?? 0)) > 0" class="font-medium text-amber-500">{{ (machine.low_trays ?? 0) - (machine.empty_trays ?? 0) }} low</span>
-                    <span class="text-muted-foreground"> of {{ machine.total_trays }} trays</span>
+                    <span v-if="((machine.low_trays ?? 0) - (machine.empty_trays ?? 0)) > 0" class="font-medium text-amber-500">{{ t('machines.lowTrays', { count: (machine.low_trays ?? 0) - (machine.empty_trays ?? 0) }) }}</span>
+                    <span class="text-muted-foreground"> {{ t('machines.ofTrays', { count: machine.total_trays }) }}</span>
                   </p>
 
                   <!-- Stock bar -->
@@ -307,12 +308,12 @@ async function handleUpdateWarehouseAndContinue(machine: any) {
                   <!-- Packing checklist -->
                   <div v-if="machine.tray_summary && machine.tray_summary.length > 0" class="space-y-2">
                     <div class="flex items-center justify-between">
-                      <p class="text-xs font-medium text-muted-foreground uppercase tracking-wide">Pack for this machine</p>
+                      <p class="text-xs font-medium text-muted-foreground uppercase tracking-wide">{{ t('machines.packForMachine') }}</p>
                       <span
                         v-if="allPacked(machine.id, machine.tray_summary)"
                         class="text-xs font-medium text-green-600"
                       >
-                        All packed
+                        {{ t('machines.allPacked') }}
                       </span>
                     </div>
                     <ul class="space-y-1">
@@ -355,11 +356,11 @@ async function handleUpdateWarehouseAndContinue(machine: any) {
                         <span class="text-sm flex-1 transition-all" :class="isPacked(machine.id, item) ? 'line-through text-muted-foreground/50' : ''">
                           <template v-if="isOutOfWarehouseStock(item)">
                             <span class="text-muted-foreground">{{ item.deficit }}&times; {{ item.product_name }}</span>
-                            <span class="ml-1 text-xs text-red-500 dark:text-red-400">Not in stock</span>
+                            <span class="ml-1 text-xs text-red-500 dark:text-red-400">{{ t('machines.notInStock') }}</span>
                           </template>
                           <template v-else-if="hasPartialStock(item)">
                             {{ effectiveDeficit(item) }}&times; {{ item.product_name }}
-                            <span class="ml-1 text-xs text-amber-500 dark:text-amber-400">({{ item.deficit }} needed)</span>
+                            <span class="ml-1 text-xs text-amber-500 dark:text-amber-400">{{ t('machines.needed', { count: item.deficit }) }}</span>
                           </template>
                           <template v-else>
                             {{ effectiveDeficit(item) }}&times; {{ item.product_name }}
@@ -376,9 +377,9 @@ async function handleUpdateWarehouseAndContinue(machine: any) {
                       class="inline-flex h-9 w-full items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90 disabled:opacity-50"
                       @click="handleUpdateWarehouseAndContinue(machine)"
                     >
-                      <span v-if="deductingMachineId === machine.id">Updating stock…</span>
-                      <span v-else-if="selectedWarehouseId">Update warehouse stock &amp; continue</span>
-                      <span v-else>Refill &rarr;</span>
+                      <span v-if="deductingMachineId === machine.id">{{ t('machines.updatingStock') }}</span>
+                      <span v-else-if="selectedWarehouseId">{{ t('machines.updateWarehouseStock') }}</span>
+                      <span v-else>{{ t('machines.refill') }}</span>
                     </button>
                     <p v-if="deductError[machine.id]" class="text-xs text-red-600 dark:text-red-400">{{ deductError[machine.id] }}</p>
                   </div>
@@ -396,17 +397,17 @@ async function handleUpdateWarehouseAndContinue(machine: any) {
     @click.self="showMachineModal = false"
   >
     <div class="w-full max-w-md rounded-xl border bg-card p-6 shadow-lg">
-      <h2 class="mb-1 text-lg font-semibold">Add Machine</h2>
+      <h2 class="mb-1 text-lg font-semibold">{{ t('machines.addMachine') }}</h2>
       <p class="mb-5 text-sm text-muted-foreground">
-        Create a vending machine. You can assign a device to it later.
+        {{ t('machines.addMachineDescription') }}
       </p>
       <div class="mb-4">
-        <label for="machine-name" class="mb-1.5 block text-sm font-medium">Machine Name</label>
+        <label for="machine-name" class="mb-1.5 block text-sm font-medium">{{ t('machines.machineName') }}</label>
         <input
           id="machine-name"
           v-model="machineName"
           type="text"
-          placeholder="e.g. Break Room Machine"
+          :placeholder="t('machines.machineNamePlaceholder')"
           class="flex h-9 w-full rounded-md border bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
           @keydown.enter="submitCreateMachine"
         />
@@ -417,15 +418,15 @@ async function handleUpdateWarehouseAndContinue(machine: any) {
           class="inline-flex h-9 flex-1 items-center justify-center rounded-md border px-4 text-sm font-medium hover:bg-muted"
           @click="showMachineModal = false"
         >
-          Cancel
+          {{ t('common.cancel') }}
         </button>
         <button
           :disabled="creatingMachine"
           class="inline-flex h-9 flex-1 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90 disabled:opacity-50"
           @click="submitCreateMachine"
         >
-          <span v-if="creatingMachine">Creating...</span>
-          <span v-else>Create</span>
+          <span v-if="creatingMachine">{{ t('common.creating') }}</span>
+          <span v-else>{{ t('common.create') }}</span>
         </button>
       </div>
     </div>

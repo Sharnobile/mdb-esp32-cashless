@@ -8,6 +8,8 @@ import {
 } from '@/components/ui/card'
 import { formatCurrency, timeAgo } from '@/lib/utils'
 
+const { t, locale } = useI18n()
+
 export interface DashboardMachine {
   id: string
   name: string
@@ -43,14 +45,14 @@ function stockBadgeClass(health: 'ok' | 'low' | 'critical'): string {
 <template>
   <Card>
     <CardHeader class="flex flex-row items-center justify-between pb-2">
-      <CardTitle class="text-base font-medium">Machines</CardTitle>
+      <CardTitle class="text-base font-medium">{{ t('nav.machines') }}</CardTitle>
       <NuxtLink to="/machines" class="text-sm text-muted-foreground hover:text-foreground transition-colors">
-        View all &rarr;
+        {{ t('dashboard.viewAll') }}
       </NuxtLink>
     </CardHeader>
     <CardContent class="px-0 pb-0">
       <div v-if="machines.length === 0" class="flex items-center justify-center py-8 text-sm text-muted-foreground">
-        No machines registered
+        {{ t('dashboard.noMachinesRegistered') }}
       </div>
       <div v-else class="divide-y divide-border">
         <NuxtLink
@@ -73,7 +75,7 @@ function stockBadgeClass(health: 'ok' | 'low' | 'critical'): string {
 
           <!-- Today's revenue -->
           <span class="shrink-0 text-sm tabular-nums text-muted-foreground">
-            {{ formatCurrency(machine.today_revenue) }}
+            {{ formatCurrency(machine.today_revenue, locale) }}
           </span>
 
           <!-- Stock badge -->
@@ -83,7 +85,7 @@ function stockBadgeClass(health: 'ok' | 'low' | 'critical'): string {
 
           <!-- Last sale -->
           <span class="shrink-0 w-16 text-right text-xs text-muted-foreground tabular-nums">
-            {{ timeAgo(machine.last_sale_at) }}
+            {{ timeAgo(machine.last_sale_at, t) }}
           </span>
         </NuxtLink>
       </div>

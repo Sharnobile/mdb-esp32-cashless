@@ -6,6 +6,7 @@ import { Switch } from '~/components/ui/switch'
 import { notificationTypes } from '~/composables/useNotifications'
 import { timeAgo } from '~/lib/utils'
 
+const { t } = useI18n()
 const config = useRuntimeConfig()
 const supabase = useSupabaseClient()
 const user = useSupabaseUser()
@@ -133,7 +134,7 @@ async function sendTestNotification() {
     if (sent > 0) {
       testResult.value = `Test notification sent (${sent} device${sent > 1 ? 's' : ''}).`
     } else {
-      testResult.value = 'No subscriptions found. Make sure notifications are enabled.'
+      testResult.value = t('settings.noSubscriptions')
     }
   } catch (err: unknown) {
     testResult.value = err instanceof Error ? err.message : 'Failed to send test notification'
@@ -205,9 +206,9 @@ async function saveName() {
       .update({ first_name: firstName.value || null, last_name: lastName.value || null })
       .eq('id', userId.value)
     if (error) throw error
-    nameSuccess.value = 'Name updated successfully'
+    nameSuccess.value = t('settings.nameUpdated')
   } catch (err: unknown) {
-    nameError.value = err instanceof Error ? err.message : 'Failed to update name'
+    nameError.value = err instanceof Error ? err.message : t('common.failedTo', { action: 'update name' })
   } finally {
     nameLoading.value = false
   }
@@ -227,11 +228,11 @@ async function changePassword() {
   passwordSuccess.value = ''
 
   if (newPassword.value.length < 6) {
-    passwordError.value = 'Password must be at least 6 characters'
+    passwordError.value = t('settings.passwordMinLength')
     return
   }
   if (newPassword.value !== confirmPassword.value) {
-    passwordError.value = 'Passwords do not match'
+    passwordError.value = t('settings.passwordsMismatch')
     return
   }
 
@@ -241,11 +242,11 @@ async function changePassword() {
       password: newPassword.value,
     })
     if (error) throw error
-    passwordSuccess.value = 'Password updated successfully'
+    passwordSuccess.value = t('settings.passwordUpdated')
     newPassword.value = ''
     confirmPassword.value = ''
   } catch (err: unknown) {
-    passwordError.value = err instanceof Error ? err.message : 'Failed to update password'
+    passwordError.value = err instanceof Error ? err.message : t('common.failedTo', { action: 'update password' })
   } finally {
     passwordLoading.value = false
   }
@@ -262,7 +263,7 @@ async function changeEmail() {
   emailSuccess.value = ''
 
   if (!newEmail.value || !newEmail.value.includes('@')) {
-    emailError.value = 'Please enter a valid email address'
+    emailError.value = t('settings.invalidEmail')
     return
   }
 
@@ -272,10 +273,10 @@ async function changeEmail() {
       email: newEmail.value,
     })
     if (error) throw error
-    emailSuccess.value = 'Confirmation email sent to your new address. Please check your inbox.'
+    emailSuccess.value = t('settings.emailUpdated')
     newEmail.value = ''
   } catch (err: unknown) {
-    emailError.value = err instanceof Error ? err.message : 'Failed to update email'
+    emailError.value = err instanceof Error ? err.message : t('common.failedTo', { action: 'update email' })
   } finally {
     emailLoading.value = false
   }
@@ -284,44 +285,44 @@ async function changeEmail() {
 
 <template>
   <div class="flex flex-1 flex-col gap-6 p-4 md:p-6">
-        <h1 class="text-2xl font-semibold">Account Settings</h1>
+        <h1 class="text-2xl font-semibold">{{ t('settings.title') }}</h1>
 
         <div class="grid gap-6 md:max-w-2xl">
           <!-- Profile Information -->
           <div class="rounded-xl border bg-card p-6 shadow-sm">
-            <h2 class="mb-1 text-lg font-semibold">Profile</h2>
-            <p class="mb-5 text-sm text-muted-foreground">Your account information.</p>
+            <h2 class="mb-1 text-lg font-semibold">{{ t('settings.profile') }}</h2>
+            <p class="mb-5 text-sm text-muted-foreground">{{ t('settings.profileDescription') }}</p>
 
             <form class="space-y-4" @submit.prevent="saveName">
               <div class="grid grid-cols-2 gap-3">
                 <div class="space-y-1">
-                  <label class="text-sm font-medium" for="settings-first-name">First name</label>
+                  <label class="text-sm font-medium" for="settings-first-name">{{ t('settings.firstName') }}</label>
                   <input
                     id="settings-first-name"
                     v-model="firstName"
                     type="text"
-                    placeholder="First name"
+                    :placeholder="t('settings.firstName')"
                     class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   />
                 </div>
                 <div class="space-y-1">
-                  <label class="text-sm font-medium" for="settings-last-name">Last name</label>
+                  <label class="text-sm font-medium" for="settings-last-name">{{ t('settings.lastName') }}</label>
                   <input
                     id="settings-last-name"
                     v-model="lastName"
                     type="text"
-                    placeholder="Last name"
+                    :placeholder="t('settings.lastName')"
                     class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   />
                 </div>
               </div>
 
               <div class="space-y-1">
-                <label class="text-sm font-medium">Email</label>
+                <label class="text-sm font-medium">{{ t('common.email') }}</label>
                 <p class="text-sm text-muted-foreground">{{ email }}</p>
               </div>
               <div class="space-y-1">
-                <label class="text-sm font-medium">Organisation</label>
+                <label class="text-sm font-medium">{{ t('settings.organisation') }}</label>
                 <p class="text-sm text-muted-foreground">
                   {{ organization?.name ?? '—' }}
                   <span
@@ -334,7 +335,7 @@ async function changeEmail() {
                 </p>
               </div>
               <div class="space-y-1">
-                <label class="text-sm font-medium">Account created</label>
+                <label class="text-sm font-medium">{{ t('settings.accountCreated') }}</label>
                 <p class="text-sm text-muted-foreground">{{ createdAt }}</p>
               </div>
 
@@ -346,22 +347,22 @@ async function changeEmail() {
                 :disabled="nameLoading"
                 class="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90 disabled:opacity-50"
               >
-                <span v-if="nameLoading">Saving…</span>
-                <span v-else>Save name</span>
+                <span v-if="nameLoading">{{ t('common.saving') }}</span>
+                <span v-else>{{ t('settings.saveName') }}</span>
               </button>
             </form>
           </div>
 
           <!-- Change Email -->
           <div class="rounded-xl border bg-card p-6 shadow-sm">
-            <h2 class="mb-1 text-lg font-semibold">Change Email</h2>
+            <h2 class="mb-1 text-lg font-semibold">{{ t('settings.changeEmail') }}</h2>
             <p class="mb-5 text-sm text-muted-foreground">
-              Update your email address. A confirmation link will be sent to the new address.
+              {{ t('settings.emailDescription') }}
             </p>
 
             <form class="space-y-4" @submit.prevent="changeEmail">
               <div class="space-y-1">
-                <label class="text-sm font-medium" for="new-email">New email address</label>
+                <label class="text-sm font-medium" for="new-email">{{ t('settings.newEmailAddress') }}</label>
                 <input
                   id="new-email"
                   v-model="newEmail"
@@ -380,39 +381,39 @@ async function changeEmail() {
                 :disabled="emailLoading"
                 class="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90 disabled:opacity-50"
               >
-                <span v-if="emailLoading">Updating…</span>
-                <span v-else>Update email</span>
+                <span v-if="emailLoading">{{ t('settings.updating') }}</span>
+                <span v-else>{{ t('settings.updateEmail') }}</span>
               </button>
             </form>
           </div>
 
           <!-- Change Password -->
           <div class="rounded-xl border bg-card p-6 shadow-sm">
-            <h2 class="mb-1 text-lg font-semibold">Change Password</h2>
+            <h2 class="mb-1 text-lg font-semibold">{{ t('settings.changePassword') }}</h2>
             <p class="mb-5 text-sm text-muted-foreground">
-              Update your password. Use at least 6 characters.
+              {{ t('settings.passwordDescription') }}
             </p>
 
             <form class="space-y-4" @submit.prevent="changePassword">
               <div class="space-y-1">
-                <label class="text-sm font-medium" for="new-password">New password</label>
+                <label class="text-sm font-medium" for="new-password">{{ t('settings.newPassword') }}</label>
                 <input
                   id="new-password"
                   v-model="newPassword"
                   type="password"
                   required
-                  placeholder="Enter new password"
+                  :placeholder="t('settings.newPassword')"
                   class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 />
               </div>
               <div class="space-y-1">
-                <label class="text-sm font-medium" for="confirm-password">Confirm new password</label>
+                <label class="text-sm font-medium" for="confirm-password">{{ t('settings.confirmNewPassword') }}</label>
                 <input
                   id="confirm-password"
                   v-model="confirmPassword"
                   type="password"
                   required
-                  placeholder="Confirm new password"
+                  :placeholder="t('settings.confirmNewPassword')"
                   class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 />
               </div>
@@ -425,22 +426,22 @@ async function changeEmail() {
                 :disabled="passwordLoading"
                 class="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90 disabled:opacity-50"
               >
-                <span v-if="passwordLoading">Updating…</span>
-                <span v-else>Update password</span>
+                <span v-if="passwordLoading">{{ t('settings.updating') }}</span>
+                <span v-else>{{ t('settings.updatePassword') }}</span>
               </button>
             </form>
           </div>
 
           <!-- Appearance -->
           <div class="rounded-xl border bg-card p-6 shadow-sm">
-            <h2 class="mb-1 text-lg font-semibold">Appearance</h2>
-            <p class="mb-5 text-sm text-muted-foreground">Customize the look and feel of the dashboard.</p>
+            <h2 class="mb-1 text-lg font-semibold">{{ t('settings.appearance') }}</h2>
+            <p class="mb-5 text-sm text-muted-foreground">{{ t('settings.appearanceDescription') }}</p>
 
             <div class="flex items-center justify-between">
               <div class="space-y-0.5">
-                <label class="text-sm font-medium">Dark mode</label>
+                <label class="text-sm font-medium">{{ t('settings.darkMode') }}</label>
                 <p class="text-sm text-muted-foreground">
-                  {{ isDark ? 'Dark theme is active' : 'Light theme is active' }}
+                  {{ isDark ? t('settings.darkThemeActive') : t('settings.lightThemeActive') }}
                 </p>
               </div>
               <button
@@ -460,9 +461,9 @@ async function changeEmail() {
                 <IconBell v-if="isSubscribed" class="size-5 text-primary" />
                 <IconBellOff v-else class="size-5 text-muted-foreground" />
                 <div>
-                  <h2 class="text-lg font-semibold">Push Notifications</h2>
+                  <h2 class="text-lg font-semibold">{{ t('settings.pushNotifications') }}</h2>
                   <p class="text-sm text-muted-foreground">
-                    Receive alerts on this device even when the browser is closed.
+                    {{ t('settings.pushDescription') }}
                   </p>
                 </div>
               </div>
@@ -475,15 +476,10 @@ async function changeEmail() {
                 <IconDeviceMobile class="mt-0.5 size-5 shrink-0 text-amber-600 dark:text-amber-400" />
                 <div class="text-sm">
                   <p class="mb-1 font-medium text-amber-800 dark:text-amber-200">
-                    Add to Home Screen required
+                    {{ t('settings.addToHomeScreen') }}
                   </p>
                   <p class="text-amber-700 dark:text-amber-300">
-                    On iOS, push notifications only work when the app is added to your Home Screen.
-                    Tap the share button
-                    <span class="inline-block rounded bg-amber-200 px-1 text-xs font-semibold dark:bg-amber-800">
-                      &#x2191;
-                    </span>
-                    in Safari, then select <strong>"Add to Home Screen"</strong>.
+                    {{ t('settings.iosGuidance') }}
                   </p>
                 </div>
               </div>
@@ -493,7 +489,7 @@ async function changeEmail() {
                 v-if="!pushSupported && !needsHomescreen"
                 class="mb-5 rounded-lg border border-muted bg-muted/50 p-4 text-sm text-muted-foreground"
               >
-                Push notifications are not supported in this browser.
+                {{ t('settings.browserNotSupported') }}
               </div>
 
               <!-- Permission denied warning -->
@@ -502,10 +498,10 @@ async function changeEmail() {
                 class="mb-5 rounded-lg border border-destructive/20 bg-destructive/5 p-4 text-sm text-destructive"
               >
                 <template v-if="isIOS">
-                  Notifications are blocked. Open <strong>Settings → VMflow → Notifications</strong> and enable them, then come back here.
+                  {{ t('settings.notificationsBlocked') }}
                 </template>
                 <template v-else>
-                  Notification permission was blocked. Please allow notifications in your browser settings, then refresh the page.
+                  {{ t('settings.permissionDenied') }}
                 </template>
               </div>
 
@@ -521,11 +517,11 @@ async function changeEmail() {
               <div class="flex items-center justify-between">
                 <div class="space-y-0.5">
                   <label class="text-sm font-medium">
-                    Enable on this device
+                    {{ t('settings.enableOnDevice') }}
                   </label>
                   <p class="text-sm text-muted-foreground">
-                    <template v-if="notifLoading">Activating…</template>
-                    <template v-else>{{ isSubscribed ? 'Notifications are active' : 'Notifications are off' }}</template>
+                    <template v-if="notifLoading">{{ t('settings.activating') }}</template>
+                    <template v-else>{{ isSubscribed ? t('settings.notificationsActive') : t('settings.notificationsOff') }}</template>
                   </p>
                 </div>
                 <Switch
@@ -537,7 +533,7 @@ async function changeEmail() {
 
               <!-- Per-type toggles (only visible when subscribed) -->
               <div v-if="isSubscribed" class="mt-6 space-y-4 border-t pt-5">
-                <h3 class="text-sm font-medium text-muted-foreground">Notification types</h3>
+                <h3 class="text-sm font-medium text-muted-foreground">{{ t('settings.notificationTypes') }}</h3>
 
                 <div
                   v-for="nt in notificationTypes"
@@ -557,9 +553,9 @@ async function changeEmail() {
                 <!-- Test notification -->
                 <div class="flex items-center justify-between pt-2">
                   <div class="space-y-0.5">
-                    <label class="text-sm font-medium">Test notification</label>
+                    <label class="text-sm font-medium">{{ t('settings.testNotificationLabel') }}</label>
                     <p class="text-sm text-muted-foreground">
-                      {{ testResult || 'Send a test push to verify the full flow.' }}
+                      {{ testResult || t('settings.testNotificationDescription') }}
                     </p>
                   </div>
                   <button
@@ -568,14 +564,14 @@ async function changeEmail() {
                     @click="sendTestNotification"
                   >
                     <IconSend class="size-3.5" />
-                    <span v-if="testLoading">Sending…</span>
-                    <span v-else>Send test</span>
+                    <span v-if="testLoading">{{ t('settings.sending') }}</span>
+                    <span v-else>{{ t('settings.sendTest') }}</span>
                   </button>
                 </div>
 
                 <!-- Registered devices -->
                 <div v-if="devices.length > 0" class="mt-2 pt-4 border-t">
-                  <h3 class="text-sm font-medium text-muted-foreground mb-3">Registered devices</h3>
+                  <h3 class="text-sm font-medium text-muted-foreground mb-3">{{ t('settings.registeredDevices') }}</h3>
                   <div class="space-y-2">
                     <div
                       v-for="device in devices"
@@ -585,12 +581,12 @@ async function changeEmail() {
                       <div class="min-w-0">
                         <p class="text-sm font-medium truncate">{{ parseDeviceInfo(device).label }}</p>
                         <p class="text-xs text-muted-foreground">
-                          Registered {{ timeAgo(device.created_at) }}
+                          {{ t('settings.registered', { time: timeAgo(device.created_at, t) }) }}
                         </p>
                       </div>
                       <button
                         class="ml-2 shrink-0 inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-                        title="Remove device"
+                        :title="t('settings.removeDevice')"
                         @click="removeDevice(device.id)"
                       >
                         <IconTrash class="size-3.5" />
@@ -603,41 +599,41 @@ async function changeEmail() {
               <!-- Service Worker Diagnostics -->
               <div class="mt-6 border-t pt-5">
                 <div class="flex items-center justify-between mb-3">
-                  <h3 class="text-sm font-medium text-muted-foreground">Service Worker Diagnostics</h3>
+                  <h3 class="text-sm font-medium text-muted-foreground">{{ t('settings.swDiagnostics') }}</h3>
                   <button
                     :disabled="swDiagLoading"
                     class="inline-flex h-7 items-center gap-1 rounded-md border border-input bg-background px-2 text-xs font-medium shadow-sm transition-colors hover:bg-muted disabled:opacity-50"
                     @click="checkSwStatus"
                   >
-                    <span v-if="swDiagLoading">Checking…</span>
-                    <span v-else>Re-check</span>
+                    <span v-if="swDiagLoading">{{ t('settings.checking') }}</span>
+                    <span v-else>{{ t('settings.recheck') }}</span>
                   </button>
                 </div>
                 <pre
                   v-if="swStatus"
                   class="whitespace-pre-wrap rounded-lg border bg-muted/50 p-3 text-xs font-mono text-muted-foreground leading-relaxed"
                 >{{ swStatus }}</pre>
-                <p v-else class="text-xs text-muted-foreground">Loading diagnostics…</p>
+                <p v-else class="text-xs text-muted-foreground">{{ t('settings.loadingDiagnostics') }}</p>
               </div>
             </div>
           </ClientOnly>
 
           <!-- App Version -->
           <div class="rounded-xl border bg-card p-6 shadow-sm">
-            <h2 class="mb-1 text-lg font-semibold">About</h2>
-            <p class="mb-5 text-sm text-muted-foreground">Application version and build information.</p>
+            <h2 class="mb-1 text-lg font-semibold">{{ t('settings.about') }}</h2>
+            <p class="mb-5 text-sm text-muted-foreground">{{ t('settings.aboutDescription') }}</p>
 
             <div class="space-y-3 text-sm">
               <div class="flex items-center justify-between">
-                <span class="text-muted-foreground">Version</span>
+                <span class="text-muted-foreground">{{ t('settings.version') }}</span>
                 <span class="font-mono font-medium">v{{ config.public.appVersion }}</span>
               </div>
               <div class="flex items-center justify-between">
-                <span class="text-muted-foreground">Build</span>
-                <span class="font-mono text-muted-foreground">{{ config.public.gitHash === 'dev' ? 'Development' : config.public.gitHash.substring(0, 7) }}</span>
+                <span class="text-muted-foreground">{{ t('settings.build') }}</span>
+                <span class="font-mono text-muted-foreground">{{ config.public.gitHash === 'dev' ? t('settings.development') : config.public.gitHash.substring(0, 7) }}</span>
               </div>
               <div v-if="config.public.buildDate" class="flex items-center justify-between">
-                <span class="text-muted-foreground">Built</span>
+                <span class="text-muted-foreground">{{ t('settings.built') }}</span>
                 <span class="text-muted-foreground">{{ new Date(config.public.buildDate).toLocaleDateString() }}</span>
               </div>
             </div>

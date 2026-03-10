@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import QRCode from 'qrcode'
 import { timeAgo } from '@/lib/utils'
 
+const { t } = useI18n()
 const supabase = useSupabaseClient()
 const { role } = useOrganization()
 const router = useRouter()
@@ -104,7 +105,7 @@ async function generateCode() {
     qrDataUrl.value = await QRCode.toDataURL(qrPayload, { width: 200, margin: 2 })
     step.value = 2
   } catch (err: unknown) {
-    genError.value = err instanceof Error ? err.message : 'Failed to generate code'
+    genError.value = err instanceof Error ? err.message : t('common.failedTo', { action: t('devices.generateCode').toLowerCase() })
   } finally {
     generating.value = false
   }
@@ -135,11 +136,11 @@ function isExpired(expiresAt: string) {
 
 function expiresIn(expiresAt: string): string {
   const diff = new Date(expiresAt).getTime() - Date.now()
-  if (diff <= 0) return 'Expired'
+  if (diff <= 0) return t('time.expired')
   const minutes = Math.floor(diff / 60000)
-  if (minutes < 60) return `${minutes}m left`
+  if (minutes < 60) return t('time.minutesLeft', { count: minutes })
   const hours = Math.floor(minutes / 60)
-  return `${hours}h ${minutes % 60}m left`
+  return t('time.hoursLeft', { count: hours })
 }
 
 const deletingTokenId = ref<string | null>(null)
@@ -178,7 +179,7 @@ async function confirmDelete() {
     showDeleteModal.value = false
     await fetchDevices()
   } catch (err: unknown) {
-    deleteError.value = err instanceof Error ? err.message : 'Failed to delete device'
+    deleteError.value = err instanceof Error ? err.message : t('common.failedTo', { action: t('common.delete').toLowerCase() })
   } finally {
     deleting.value = false
   }
@@ -190,19 +191,19 @@ async function confirmDelete() {
 <template>
   <div class="flex flex-1 flex-col gap-4 p-4 md:p-6">
         <div class="flex items-center justify-between">
-          <h1 class="text-2xl font-semibold">Devices</h1>
+          <h1 class="text-2xl font-semibold">{{ t('devices.title') }}</h1>
           <button
             v-if="isAdmin"
             class="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90"
             @click="openModal"
           >
-            Register Device
+            {{ t('devices.registerDevice') }}
           </button>
         </div>
 
         <!-- Pending provisioning tokens -->
         <div v-if="pendingTokens.length > 0" class="space-y-2">
-          <h2 class="text-sm font-medium text-muted-foreground">Pending Device Claims</h2>
+          <h2 class="text-sm font-medium text-muted-foreground">{{ t('devices.pendingDeviceClaims') }}</h2>
           <div class="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
             <div
               v-for="token in pendingTokens"
@@ -227,7 +228,7 @@ async function confirmDelete() {
                 class="shrink-0 ml-2 inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                 :disabled="deletingTokenId === token.id"
                 @click.stop="handleDeleteToken(token.id)"
-                title="Revoke token"
+                :title="t('devices.revokeToken')"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
               </button>
@@ -235,10 +236,10 @@ async function confirmDelete() {
           </div>
         </div>
 
-        <div v-if="loading" class="text-muted-foreground">Loading devices...</div>
+        <div v-if="loading" class="text-muted-foreground">{{ t('devices.loadingDevices') }}</div>
 
         <div v-else-if="devices.length === 0" class="text-muted-foreground">
-          No embedded devices registered yet.
+          {{ t('devices.noDevicesYet') }}
         </div>
 
         <!-- ── Mobile: Card Layout (< lg) ── -->
@@ -265,13 +266,13 @@ async function confirmDelete() {
                       'bg-muted-foreground/50': !['online', 'ota_updating', 'ota_success', 'ota_failed'].includes(device.status),
                     }"
                   />
-                  {{ device.status === 'ota_updating' ? 'updating' : device.status === 'ota_success' ? 'updated' : device.status === 'ota_failed' ? 'update failed' : device.status }}
+                  {{ device.status === 'ota_updating' ? t('machineDetail.updating') : device.status === 'ota_success' ? t('machineDetail.updated') : device.status === 'ota_failed' ? t('machineDetail.updateFailed') : device.status }}
                 </Badge>
               </div>
               <button
                 class="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                 @click.prevent="openDeleteModal(device)"
-                title="Delete device"
+                :title="t('devices.deleteDevice')"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
               </button>
@@ -280,15 +281,15 @@ async function confirmDelete() {
             <!-- Info grid -->
             <div class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
               <div>
-                <p class="text-xs text-muted-foreground">MAC Address</p>
+                <p class="text-xs text-muted-foreground">{{ t('devices.macAddressCol') }}</p>
                 <p class="font-mono text-xs">{{ device.mac_address ?? '—' }}</p>
               </div>
               <div>
-                <p class="text-xs text-muted-foreground">Last Seen</p>
-                <p class="text-xs">{{ timeAgo(device.status_at) }}</p>
+                <p class="text-xs text-muted-foreground">{{ t('devices.lastSeenCol') }}</p>
+                <p class="text-xs">{{ timeAgo(device.status_at, t) }}</p>
               </div>
               <div>
-                <p class="text-xs text-muted-foreground">Machine</p>
+                <p class="text-xs text-muted-foreground">{{ t('devices.machineCol') }}</p>
                 <NuxtLink
                   v-if="device.machine_id"
                   :to="`/machines/${device.machine_id}`"
@@ -296,14 +297,14 @@ async function confirmDelete() {
                 >
                   {{ device.machine_name }}
                 </NuxtLink>
-                <p v-else class="text-xs text-muted-foreground">Unassigned</p>
+                <p v-else class="text-xs text-muted-foreground">{{ t('devices.unassigned') }}</p>
               </div>
               <div>
-                <p class="text-xs text-muted-foreground">Registered</p>
+                <p class="text-xs text-muted-foreground">{{ t('devices.registeredCol') }}</p>
                 <p class="text-xs">{{ new Date(device.created_at).toLocaleDateString() }}</p>
               </div>
               <div v-if="device.firmware_version" class="col-span-2">
-                <p class="text-xs text-muted-foreground">Firmware</p>
+                <p class="text-xs text-muted-foreground">{{ t('devices.firmwareCol') }}</p>
                 <p class="font-mono text-xs">
                   {{ device.firmware_version }}
                   <span v-if="device.firmware_build_date" class="text-muted-foreground">
@@ -320,14 +321,14 @@ async function confirmDelete() {
           <table class="w-full text-sm">
             <thead>
               <tr class="border-b bg-muted/50 text-left">
-                <th class="px-4 py-3 font-medium">Subdomain</th>
-                <th class="px-4 py-3 font-medium">MAC Address</th>
-                <th class="px-4 py-3 font-medium">Status</th>
-                <th class="px-4 py-3 font-medium">Firmware</th>
-                <th class="px-4 py-3 font-medium">Assigned Machine</th>
-                <th class="px-4 py-3 font-medium">Last Seen</th>
-                <th class="px-4 py-3 font-medium">Registered</th>
-                <th class="px-4 py-3 font-medium">Actions</th>
+                <th class="px-4 py-3 font-medium">{{ t('devices.subdomainCol') }}</th>
+                <th class="px-4 py-3 font-medium">{{ t('devices.macAddressCol') }}</th>
+                <th class="px-4 py-3 font-medium">{{ t('devices.statusCol') }}</th>
+                <th class="px-4 py-3 font-medium">{{ t('devices.firmwareCol') }}</th>
+                <th class="px-4 py-3 font-medium">{{ t('devices.assignedMachine') }}</th>
+                <th class="px-4 py-3 font-medium">{{ t('devices.lastSeenCol') }}</th>
+                <th class="px-4 py-3 font-medium">{{ t('devices.registeredCol') }}</th>
+                <th class="px-4 py-3 font-medium">{{ t('common.actions') }}</th>
               </tr>
             </thead>
             <tbody>
@@ -354,7 +355,7 @@ async function confirmDelete() {
                         'bg-muted-foreground/50': !['online', 'ota_updating', 'ota_success', 'ota_failed'].includes(device.status),
                       }"
                     />
-                    {{ device.status === 'ota_updating' ? 'updating' : device.status === 'ota_success' ? 'updated' : device.status === 'ota_failed' ? 'update failed' : device.status }}
+                    {{ device.status === 'ota_updating' ? t('machineDetail.updating') : device.status === 'ota_success' ? t('machineDetail.updated') : device.status === 'ota_failed' ? t('machineDetail.updateFailed') : device.status }}
                   </Badge>
                 </td>
                 <td class="px-4 py-3 text-muted-foreground">
@@ -374,10 +375,10 @@ async function confirmDelete() {
                   >
                     {{ device.machine_name }}
                   </NuxtLink>
-                  <span v-else class="text-muted-foreground">Unassigned</span>
+                  <span v-else class="text-muted-foreground">{{ t('devices.unassigned') }}</span>
                 </td>
                 <td class="px-4 py-3 text-muted-foreground">
-                  {{ timeAgo(device.status_at) }}
+                  {{ timeAgo(device.status_at, t) }}
                 </td>
                 <td class="px-4 py-3 text-muted-foreground">
                   {{ new Date(device.created_at).toLocaleDateString() }}
@@ -387,7 +388,7 @@ async function confirmDelete() {
                     class="text-xs text-destructive hover:underline"
                     @click.prevent="openDeleteModal(device)"
                   >
-                    Delete
+                    {{ t('common.delete') }}
                   </button>
                 </td>
               </tr>
@@ -403,13 +404,12 @@ async function confirmDelete() {
     @click.self="showDeleteModal = false"
   >
     <div class="w-full max-w-sm rounded-t-xl sm:rounded-xl border bg-card p-6 shadow-lg">
-      <h2 class="mb-1 text-lg font-semibold">Delete device</h2>
+      <h2 class="mb-1 text-lg font-semibold">{{ t('devices.deleteDevice') }}</h2>
       <p class="mb-4 text-sm text-muted-foreground">
-        Are you sure you want to delete device
-        <strong class="text-foreground">{{ deleteTarget?.mac_address ?? `subdomain ${deleteTarget?.subdomain}` }}</strong>?
+        {{ t('devices.deleteConfirmation', { device: deleteTarget?.mac_address ?? `subdomain ${deleteTarget?.subdomain}` }) }}
       </p>
       <p v-if="deleteTarget?.machine_name" class="mb-4 text-sm text-muted-foreground">
-        This device is currently assigned to <strong class="text-foreground">{{ deleteTarget.machine_name }}</strong>. The machine will be unassigned but its configuration and sales history will be preserved.
+        {{ t('devices.assignedWarning', { machine: deleteTarget.machine_name }) }}
       </p>
       <p v-if="deleteError" class="mb-3 text-sm text-destructive">{{ deleteError }}</p>
       <div class="flex gap-2">
@@ -417,15 +417,15 @@ async function confirmDelete() {
           class="inline-flex h-9 flex-1 items-center justify-center rounded-md border px-4 text-sm font-medium hover:bg-muted"
           @click="showDeleteModal = false"
         >
-          Cancel
+          {{ t('common.cancel') }}
         </button>
         <button
           :disabled="deleting"
           class="inline-flex h-9 flex-1 items-center justify-center rounded-md bg-destructive px-4 text-sm font-medium text-destructive-foreground shadow hover:bg-destructive/90 disabled:opacity-50"
           @click="confirmDelete"
         >
-          <span v-if="deleting">Deleting...</span>
-          <span v-else>Delete</span>
+          <span v-if="deleting">{{ t('common.deleting') }}</span>
+          <span v-else>{{ t('common.delete') }}</span>
         </button>
       </div>
     </div>
@@ -440,9 +440,9 @@ async function confirmDelete() {
     <div class="w-full max-w-md rounded-t-xl sm:rounded-xl border bg-card p-5 sm:p-6 shadow-lg max-h-[90vh] overflow-y-auto">
       <!-- Step 1: Generate code -->
       <template v-if="step === 1">
-        <h2 class="mb-1 text-lg font-semibold">Register a Device</h2>
+        <h2 class="mb-1 text-lg font-semibold">{{ t('devices.registerADevice') }}</h2>
         <p class="mb-5 text-sm text-muted-foreground">
-          Generate a one-time provisioning code for a new embedded device. The device will be registered without creating a vending machine — you can assign it to a machine later.
+          {{ t('devices.registerDescription') }}
         </p>
         <p v-if="genError" class="mb-3 text-sm text-destructive">{{ genError }}</p>
         <div class="flex gap-2">
@@ -450,49 +450,49 @@ async function confirmDelete() {
             class="inline-flex h-9 flex-1 items-center justify-center rounded-md border px-4 text-sm font-medium hover:bg-muted"
             @click="closeModal"
           >
-            Cancel
+            {{ t('common.cancel') }}
           </button>
           <button
             :disabled="generating"
             class="inline-flex h-9 flex-1 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90 disabled:opacity-50"
             @click="generateCode"
           >
-            <span v-if="generating">Generating...</span>
-            <span v-else>Generate Code</span>
+            <span v-if="generating">{{ t('devices.generating') }}</span>
+            <span v-else>{{ t('devices.generateCode') }}</span>
           </button>
         </div>
       </template>
 
       <!-- Step 2: Show code + instructions -->
       <template v-else>
-        <h2 class="mb-1 text-lg font-semibold">Provisioning Code</h2>
-        <p class="mb-4 text-sm text-muted-foreground">Valid until {{ expiresAt }}. Single use.</p>
+        <h2 class="mb-1 text-lg font-semibold">{{ t('devices.provisioningCode') }}</h2>
+        <p class="mb-4 text-sm text-muted-foreground">{{ t('devices.validUntil', { date: expiresAt }) }}</p>
 
         <!-- Code + QR display -->
         <div class="mb-5 rounded-lg border-2 border-dashed border-primary/40 bg-primary/5 py-4 text-center">
           <p class="font-mono text-3xl sm:text-4xl font-bold tracking-[0.2em] sm:tracking-[0.3em] text-primary">{{ shortCode }}</p>
           <img v-if="qrDataUrl" :src="qrDataUrl" alt="QR Code" class="mx-auto mt-3 w-40 h-40 sm:w-[200px] sm:h-[200px]" />
-          <p class="mt-2 text-xs text-muted-foreground">Scan this QR code on the device setup page</p>
-          <p class="mt-1 text-xs text-muted-foreground break-all px-3">Server URL: <strong class="text-foreground font-mono">{{ qrSrvUrl }}</strong></p>
+          <p class="mt-2 text-xs text-muted-foreground">{{ t('devices.scanQrHint') }}</p>
+          <p class="mt-1 text-xs text-muted-foreground break-all px-3">{{ t('devices.serverUrl') }} <strong class="text-foreground font-mono">{{ qrSrvUrl }}</strong></p>
         </div>
 
         <!-- Instructions -->
         <ol class="mb-5 space-y-2 text-sm text-muted-foreground">
           <li class="flex gap-2">
             <span class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground">1</span>
-            <span>Connect your phone to the device's WiFi network: <strong class="text-foreground">VMflow</strong> (password: <strong class="text-foreground">12345678</strong>)</span>
+            <span v-html="t('devices.step1', { network: `<strong class='text-foreground'>${t('devices.wifiNetwork')}</strong>`, password: `<strong class='text-foreground'>${t('devices.wifiPassword')}</strong>` })" />
           </li>
           <li class="flex gap-2">
             <span class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground">2</span>
-            <span>Open <strong class="text-foreground">192.168.4.1</strong> in your browser</span>
+            <span v-html="t('devices.step2', { ip: `<strong class='text-foreground'>${t('devices.ipAddress')}</strong>` })" />
           </li>
           <li class="flex gap-2">
             <span class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground">3</span>
-            <span>Tap <strong class="text-foreground">Scan QR Code</strong> and scan the code above — or enter the code and server URL manually</span>
+            <span>{{ t('devices.step3') }}</span>
           </li>
           <li class="flex gap-2">
             <span class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground">4</span>
-            <span>Select your WiFi network and save — the device will register automatically</span>
+            <span>{{ t('devices.step4') }}</span>
           </li>
         </ol>
 
@@ -500,7 +500,7 @@ async function confirmDelete() {
           class="inline-flex h-9 w-full items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90"
           @click="closeModal"
         >
-          Done
+          {{ t('common.done') }}
         </button>
       </template>
     </div>

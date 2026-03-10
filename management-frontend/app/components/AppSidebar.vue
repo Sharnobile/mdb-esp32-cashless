@@ -26,37 +26,38 @@ import {
   SidebarMenuItem,
 } from '@/components/ui/sidebar'
 
+const { t } = useI18n()
 const { organization, role } = useOrganization()
 
 const navMain = computed(() => {
   const items = [
     {
-      title: "Dashboard",
+      title: t('nav.dashboard'),
       url: "/",
       icon: IconDashboard,
     },
     {
-      title: "Machines",
+      title: t('nav.machines'),
       url: "/machines",
       icon: IconDevices,
     },
     {
-      title: "Products",
+      title: t('nav.products'),
       url: "/products",
       icon: IconPackage,
     },
     {
-      title: "Warehouse",
+      title: t('nav.warehouse'),
       url: "/warehouse",
       icon: IconBuildingWarehouse,
     },
     {
-      title: "Members",
+      title: t('nav.members'),
       url: "/members",
       icon: IconUsers,
     },
     {
-      title: "History",
+      title: t('nav.history'),
       url: "/history",
       icon: IconHistory,
     },
@@ -65,17 +66,17 @@ const navMain = computed(() => {
   if (role.value === 'admin') {
     items.push(
       {
-        title: "Devices",
+        title: t('nav.devices'),
         url: "/devices",
         icon: IconCpu,
       },
       {
-        title: "API Keys",
+        title: t('nav.apiKeys'),
         url: "/api-keys",
         icon: IconKey,
       },
       {
-        title: "Firmware",
+        title: t('nav.firmware'),
         url: "/firmware",
         icon: IconCloudUpload,
       },
@@ -85,13 +86,13 @@ const navMain = computed(() => {
   return items
 })
 
-const navSecondary = [
+const navSecondary = computed(() => [
   {
-    title: "Get Help",
+    title: t('nav.getHelp'),
     url: "#",
     icon: IconHelp,
   },
-]
+])
 </script>
 
 <template>
@@ -105,7 +106,7 @@ const navSecondary = [
           >
             <NuxtLink to="/">
               <IconInnerShadowTop class="!size-5" />
-              <span class="text-base font-semibold">{{ organization?.name ?? 'MDB Dashboard' }}</span>
+              <span class="text-base font-semibold">{{ organization?.name ?? t('nav.defaultOrg') }}</span>
             </NuxtLink>
           </SidebarMenuButton>
         </SidebarMenuItem>
