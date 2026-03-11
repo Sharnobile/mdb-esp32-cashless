@@ -108,7 +108,7 @@ function metadataChips(entry: { action: string; metadata: Record<string, unknown
 </script>
 
 <template>
-  <div class="flex flex-1 flex-col gap-6 overflow-x-hidden p-4 md:p-6">
+  <div class="flex flex-1 flex-col gap-6 p-4 md:p-6">
     <!-- Header -->
     <div class="flex flex-wrap items-center justify-between gap-4">
       <div>
@@ -170,15 +170,15 @@ function metadataChips(entry: { action: string; metadata: Record<string, unknown
     </div>
 
     <!-- Log table -->
-    <div v-else class="overflow-hidden rounded-lg border">
+    <div v-else class="overflow-x-auto rounded-lg border">
       <table class="w-full text-sm">
         <thead>
           <tr class="border-b bg-muted/50">
             <th class="px-4 py-3 text-left font-medium text-muted-foreground">{{ t('history.timeCol') }}</th>
             <th class="px-4 py-3 text-left font-medium text-muted-foreground">{{ t('history.typeCol') }}</th>
             <th class="px-4 py-3 text-left font-medium text-muted-foreground">{{ t('history.actionCol') }}</th>
-            <th class="px-4 py-3 text-left font-medium text-muted-foreground">{{ t('history.detailsCol') }}</th>
-            <th class="px-4 py-3 text-left font-medium text-muted-foreground">{{ t('history.userCol') }}</th>
+            <th class="hidden sm:table-cell px-4 py-3 text-left font-medium text-muted-foreground">{{ t('history.detailsCol') }}</th>
+            <th class="hidden sm:table-cell px-4 py-3 text-left font-medium text-muted-foreground">{{ t('history.userCol') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -200,7 +200,7 @@ function metadataChips(entry: { action: string; metadata: Record<string, unknown
             <td class="px-4 py-3 font-medium">
               {{ actionLabel(entry.action) }}
             </td>
-            <td class="px-4 py-3">
+            <td class="hidden sm:table-cell px-4 py-3">
               <div class="flex flex-wrap gap-1.5">
                 <span
                   v-for="chip in metadataChips(entry)"
@@ -213,7 +213,7 @@ function metadataChips(entry: { action: string; metadata: Record<string, unknown
                 <span v-if="metadataChips(entry).length === 0" class="text-muted-foreground">—</span>
               </div>
             </td>
-            <td class="px-4 py-3">
+            <td class="hidden sm:table-cell px-4 py-3">
               <span
                 :class="entry.user_id ? 'text-foreground' : 'italic text-muted-foreground'"
                 class="text-sm"

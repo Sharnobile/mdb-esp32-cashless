@@ -59,7 +59,7 @@ function stockBadgeClass(health: 'ok' | 'low' | 'critical'): string {
           v-for="machine in machines"
           :key="machine.id"
           :to="`/machines/${machine.id}`"
-          class="flex items-center gap-3 px-6 py-3 hover:bg-muted/50 transition-colors"
+          class="flex items-center gap-2 sm:gap-3 px-3 sm:px-6 py-3 hover:bg-muted/50 transition-colors"
         >
           <!-- Status dot -->
           <span class="relative flex size-2.5 shrink-0">
@@ -84,7 +84,7 @@ function stockBadgeClass(health: 'ok' | 'low' | 'critical'): string {
           </Badge>
 
           <!-- Last sale -->
-          <span class="shrink-0 w-16 text-right text-xs text-muted-foreground tabular-nums">
+          <span class="hidden sm:block shrink-0 w-16 text-right text-xs text-muted-foreground tabular-nums">
             {{ timeAgo(machine.last_sale_at, t) }}
           </span>
         </NuxtLink>

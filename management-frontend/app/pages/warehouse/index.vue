@@ -610,9 +610,9 @@ function formatDate(dateStr: string | null): string {
               <div
                 v-for="p in productSummaries.filter(p => p.expiration_status !== 'ok')"
                 :key="p.product_id"
-                class="flex items-center justify-between rounded-md bg-white/60 px-3 py-2 dark:bg-white/5"
+                class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between rounded-md bg-white/60 px-3 py-2 dark:bg-white/5"
               >
-                <div class="flex items-center gap-2">
+                <div class="flex items-center gap-2 min-w-0">
                   <span :class="[expirationBadgeClass(p.expiration_status), 'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium']">
                     {{ expirationLabel(p.expiration_status) }}
                   </span>
@@ -626,7 +626,7 @@ function formatDate(dateStr: string | null): string {
           </div>
 
           <!-- Product summary table -->
-          <div class="rounded-md border">
+          <div class="overflow-x-auto rounded-md border">
             <table class="w-full text-sm">
               <thead>
                 <tr class="border-b bg-muted/50 text-left">
@@ -732,7 +732,7 @@ function formatDate(dateStr: string | null): string {
           </div>
 
           <!-- Expandable stock table -->
-          <div class="rounded-md border">
+          <div class="overflow-x-auto rounded-md border">
             <table class="w-full text-sm">
               <thead>
                 <tr class="border-b bg-muted/50 text-left">
@@ -1025,7 +1025,7 @@ function formatDate(dateStr: string | null): string {
           </div>
 
           <!-- Transaction table -->
-          <div class="rounded-md border">
+          <div class="overflow-x-auto rounded-md border">
             <table class="w-full text-sm">
               <thead>
                 <tr class="border-b bg-muted/50 text-left">
@@ -1099,7 +1099,7 @@ function formatDate(dateStr: string | null): string {
                 {{ t('common.add') }}
               </button>
             </div>
-            <div class="rounded-md border">
+            <div class="overflow-x-auto rounded-md border">
               <table class="w-full text-sm">
                 <thead>
                   <tr class="border-b bg-muted/50 text-left">
@@ -1145,7 +1145,7 @@ function formatDate(dateStr: string | null): string {
                 {{ t('common.add') }}
               </button>
             </div>
-            <div class="rounded-md border">
+            <div class="overflow-x-auto rounded-md border">
               <table class="w-full text-sm">
                 <thead>
                   <tr class="border-b bg-muted/50 text-left">
@@ -1191,7 +1191,7 @@ function formatDate(dateStr: string | null): string {
           <div>
             <h2 class="mb-3 text-lg font-semibold">{{ t('warehouse.minStockThresholds') }}</h2>
             <p class="mb-3 text-sm text-muted-foreground">{{ t('warehouse.minStockDescription', { name: selectedWarehouse?.name ?? '' }) }}</p>
-            <div class="rounded-md border">
+            <div class="overflow-x-auto rounded-md border">
               <table class="w-full text-sm">
                 <thead>
                   <tr class="border-b bg-muted/50 text-left">

@@ -294,7 +294,7 @@ async function changeEmail() {
             <p class="mb-5 text-sm text-muted-foreground">{{ t('settings.profileDescription') }}</p>
 
             <form class="space-y-4" @submit.prevent="saveName">
-              <div class="grid grid-cols-2 gap-3">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div class="space-y-1">
                   <label class="text-sm font-medium" for="settings-first-name">{{ t('settings.firstName') }}</label>
                   <input

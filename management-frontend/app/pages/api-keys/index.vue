@@ -110,14 +110,14 @@ function formatDate(dt: string | null) {
 
 <template>
   <div class="flex flex-1 flex-col gap-6 p-4 md:p-6">
-    <div class="flex items-center justify-between">
-      <div>
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <div class="min-w-0">
         <h1 class="text-2xl font-semibold">{{ t('apiKeys.title') }}</h1>
         <p class="mt-1 text-sm text-muted-foreground">{{ t('apiKeys.description') }}</p>
       </div>
       <button
         v-if="isAdmin"
-        class="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90"
+        class="shrink-0 inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90"
         @click="openCreateModal"
       >
         {{ t('apiKeys.createApiKey') }}
@@ -128,14 +128,14 @@ function formatDate(dt: string | null) {
 
     <template v-else>
       <div v-if="keys.length === 0" class="text-sm text-muted-foreground">{{ t('apiKeys.noKeysYet') }}</div>
-      <div v-else class="rounded-md border">
+      <div v-else class="overflow-x-auto rounded-md border">
         <table class="w-full text-sm">
           <thead>
             <tr class="border-b bg-muted/50 text-left">
               <th class="px-4 py-3 font-medium">{{ t('apiKeys.nameCol') }}</th>
               <th class="px-4 py-3 font-medium">{{ t('apiKeys.keyCol') }}</th>
-              <th class="px-4 py-3 font-medium">{{ t('apiKeys.createdCol') }}</th>
-              <th class="px-4 py-3 font-medium">{{ t('apiKeys.lastUsedCol') }}</th>
+              <th class="hidden sm:table-cell px-4 py-3 font-medium">{{ t('apiKeys.createdCol') }}</th>
+              <th class="hidden sm:table-cell px-4 py-3 font-medium">{{ t('apiKeys.lastUsedCol') }}</th>
               <th class="px-4 py-3 font-medium">{{ t('apiKeys.statusCol') }}</th>
               <th v-if="isAdmin" class="px-4 py-3 font-medium">{{ t('common.actions') }}</th>
             </tr>
@@ -151,8 +151,8 @@ function formatDate(dt: string | null) {
               <td class="px-4 py-3">
                 <code class="rounded bg-muted px-1.5 py-0.5 text-xs">{{ key.key_prefix }}…</code>
               </td>
-              <td class="px-4 py-3 text-muted-foreground">{{ formatDate(key.created_at) }}</td>
-              <td class="px-4 py-3 text-muted-foreground">{{ timeAgo(key.last_used_at, t) }}</td>
+              <td class="hidden sm:table-cell px-4 py-3 text-muted-foreground">{{ formatDate(key.created_at) }}</td>
+              <td class="hidden sm:table-cell px-4 py-3 text-muted-foreground">{{ timeAgo(key.last_used_at, t) }}</td>
               <td class="px-4 py-3">
                 <span
                   class="rounded-full px-2 py-0.5 text-xs font-medium"

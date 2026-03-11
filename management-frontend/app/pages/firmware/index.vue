@@ -164,11 +164,11 @@ function formatDate(dt: string) {
 
 <template>
   <div class="flex flex-1 flex-col gap-4 p-4 md:p-6">
-    <div class="flex items-center justify-between">
+    <div class="flex flex-wrap items-center justify-between gap-2">
       <h1 class="text-2xl font-semibold">{{ t('firmware.title') }}</h1>
       <button
         v-if="isAdmin"
-        class="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90"
+        class="shrink-0 inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90"
         @click="openUploadModal"
       >
         {{ t('firmware.uploadFirmware') }}
@@ -182,13 +182,13 @@ function formatDate(dt: string) {
     </div>
 
     <!-- Firmware versions table -->
-    <div v-else class="rounded-md border">
+    <div v-else class="overflow-x-auto rounded-md border">
       <table class="w-full text-sm">
         <thead>
           <tr class="border-b bg-muted/50 text-left">
             <th class="px-4 py-3 font-medium">{{ t('firmware.versionCol') }}</th>
-            <th class="px-4 py-3 font-medium">{{ t('firmware.sourceCol') }}</th>
-            <th class="px-4 py-3 font-medium">{{ t('firmware.sizeCol') }}</th>
+            <th class="hidden sm:table-cell px-4 py-3 font-medium">{{ t('firmware.sourceCol') }}</th>
+            <th class="hidden sm:table-cell px-4 py-3 font-medium">{{ t('firmware.sizeCol') }}</th>
             <th class="hidden md:table-cell px-4 py-3 font-medium">{{ t('firmware.notesCol') }}</th>
             <th class="px-4 py-3 font-medium">{{ t('firmware.uploadedCol') }}</th>
             <th v-if="isAdmin" class="px-4 py-3 font-medium">{{ t('common.actions') }}</th>
@@ -200,8 +200,8 @@ function formatDate(dt: string) {
             :key="fw.id"
             class="border-b last:border-0 hover:bg-muted/30 transition-colors"
           >
-            <td class="px-4 py-3 font-mono font-medium">{{ fw.version_label }}</td>
-            <td class="px-4 py-3">
+            <td class="px-4 py-3 font-mono font-medium whitespace-nowrap">{{ fw.version_label }}</td>
+            <td class="hidden sm:table-cell px-4 py-3">
               <span
                 v-if="fw.source_type === 'github'"
                 class="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700 dark:bg-purple-900/30 dark:text-purple-300"
@@ -216,7 +216,7 @@ function formatDate(dt: string) {
                 {{ t('firmware.uploadSource') }}
               </span>
             </td>
-            <td class="px-4 py-3 text-muted-foreground">{{ formatSize(fw.file_size) }}</td>
+            <td class="hidden sm:table-cell px-4 py-3 text-muted-foreground">{{ formatSize(fw.file_size) }}</td>
             <td class="hidden md:table-cell px-4 py-3 text-muted-foreground truncate max-w-xs">{{ fw.notes ?? '—' }}</td>
             <td class="px-4 py-3 text-muted-foreground">
               <span :title="formatDate(fw.created_at)">{{ timeAgo(fw.created_at, t) }}</span>
@@ -245,8 +245,8 @@ function formatDate(dt: string) {
 
     <!-- GitHub Releases section -->
     <template v-if="githubRepo">
-      <div class="flex items-center justify-between pt-4">
-        <div>
+      <div class="flex flex-wrap items-center justify-between gap-2 pt-4">
+        <div class="min-w-0">
           <h2 class="text-lg font-semibold">{{ t('firmware.githubReleases') }}</h2>
           <p class="text-sm text-muted-foreground">
             {{ t('firmware.importFrom') }}
@@ -279,12 +279,12 @@ function formatDate(dt: string) {
         {{ t('firmware.noReleasesFound') }}
       </div>
 
-      <div v-else class="rounded-md border">
+      <div v-else class="overflow-x-auto rounded-md border">
         <table class="w-full text-sm">
           <thead>
             <tr class="border-b bg-muted/50 text-left">
               <th class="px-4 py-3 font-medium">{{ t('firmware.releaseCol') }}</th>
-              <th class="px-4 py-3 font-medium">{{ t('firmware.assetCol') }}</th>
+              <th class="hidden sm:table-cell px-4 py-3 font-medium">{{ t('firmware.assetCol') }}</th>
               <th class="hidden md:table-cell px-4 py-3 font-medium">{{ t('firmware.sizeCol') }}</th>
               <th class="px-4 py-3 font-medium">{{ t('firmware.publishedCol') }}</th>
               <th v-if="isAdmin" class="px-4 py-3 font-medium">{{ t('common.actions') }}</th>
@@ -308,7 +308,7 @@ function formatDate(dt: string) {
                     {{ release.name }}
                   </p>
                 </td>
-                <td class="px-4 py-3 font-mono text-xs text-muted-foreground">{{ asset.name }}</td>
+                <td class="hidden sm:table-cell px-4 py-3 font-mono text-xs text-muted-foreground truncate max-w-[200px]">{{ asset.name }}</td>
                 <td class="hidden md:table-cell px-4 py-3 text-muted-foreground">{{ formatSize(asset.size) }}</td>
                 <td class="px-4 py-3 text-muted-foreground">
                   <span :title="formatDate(release.published_at)">{{ timeAgo(release.published_at, t) }}</span>

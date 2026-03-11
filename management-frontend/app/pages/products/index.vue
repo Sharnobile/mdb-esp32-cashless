@@ -274,7 +274,7 @@ async function runImport() {
 
           <!-- Products tab -->
           <TabsContent value="products" class="mt-4">
-            <div class="mb-4 flex items-center justify-between">
+            <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <h2 class="text-base font-medium">{{ t('products.allProducts') }}</h2>
               <div v-if="isAdmin" class="flex gap-2">
                 <button
@@ -293,13 +293,13 @@ async function runImport() {
             </div>
 
             <div v-if="products.length === 0" class="text-sm text-muted-foreground">{{ t('products.noProducts') }}</div>
-            <div v-else class="rounded-md border">
+            <div v-else class="overflow-x-auto rounded-md border">
               <table class="w-full text-sm">
                 <thead>
                   <tr class="border-b bg-muted/50 text-left">
                     <th class="w-14 px-4 py-3 font-medium"></th>
                     <th class="px-4 py-3 font-medium">{{ t('common.name') }}</th>
-                    <th class="px-4 py-3 font-medium">{{ t('products.category') }}</th>
+                    <th class="hidden sm:table-cell px-4 py-3 font-medium">{{ t('products.category') }}</th>
                     <th class="px-4 py-3 font-medium">{{ t('products.price') }}</th>
                     <th v-if="isAdmin" class="px-4 py-3 font-medium">{{ t('common.actions') }}</th>
                   </tr>
@@ -324,8 +324,8 @@ async function runImport() {
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-muted-foreground/50" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
                       </div>
                     </td>
-                    <td class="px-4 py-3 font-medium">{{ product.name }}</td>
-                    <td class="px-4 py-3 text-muted-foreground">{{ product.category_name ?? '—' }}</td>
+                    <td class="px-4 py-3 font-medium max-w-[150px] truncate">{{ product.name }}</td>
+                    <td class="hidden sm:table-cell px-4 py-3 text-muted-foreground">{{ product.category_name ?? '—' }}</td>
                     <td class="px-4 py-3">{{ formatCurrency(product.sellprice, locale) }}</td>
                     <td v-if="isAdmin" class="px-4 py-3">
                       <div class="flex items-center gap-2">
@@ -363,7 +363,7 @@ async function runImport() {
             </div>
 
             <div v-if="categories.length === 0" class="text-sm text-muted-foreground">{{ t('products.noCategories') }}</div>
-            <div v-else class="rounded-md border">
+            <div v-else class="overflow-x-auto rounded-md border">
               <table class="w-full text-sm">
                 <thead>
                   <tr class="border-b bg-muted/50 text-left">
@@ -400,7 +400,7 @@ async function runImport() {
         class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
         @click.self="showProductModal = false"
       >
-        <div class="w-full max-w-sm rounded-xl border bg-card p-6 shadow-lg">
+        <div class="w-full max-w-sm rounded-xl border bg-card p-4 sm:p-6 shadow-lg max-h-[90vh] overflow-y-auto">
           <h2 class="mb-4 text-lg font-semibold">{{ editingProduct ? t('products.editProduct') : t('products.addProduct') }}</h2>
           <form class="space-y-4" @submit.prevent="submitProduct">
             <div class="space-y-1">
@@ -589,7 +589,7 @@ async function runImport() {
         class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
         @click.self="closeImportModal"
       >
-        <div class="w-full max-w-3xl rounded-xl border bg-card p-6 shadow-lg max-h-[80vh] flex flex-col">
+        <div class="w-full max-w-3xl rounded-xl border bg-card p-4 sm:p-6 shadow-lg max-h-[90vh] flex flex-col">
 
           <!-- Step 1: File upload -->
           <template v-if="importStep === 1">
@@ -633,7 +633,7 @@ async function runImport() {
 
           <!-- Step 2: Preview table -->
           <template v-else-if="importStep === 2">
-            <div class="mb-4 flex items-center justify-between">
+            <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h2 class="text-lg font-semibold">{{ t('products.reviewProducts') }}</h2>
                 <p class="text-sm text-muted-foreground">

@@ -48,7 +48,7 @@ defineProps<{
         <div
           v-for="sale in sales"
           :key="sale.id"
-          class="flex items-center gap-3 px-6 py-3"
+          class="flex items-center gap-2 sm:gap-3 px-3 sm:px-6 py-3"
         >
           <!-- Product image or price badge -->
           <img

@@ -833,7 +833,7 @@ function stockColor(tray: any) {
 </script>
 
 <template>
-  <div class="flex flex-1 flex-col gap-6 overflow-x-hidden p-4 md:p-6">
+  <div class="flex flex-1 flex-col gap-6 p-4 md:p-6">
         <div v-if="loading" class="text-muted-foreground">{{ t('common.loading') }}</div>
         <div v-else-if="errorMsg" class="text-destructive">{{ errorMsg }}</div>
         <template v-else-if="machine">
@@ -919,7 +919,7 @@ function stockColor(tray: any) {
             <!-- Sales tab -->
             <TabsContent value="sales" class="mt-4 space-y-6">
               <!-- Sales chart -->
-              <div v-if="salesChartData.length > 0" class="rounded-xl border bg-card p-6">
+              <div v-if="salesChartData.length > 0" class="rounded-xl border bg-card p-4 sm:p-6">
                 <h2 class="mb-4 text-sm font-medium">{{ t('machineDetail.dailyRevenue') }}</h2>
                 <VisXYContainer :data="salesChartData" class="h-48 w-full">
                   <VisArea :x="(d: ChartPoint) => d.date" :y="(d: ChartPoint) => d.total" color="var(--primary)" :opacity="0.3" />
@@ -928,7 +928,7 @@ function stockColor(tray: any) {
                     type="x"
                     :x="(d: ChartPoint) => d.date"
                     :tick-format="(d: number) => new Date(d).toLocaleDateString(locale, { month: 'short', day: 'numeric' })"
-                    :num-ticks="6"
+                    :num-ticks="4"
                     :tick-line="false"
                     :domain-line="false"
                     :grid-line="false"
@@ -994,9 +994,9 @@ function stockColor(tray: any) {
               <!-- Refill summary banner + packing list -->
               <div v-if="lowStockCount > 0 || (fillBelowCount > 0 && lowStockCount > 0)" class="mb-4 rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/30">
                 <!-- Header row -->
-                <div class="flex items-center gap-3 px-4 py-3">
+                <div class="flex flex-wrap items-center gap-2 sm:gap-3 px-4 py-3">
                   <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
-                  <span class="text-sm font-medium text-amber-800 dark:text-amber-200">
+                  <span class="min-w-0 flex-1 text-sm font-medium text-amber-800 dark:text-amber-200">
                     {{ t('machineDetail.belowMinimum', { count: lowStockCount }, lowStockCount) }}
                     <template v-if="fillBelowCount > 0">
                       <span class="text-blue-700 dark:text-blue-300">+ {{ fillBelowCount }} below fill threshold</span>
@@ -1557,11 +1557,11 @@ function stockColor(tray: any) {
             <TabsContent v-if="isAdmin" value="mdb" class="mt-4 space-y-6">
 
               <!-- Current MDB Status Card -->
-              <div class="rounded-xl border bg-card p-6">
+              <div class="rounded-xl border bg-card p-4 sm:p-6">
                 <h2 class="mb-4 text-sm font-medium text-muted-foreground uppercase tracking-wide">{{ t('machineDetail.currentMdbStatus') }}</h2>
                 <template v-if="machine.embeddeds?.mdb_diagnostics">
-                  <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-                    <div>
+                  <div class="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-3 lg:grid-cols-5">
+                    <div class="min-w-0">
                       <p class="text-xs text-muted-foreground">{{ t('machineDetail.state') }}</p>
                       <span
                         class="mt-1 inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
@@ -1575,23 +1575,23 @@ function stockColor(tray: any) {
                         {{ stateLabel(machine.embeddeds.mdb_diagnostics.state) }}
                       </span>
                     </div>
-                    <div>
+                    <div class="min-w-0">
                       <p class="text-xs text-muted-foreground">{{ t('machineDetail.address') }}</p>
-                      <p class="mt-1 text-sm font-mono font-medium">{{ machine.embeddeds.mdb_diagnostics.addr }}</p>
+                      <p class="mt-1 text-sm font-mono font-medium truncate">{{ machine.embeddeds.mdb_diagnostics.addr }}</p>
                     </div>
-                    <div>
+                    <div class="min-w-0">
                       <p class="text-xs text-muted-foreground">{{ t('machineDetail.polls') }}</p>
                       <p class="mt-1 text-sm font-medium">{{ Number(machine.embeddeds.mdb_diagnostics.polls ?? 0).toLocaleString() }}</p>
                     </div>
-                    <div>
+                    <div class="min-w-0">
                       <p class="text-xs text-muted-foreground">{{ t('machineDetail.checksumErrors') }}</p>
                       <p class="mt-1 text-sm font-medium" :class="machine.embeddeds.mdb_diagnostics.chkErr > 0 ? 'text-red-500' : ''">
                         {{ machine.embeddeds.mdb_diagnostics.chkErr ?? 0 }}
                       </p>
                     </div>
-                    <div>
+                    <div class="min-w-0">
                       <p class="text-xs text-muted-foreground">{{ t('machineDetail.lastCommand') }}</p>
-                      <p class="mt-1 text-sm font-mono">{{ machine.embeddeds.mdb_diagnostics.lastCmd }}</p>
+                      <p class="mt-1 text-sm font-mono truncate">{{ machine.embeddeds.mdb_diagnostics.lastCmd }}</p>
                     </div>
                   </div>
                   <p class="mt-3 text-xs text-muted-foreground">
@@ -1615,7 +1615,7 @@ function stockColor(tray: any) {
                   <div
                     v-for="entry in mdbLogs"
                     :key="entry.id"
-                    class="flex items-center gap-3 rounded-lg border bg-card px-4 py-3"
+                    class="flex items-center gap-2 sm:gap-3 rounded-lg border bg-card px-3 sm:px-4 py-3"
                   >
                     <!-- State badge -->
                     <span
@@ -1707,20 +1707,20 @@ function stockColor(tray: any) {
             </div>
 
             <!-- MAC Address -->
-            <div class="flex justify-between items-center">
-              <span class="text-muted-foreground">{{ t('machineDetail.macAddress') }}</span>
-              <span class="font-mono text-xs">{{ machine.embeddeds.mac_address ?? '—' }}</span>
+            <div class="flex justify-between items-center gap-2">
+              <span class="shrink-0 text-muted-foreground">{{ t('machineDetail.macAddress') }}</span>
+              <span class="font-mono text-xs truncate">{{ machine.embeddeds.mac_address ?? '—' }}</span>
             </div>
 
             <!-- Subdomain -->
-            <div class="flex justify-between items-center">
-              <span class="text-muted-foreground">{{ t('machineDetail.subdomain') }}</span>
+            <div class="flex justify-between items-center gap-2">
+              <span class="shrink-0 text-muted-foreground">{{ t('machineDetail.subdomain') }}</span>
               <span class="font-mono text-xs">{{ machine.embeddeds.subdomain }}</span>
             </div>
 
             <!-- Firmware -->
-            <div class="flex justify-between items-center">
-              <span class="text-muted-foreground">{{ t('machineDetail.firmwareLabel') }}</span>
+            <div class="flex justify-between items-center gap-2">
+              <span class="shrink-0 text-muted-foreground">{{ t('machineDetail.firmwareLabel') }}</span>
               <span v-if="machine.embeddeds.firmware_version" class="text-right">
                 <span class="font-mono text-xs">v{{ machine.embeddeds.firmware_version }}</span>
                 <span v-if="machine.embeddeds.firmware_build_date" class="block text-xs text-muted-foreground">
@@ -1737,8 +1737,8 @@ function stockColor(tray: any) {
             </div>
 
             <!-- MDB Address -->
-            <div class="flex justify-between items-center">
-              <span class="text-muted-foreground">{{ t('machineDetail.mdbAddress') }}</span>
+            <div class="flex justify-between items-center gap-2">
+              <span class="shrink-0 text-muted-foreground">{{ t('machineDetail.mdbAddress') }}</span>
               <template v-if="isAdmin">
                 <div class="flex items-center gap-2">
                   <div class="inline-flex rounded-md border">
@@ -2014,10 +2014,10 @@ function stockColor(tray: any) {
             </div>
             <p v-if="creditError" class="text-sm text-destructive">{{ creditError }}</p>
             <p v-if="creditSuccess" class="text-sm text-green-600 dark:text-green-400">{{ creditSuccess }}</p>
-            <div class="flex gap-2">
+            <div class="flex flex-wrap gap-2">
               <button
                 type="button"
-                class="inline-flex h-9 flex-1 items-center justify-center rounded-md border px-4 text-sm font-medium shadow-sm transition-colors hover:bg-muted"
+                class="inline-flex h-9 flex-1 items-center justify-center rounded-md border px-3 text-sm font-medium shadow-sm transition-colors hover:bg-muted"
                 @click="showCreditModal = false"
               >
                 {{ t('common.close') }}
@@ -2025,7 +2025,7 @@ function stockColor(tray: any) {
               <button
                 type="button"
                 :disabled="cancelCreditLoading"
-                class="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-destructive px-4 text-sm font-medium text-destructive shadow-sm transition-colors hover:bg-destructive/10 disabled:opacity-50"
+                class="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-destructive px-3 text-sm font-medium text-destructive shadow-sm transition-colors hover:bg-destructive/10 disabled:opacity-50"
                 @click="cancelCredit"
               >
                 <span v-if="cancelCreditLoading">…</span>
@@ -2034,7 +2034,7 @@ function stockColor(tray: any) {
               <button
                 type="submit"
                 :disabled="creditLoading"
-                class="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90 disabled:opacity-50"
+                class="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90 disabled:opacity-50"
               >
                 <span v-if="creditLoading">{{ t('machineDetail.sending') }}</span>
                 <template v-else>

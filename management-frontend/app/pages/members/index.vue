@@ -115,11 +115,11 @@ function formatDate(dt: string) {
 
 <template>
   <div class="flex flex-1 flex-col gap-6 p-4 md:p-6">
-        <div class="flex items-center justify-between">
+        <div class="flex flex-wrap items-center justify-between gap-2">
           <h1 class="text-2xl font-semibold">{{ t('members.title') }}</h1>
           <button
             v-if="isAdmin"
-            class="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90"
+            class="shrink-0 inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90"
             @click="showInviteModal = true"
           >
             {{ t('members.inviteMember') }}
@@ -132,13 +132,13 @@ function formatDate(dt: string) {
           <!-- Active members -->
           <div>
             <h2 class="mb-3 text-base font-medium">{{ t('members.activeMembers') }}</h2>
-            <div class="rounded-md border">
+            <div class="overflow-x-auto rounded-md border">
               <table class="w-full text-sm">
                 <thead>
                   <tr class="border-b bg-muted/50 text-left">
                     <th class="px-4 py-3 font-medium">{{ t('members.nameCol') }}</th>
                     <th class="px-4 py-3 font-medium">{{ t('members.roleCol') }}</th>
-                    <th class="px-4 py-3 font-medium">{{ t('members.joinedCol') }}</th>
+                    <th class="hidden sm:table-cell px-4 py-3 font-medium">{{ t('members.joinedCol') }}</th>
                     <th v-if="isAdmin" class="px-4 py-3 font-medium">{{ t('common.actions') }}</th>
                   </tr>
                 </thead>
@@ -162,7 +162,7 @@ function formatDate(dt: string) {
                         {{ member.role }}
                       </span>
                     </td>
-                    <td class="px-4 py-3 text-muted-foreground">{{ formatDate(member.created_at) }}</td>
+                    <td class="hidden sm:table-cell px-4 py-3 text-muted-foreground">{{ formatDate(member.created_at) }}</td>
                     <td v-if="isAdmin" class="px-4 py-3">
                       <div class="flex items-center gap-2">
                         <select
@@ -191,13 +191,13 @@ function formatDate(dt: string) {
           <div v-if="isAdmin">
             <h2 class="mb-3 text-base font-medium">{{ t('members.pendingInvitations') }}</h2>
             <div v-if="invitations.length === 0" class="text-sm text-muted-foreground">{{ t('members.noPendingInvitations') }}</div>
-            <div v-else class="rounded-md border">
+            <div v-else class="overflow-x-auto rounded-md border">
               <table class="w-full text-sm">
                 <thead>
                   <tr class="border-b bg-muted/50 text-left">
                     <th class="px-4 py-3 font-medium">{{ t('members.emailCol') }}</th>
                     <th class="px-4 py-3 font-medium">{{ t('members.roleCol') }}</th>
-                    <th class="px-4 py-3 font-medium">{{ t('members.expiresCol') }}</th>
+                    <th class="hidden sm:table-cell px-4 py-3 font-medium">{{ t('members.expiresCol') }}</th>
                     <th class="px-4 py-3 font-medium">{{ t('common.actions') }}</th>
                   </tr>
                 </thead>
@@ -213,7 +213,7 @@ function formatDate(dt: string) {
                         {{ invitation.role }}
                       </span>
                     </td>
-                    <td class="px-4 py-3 text-muted-foreground">{{ formatDate(invitation.expires_at) }}</td>
+                    <td class="hidden sm:table-cell px-4 py-3 text-muted-foreground">{{ formatDate(invitation.expires_at) }}</td>
                     <td class="px-4 py-3">
                       <button
                         class="text-xs text-destructive hover:underline"

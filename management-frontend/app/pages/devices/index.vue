@@ -190,11 +190,11 @@ async function confirmDelete() {
 
 <template>
   <div class="flex flex-1 flex-col gap-4 p-4 md:p-6">
-        <div class="flex items-center justify-between">
+        <div class="flex flex-wrap items-center justify-between gap-2">
           <h1 class="text-2xl font-semibold">{{ t('devices.title') }}</h1>
           <button
             v-if="isAdmin"
-            class="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90"
+            class="shrink-0 inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90"
             @click="openModal"
           >
             {{ t('devices.registerDevice') }}

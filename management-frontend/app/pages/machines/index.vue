@@ -193,10 +193,10 @@ async function handleUpdateWarehouseAndContinue(machine: any) {
 
 <template>
   <div class="flex flex-1 flex-col gap-4 p-4 md:p-6">
-        <div class="flex items-center justify-between">
+        <div class="flex flex-wrap items-center justify-between gap-2">
           <h1 class="text-2xl font-semibold">{{ t('machines.title') }}</h1>
           <button
-            class="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90"
+            class="shrink-0 inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90"
             @click="openMachineModal"
           >
             {{ t('machines.addMachine') }}
@@ -204,11 +204,11 @@ async function handleUpdateWarehouseAndContinue(machine: any) {
         </div>
 
         <!-- Warehouse selector -->
-        <div v-if="warehouses.length > 0" class="flex items-center gap-2 rounded-lg border bg-muted/30 px-4 py-2.5">
-          <label class="text-sm text-muted-foreground">{{ t('machines.warehouse') }}</label>
+        <div v-if="warehouses.length > 0" class="flex items-center gap-2 rounded-lg border bg-muted/30 px-3 sm:px-4 py-2.5">
+          <label class="shrink-0 text-sm text-muted-foreground">{{ t('machines.warehouse') }}</label>
           <select
             v-model="selectedWarehouseId"
-            class="h-8 rounded-md border border-input bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            class="h-8 min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
           >
             <option v-for="wh in warehouses" :key="wh.id" :value="wh.id">{{ wh.name }}</option>
           </select>
