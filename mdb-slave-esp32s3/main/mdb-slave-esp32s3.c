@@ -163,6 +163,7 @@ static uint32_t mdb_poll_count = 0;
 static uint32_t mdb_checksum_errors = 0;
 static const char *mdb_last_cmd = "none";
 static machine_state_t mdb_prev_state = INACTIVE_STATE;
+static void publish_mdb_diag(void); // forward declaration
 
 static const char *machine_state_name(machine_state_t s) {
     switch (s) {
@@ -367,12 +368,13 @@ void vTaskMdbEvent(void *pvParameters) {
 
 					mdb_poll_count++;
 
-					// Log state changes
+					// Log and publish state changes immediately
 					if (machine_state != mdb_prev_state) {
 						ESP_LOGW(TAG, "MDB STATE: %s -> %s (polls=%lu, chkErr=%lu)",
 							machine_state_name(mdb_prev_state), machine_state_name(machine_state),
 							mdb_poll_count, mdb_checksum_errors);
 						mdb_prev_state = machine_state;
+						publish_mdb_diag();
 					}
 
 					// Periodic log every 500 polls (~every 50s at typical VMC rate)
@@ -1393,8 +1395,9 @@ static void ota_update_task(void *arg) {
     vTaskDelete(NULL);
 }
 
-// Periodic MDB diagnostics publishing via MQTT (called from esp_timer)
-static void mdb_diag_timer_cb(void *arg) {
+// Publish MDB diagnostics snapshot via MQTT.
+// Called event-driven on state changes and periodically as heartbeat.
+static void publish_mdb_diag(void) {
     if (!mqttClient) return;
 
     char topic[128];
@@ -1410,6 +1413,11 @@ static void mdb_diag_timer_cb(void *arg) {
         mdb_last_cmd);
 
     esp_mqtt_client_publish(mqttClient, topic, msg, 0, 0, 0);
+}
+
+// esp_timer callback wrapper
+static void mdb_diag_timer_cb(void *arg) {
+    publish_mdb_diag();
 }
 
 static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data) {
@@ -1456,8 +1464,8 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
                     .name = "mdb_diag"
                 };
                 if (esp_timer_create(&args, &mdb_diag_timer) == ESP_OK) {
-                    esp_timer_start_periodic(mdb_diag_timer, 30 * 1000000ULL); // 30s
-                    ESP_LOGI(TAG, "MDB DIAG: timer started (30s interval)");
+                    esp_timer_start_periodic(mdb_diag_timer, 300 * 1000000ULL); // 5min heartbeat
+                    ESP_LOGI(TAG, "MDB DIAG: heartbeat timer started (5min interval)");
                 }
             }
         }
