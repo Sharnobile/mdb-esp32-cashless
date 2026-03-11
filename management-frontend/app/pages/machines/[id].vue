@@ -359,6 +359,31 @@ async function cancelCredit() {
 const mdbAddressLoading = ref(false)
 const mdbAddressError = ref('')
 
+const restartLoading = ref(false)
+
+async function restartDevice() {
+  if (!machine.value?.embeddeds?.id) return
+
+  restartLoading.value = true
+  try {
+    const session = useSupabaseSession()
+    const token = session.value?.access_token
+    if (!token) throw new Error('Not authenticated')
+
+    await $fetch('/functions/v1/send-device-config', {
+      baseURL: useRuntimeConfig().public.supabase.url,
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: { device_id: machine.value.embeddeds.id, config: { restart: true } },
+    })
+  } catch (err: unknown) {
+    // Show error inline (reuse mdbAddressError for simplicity)
+    mdbAddressError.value = err instanceof Error ? err.message : 'Restart failed'
+  } finally {
+    restartLoading.value = false
+  }
+}
+
 async function setMdbAddress(address: 1 | 2) {
   if (!machine.value?.embeddeds?.id) return
   if ((machine.value.embeddeds as any).mdb_address === address) return
@@ -1668,6 +1693,7 @@ function stockColor(tray: any) {
               </div>
 
             </TabsContent>
+
           </Tabs>
         </template>
       </div>
@@ -1774,19 +1800,29 @@ function stockColor(tray: any) {
           </div>
 
           <!-- Actions -->
-          <div v-if="isAdmin" class="mt-5 flex gap-2 border-t pt-4">
+          <div v-if="isAdmin" class="mt-5 space-y-3 border-t pt-4">
+            <div class="flex gap-2">
+              <button
+                class="inline-flex h-9 flex-1 items-center justify-center rounded-md border text-sm font-medium transition-colors hover:bg-muted"
+                @click="showDeviceInfoModal = false; openDeviceModal()"
+              >
+                {{ t('machineDetail.changeDevice') }}
+              </button>
+              <button
+                class="inline-flex h-9 items-center justify-center rounded-md px-4 text-sm font-medium text-destructive transition-colors hover:bg-destructive/10"
+                :disabled="deviceSwapLoading"
+                @click="detachDevice(); showDeviceInfoModal = false"
+              >
+                {{ t('machineDetail.detach') }}
+              </button>
+            </div>
             <button
-              class="inline-flex h-9 flex-1 items-center justify-center rounded-md border text-sm font-medium transition-colors hover:bg-muted"
-              @click="showDeviceInfoModal = false; openDeviceModal()"
+              class="inline-flex h-9 w-full items-center justify-center gap-2 rounded-md border text-sm font-medium transition-colors hover:bg-muted disabled:opacity-50"
+              :disabled="restartLoading || machine.embeddeds.status !== 'online'"
+              @click="restartDevice"
             >
-              {{ t('machineDetail.changeDevice') }}
-            </button>
-            <button
-              class="inline-flex h-9 items-center justify-center rounded-md px-4 text-sm font-medium text-destructive transition-colors hover:bg-destructive/10"
-              :disabled="deviceSwapLoading"
-              @click="detachDevice(); showDeviceInfoModal = false"
-            >
-              {{ t('machineDetail.detach') }}
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>
+              {{ restartLoading ? t('common.loading') : t('machineDetail.restartDevice') }}
             </button>
           </div>
         </div>

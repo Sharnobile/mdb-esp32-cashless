@@ -255,6 +255,7 @@ void vTaskMdbEvent(void *pvParameters) {
 		cashless_device_address == 16 ? "Cashless #1" : "Cashless #2");
 
 	time_t session_begin_time = 0;
+	time_t vend_request_time = 0;
 
 	uint16_t fundsAvailable = 0;
 	uint16_t itemPrice = 0;
@@ -446,7 +447,17 @@ void vTaskMdbEvent(void *pvParameters) {
 
 						time_t now = time(NULL);
 
-						if (machine_state >= IDLE_STATE && (now - session_begin_time /*elapsed*/) > 60 /*60 sec*/) {
+						// Vend timeout: deny if no approval/denial within 30s
+						// Prevents machine from hanging in VEND_STATE (display stuck on credit,
+						// bill acceptor disabled) when BLE/MQTT approval never arrives.
+						if (machine_state == VEND_STATE && (now - vend_request_time) > 30) {
+							ESP_LOGW(TAG, "VEND TIMEOUT: no approval after 30s, denying");
+							vend_denied_todo = true;
+						}
+
+						// Session timeout: cancel idle sessions after 60s
+						// (VEND_STATE is handled by the vend timeout above)
+						if (machine_state >= IDLE_STATE && machine_state != VEND_STATE && (now - session_begin_time) > 60) {
 							session_cancel_todo = true;
 						}
 					}
@@ -464,6 +475,7 @@ void vTaskMdbEvent(void *pvParameters) {
 
 						machine_state = VEND_STATE;
 						mdb_last_cmd = "VEND_REQUEST";
+						time(&vend_request_time);
 
                         if(fundsAvailable && (fundsAvailable != 0xffff)){
 
@@ -1316,7 +1328,11 @@ void ble_event_handler(char *ble_payload) {
         }
         break;
     case 0x04: /*Close the vending session*/
-    	session_cancel_todo = (machine_state >= IDLE_STATE) ? true : false;
+        if (machine_state == VEND_STATE) {
+            vend_denied_todo = true; // must deny vend before cancelling session
+        } else if (machine_state >= IDLE_STATE) {
+            session_cancel_todo = true;
+        }
         break;
     case 0x05:
         // Not implemented
@@ -1501,7 +1517,11 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 
                 if (newFunds == 0) {
                     // Cancel current session (credit reset)
-                    if (machine_state >= IDLE_STATE) {
+                    if (machine_state == VEND_STATE) {
+                        // Must deny vend first before cancelling session
+                        vend_denied_todo = true;
+                        ESP_LOGI(TAG, "Credit cancel during VEND — denying vend first");
+                    } else if (machine_state >= IDLE_STATE) {
                         session_cancel_todo = true;
                         ESP_LOGI(TAG, "Credit cancel — ending active session");
                     }
@@ -1509,9 +1529,12 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
                     // Overwrite queue (always replaces previous credit)
                     xQueueOverwrite(mdbSessionQueue, &newFunds);
 
-                    // If a session is already active, cancel it first so the
+                    // If a session is already active, cancel/deny it first so the
                     // new credit gets picked up after Session Complete → ENABLED
-                    if (machine_state >= IDLE_STATE) {
+                    if (machine_state == VEND_STATE) {
+                        vend_denied_todo = true;
+                        ESP_LOGI(TAG, "New credit during VEND — denying vend, will restart session");
+                    } else if (machine_state >= IDLE_STATE) {
                         session_cancel_todo = true;
                         ESP_LOGI(TAG, "New credit while session active — restarting session");
                     }
@@ -1578,45 +1601,48 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 		/* Device config — expects JSON: {"mdb_address": 1} or {"mdb_address": 2} */
 		if (topic_len > 7 && strncmp(event->topic + event->topic_len - 7, "/config", 7) == 0) {
 
-		    char *json_buf = malloc(event->data_len + 1);
-		    if (!json_buf) {
-		        ESP_LOGE(TAG, "CONFIG: malloc failed");
-		        break;
-		    }
-		    memcpy(json_buf, event->data, event->data_len);
-		    json_buf[event->data_len] = '\0';
-
-		    cJSON *root = cJSON_Parse(json_buf);
-		    free(json_buf);
-
-		    if (!root) {
-		        ESP_LOGE(TAG, "CONFIG: failed to parse JSON");
-		        break;
-		    }
-
 		    bool needs_restart = false;
 
-		    cJSON *j_mdb = cJSON_GetObjectItem(root, "mdb_address");
-		    if (j_mdb && cJSON_IsNumber(j_mdb)) {
-		        int addr = j_mdb->valueint;
-		        if (addr == 1 || addr == 2) {
-		            nvs_handle_t h;
-		            if (nvs_open("vmflow", NVS_READWRITE, &h) == ESP_OK) {
-		                nvs_set_u8(h, "mdb_addr", (uint8_t) addr);
-		                nvs_commit(h);
-		                nvs_close(h);
-		                ESP_LOGW(TAG, "CONFIG: mdb_address set to %d, restart required", addr);
-		                needs_restart = true;
+		    // Try XOR-encrypted config first (cmd 0x30=restart, 0x31=mdb_address)
+		    if (event->data_len == 19) {
+		        uint16_t configParam = 0;
+		        uint8_t configData[19];
+		        memcpy(configData, event->data, 19);
+		        uint8_t cmd = configData[0];
+
+		        if (xorDecodeWithPasskey(&configParam, NULL, configData)) {
+		            switch (cmd) {
+		                case 0x30: // Restart
+		                    ESP_LOGW(TAG, "CONFIG: authenticated restart requested");
+		                    needs_restart = true;
+		                    break;
+		                case 0x31: // Set MDB address
+		                    if (configParam == 1 || configParam == 2) {
+		                        nvs_handle_t h;
+		                        if (nvs_open("vmflow", NVS_READWRITE, &h) == ESP_OK) {
+		                            nvs_set_u8(h, "mdb_addr", (uint8_t) configParam);
+		                            nvs_commit(h);
+		                            nvs_close(h);
+		                            ESP_LOGW(TAG, "CONFIG: mdb_address set to %u, restart required", configParam);
+		                            needs_restart = true;
+		                        }
+		                    } else {
+		                        ESP_LOGE(TAG, "CONFIG: invalid mdb_address %u (must be 1 or 2)", configParam);
+		                    }
+		                    break;
+		                default:
+		                    ESP_LOGW(TAG, "CONFIG: unknown encrypted cmd 0x%02X", cmd);
+		                    break;
 		            }
 		        } else {
-		            ESP_LOGE(TAG, "CONFIG: invalid mdb_address %d (must be 1 or 2)", addr);
+		            ESP_LOGW(TAG, "CONFIG: XOR decode failed (bad checksum or timestamp)");
 		        }
+		    } else {
+		        ESP_LOGW(TAG, "CONFIG: unexpected payload length %d (expected 19)", event->data_len);
 		    }
 
-		    cJSON_Delete(root);
-
 		    if (needs_restart) {
-		        ESP_LOGW(TAG, "CONFIG: restarting to apply new configuration...");
+		        ESP_LOGW(TAG, "CONFIG: restarting...");
 		        vTaskDelay(pdMS_TO_TICKS(500));
 		        esp_restart();
 		    }
