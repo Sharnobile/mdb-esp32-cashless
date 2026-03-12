@@ -491,3 +491,9 @@ enabled = true
 verify_jwt = false
 import_map = "./functions/create-api-key/deno.json"
 entrypoint = "./functions/create-api-key/index.ts"
+
+[functions.search-product-images]
+enabled = true
+verify_jwt = false
+import_map = "./functions/search-product-images/deno.json"
+entrypoint = "./functions/search-product-images/index.ts"

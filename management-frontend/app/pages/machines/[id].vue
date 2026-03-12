@@ -18,7 +18,7 @@ const defaultTab = computed(() => {
 const supabase = useSupabaseClient()
 const { role } = useOrganization()
 const { products, categories, fetchProducts } = useProducts()
-const { trays, loading: traysLoading, fetchTrays, upsertTray, updateTray, batchCreateTrays, refillToFull, refillAll, deleteTray, subscribeToTrayUpdates } = useMachineTrays()
+const { trays, loading: traysLoading, fetchTrays, upsertTray, updateTray, batchCreateTrays, refillToFull, refillAll, adjustStock: adjustStockDebounced, deleteTray, subscribeToTrayUpdates } = useMachineTrays()
 const { fetchUnassignedEmbeddeds, swapDevice } = useMachines()
 const { logs: mdbLogs, loading: mdbLogsLoading, hasMore: mdbHasMore, fetchLogs: fetchMdbLogs, fetchMore: fetchMoreMdbLogs, subscribe: subscribeMdbLog, stateLabel, stateVariant } = useMdbLog()
 const { onResume } = useAppResume()
@@ -719,18 +719,9 @@ async function handleRefillFull(trayId: string) {
   await refillToFull(trayId, machine.value.id)
 }
 
-// Quick +/- stock adjustment (mobile)
-async function adjustStock(trayId: string, delta: number) {
-  const tray = trays.value.find(t => t.id === trayId)
-  if (!tray) return
-  const newVal = Math.max(0, Math.min(tray.capacity, tray.current_stock + delta))
-  if (newVal === tray.current_stock) return
-  tray.current_stock = newVal // optimistic
-  try {
-    await updateTray(trayId, machine.value.id, { current_stock: newVal })
-  } catch {
-    // reverts via fetchTrays
-  }
+// Quick +/- stock adjustment (mobile) — debounced to prevent UI glitches
+function adjustStock(trayId: string, delta: number) {
+  adjustStockDebounced(trayId, machine.value.id, delta)
 }
 
 // Mobile: expanded tray for threshold editing
@@ -1707,7 +1698,7 @@ function stockColor(tray: any) {
       <!-- Device info modal -->
       <div
         v-if="showDeviceInfoModal && machine?.embeddeds"
-        class="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40"
+        class="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/40"
         @click.self="showDeviceInfoModal = false"
       >
         <div class="w-full max-w-sm rounded-t-xl sm:rounded-xl border bg-card p-5 sm:p-6 shadow-lg">
@@ -1837,7 +1828,7 @@ function stockColor(tray: any) {
       <!-- Device swap/assign modal -->
       <div
         v-if="showDeviceModal"
-        class="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40"
+        class="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/40"
         @click.self="showDeviceModal = false"
       >
         <div class="w-full max-w-sm rounded-xl border bg-card p-6 shadow-lg">
@@ -1885,7 +1876,7 @@ function stockColor(tray: any) {
       <!-- Add Tray modal -->
       <div
         v-if="showTrayModal"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+        class="fixed inset-0 z-[60] flex items-center justify-center bg-black/40"
         @click.self="showTrayModal = false"
       >
         <div class="w-full max-w-sm rounded-xl border bg-card p-6 shadow-lg">
@@ -1961,7 +1952,7 @@ function stockColor(tray: any) {
       <!-- Batch add trays modal -->
       <div
         v-if="showBatchModal"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+        class="fixed inset-0 z-[60] flex items-center justify-center bg-black/40"
         @click.self="showBatchModal = false"
       >
         <div class="w-full max-w-sm rounded-xl border bg-card p-6 shadow-lg">
@@ -2032,7 +2023,7 @@ function stockColor(tray: any) {
       <!-- Send credit modal -->
       <div
         v-if="showCreditModal"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+        class="fixed inset-0 z-[60] flex items-center justify-center bg-black/40"
         @click.self="showCreditModal = false"
       >
         <div class="w-full max-w-sm rounded-xl border bg-card p-6 shadow-lg">

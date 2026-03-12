@@ -8,6 +8,7 @@ const { t, locale } = useI18n()
 const { organization, role } = useOrganization()
 const { products, categories, loading, fetchProducts, createProduct, updateProduct, deleteProduct, uploadProductImage, deleteProductImage, createCategory, deleteCategory } = useProducts()
 const { barcodes: allBarcodes, fetchBarcodes, addBarcode, removeBarcode } = useWarehouse()
+const { images: suggestedImages, searching: searchingImages, searchDebounced, downloadImage: downloadSuggestedImage, clear: clearImageSearch } = useProductImageSearch()
 const {
   products: importProducts,
   parsing: importParsing,
@@ -37,6 +38,36 @@ const productBarcodes = computed(() => {
 })
 const newBarcodeInput = ref('')
 const barcodeAddError = ref('')
+const showProductScanner = ref(false)
+// Pending barcodes for new product creation (not yet saved to DB)
+const pendingBarcodes = ref<string[]>([])
+
+function onProductBarcodeDetected(barcode: string) {
+  showProductScanner.value = false
+  if (editingProduct.value) {
+    // Editing existing product — save directly
+    newBarcodeInput.value = barcode
+    addProductBarcode()
+  } else {
+    // Creating new product — queue for later
+    if (!pendingBarcodes.value.includes(barcode)) {
+      pendingBarcodes.value.push(barcode)
+    }
+  }
+}
+
+function addPendingBarcode() {
+  const val = newBarcodeInput.value.trim()
+  if (!val) return
+  if (!pendingBarcodes.value.includes(val)) {
+    pendingBarcodes.value.push(val)
+  }
+  newBarcodeInput.value = ''
+}
+
+function removePendingBarcode(barcode: string) {
+  pendingBarcodes.value = pendingBarcodes.value.filter(b => b !== barcode)
+}
 
 async function addProductBarcode() {
   if (!newBarcodeInput.value.trim() || !editingProduct.value) return
@@ -64,6 +95,21 @@ const productError = ref('')
 const imageFile = ref<File | null>(null)
 const imagePreview = ref<string | null>(null)
 const removeImage = ref(false)
+const selectedImageUrl = ref<string | null>(null) // full-size URL from suggestion
+
+// Watch product name for image suggestions (when no image is set)
+watch(() => productForm.value.name, (name) => {
+  if (!imageFile.value && !selectedImageUrl.value && !imagePreview.value) {
+    searchDebounced(name)
+  }
+})
+
+function selectSuggestedImage(thumbnail: string, imageUrl: string) {
+  imagePreview.value = thumbnail
+  selectedImageUrl.value = imageUrl
+  imageFile.value = null
+  clearImageSearch()
+}
 
 function openAddProduct() {
   editingProduct.value = null
@@ -71,7 +117,12 @@ function openAddProduct() {
   imageFile.value = null
   imagePreview.value = null
   removeImage.value = false
+  selectedImageUrl.value = null
+  clearImageSearch()
   productError.value = ''
+  pendingBarcodes.value = []
+  newBarcodeInput.value = ''
+  barcodeAddError.value = ''
   showProductModal.value = true
 }
 
@@ -86,10 +137,16 @@ function openEditProduct(product: any) {
   imageFile.value = null
   imagePreview.value = product.image_url ?? null
   removeImage.value = false
+  selectedImageUrl.value = null
+  clearImageSearch()
   productError.value = ''
   newBarcodeInput.value = ''
   barcodeAddError.value = ''
   showProductModal.value = true
+  // Trigger image search if product has no image
+  if (!product.image_url && product.name) {
+    searchDebounced(product.name)
+  }
 }
 
 function onImageSelected(event: Event) {
@@ -108,6 +165,7 @@ function onImageSelected(event: Event) {
 function clearImage() {
   imageFile.value = null
   imagePreview.value = null
+  selectedImageUrl.value = null
   if (editingProduct.value?.image_path) {
     removeImage.value = true
   }
@@ -144,8 +202,25 @@ async function submitProduct() {
     if (removeImage.value && editingProduct.value?.image_path) {
       await deleteProductImage(productId, editingProduct.value.image_path)
     }
+    // Download suggested image if selected
+    if (selectedImageUrl.value && !imageFile.value) {
+      const file = await downloadSuggestedImage(selectedImageUrl.value)
+      if (file) imageFile.value = file
+    }
     if (imageFile.value) {
       await uploadProductImage(productId, imageFile.value)
+    }
+
+    // Save pending barcodes (new product creation)
+    if (!editingProduct.value && pendingBarcodes.value.length > 0) {
+      for (const barcode of pendingBarcodes.value) {
+        try {
+          await addBarcode({ product_id: productId, barcode })
+        } catch {
+          // ignore duplicates or failures for individual barcodes
+        }
+      }
+      pendingBarcodes.value = []
     }
 
     showProductModal.value = false
@@ -397,7 +472,7 @@ async function runImport() {
       <!-- Product modal -->
       <div
         v-if="showProductModal"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+        class="fixed inset-0 z-[60] flex items-center justify-center bg-black/40"
         @click.self="showProductModal = false"
       >
         <div class="w-full max-w-sm rounded-xl border bg-card p-4 sm:p-6 shadow-lg max-h-[90vh] overflow-y-auto">
@@ -446,6 +521,25 @@ async function runImport() {
                   @change="onImageSelected"
                 />
               </div>
+              <!-- Image suggestions -->
+              <div v-if="!imagePreview && (searchingImages || suggestedImages.length > 0)" class="mt-2">
+                <p class="mb-1.5 text-xs text-muted-foreground">{{ searchingImages ? t('products.searchingImages') : t('products.imageSuggestions') }}</p>
+                <div v-if="searchingImages" class="flex items-center gap-2 text-xs text-muted-foreground">
+                  <svg class="size-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                </div>
+                <div v-else class="grid grid-cols-4 gap-1.5">
+                  <button
+                    v-for="img in suggestedImages"
+                    :key="img.image"
+                    type="button"
+                    class="group relative aspect-square overflow-hidden rounded-md border hover:ring-2 hover:ring-primary"
+                    :title="img.title"
+                    @click="selectSuggestedImage(img.thumbnail, img.image)"
+                  >
+                    <img :src="img.thumbnail" :alt="img.title" class="h-full w-full object-cover" loading="lazy" />
+                  </button>
+                </div>
+              </div>
             </div>
 
             <div class="space-y-1">
@@ -481,10 +575,11 @@ async function runImport() {
                 class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               />
             </div>
-            <!-- Barcodes (only when editing existing product) -->
-            <div v-if="editingProduct && isAdmin" class="space-y-2">
+            <!-- Barcodes -->
+            <div v-if="isAdmin" class="space-y-2">
               <label class="text-sm font-medium">{{ t('products.barcodes') }}</label>
-              <div v-if="productBarcodes.length > 0" class="flex flex-wrap gap-1.5">
+              <!-- Existing barcodes (edit mode) -->
+              <div v-if="editingProduct && productBarcodes.length > 0" class="flex flex-wrap gap-1.5">
                 <span
                   v-for="b in productBarcodes"
                   :key="b.id"
@@ -500,24 +595,55 @@ async function runImport() {
                   </button>
                 </span>
               </div>
+              <!-- Pending barcodes (add mode) -->
+              <div v-if="!editingProduct && pendingBarcodes.length > 0" class="flex flex-wrap gap-1.5">
+                <span
+                  v-for="bc in pendingBarcodes"
+                  :key="bc"
+                  class="inline-flex items-center gap-1 rounded-full border bg-muted/50 py-0.5 pl-2.5 pr-1 text-xs font-mono"
+                >
+                  {{ bc }}
+                  <button
+                    type="button"
+                    class="ml-0.5 flex size-4 items-center justify-center rounded-full text-muted-foreground hover:bg-destructive hover:text-destructive-foreground"
+                    @click="removePendingBarcode(bc)"
+                  >
+                    &times;
+                  </button>
+                </span>
+              </div>
               <div class="flex gap-1.5">
                 <input
                   v-model="newBarcodeInput"
                   type="text"
                   :placeholder="t('products.barcodePlaceholder')"
                   class="flex h-8 flex-1 rounded-md border border-input bg-background px-2 text-xs font-mono shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  @keydown.enter.prevent="addProductBarcode"
+                  @keydown.enter.prevent="editingProduct ? addProductBarcode() : addPendingBarcode()"
                 />
                 <button
                   type="button"
                   class="h-8 rounded-md border px-2 text-xs font-medium hover:bg-muted"
-                  @click="addProductBarcode"
+                  @click="editingProduct ? addProductBarcode() : addPendingBarcode()"
                 >
                   {{ t('common.add') }}
+                </button>
+                <button
+                  type="button"
+                  class="flex h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium hover:bg-muted"
+                  @click="showProductScanner = true"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><line x1="7" x2="17" y1="12" y2="12"/><line x1="7" x2="17" y1="8" y2="8"/><line x1="7" x2="17" y1="16" y2="16"/></svg>
+                  {{ t('warehouse.scanBarcode') }}
                 </button>
               </div>
               <p v-if="barcodeAddError" class="text-xs text-destructive">{{ barcodeAddError }}</p>
             </div>
+            <!-- Barcode Scanner overlay -->
+            <BarcodeScanner
+              v-if="showProductScanner"
+              @detected="(barcode: string) => onProductBarcodeDetected(barcode)"
+              @close="showProductScanner = false"
+            />
 
             <p v-if="productError" class="text-sm text-destructive">{{ productError }}</p>
             <div class="flex gap-2">
@@ -544,7 +670,7 @@ async function runImport() {
       <!-- Category modal -->
       <div
         v-if="showCategoryModal"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+        class="fixed inset-0 z-[60] flex items-center justify-center bg-black/40"
         @click.self="showCategoryModal = false"
       >
         <div class="w-full max-w-sm rounded-xl border bg-card p-6 shadow-lg">
@@ -586,7 +712,7 @@ async function runImport() {
       <!-- Import modal -->
       <div
         v-if="showImportModal"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+        class="fixed inset-0 z-[60] flex items-center justify-center bg-black/40"
         @click.self="closeImportModal"
       >
         <div class="w-full max-w-3xl rounded-xl border bg-card p-4 sm:p-6 shadow-lg max-h-[90vh] flex flex-col">

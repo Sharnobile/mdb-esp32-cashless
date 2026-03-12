@@ -341,7 +341,7 @@ function formatDate(dt: string) {
   <!-- Upload firmware modal -->
   <div
     v-if="showUploadModal"
-    class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+    class="fixed inset-0 z-[60] flex items-center justify-center bg-black/40"
     @click.self="showUploadModal = false"
   >
     <div class="w-full max-w-md rounded-xl border bg-card p-6 shadow-lg">
@@ -407,7 +407,7 @@ function formatDate(dt: string) {
   <!-- OTA trigger modal -->
   <div
     v-if="showOtaModal"
-    class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+    class="fixed inset-0 z-[60] flex items-center justify-center bg-black/40"
     @click.self="showOtaModal = false"
   >
     <div class="w-full max-w-sm rounded-xl border bg-card p-6 shadow-lg">

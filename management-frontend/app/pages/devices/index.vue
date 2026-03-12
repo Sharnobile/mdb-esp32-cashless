@@ -400,10 +400,10 @@ async function confirmDelete() {
   <!-- Delete Confirmation Modal -->
   <div
     v-if="showDeleteModal"
-    class="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40"
+    class="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/40"
     @click.self="showDeleteModal = false"
   >
-    <div class="w-full max-w-sm rounded-t-xl sm:rounded-xl border bg-card p-6 shadow-lg">
+    <div class="w-full max-w-sm rounded-t-xl sm:rounded-xl border bg-card p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:pb-6 shadow-lg">
       <h2 class="mb-1 text-lg font-semibold">{{ t('devices.deleteDevice') }}</h2>
       <p class="mb-4 text-sm text-muted-foreground">
         {{ t('devices.deleteConfirmation', { device: deleteTarget?.mac_address ?? `subdomain ${deleteTarget?.subdomain}` }) }}
@@ -434,10 +434,10 @@ async function confirmDelete() {
   <!-- Register Device Modal -->
   <div
     v-if="showModal"
-    class="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40"
+    class="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/40"
     @click.self="closeModal"
   >
-    <div class="w-full max-w-md rounded-t-xl sm:rounded-xl border bg-card p-5 sm:p-6 shadow-lg max-h-[90vh] overflow-y-auto">
+    <div class="w-full max-w-md rounded-t-xl sm:rounded-xl border bg-card p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:p-6 sm:pb-6 shadow-lg max-h-[90vh] overflow-y-auto">
       <!-- Step 1: Generate code -->
       <template v-if="step === 1">
         <h2 class="mb-1 text-lg font-semibold">{{ t('devices.registerADevice') }}</h2>

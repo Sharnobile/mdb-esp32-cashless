@@ -37,6 +37,7 @@ interface VendingMachine {
   stock_health?: 'ok' | 'low' | 'critical'
   stock_percent?: number
   tray_summary?: { product_name: string; product_id: string | null; deficit: number; image_path: string | null }[]
+  critical_product_ids?: Set<string>
 }
 
 interface PendingToken {
@@ -230,6 +231,7 @@ export function useMachines() {
         totalStock: number
         totalCapacity: number
         deficits: Map<string, { product_name: string; product_id: string | null; deficit: number; image_path: string | null }>
+        criticalProductIds: Set<string>
         fillBelowPending: { product_id: string | null; capacity: number; current_stock: number; item_number: number; products: { name: string; image_path: string | null } | null }[]
       }>()
 
@@ -238,7 +240,7 @@ export function useMachines() {
         if (!tray.machine_id) continue
         let entry = stockMap.get(tray.machine_id)
         if (!entry) {
-          entry = { total: 0, low: 0, empty: 0, totalStock: 0, totalCapacity: 0, deficits: new Map(), fillBelowPending: [] }
+          entry = { total: 0, low: 0, empty: 0, totalStock: 0, totalCapacity: 0, deficits: new Map(), criticalProductIds: new Set(), fillBelowPending: [] }
           stockMap.set(tray.machine_id, entry)
         }
         entry.total++
@@ -263,6 +265,7 @@ export function useMachines() {
           } else {
             entry.deficits.set(key, { product_name: productName, product_id: tray.product_id, deficit, image_path: imagePath })
           }
+          if (tray.product_id) entry.criticalProductIds.add(tray.product_id)
         }
 
         if (isFillBelow) {
@@ -300,6 +303,7 @@ export function useMachines() {
             ? Math.round((stock.totalStock / stock.totalCapacity) * 100)
             : 0
           machine.tray_summary = Array.from(stock.deficits.values()).sort((a, b) => b.deficit - a.deficit)
+          machine.critical_product_ids = stock.criticalProductIds
         } else {
           machine.total_trays = 0
           machine.low_trays = 0
@@ -307,6 +311,7 @@ export function useMachines() {
           machine.stock_health = 'ok'
           machine.stock_percent = 0
           machine.tray_summary = []
+          machine.critical_product_ids = new Set()
         }
       }
 

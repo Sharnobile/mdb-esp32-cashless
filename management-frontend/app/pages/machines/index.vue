@@ -145,6 +145,22 @@ function hasPartialStock(item: { product_id: string | null; deficit: number }): 
   return available > 0 && available < item.deficit
 }
 
+// Effective stock health: if all critical products (below min_stock) are out of
+// warehouse stock, the machine doesn't need a refill visit (downgrade to 'ok')
+function effectiveStockHealth(machine: any): string {
+  const health = machine.stock_health ?? 'ok'
+  if (health === 'ok') return 'ok'
+  if (!selectedWarehouseId.value) return health
+  const criticalIds = machine.critical_product_ids as Set<string> | undefined
+  if (!criticalIds || criticalIds.size === 0) return health
+  // If every critical product is out of warehouse stock, treat as 'ok'
+  const hasRefillableCritical = [...criticalIds].some(pid => {
+    const available = warehouseStock.value.get(pid) ?? 0
+    return available > 0
+  })
+  return hasRefillableCritical ? health : 'ok'
+}
+
 // Deduct warehouse stock for a machine's packing list, then navigate to refill
 const deductingMachineId = ref<string | null>(null)
 const deductError = ref<Record<string, string>>({})
@@ -237,9 +253,9 @@ async function handleUpdateWarehouseAndContinue(machine: any) {
                 <span
                   class="ml-2 inline-block h-3 w-3 shrink-0 rounded-full"
                   :class="{
-                    'bg-red-500': machine.stock_health === 'critical',
-                    'bg-amber-500': machine.stock_health === 'low',
-                    'bg-green-500': machine.stock_health === 'ok' || !machine.stock_health,
+                    'bg-red-500': effectiveStockHealth(machine) === 'critical',
+                    'bg-amber-500': effectiveStockHealth(machine) === 'low',
+                    'bg-green-500': effectiveStockHealth(machine) === 'ok',
                   }"
                 />
               </CardHeader>
@@ -268,7 +284,7 @@ async function handleUpdateWarehouseAndContinue(machine: any) {
                 <Separator />
 
                 <!-- Healthy machine: compact view -->
-                <template v-if="machine.stock_health === 'ok' || !machine.stock_health">
+                <template v-if="effectiveStockHealth(machine) === 'ok'">
                   <p class="text-sm text-muted-foreground">
                     <template v-if="(machine.total_trays ?? 0) > 0">
                       {{ t('machines.allStocked', { count: machine.total_trays }) }}
@@ -393,7 +409,7 @@ async function handleUpdateWarehouseAndContinue(machine: any) {
   <!-- Add Machine Modal -->
   <div
     v-if="showMachineModal"
-    class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+    class="fixed inset-0 z-[60] flex items-center justify-center bg-black/40"
     @click.self="showMachineModal = false"
   >
     <div class="w-full max-w-md rounded-xl border bg-card p-6 shadow-lg">

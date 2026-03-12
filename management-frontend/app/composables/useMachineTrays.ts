@@ -23,6 +23,12 @@ export function useMachineTrays() {
   // Cache machine name so we don't look it up on every stock change
   const machineNameCache = new Map<string, string>()
 
+  // ── Debounced stock adjustment ──────────────────────────────────────────────
+  // Tracks pending stock changes per tray to prevent UI glitches from
+  // fetchTrays/realtime overwriting optimistic values during rapid clicks.
+  const pendingStockTimers = new Map<string, ReturnType<typeof setTimeout>>()
+  const pendingStockTrays = reactive(new Set<string>())
+
   async function getMachineName(machineId: string): Promise<string | null> {
     if (machineNameCache.has(machineId)) return machineNameCache.get(machineId) ?? null
     const { data } = await (supabase as any).from('vendingMachine').select('name').eq('id', machineId).maybeSingle()
@@ -42,17 +48,22 @@ export function useMachineTrays() {
 
       if (error) throw error
 
-      trays.value = ((data ?? []) as any[]).map((t: any) => ({
-        id: t.id,
-        machine_id: t.machine_id,
-        item_number: t.item_number,
-        product_id: t.product_id,
-        product_name: t.products?.name ?? null,
-        capacity: t.capacity,
-        current_stock: t.current_stock,
-        min_stock: t.min_stock ?? 0,
-        fill_when_below: t.fill_when_below ?? 0,
-      }))
+      trays.value = ((data ?? []) as any[]).map((t: any) => {
+        // Preserve optimistic current_stock for trays with pending debounced updates
+        const pending = pendingStockTrays.has(t.id)
+        const existingTray = pending ? trays.value.find(ex => ex.id === t.id) : null
+        return {
+          id: t.id,
+          machine_id: t.machine_id,
+          item_number: t.item_number,
+          product_id: t.product_id,
+          product_name: t.products?.name ?? null,
+          capacity: t.capacity,
+          current_stock: existingTray ? existingTray.current_stock : t.current_stock,
+          min_stock: t.min_stock ?? 0,
+          fill_when_below: t.fill_when_below ?? 0,
+        }
+      })
     } finally {
       if (!silent) loading.value = false
     }
@@ -151,6 +162,38 @@ export function useMachineTrays() {
   }
 
   /** Set a single tray's stock to its capacity (one-click "Full") */
+  /**
+   * Debounced stock adjustment for rapid +/- clicks.
+   * Applies optimistic update immediately, debounces the DB call,
+   * and guards against realtime/fetchTrays overwriting the optimistic value.
+   */
+  function adjustStock(trayId: string, machineId: string, delta: number) {
+    const tray = trays.value.find(t => t.id === trayId)
+    if (!tray) return
+    const newVal = Math.max(0, Math.min(tray.capacity, tray.current_stock + delta))
+    if (newVal === tray.current_stock) return
+
+    tray.current_stock = newVal // optimistic
+    pendingStockTrays.add(trayId)
+
+    // Clear previous timer for this tray
+    const existing = pendingStockTimers.get(trayId)
+    if (existing) clearTimeout(existing)
+
+    // Debounce: wait 400ms of inactivity before sending to DB
+    const timer = setTimeout(async () => {
+      pendingStockTimers.delete(trayId)
+      try {
+        await updateTray(trayId, machineId, { current_stock: tray.current_stock })
+      } catch {
+        // fetchTrays inside updateTray will correct the value
+      } finally {
+        pendingStockTrays.delete(trayId)
+      }
+    }, 700)
+    pendingStockTimers.set(trayId, timer)
+  }
+
   async function refillToFull(trayId: string, machineId: string) {
     const tray = trays.value.find(t => t.id === trayId)
     if (!tray) return
@@ -263,7 +306,10 @@ export function useMachineTrays() {
           const updated = payload.new as Record<string, any>
           const tray = trays.value.find(t => t.id === updated.id)
           if (tray) {
-            tray.current_stock = updated.current_stock
+            // Skip stock update if this tray has a pending debounced adjustment
+            if (!pendingStockTrays.has(updated.id)) {
+              tray.current_stock = updated.current_stock
+            }
             tray.capacity = updated.capacity
             tray.product_id = updated.product_id
             tray.min_stock = updated.min_stock ?? 0
@@ -289,5 +335,5 @@ export function useMachineTrays() {
     return () => supabase.removeChannel(channel)
   }
 
-  return { trays, loading, fetchTrays, upsertTray, updateTray, batchCreateTrays, refillTray, refillToFull, refillAll, deleteTray, subscribeToTrayUpdates }
+  return { trays, loading, fetchTrays, upsertTray, updateTray, batchCreateTrays, refillTray, refillToFull, refillAll, adjustStock, deleteTray, subscribeToTrayUpdates }
 }
