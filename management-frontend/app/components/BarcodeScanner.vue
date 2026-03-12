@@ -4,7 +4,7 @@ import { IconX, IconKeyboard } from '@tabler/icons-vue'
 const props = withDefaults(defineProps<{
   formats?: string[]
 }>(), {
-  formats: () => ['ean_13'],
+  formats: () => ['ean_13', 'ean_8'],
 })
 
 const emit = defineEmits<{
