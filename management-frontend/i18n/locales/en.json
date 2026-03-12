@@ -168,6 +168,7 @@
     "polls": "Polls",
     "checksumErrors": "Checksum Errors",
     "lastCommand": "Last Command",
+    "vmcLevel": "VMC Level",
     "macAddress": "MAC Address",
     "subdomain": "Subdomain",
     "firmwareLabel": "Firmware",

@@ -1585,7 +1585,7 @@ function stockColor(tray: any) {
               <div class="rounded-xl border bg-card p-4 sm:p-6">
                 <h2 class="mb-4 text-sm font-medium text-muted-foreground uppercase tracking-wide">{{ t('machineDetail.currentMdbStatus') }}</h2>
                 <template v-if="machine.embeddeds?.mdb_diagnostics">
-                  <div class="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-3 lg:grid-cols-5">
+                  <div class="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-3 lg:grid-cols-6">
                     <div class="min-w-0">
                       <p class="text-xs text-muted-foreground">{{ t('machineDetail.state') }}</p>
                       <span
@@ -1603,6 +1603,12 @@ function stockColor(tray: any) {
                     <div class="min-w-0">
                       <p class="text-xs text-muted-foreground">{{ t('machineDetail.address') }}</p>
                       <p class="mt-1 text-sm font-mono font-medium truncate">{{ machine.embeddeds.mdb_diagnostics.addr }}</p>
+                    </div>
+                    <div class="min-w-0">
+                      <p class="text-xs text-muted-foreground">{{ t('machineDetail.vmcLevel') }}</p>
+                      <p class="mt-1 text-sm font-medium">
+                        {{ machine.embeddeds.mdb_diagnostics.vmcLevel ? `Level ${machine.embeddeds.mdb_diagnostics.vmcLevel}` : '–' }}
+                      </p>
                     </div>
                     <div class="min-w-0">
                       <p class="text-xs text-muted-foreground">{{ t('machineDetail.polls') }}</p>

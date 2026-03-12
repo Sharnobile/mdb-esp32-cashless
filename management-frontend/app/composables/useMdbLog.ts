@@ -10,6 +10,7 @@ export interface MdbLogEntry {
     polls: number | null
     chk_err: number | null
     last_cmd: string | null
+    vmc_level: number | null
     raw: Record<string, unknown> | null
 }
 
@@ -19,6 +20,7 @@ export interface MdbDiagnostics {
     polls: number
     chkErr: number
     lastCmd: string
+    vmcLevel?: number
     updated_at: string
 }
 
