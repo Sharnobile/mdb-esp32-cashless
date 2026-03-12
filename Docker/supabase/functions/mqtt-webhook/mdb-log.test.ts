@@ -137,6 +137,7 @@ async function handleMdbLog(
         polls: (diag.polls as number) ?? null,
         chk_err: (diag.chkErr as number) ?? null,
         last_cmd: (diag.lastCmd as string) ?? null,
+        vmc_level: (diag.vmcLevel as number) ?? null,
         raw: diag,
       })
 
@@ -295,4 +296,40 @@ Deno.test('mdb-log: raw field preserves full original payload', async () => {
   const raw = calls.inserts[0].data.raw as Record<string, unknown>
   assertEquals(raw.extra, 'future_field')
   assertEquals(raw.state, 'ENABLED')
+})
+
+Deno.test('mdb-log: vmcLevel maps to vmc_level in history row', async () => {
+  const payload = { state: 'ENABLED', addr: '0x10', polls: 100, chkErr: 0, lastCmd: 'SETUP:CONFIG_DATA', vmcLevel: 2 }
+  const { client, calls } = createMockAdminClient({
+    selectResult: {
+      mdb_diagnostics: { state: 'DISABLED' },
+      company: COMPANY_ID,
+    },
+  })
+
+  const result = await handleMdbLog(encodePayload(payload), DEVICE_ID, client)
+
+  assertEquals(result.status, 200)
+  assertEquals(result.stateChanged, true)
+  assertEquals(calls.inserts[0].data.vmc_level, 2)
+
+  // Also verify vmcLevel is preserved in mdb_diagnostics via raw
+  const raw = calls.inserts[0].data.raw as Record<string, unknown>
+  assertEquals(raw.vmcLevel, 2)
+})
+
+Deno.test('mdb-log: missing vmcLevel results in null vmc_level (backward compat)', async () => {
+  // Old firmware doesn't send vmcLevel
+  const payload = { state: 'ENABLED', addr: '0x10', polls: 100, chkErr: 0, lastCmd: 'READER_ENABLE' }
+  const { client, calls } = createMockAdminClient({
+    selectResult: {
+      mdb_diagnostics: { state: 'DISABLED' },
+      company: COMPANY_ID,
+    },
+  })
+
+  const result = await handleMdbLog(encodePayload(payload), DEVICE_ID, client)
+
+  assertEquals(result.status, 200)
+  assertEquals(calls.inserts[0].data.vmc_level, null)
 })

@@ -149,6 +149,7 @@ Deno.serve(async (req) => {
             polls: (diag.polls as number) ?? null,
             chk_err: (diag.chkErr as number) ?? null,
             last_cmd: (diag.lastCmd as string) ?? null,
+            vmc_level: (diag.vmcLevel as number) ?? null,
             raw: diag,
           });
 
