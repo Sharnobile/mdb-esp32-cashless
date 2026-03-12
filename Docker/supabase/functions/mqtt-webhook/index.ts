@@ -129,7 +129,10 @@ Deno.serve(async (req) => {
 
       const { error: updateErr } = await adminClient
         .from('embeddeds')
-        .update({ mdb_diagnostics: diagPayload })
+        .update({
+          mdb_diagnostics: diagPayload,
+          status_at: new Date().toISOString(),
+        })
         .eq('id', deviceId);
 
       if (updateErr) throw updateErr;
