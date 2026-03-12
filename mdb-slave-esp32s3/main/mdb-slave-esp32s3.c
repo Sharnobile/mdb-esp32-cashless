@@ -419,7 +419,7 @@ void vTaskMdbEvent(void *pvParameters) {
 
 						time( &session_begin_time);
 
-						ESP_LOGI(TAG, "BEGIN_SESSION: funds=%u level=%d bytes=%d",
+						ESP_LOGI(TAG, "BEGIN_SESSION: funds=%u level=%u bytes=%d",
 							fundsAvailable, vmc_feature_level, available_tx);
 
 					} else if (session_cancel_todo) {
