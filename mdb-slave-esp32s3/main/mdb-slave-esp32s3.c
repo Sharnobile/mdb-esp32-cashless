@@ -165,6 +165,8 @@ static const char *mdb_last_cmd = "none";
 static machine_state_t mdb_prev_state = INACTIVE_STATE;
 static void publish_mdb_diag(void); // forward declaration
 
+static uint8_t vmc_feature_level = 1; // VMC feature level from SETUP (default Level 1)
+
 static const char *machine_state_name(machine_state_t s) {
     switch (s) {
         case INACTIVE_STATE: return "INACTIVE";
@@ -323,7 +325,7 @@ void vTaskMdbEvent(void *pvParameters) {
 						(void) vmcDisplayInfo;
 						(void) vmcRowsOnDisplay;
 						(void) vmcColumnsOnDisplay;
-						(void) vmcFeatureLevel;
+						vmc_feature_level = vmcFeatureLevel > 0 ? vmcFeatureLevel : 1;
 
                         if (read_9(NULL) != checksum) { mdb_checksum_errors++; continue; }
 
@@ -331,7 +333,7 @@ void vTaskMdbEvent(void *pvParameters) {
 						mdb_last_cmd = "SETUP:CONFIG_DATA";
 
                         mdb_payload[0] = 0x01;                                  // Reader Config Data
-                        mdb_payload[1] = 1;                                     // Reader Feature Level
+                        mdb_payload[1] = vmc_feature_level <= 3 ? vmc_feature_level : 3; // Report up to Level 3
 						mdb_payload[2] = CONFIG_MDB_CURRENCY_CODE >> 8;         // Country Code High
 						mdb_payload[3] = CONFIG_MDB_CURRENCY_CODE & 0xff;       // Country Code Low
 						mdb_payload[4] = CONFIG_MDB_SCALE_FACTOR;               // Scale Factor
@@ -380,9 +382,9 @@ void vTaskMdbEvent(void *pvParameters) {
 
 					// Periodic log every 500 polls (~every 50s at typical VMC rate)
 					if (mdb_poll_count % 500 == 0) {
-						ESP_LOGI(TAG, "MDB DIAG: state=%s addr=0x%02X polls=%lu chkErr=%lu lastCmd=%s",
+						ESP_LOGI(TAG, "MDB DIAG: state=%s addr=0x%02X polls=%lu chkErr=%lu lastCmd=%s vmcLevel=%u",
 							machine_state_name(machine_state), cashless_device_address,
-							mdb_poll_count, mdb_checksum_errors, mdb_last_cmd);
+							mdb_poll_count, mdb_checksum_errors, mdb_last_cmd, vmc_feature_level);
 					}
 
 					if (cashless_reset_todo) {
@@ -398,11 +400,27 @@ void vTaskMdbEvent(void *pvParameters) {
 						machine_state = IDLE_STATE;
 
 						mdb_payload[0] = 0x03;
-                        mdb_payload[1] = fundsAvailable >> 8;
-                        mdb_payload[2] = fundsAvailable;
-                        available_tx = 3;
+						mdb_payload[1] = fundsAvailable >> 8;
+						mdb_payload[2] = fundsAvailable;
+
+						if (vmc_feature_level >= 2) {
+							// Level 2/3: add Media ID (4) + Payment Type (1) + Payment Data (2)
+							mdb_payload[3] = 0xFF; // Media ID byte 0 (no specific card)
+							mdb_payload[4] = 0xFF; // Media ID byte 1
+							mdb_payload[5] = 0xFF; // Media ID byte 2
+							mdb_payload[6] = 0xFF; // Media ID byte 3
+							mdb_payload[7] = 0x00; // Payment Type: normal vend
+							mdb_payload[8] = fundsAvailable >> 8; // Payment Data = funds
+							mdb_payload[9] = fundsAvailable;
+							available_tx = 10;
+						} else {
+							available_tx = 3;
+						}
 
 						time( &session_begin_time);
+
+						ESP_LOGI(TAG, "BEGIN_SESSION: funds=%u level=%d bytes=%d",
+							fundsAvailable, vmc_feature_level, available_tx);
 
 					} else if (session_cancel_todo) {
 						// Cancel session
@@ -1421,12 +1439,13 @@ static void publish_mdb_diag(void) {
 
     char msg[256];
     snprintf(msg, sizeof(msg),
-        "{\"state\":\"%s\",\"addr\":\"0x%02X\",\"polls\":%lu,\"chkErr\":%lu,\"lastCmd\":\"%s\"}",
+        "{\"state\":\"%s\",\"addr\":\"0x%02X\",\"polls\":%lu,\"chkErr\":%lu,\"lastCmd\":\"%s\",\"vmcLevel\":%u}",
         machine_state_name(machine_state),
         cashless_device_address,
         mdb_poll_count,
         mdb_checksum_errors,
-        mdb_last_cmd);
+        mdb_last_cmd,
+        vmc_feature_level);
 
     esp_mqtt_client_publish(mqttClient, topic, msg, 0, 0, 0);
 }
