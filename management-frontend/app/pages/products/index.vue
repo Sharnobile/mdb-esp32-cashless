@@ -279,6 +279,9 @@ async function handleDeleteCategory(id: string) {
   }
 }
 
+// Fullscreen image preview
+const fullscreenImage = ref<{ url: string; name: string } | null>(null)
+
 // ── Import modal ────────────────────────────────────────────────────────────
 const showImportModal = ref(false)
 const importStep = ref<1 | 2 | 3>(1)
@@ -372,11 +375,11 @@ async function runImport() {
               <table class="w-full text-sm">
                 <thead>
                   <tr class="border-b bg-muted/50 text-left">
-                    <th class="w-14 px-4 py-3 font-medium"></th>
+                    <th class="w-[72px] min-w-[72px] px-4 py-3 font-medium"></th>
                     <th class="px-4 py-3 font-medium">{{ t('common.name') }}</th>
                     <th class="hidden sm:table-cell px-4 py-3 font-medium">{{ t('products.category') }}</th>
                     <th class="px-4 py-3 font-medium">{{ t('products.price') }}</th>
-                    <th v-if="isAdmin" class="px-4 py-3 font-medium">{{ t('common.actions') }}</th>
+                    <th v-if="isAdmin" class="hidden sm:table-cell px-4 py-3 font-medium">{{ t('common.actions') }}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -386,12 +389,18 @@ async function runImport() {
                     class="border-b last:border-0 hover:bg-muted/30 transition-colors"
                   >
                     <td class="px-4 py-2">
-                      <img
+                      <button
                         v-if="product.image_url"
-                        :src="product.image_url"
-                        :alt="product.name"
-                        class="h-10 w-10 rounded-md object-cover"
-                      />
+                        type="button"
+                        class="block"
+                        @click="fullscreenImage = { url: product.image_url, name: product.name }"
+                      >
+                        <img
+                          :src="product.image_url"
+                          :alt="product.name"
+                          class="h-10 w-10 rounded-md object-cover"
+                        />
+                      </button>
                       <div
                         v-else
                         class="flex h-10 w-10 items-center justify-center rounded-md bg-muted"
@@ -399,10 +408,20 @@ async function runImport() {
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-muted-foreground/50" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
                       </div>
                     </td>
-                    <td class="px-4 py-3 font-medium max-w-[150px] truncate">{{ product.name }}</td>
+                    <td class="px-4 py-3 font-medium max-w-[150px] truncate">
+                      <button
+                        v-if="isAdmin"
+                        type="button"
+                        class="text-left hover:underline sm:pointer-events-none sm:no-underline"
+                        @click="openEditProduct(product)"
+                      >
+                        {{ product.name }}
+                      </button>
+                      <span v-else>{{ product.name }}</span>
+                    </td>
                     <td class="hidden sm:table-cell px-4 py-3 text-muted-foreground">{{ product.category_name ?? '—' }}</td>
                     <td class="px-4 py-3">{{ formatCurrency(product.sellprice, locale) }}</td>
-                    <td v-if="isAdmin" class="px-4 py-3">
+                    <td v-if="isAdmin" class="hidden sm:table-cell px-4 py-3">
                       <div class="flex items-center gap-2">
                         <button
                           class="text-xs text-primary hover:underline"
@@ -467,6 +486,26 @@ async function runImport() {
             </div>
           </TabsContent>
         </Tabs>
+      </div>
+
+      <!-- Fullscreen image overlay -->
+      <div
+        v-if="fullscreenImage"
+        class="fixed inset-0 z-[80] flex items-center justify-center bg-black/80"
+        @click="fullscreenImage = null"
+      >
+        <button
+          type="button"
+          class="absolute right-4 top-4 flex size-8 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20"
+          @click="fullscreenImage = null"
+        >
+          &times;
+        </button>
+        <img
+          :src="fullscreenImage.url"
+          :alt="fullscreenImage.name"
+          class="max-h-[85vh] max-w-[90vw] rounded-lg object-contain"
+        />
       </div>
 
       <!-- Product modal -->
