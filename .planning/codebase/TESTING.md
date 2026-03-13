@@ -6,89 +6,73 @@
 
 **Runner:**
 - Vitest 4.0.18
-- Config: `vitest.config.ts`
-- Environment: `happy-dom` (lightweight DOM simulation)
+- Config: `management-frontend/vitest.config.ts`
+- Environment: happy-dom (lightweight DOM simulation for Vue components)
 
 **Assertion Library:**
-- Vitest built-in expect (Chai-style)
+- Vitest built-in expect API (similar to Jest)
 
 **Run Commands:**
 ```bash
-npm run test              # Run all tests (single run)
-npm run test:watch       # Watch mode
-npx vitest run           # Explicit single run from management-frontend/
-npx vitest               # Explicit watch mode from management-frontend/
+cd management-frontend
+npm run test            # Run all tests once
+npm run test:watch     # Watch mode with auto-rerun
 ```
 
 ## Test File Organization
 
 **Location:**
-- Co-located in `__tests__/` subdirectory next to source files: `app/composables/__tests__/useMdbLog.test.ts`
-- Pattern: `__tests__/[composable-name].test.ts`
+- Co-located in `app/composables/__tests__/` directory alongside source
+- Single test file per composable: `useMdbLog.ts` → `useMdbLog.test.ts`
 
 **Naming:**
-- `.test.ts` suffix (not `.spec.ts`)
+- `.test.ts` suffix for test files
 
 **Structure:**
 ```
-app/
-├── composables/
-│   ├── useMdbLog.ts              (source)
-│   └── __tests__/
-│       └── useMdbLog.test.ts      (tests)
-├── lib/
-│   └── utils.ts
-└── test-helpers/
-    └── nuxt-stubs.ts             (Vitest mocking stubs)
+management-frontend/
+├── app/
+│   ├── composables/
+│   │   ├── useMdbLog.ts
+│   │   ├── useMachines.ts
+│   │   ├── ...
+│   │   └── __tests__/
+│   │       └── useMdbLog.test.ts     # Only this exists
+│   └── test-helpers/
+│       └── nuxt-stubs.ts             # Mock utilities
 ```
 
 ## Test Structure
 
 **Suite Organization:**
+
 ```typescript
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { stateLabel, stateVariant } from '../useMdbLog'
 
-// ── Pure helper tests ─────────────────────────────────────────────────────────
+// Pure helper tests
 describe('stateLabel', () => {
     it('maps known MDB states to human-readable labels', () => {
         expect(stateLabel('INACTIVE')).toBe('Inactive')
-        expect(stateLabel('DISABLED')).toBe('Disabled')
-    })
-
-    it('returns the raw string for unrecognised states', () => {
-        expect(stateLabel('CUSTOM_STATE')).toBe('CUSTOM_STATE')
     })
 })
 
-// ── Composable tests (with mocked Supabase) ─────────────────────────────────
+// Composable tests (with mocks)
 describe('useMdbLog composable', () => {
     beforeEach(() => {
         vi.clearAllMocks()
-        // Re-setup mocks after clear
     })
 
     it('fetchLogs queries mdb_log table with correct filters', async () => {
-        // arrange
-        const testData = [{ id: '1', ... }]
-        mockSupabase.limit.mockResolvedValueOnce({ data: testData, error: null })
-
-        // act
-        const { useMdbLog } = await import('../useMdbLog')
-        const { logs, fetchLogs } = useMdbLog()
-        await fetchLogs('dev-1')
-
-        // assert
-        expect(mockSupabase.from).toHaveBeenCalledWith('mdb_log')
-        expect(logs.value).toHaveLength(1)
+        // Test implementation
     })
 })
 ```
 
 **Patterns:**
-- Setup: `beforeEach()` clears and re-wires mocks
-- Teardown: implicit via `vi.clearAllMocks()`
-- Assertions: `expect(value).toBe(...)`, `expect(fn).toHaveBeenCalledWith(...)`
+- Separate describe blocks for pure functions vs. composables
+- `beforeEach` clears all mocks before each test
+- Re-wire mock return chains after `vi.clearAllMocks()` to restore chainability
 
 ## Mocking
 
@@ -96,27 +80,13 @@ describe('useMdbLog composable', () => {
 
 **Patterns:**
 
-1. **Mock auto-imports via path alias:**
-   - Vitest alias in `vitest.config.ts` redirects `#imports` to `app/test-helpers/nuxt-stubs.ts`
-   - Composables use `import { useSupabaseClient } from '#imports'`
-   - Tests mock `#imports` to inject test doubles:
+Mock Supabase client (from `useMdbLog.test.ts`):
 
 ```typescript
-vi.mock('#imports', () => {
-    const { ref } = require('vue')
-    return {
-        ref,
-        useSupabaseClient: () => mockSupabase,
-    }
-})
-```
-
-2. **Supabase client mock:**
-   - Fluent query builder pattern: `.from().select().eq().order().limit()`
-   - Each method returns `this` for chaining, last call resolves to `{ data, error }`
-   - Mock with `vi.fn().mockReturnThis()` to allow chaining
-
-```typescript
+const mockChannel = {
+    on: vi.fn().mockReturnThis(),
+    subscribe: vi.fn().mockReturnThis(),
+}
 const mockSupabase = {
     from: vi.fn().mockReturnThis(),
     select: vi.fn().mockReturnThis(),
@@ -127,219 +97,240 @@ const mockSupabase = {
     channel: vi.fn().mockReturnValue(mockChannel),
     removeChannel: vi.fn(),
 }
-```
 
-3. **Realtime channel mock:**
-   - Similar fluent pattern for `.on()` and `.subscribe()`
-   - Callback functions passed to `.on()` are inspected to verify event filtering
-
-```typescript
-const mockChannel = {
-    on: vi.fn().mockReturnThis(),
-    subscribe: vi.fn().mockReturnThis(),
-}
-```
-
-4. **Re-wiring mocks after `vi.clearAllMocks()`:**
-   - `clearAllMocks()` resets mock implementation but not return values
-   - Must manually re-set fluent method chains in `beforeEach()`:
-
-```typescript
-beforeEach(() => {
-    vi.clearAllMocks()
-    mockSupabase.from.mockReturnThis()
-    mockSupabase.select.mockReturnThis()
-    mockSupabase.eq.mockReturnThis()
-    // ... repeat for all methods
-    mockChannel.on.mockReturnThis()
-    mockChannel.subscribe.mockReturnThis()
+// Mock the import alias
+vi.mock('#imports', () => {
+    const { ref } = require('vue')
+    return {
+        ref,
+        useSupabaseClient: () => mockSupabase,
+    }
 })
 ```
 
 **What to Mock:**
-- Supabase client queries (database access)
-- Realtime subscriptions (websocket channels)
-- Imported Nuxt composables (useSupabaseClient, useState)
+- Supabase client (all database queries)
+- Composable imports via Nuxt aliases (`#imports`)
+- Timers if testing debounce/throttle patterns (use `vi.useFakeTimers()`)
 
 **What NOT to Mock:**
-- Pure helper functions (`stateLabel()`, `expirationStatus()`) — test directly
-- Vue reactivity primitives (`ref`, `computed`, `watch`) — use real implementations
+- Vue reactivity primitives (`ref`, `computed`, `watch`) — test with real implementations
+- Pure utility functions like `stateLabel()`, `formatCurrency()` — test directly
+- Simple state reads — test through the actual composable API
 
 ## Fixtures and Factories
 
 **Test Data:**
-- Inline literal objects with realistic field values
-- Factory pattern not used; compose test data directly in test
+
+From `useMdbLog.test.ts`, inline test data:
 
 ```typescript
-it('fetchLogs queries mdb_log table with correct filters', async () => {
-    const testData = [
-        {
-            id: '1',
-            created_at: '2026-03-05T10:00:00Z',
-            embedded_id: 'dev-1',
-            state: 'ENABLED',
-            prev_state: 'DISABLED',
-            addr: '0x10',
-            polls: 100,
-            chk_err: 0,
-            last_cmd: 'READER_ENABLE',
-            raw: {},
-        },
-    ]
-    mockSupabase.limit.mockResolvedValueOnce({ data: testData, error: null })
-})
+const testData = [
+    {
+        id: '1',
+        created_at: '2026-03-05T10:00:00Z',
+        embedded_id: 'dev-1',
+        state: 'ENABLED',
+        prev_state: 'DISABLED',
+        addr: '0x10',
+        polls: 100,
+        chk_err: 0,
+        last_cmd: 'READER_ENABLE',
+        raw: {},
+    },
+]
+mockSupabase.limit.mockResolvedValueOnce({ data: testData, error: null })
 ```
 
 **Location:**
-- Fixtures: inline in test file (no shared fixture files currently)
-- Test data lives in `__tests__/` directory alongside test file
+- No shared fixture files — define test data inline in each test
+- Use meaningful sample data (real IDs, timestamps) rather than generic placeholders
+- Cursor-based pagination tests: Create arrays of 50 items to test PAGE_SIZE boundaries
+
+**Example (pagination boundary):**
+
+```typescript
+const page1 = Array.from({ length: 50 }, (_, i) => ({
+    id: `id-${i}`,
+    created_at: i === 49 ? OLDEST_TIMESTAMP : `2026-03-05T09:${String(59 - i).padStart(2, '0')}:00Z`,
+    // ...
+}))
+```
 
 ## Coverage
 
-**Requirements:** Not enforced (no coverage threshold configured)
+**Requirements:** None enforced
 
 **View Coverage:**
 ```bash
-npx vitest run --coverage  # if coverage tool installed
+# No coverage tool configured
+# Tests exist only for composables as of 2026-03-13
 ```
-
-Currently: coverage tracking not configured in vitest.config.ts
 
 ## Test Types
 
 **Unit Tests:**
-- Scope: Pure helper functions (`stateLabel()`, `stateVariant()`)
-- Approach: Direct function calls with literal inputs, expect literal outputs
-- Example from `useMdbLog.test.ts`:
-```typescript
-describe('stateLabel', () => {
-    it('maps known MDB states to human-readable labels', () => {
-        expect(stateLabel('INACTIVE')).toBe('Inactive')
-        expect(stateLabel('DISABLED')).toBe('Disabled')
-        expect(stateLabel('IDLE')).toBe('Idle')
-        expect(stateLabel('VEND')).toBe('Vending')
-    })
-})
-```
+- Scope: Individual composables and pure utility functions
+- Approach: Mock external dependencies (Supabase), test composable logic in isolation
+- Focus: State management (refs, reactive collections), pagination, event subscriptions
 
 **Integration Tests:**
-- Scope: Composable functions with mocked Supabase (e.g., `fetchLogs()`, `subscribe()`)
-- Approach: Mock Supabase query builder, assert correct query parameters + state updates
-- Example from `useMdbLog.test.ts`:
-```typescript
-describe('useMdbLog composable', () => {
-    it('fetchLogs queries mdb_log table with correct filters', async () => {
-        const testData = [{ id: '1', state: 'ENABLED', ... }]
-        mockSupabase.limit.mockResolvedValueOnce({ data: testData, error: null })
-
-        const { useMdbLog } = await import('../useMdbLog')
-        const { logs, fetchLogs } = useMdbLog()
-        await fetchLogs('dev-1')
-
-        expect(mockSupabase.from).toHaveBeenCalledWith('mdb_log')
-        expect(mockSupabase.eq).toHaveBeenCalledWith('embedded_id', 'dev-1')
-        expect(logs.value).toHaveLength(1)
-        expect(logs.value[0].state).toBe('ENABLED')
-    })
-
-    it('fetchMore uses cursor-based pagination with lt()', async () => {
-        // Page 1: 50 items
-        const page1 = Array.from({ length: 50 }, (_, i) => ({
-            id: `id-${i}`,
-            created_at: i === 49 ? '2026-03-05T08:30:00Z' : `2026-03-05T09:${...}:00Z`,
-            ...
-        }))
-        mockSupabase.limit.mockResolvedValueOnce({ data: page1, error: null })
-
-        const { useMdbLog } = await import('../useMdbLog')
-        const { fetchLogs, fetchMore, hasMore } = useMdbLog()
-        await fetchLogs('dev-1')
-        expect(hasMore.value).toBe(true)
-
-        // Page 2: fewer results
-        mockSupabase.limit.mockResolvedValueOnce({
-            data: [{ id: 'page2-1', state: 'IDLE', ... }],
-            error: null,
-        })
-        await fetchMore('dev-1')
-
-        expect(mockSupabase.lt).toHaveBeenCalledWith('created_at', '2026-03-05T08:30:00Z')
-    })
-})
-```
+- Scope: Not configured — rely on unit tests + manual UI testing
+- Approach: N/A
 
 **E2E Tests:**
-- Status: Not implemented
-- Framework: Would use Playwright or Cypress (not currently in package.json)
+- Framework: Not used
+- Approach: Manual testing in browser or via PWA on device
 
 ## Common Patterns
 
 **Async Testing:**
-- Use async/await syntax in test functions
-- Await async composable methods: `await fetchLogs('dev-1')`
-- No explicit done() callback required (Vitest handles Promise resolution)
 
 ```typescript
 it('fetchLogs queries mdb_log table with correct filters', async () => {
     mockSupabase.limit.mockResolvedValueOnce({ data: testData, error: null })
-    const { logs, fetchLogs } = useMdbLog()
-    await fetchLogs('dev-1')  // await resolves Promise
+
+    const { useMdbLog } = await import('../useMdbLog')
+    const { fetchLogs, logs } = useMdbLog()
+
+    await fetchLogs('dev-1')
+
     expect(logs.value).toHaveLength(1)
 })
 ```
 
+- Import composable inside `async` test to use fresh mock setup
+- Await composable method calls (`await fetchLogs(...)`)
+- Assert state after await completes
+
 **Error Testing:**
-- Mock Supabase error response: `{ data: null, error: new Error('...') }`
-- Expect composable to throw: `expect(() => async fn()).rejects.toThrow(...)`
-- Currently: errors tested implicitly (composables throw when error received)
 
+From the codebase, error handling is implicit:
 ```typescript
-// Pattern (if error handling test needed):
-mockSupabase.limit.mockResolvedValueOnce({
-    data: null,
-    error: new Error('Database error'),
-})
-
-const { fetchLogs } = useMdbLog()
-await expect(fetchLogs('dev-1')).rejects.toThrow('Database error')
+const { data, error } = await supabase...
+if (error) throw error
 ```
 
-**State Verification:**
-- Verify ref state after async operation: `expect(logs.value).toEqual([...])`
-- Verify mutation effects: `expect(mockSupabase.from).toHaveBeenCalledWith('table_name')`
-
+Tests would assert errors are thrown and caught:
 ```typescript
-it('subscribe creates realtime channel with correct filter and returns cleanup', async () => {
-    const { subscribe } = useMdbLog()
-    const cleanup = subscribe('dev-42')
+it('throws on query error', async () => {
+    mockSupabase.limit.mockResolvedValueOnce({
+        data: null,
+        error: new Error('DB error')
+    })
 
-    expect(mockSupabase.channel).toHaveBeenCalledWith('mdb-log-dev-42')
-    expect(mockChannel.on).toHaveBeenCalledWith(
-        'postgres_changes',
-        expect.objectContaining({
-            event: 'INSERT',
-            schema: 'public',
-            table: 'mdb_log',
-            filter: 'embedded_id=eq.dev-42',
-        }),
-        expect.any(Function),
-    )
-    expect(typeof cleanup).toBe('function')
+    const { useMdbLog } = await import('../useMdbLog')
+    const { fetchLogs } = useMdbLog()
 
-    cleanup()
-    expect(mockSupabase.removeChannel).toHaveBeenCalled()
+    await expect(fetchLogs('dev-1')).rejects.toThrow('DB error')
 })
 ```
 
-## Test Coverage Gaps
+(Not currently present in codebase, but pattern-based on existing try/catch flows)
 
-**Currently Untested:**
-- Vue components (pages, UI components) — no unit tests for template logic
-- Realtime event handlers (callbacks passed to `.on()` not invoked in tests)
-- Error paths in composables (composables throw but error behavior not tested)
-- Browser APIs (localStorage, sessionStorage, WebStorage)
-- Nuxt middleware (`auth.ts`) — no tests
+**Pagination Testing:**
+
+Cursor-based pagination (as seen in `useMdbLog`):
+
+```typescript
+it('fetchMore uses cursor-based pagination with lt()', async () => {
+    // Page 1: exactly 50 items
+    const page1 = Array.from({ length: 50 }, (_, i) => ({
+        id: `id-${i}`,
+        created_at: i === 49 ? OLDEST_TIMESTAMP : `...`,
+        // ...
+    }))
+
+    mockSupabase.limit.mockResolvedValueOnce({ data: page1, error: null })
+
+    const { useMdbLog } = await import('../useMdbLog')
+    const { fetchLogs, fetchMore, hasMore } = useMdbLog()
+
+    await fetchLogs('dev-1')
+    expect(hasMore.value).toBe(true)  // PAGE_SIZE = 50, so exactly 50 means more
+
+    // Page 2: fewer results
+    mockSupabase.limit.mockResolvedValueOnce({
+        data: [{ id: 'page2-1', state: 'IDLE', created_at: '...' }],
+        error: null,
+    })
+
+    await fetchMore('dev-1')
+
+    // Assert lt() was called with the oldest timestamp from page 1
+    expect(mockSupabase.lt).toHaveBeenCalledWith('created_at', OLDEST_TIMESTAMP)
+    expect(hasMore.value).toBe(false)  // < PAGE_SIZE means no more
+})
+```
+
+**Mock Chain Restoration:**
+
+After `vi.clearAllMocks()`, restore chaining:
+
+```typescript
+beforeEach(() => {
+    vi.clearAllMocks()
+    // Re-wire chaining since clearAllMocks resets mockReturnThis
+    mockSupabase.from.mockReturnThis()
+    mockSupabase.select.mockReturnThis()
+    mockSupabase.eq.mockReturnThis()
+    mockSupabase.lt.mockReturnThis()
+    mockSupabase.order.mockReturnThis()
+    mockChannel.on.mockReturnThis()
+    mockChannel.subscribe.mockReturnThis()
+    mockSupabase.channel.mockReturnValue(mockChannel)
+})
+```
+
+## Test Utilities
+
+**Helper File:**
+- `management-frontend/app/test-helpers/nuxt-stubs.ts` — Stubs for Nuxt auto-imports
+
+**Contents:**
+```typescript
+// Re-export Vue reactivity primitives
+export { ref, computed, onMounted, onUnmounted, watch, reactive }
+
+// Stub useSupabaseClient — tests provide their own mock
+export function useSupabaseClient() {
+    throw new Error('useSupabaseClient must be mocked in tests')
+}
+
+// Stub useState (simplified — returns a plain ref)
+export function useState<T>(key: string, init?: () => T) {
+    return ref(init ? init() : undefined) as ReturnType<typeof ref<T>>
+}
+```
+
+## Edge Function Tests
+
+**Location:**
+- `Docker/supabase/functions/mqtt-webhook/mdb-log.test.ts` — Deno test for MQTT webhook handler
+
+**Pattern:**
+- Deno `Deno.test()` instead of Vitest
+- Test MQTT payload decryption and Supabase writes
+
+(Limited coverage as of 2026-03-13 — focus is on critical payment/webhook paths)
+
+## Current Test Coverage
+
+**Tests Present:**
+- `management-frontend/app/composables/__tests__/useMdbLog.test.ts` — 8 test cases
+  - Pure function tests: `stateLabel()`, `stateVariant()`
+  - Composable API: `fetchLogs()`, `fetchMore()`, `subscribe()`, pagination, no-op guard
+
+**Tests Missing:**
+- useMachines, useMachineTrays, useProducts, useWarehouse — No unit tests
+- Vue components — No component tests
+- Edge functions (except mdb-log webhook) — No tests
+- Frontend pages — No E2E tests
+
+**Why Limited Coverage:**
+- Rapid iteration phase — focus on correctness over automated test suite
+- Manual testing via PWA/devices more valuable for UI/UX at this stage
+- Infrastructure components (edge functions, MQTT) tested via integration with firmware
 
 ---
 

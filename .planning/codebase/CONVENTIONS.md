@@ -5,208 +5,198 @@
 ## Naming Patterns
 
 **Files:**
-- Composables: `use[Feature].ts` (e.g., `useProducts.ts`, `useMachines.ts`, `useMdbLog.ts`)
-- Components: `[Feature].vue` or `[Feature]/[Component].vue` (e.g., `BarcodeScanner.vue`, `ui/card/Card.vue`)
-- Pages: `[feature]/index.vue` or `[feature]/[id].vue` (Nuxt 4 app directory convention) — e.g., `pages/machines/[id].vue`, `pages/products/index.vue`
-- Middleware: `[name].ts` (e.g., `auth.ts`)
-- Test files: `__tests__/[name].test.ts` or adjacent to source as `[name].test.ts`
-- Utilities/helpers: `[domain]/[feature].ts` — e.g., `lib/utils.ts`
+- Vue components: PascalCase (e.g., `BarcodeScanner.vue`, `AppSidebar.vue`)
+- Composables: `use{Name}` prefix (e.g., `useOrganization.ts`, `useMachineTrays.ts`)
+- Utilities: camelCase (e.g., `utils.ts`)
+- Edge functions: kebab-case directories matching function name (e.g., `send-credit/index.ts`, `mqtt-webhook/index.ts`)
+- C source files: snake_case (e.g., `mdb-slave-esp32s3.c`, `nimble.c`, `webui_server.c`)
 
-**Functions & Composables:**
-- Use camelCase: `fetchProducts()`, `uploadProductImage()`, `subscribeToStatusUpdates()`
-- Prefix query/fetch functions with `fetch`: `fetchMachines()`, `fetchFirmwareVersions()`, `fetchLogs()`
-- Prefix subscription functions with `subscribe`: `subscribeToStatusUpdates()`, `subscribe()`
-- Prefix helper predicates with `is`: `isReleaseImported()`, `isOutOfWarehouseStock()`, `isPacked()`
-- Prefix aggregation/calculation functions with descriptive verbs: `effectiveDeficit()`, `effectiveStockHealth()`, `expirationStatus()`
+**Functions:**
+- camelCase for all functions (Vue, TypeScript, and JavaScript)
+- Composables are uppercase use patterns: `useOrganization()`, `useMachineTrays()`, `useMdbLog()`
+- Prefix helper functions that are pure/exported from composables clearly: `stateLabel()`, `stateVariant()`, `expirationStatus()`
+- No underscore prefixes — encapsulation done via file structure, not naming
 
 **Variables:**
-- Reactive state (ref/useState): descriptive nouns: `machines`, `loading`, `organization`, `packedItems`, `selectedWarehouseId`
-- Loading/status flags: `loading`, `hasMore`, `githubLoading`, `creatingMachine`
-- Error state: `error`, `machineError`, `deductError` (object for multiple errors per resource)
-- Map/Set collections: suffixed with descriptor: `todayMap`, `trayProductMap`, `packedItems`
+- camelCase for all local variables and state refs: `machines`, `loading`, `hasMore`, `machineError`
+- Prefix reactive state with intent: `pending*` for pending operations (e.g., `pendingStockTimers`, `pendingStockTrays`)
+- Cache maps prefixed with intent: `machineNameCache`, `warehouseStock`
+- Booleans prefixed with verb or state: `loading`, `hasMore`, `manualInput`, `creatingMachine`
 
-**Types/Interfaces:**
-- PascalCase: `Organization`, `Product`, `VendingMachine`, `MdbLogEntry`, `GitHubRelease`
-- Suffixed with purpose when needed: `...Summary`, `...Entry`, `...Response` (e.g., `WarehouseProductSummary`, `ActivityEntry`, `DashboardMachine`)
-- Shared types in composables: exported inline above composable function
+**Types:**
+- PascalCase for interfaces and type definitions (e.g., `MdbLogEntry`, `Organization`, `VendingMachine`, `Warehouse`)
+- Enum values: SCREAMING_SNAKE_CASE for C enums (e.g., `INACTIVE_STATE`, `VEND_STATE`)
+- Enum names: camelCase suffix `_t` in C (e.g., `machine_state_t`)
+- Interface properties: snake_case matching database column names (e.g., `created_at`, `embedded_id`, `current_stock`)
 
 ## Code Style
 
 **Formatting:**
-- No explicit formatter configured (no .eslintrc, .prettierrc found); inferred from codebase:
-  - 2-space indentation (TypeScript/Vue)
-  - Single quotes for strings in TypeScript (both observed and shadcn-nuxt convention)
-  - Double quotes for JSX/Vue attributes
-  - No semicolons in Vue template/script blocks (optional); included in standalone `.ts` files
-  - Line breaks before `>` in Vue templates for readability
+- No ESLint or Prettier config files — codebase follows implicit conventions
+- Indentation: 2 spaces (Vue, TypeScript)
+- Indentation: 4 spaces (C firmware)
+- Line breaks: Unix (LF)
+- Max line length: ~100 characters for readability (not enforced)
 
 **Linting:**
-- No ESLint rules explicitly configured in repo
-- Type safety: TypeScript strict mode implied (all files typed, no implicit `any`)
-- Unused imports: not explicitly pruned in current code, but imports are generally clean
-
-**Vue/TypeScript conventions in components:**
-- `<script setup lang="ts">` — all pages/components use this syntax
-- Type imports: `import type { ... }` for types, regular `import` for runtime values
-- definePageMeta for route middleware and page metadata
-- Inline JSDoc/comments for complex logic sections
+- No active linter configured — code relies on TypeScript compiler and convention adherence
+- TypeScript strict mode implied (interface contracts, type annotations on public functions)
 
 ## Import Organization
 
-**Order:**
-1. Vue core (`import { ref, computed, ... } from 'vue'`)
-2. Nuxt utilities (`import { definePageMeta, useRouter, ... } from '#app'` or via auto-imports)
-3. Component/UI imports (`import { Card, ... } from '@/components/ui/card'`)
-4. Composable imports (`import { useProducts, ... } from '@/composables/useProducts'`)
-5. Type imports (`import type { Product, ... }`)
-6. Local/third-party utilities (`import { cn, formatCurrency } from '@/lib/utils'`)
+**Order (TypeScript/Vue):**
+1. Vue/Nuxt framework imports: `import { ref, computed } from 'vue'`
+2. External packages: `import { createClient } from '@supabase/supabase-js'`
+3. Internal imports by layer: `import { useOrganization } from './useOrganization'`
+4. Local imports (same file): None — keep local to file unless reusable
 
 **Path Aliases:**
-- `@/` — absolute alias for `./app/` (Nuxt default)
-- Components auto-imported via shadcn-nuxt and Nuxt auto-import
+- `#imports` — Nuxt auto-import stub, resolves to `app/test-helpers/nuxt-stubs.ts` for testing
+- `@/components` — Components in `app/components/`
+- `@/composables` — Composables in `app/composables/`
+- `@/lib` — Utilities in `app/lib/`
 
-**Example from `/machines/index.vue`:**
-```typescript
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Separator } from '@/components/ui/separator'
-import { getProductImageUrl } from '@/composables/useProducts'
-import { formatCurrency } from '@/lib/utils'
-
-const { t } = useI18n()
-const { organization } = useOrganization()
-const { machines, loading, fetchMachines, ... } = useMachines()
-```
+**Barrel Files:**
+- Not used — import directly from source files: `import { useOrganization } from '@/composables/useOrganization'`
 
 ## Error Handling
 
 **Patterns:**
-- Try-catch blocks in async functions with finally cleanup: `loading.value = false` in finally
-- Throw Error objects with descriptive messages: `throw new Error('No organization')`
-- Check for Supabase errors inline: `if (error) throw error`
-- Null coalescing for optional fields: `(data?.field ?? fallback)`
-- No global error boundary; page-level error handling with user-visible messages
-- Error state in component state: `machineError`, `deductError` (map for multiple errors)
+- Try/catch blocks with `finally` to guarantee cleanup (especially in composables managing state)
+- Error extraction: `if (error) throw error` after Supabase queries
+- User-facing errors: Cast to `Error` before returning: `err instanceof Error ? err.message : 'fallback'`
+- Suppress errors gracefully in non-critical paths: `catch { warehouseStock.value = new Map() }`
 
-**Example from `useFirmware.ts`:**
+**Example from composables:**
 ```typescript
-async function uploadFirmware(file: File, versionLabel: string, notes?: string) {
-  if (!organization.value) throw new Error('No organization')
-
-  const { error: uploadError } = await supabase.storage.from('firmware').upload(filePath, file, ...)
-  if (uploadError) throw uploadError
-
-  const { error: insertError } = await supabase.from('firmware_versions').insert(...)
-  if (insertError) {
-    // Rollback: cleanup uploaded file
-    await supabase.storage.from('firmware').remove([filePath])
-    throw insertError
-  }
-
-  await fetchFirmwareVersions()
+async function fetchLogs(embeddedId: string) {
+    loading.value = true
+    try {
+        const { data, error } = await supabase.from('mdb_log').select('*')...
+        if (error) throw error
+        logs.value = (data ?? []) as MdbLogEntry[]
+    } finally {
+        loading.value = false
+    }
 }
 ```
 
-**Example from `machines/index.vue`:**
+**Example from pages:**
 ```typescript
 try {
-  await createMachine(machineName.value.trim(), organization.value!.id)
-  showMachineModal.value = false
+    await createMachine(machineName.value.trim(), organization.value!.id)
+    showMachineModal.value = false
 } catch (err: unknown) {
-  machineError.value = err instanceof Error ? err.message : t('machines.failedToCreate')
+    machineError.value = err instanceof Error ? err.message : t('machines.failedToCreate')
 } finally {
-  creatingMachine.value = false
+    creatingMachine.value = false
 }
 ```
 
 ## Logging
 
-**Framework:** Browser `console` only; no structured logging library
+**Framework:** `console` (no logging library configured)
 
 **Patterns:**
-- Realtime channel errors: `console.error('[realtime] channel-name error:', err)`
-- External API failures: `console.error('Failed to fetch resource:', e)`
-- Debug info not in production code (only error-level logging)
+- Frontend: No logs in UI code — errors shown in UI via state (`machineError`, `error` refs)
+- Backend (edge functions): `console.log()` for debugging, structured via JSON
+- Firmware (C): `ESP_LOG*` macros with TAG constant: `#define TAG "mdb_cashless"`, then `ESP_LOGI(TAG, "...")`
+
+**When to Log:**
+- Firmware diagnostics: State changes, error conditions, periodic heartbeats
+- Backend: Authentication failures, payment processing errors, OTA operations
+- Frontend: Never log to console in production code — use error state refs instead
 
 ## Comments
 
 **When to Comment:**
-- Complex business logic (e.g., multi-phase stock calculation in `useMachines.ts`)
-- Non-obvious algorithms (e.g., cursor-based pagination logic)
-- Gotchas or SSR caveat (middleware note about Supabase URL rewriting)
-- Section headers for large functions: `// ── [Section Name] ────────────────`
+- Complex algorithms: Explain "why" not "what" (code reads "what")
+- Section markers: Use `// ── [Section Name] ──────────` for readability
+- Async gotchas: Comment on intentional fire-and-forget patterns
 
 **JSDoc/TSDoc:**
-- Exported helper functions have JSDoc: `/** Check if a GitHub release tag has already been imported */`
-- Interface documentation: minimal; type name + field names are self-documenting
+- Function signatures: Minimal — type annotations are documentation
+- Complex functions: Optional JSDoc above public functions explaining inputs/outputs
+- Interfaces: Optional descriptions where contract is non-obvious
 
-**Example from `machines/index.vue`:**
+**Example:**
 ```typescript
-// ── Warehouse stock awareness ────────────────────────────────────────────────
-// Returns available warehouse stock for a product, or null if no warehouse selected
-function getWarehouseAvailable(item: { product_id: string | null }): number | null {
-  if (!selectedWarehouseId.value || !item.product_id) return null
-  return warehouseStock.value.get(item.product_id) ?? 0
-}
+/**
+ * i18n-aware timeAgo — pass the `t` function from useI18n().
+ * Falls back to English if no `t` provided.
+ */
+export function timeAgo(dt: string | null | undefined, t?: (key: string, params?: Record<string, any>) => string): string
 ```
 
 ## Function Design
 
 **Size:**
-- Composables: 30–150 lines typical (e.g., `useOrganization` ~28 lines, `useMachines` ~496 lines for complex aggregation)
-- Helper functions: <30 lines
-- Pages: 100–400 lines (logic + template combined)
+- Keep functions under 50 lines when possible
+- Break complex logic into focused helper functions (see `useMachineTrays.ts` with `logActivity`, `getMachineName`)
 
 **Parameters:**
-- Destructured object params for functions with 3+ params: `deductForRefill({ warehouse_id, product_id, quantity, machine_id })`
-- Positional params acceptable for <3 args: `createMachine(name, companyId)`
+- Destructure optional parameters: `async function fetchTrays(machineId: string, { silent = false } = {})`
+- Avoid parameter objects for single/double parameters — use positional
+- Named parameters with defaults for optional flags
 
 **Return Values:**
-- Composables return object with named exports: `return { products, loading, fetchProducts, ... }`
-- Helper functions return typed values: `expirationStatus()` returns `'ok' | 'warning' | 'critical'`
-- Functions that may fail throw exceptions (no Result<T, E> pattern)
+- Return reactive refs from composables: `return { logs, loading, hasMore, fetchLogs, fetchMore, subscribe }`
+- Null for missing data: `const name = data?.name ?? null`
+- Falsy returns on empty queries: `if (!oldest) return`
 
 ## Module Design
 
 **Exports:**
-- Composables export a single default function: `export function useMachines() { ... }`
-- Shared helpers/types exported individually: `export function expirationStatus(...) { ... }`, `export interface Warehouse { ... }`
-- No barrel files (`index.ts` re-exports); imports reference source directly: `import { useProducts } from '@/composables/useProducts'`
+- Composables export single default function: `export function useMdbLog()`
+- Utilities export named functions: `export function cn(...inputs)`, `export function timeAgo(...)`
+- Interfaces alongside implementations: Define in the file where they're used
 
-**Barrel Files:**
-- Used only for shadcn-nuxt UI components: `components/ui/card/index.ts` re-exports Card, CardHeader, CardTitle, CardContent
-- Not used for composables, pages, or utilities
-
-## State Management
-
-**Pattern:** Nuxt `useState` + Supabase realtime subscriptions
-
-- Page-level state initialized on mount: `const { machines, loading, fetchMachines, subscribeToStatusUpdates } = useMachines()`
-- Realtime channels subscribed in `onMounted()`, cleanup in `onUnmounted()`
-- Local-only UI state (e.g., modals, form inputs): `ref()` scoped to component
-- Shared state across pages: `useState('key')` in composables (cached in global store)
-
-**Example from `/machines/index.vue`:**
+**Example structure (composable):**
 ```typescript
-onMounted(async () => {
-  await Promise.all([fetchMachines(), fetchWarehouses()])
-  if (warehouses.value.length > 0) selectedWarehouseId.value = warehouses.value[0].id
-  await loadWarehouseStock()
-  const unsubscribe = subscribeToStatusUpdates()
-  onUnmounted(unsubscribe)  // cleanup on unmount
-})
+// Interfaces first
+interface MdbLogEntry { ... }
+
+// Helper functions (exported for testing)
+export function stateLabel(state: string): string { ... }
+export function stateVariant(state: string): ... { ... }
+
+// Main composable function last
+export function useMdbLog() { ... }
 ```
 
-## Data Type Casting
+**Internal state patterns:**
+- Cache with cleanup: `const machineNameCache = new Map<string, string>()`
+- Debounced operations: `const pendingStockTimers = new Map<string, ReturnType<typeof setTimeout>>()`
+- Reactive collections: `const pendingStockTrays = reactive(new Set<string>())`
 
-**Pattern:** Manual casting via `as` when Supabase returns `unknown`
+## Database Column Naming
 
-Reason: No generated database types (`database.types.ts`), so Supabase client returns `never` by default.
+All database columns use **snake_case** (PostgreSQL default). Interface properties match exactly:
+- Table: `organization_members` → Interface property: `organization_members`
+- Column: `created_at` → Property: `created_at`
+- Column: `embedded_id` → Property: `embedded_id`
 
-**Example from `useMachines.ts`:**
+This removes any mapping layer — types are direct mirrors of DB schema.
+
+## Activity Logging Pattern
+
+Critical operations (e.g., stock adjustments, refills, product updates) call a shared `logActivity()` helper:
+
 ```typescript
-const todayRows = (todaySalesRes.data ?? []) as { machine_id: string; item_price: number }[]
-for (const row of todayRows) { ... }
+async function logActivity(action: string, entityId: string | null, metadata: Record<string, unknown>) {
+    const { data: { session } } = await supabase.auth.getSession()
+    // Insert to history table with user_id, action, entity_id, metadata
+}
 ```
+
+Called from composables like `useMachineTrays`, `useWarehouse` whenever user actions modify data.
+
+## Deno/TypeScript Edge Functions
+
+- Imports from CDN: `import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'`
+- No npm dependencies in edge functions — use Deno standard library and remote imports
+- Error responses: Always return JSON with appropriate status codes
+- Authentication: Extract JWT from `Authorization: Bearer ...` header; hash API keys with SHA-256
 
 ---
 

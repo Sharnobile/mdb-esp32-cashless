@@ -4,177 +4,196 @@
 
 ## APIs & External Services
 
-**Supabase Edge Functions:**
-- 18 edge functions deployed via Deno runtime; all called via `useSupabaseClient().functions.invoke()`
-- Location: `Docker/supabase/functions/`
-- Authentication: JWT (from frontend) or API key (from external integrations)
-- Key functions invoked from frontend:
-  - `get-my-organization` - Fetch current user's organization + role (called on every protected page)
-  - `create-provisioning-token` - Generate 8-char one-time device provisioning code
-  - `send-credit` - Encrypt and publish credit via MQTT (admin only)
-  - `trigger-ota` - Publish OTA firmware URL to device MQTT topic (admin only)
-  - `import-products` - Bulk import products from Nayax Excel export
-  - `create-api-key` - Generate API key for external integrations (admin only)
-  - `import-github-release` - Fetch firmware releases from GitHub repo
-  - Full list in `Docker/supabase/config.toml` `[functions.<name>]` sections
+**MQTT Message Broker:**
+- Eclipse Mosquitto 2.1.2 - Bidirectional device-to-backend messaging
+  - Client: esp-mqtt library in firmware; mqtt npm package in forwarder
+  - Topic format: `/{company_id}/{device_id}/{event}`
+  - Pub events: `sale`, `status`, `paxcounter`, `dex`, `mdb-log`
+  - Sub events: `credit`, `ota`, `config`
+  - Port: 1883 (internal), configurable public port
+  - Auth: vmflow/vmflow (devices), admin user (forwarder + edge functions)
+  - Webhook bridge: `Docker/mqtt/forwarder/main.ts` forwards payloads to `mqtt-webhook` edge function
 
-**MQTT Broker & Device Communication:**
-- Service: Eclipse Mosquitto 2.1.2-alpine (port 1883)
-- Topic format: `/{company_id}/{device_id}/{event}`
-- Frontend → Device: Not directly; uses `send-credit` and `trigger-ota` edge functions to publish
-- Device → Frontend: MQTT forwarder (`Docker/mqtt/forwarder/main.ts`) bridges to Supabase webhooks
-- Forwarder subscribed topics: `/+/+/sale`, `/+/+/status`, `/+/+/paxcounter`, `/+/+/mdb-log`
-- All payloads XOR-encrypted with 18-byte `passkey` (stored in `embeddeds` table)
-- Frontend subscribes to realtime sales/status updates via Supabase Realtime (not MQTT directly)
-- Credentials: vmflow/vmflow (devices), admin/admin (forwarder, edge functions)
-- ACL: `Docker/mqtt/config/acl` defines per-user topic permissions
+**GitHub Releases (Firmware OTA):**
+- API: GitHub release downloads for firmware binaries
+  - Integration: `import-github-release` edge function fetches latest releases
+  - Config: `GITHUB_FIRMWARE_REPO` env var (owner/repo format)
+  - Used by: Firmware management UI (`/firmware` page)
 
 **Web Push Notifications (VAPID):**
-- Standard: Web Push Protocol (RFC 8030)
-- Keys: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` in Docker `.env`
-- Frontend: `useNotifications()` composable calls `register-push` edge function
-- Registration: `app/pages/settings.vue` → `register-push` → stores in `push_subscriptions` table
-- Sending: `test-push` edge function invokes `_shared/web-push.ts` helper
-- Implementation: `Docker/supabase/functions/_shared/web-push.ts`
+- Browser Push API - Native push notifications
+  - Keys: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`
+  - Functions: `register-push`, `test-push` edge functions
+  - Storage: Browser push subscriptions stored in `push_subscriptions` DB table
+  - Used by: User-facing alerts (stock, sales, device status)
 
-**Firebase Cloud Messaging (Optional):**
-- Opt-in: Set `FCM_SERVICE_ACCOUNT_JSON` in Docker `.env` (full service account key JSON)
-- Purpose: Native iOS/Android push notifications (if app distributed via app stores)
-- Fallback: Web push via VAPID works on all platforms (web only)
-- Implementation: `_shared/web-push.ts` detects FCM availability and routes accordingly
+**Firebase Cloud Messaging (FCM):**
+- Native iOS/Android push notifications (optional)
+  - Config: `FCM_SERVICE_ACCOUNT_JSON` env var (full service account JSON)
+  - Integration: Edge function push handlers check for FCM credentials
+  - Status: Disabled if `FCM_SERVICE_ACCOUNT_JSON` is empty
 
-**GitHub API:**
-- Purpose: Fetch firmware release binaries for OTA updates
-- Endpoint: https://api.github.com/repos/{owner}/{repo}/releases
-- Opt-in: Set `GITHUB_FIRMWARE_REPO` env var (e.g., `myorg/firmware-releases`)
-- Used in: `/firmware` page → `search-product-images` edge function (misnamed; actually imports GitHub releases)
-- No authentication required (public repos only, subject to GitHub rate limits)
+**OpenAI API (Optional):**
+- Supabase Studio SQL Editor Assistant
+  - Config: `OPENAI_API_KEY` env var
+  - Used: Studio UI only (not backend)
+  - Status: Optional integration
 
 ## Data Storage
 
 **Databases:**
-- **PostgreSQL 15.8.1** (via Supabase)
-  - Connection: `postgres://postgres:password@db:5432/postgres`
-  - Client: Supabase JS client (via PostgREST)
-  - Tables: 20+ including `companies`, `embeddeds`, `sales`, `products`, `warehouse_stock_batches`, `mdb_log`, `push_subscriptions`, etc.
-  - RLS enabled: All queries filtered by `my_company_id()` helper function
-  - Migrations: Versioned SQL files in `Docker/supabase/migrations/`
-  - Seed data: `Docker/supabase/seed.sql` (loaded on `supabase start`)
+- PostgreSQL 15.8.1.060 (supabase/postgres container)
+  - Connection: `postgres://{user}:{password}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}`
+  - Client: Supabase client (PostgREST API) via `@supabase/supabase-js`
+  - Replication: Logical replication enabled for Realtime
+  - Auth: `supabase_admin`, `authenticator`, `supabase_auth_admin`, `supabase_storage_admin` roles
 
 **File Storage:**
-- **Supabase Storage** (v1.25.7):
-  - Bucket: `product-images` (public, max 2 MiB per file, PNG/JPEG/WebP)
-    - Used by: `useProducts()` composable (`uploadProductImage()`)
-    - Path format: `{product_id}.{ext}` (e.g., `123e4567-e89b-12d3-a456-426614174000.png`)
-    - Served at: `{SUPABASE_PUBLIC_URL}/storage/v1/object/public/product-images/{path}`
-  - Bucket: `firmware` (public, max 5 MiB per file, .bin binaries)
-    - Used by: `/firmware` page → `useFirmware()` composable
-    - Manual upload via browser; consumed by ESP32 OTA flow
-  - Image proxy: ImgProxy v3.8.0 (container) for transformations (resizing, WebP conversion)
+- Supabase Storage - Self-hosted local filesystem storage
+  - Buckets (from `Docker/supabase/config.toml`):
+    - `product-images`: public, 2MiB limit, PNG/JPEG/WebP (product catalog images)
+    - `firmware`: public, 5MiB limit, binary files (OTA firmware updates)
+  - Backend: Local filesystem at `Docker/volumes/storage/`
+  - Image transformation: imgproxy v3.8.0 container for thumbnail/resize operations
+  - API: Supabase Storage REST API via PostgREST
 
 **Caching:**
-- None detected in management-frontend
-- MQTT broker: Mosquitto (persists messages to disk at `Docker/mqtt/data/`)
-- Browser: IndexedDB (Supabase Realtime maintains local state)
-- App cache: PWA service worker (custom `public/sw.js`, no precache)
+- None centralized (Redis not deployed)
+- Frontend browser caching: Realtime subscriptions via WebSocket
+- Supabase client-side caching: Query results cached in useState composables
 
 ## Authentication & Identity
 
 **Auth Provider:**
-- **Supabase GoTrue v2.177.0** (self-hosted)
-- Implementation: Email/password sign-up and login
-- Endpoints: `auth/v1/signup`, `auth/v1/signin` (via Kong reverse proxy)
-- JWT tokens: Stored in cookies (prefix: `sb-vmflow-auth-token-*`) and `localStorage`
-- Token expiry: Configurable via `JWT_EXPIRY` env var (default 3600s = 1 hour)
-- Frontend integration: `@nuxtjs/supabase` provides `useSupabaseUser()` and `useSupabaseAuth()`
+- Supabase GoTrue (v2.177.0) - Self-hosted authentication
+  - JWT issuer: `{API_EXTERNAL_URL}/auth/v1`
+  - Token expiry: Configurable via `JWT_EXPIRY` (default 3600s)
+  - Methods: Email/password signup + login, optional SMS/TOTP (disabled in default config)
+  - External OAuth: Support for Apple, Google, GitHub, etc. (disabled by default)
 
-**Multi-Tenancy:**
-- Model: `organization_members(company_id, user_id, role)`
-- Roles: `admin` or `viewer`
-- Auth trigger: On new user signup, `on_auth_user_created` trigger inserts into `public.users` table
-- RLS: All queries filtered via `my_company_id()` (reads from `organization_members`)
+**Multi-tenancy:**
+- Row-level security (RLS) via Supabase policies
+  - Helper functions: `my_company_id()`, `i_am_admin()` in `Docker/supabase/`
+  - Org table: `organization_members(company_id, user_id, role)` where role ∈ {admin, viewer}
+  - User creation: Auth trigger creates `public.users` row on signup
 
-**API Key Authentication (Optional):**
-- Location: `api_keys` table (one per external integration)
-- Usage: `send-credit` and other edge functions accept `X-API-Key` header
-- Security: Keys stored as SHA-256 hashes (`key_hash` column)
-- Prefix: 8-char prefix stored (e.g., `sk_live_abc12345...` prefix is `abc12345`)
-- Revocation: `revoked_at` timestamp; middleware checks and rejects revoked keys
+**Device Authentication:**
+- XOR-encrypted MQTT payloads
+  - Passkey: 18-byte cipher key per device (generated on claim, stored in NVS)
+  - Checksum + timestamp validation (±8 second window for replay prevention)
+  - Format: 19-byte binary (cmd, version, param, itemNumber, timestamp, padding, checksum)
+  - Reference: `send-credit/index.ts` edge function, `xorDecodeWithPasskey()` in firmware
+
+**Provisioning Flow:**
+- SoftAP captive portal (HTTP) during initial WiFi setup
+- `claim-device` edge function validates provisioning code, returns company/device/passkey
 
 ## Monitoring & Observability
 
 **Error Tracking:**
-- Not detected in frontend code
-- No Sentry, Rollbar, or similar integration
+- None configured (no Sentry, Rollbar, etc.)
+- Database logging: PostgreSQL query logs to container stdout
 
 **Logs:**
-- **Console logging:** `console.log/error/warn` throughout composables (e.g., `useMachines()`)
-- **Supabase logs:** Docker container logs: `docker compose logs -f functions`, `docker compose logs -f db`
-- **MQTT broker logs:** `docker compose logs -f broker`
-- **Analytics (optional):** Logflare integration in docker-compose (disabled by default)
-  - Requires `LOGFLARE_PRIVATE_ACCESS_TOKEN` env var
-
-**Performance:**
-- No explicit APM (Application Performance Monitoring) detected
-- Realtime lag: Browser DevTools Network tab shows WebSocket connections to Supabase Realtime
-- Database query performance: Visible in PostgreSQL slow query log (if enabled)
+- Container logs: `docker compose logs -f [service]`
+- Supabase Analytics: Logflare integration (optional, requires `LOGFLARE_*` API keys)
+- Firmware diagnostics: `mdb_log` table stores MDB state changes (event-driven + 5min heartbeat)
+- MDB log payload: plaintext JSON `{"state","addr","polls","chkErr","lastCmd"}`
 
 ## CI/CD & Deployment
 
 **Hosting:**
-- **Production:** Docker Compose on a single host (Linux server recommended)
-  - All services in `Docker/docker-compose.yml`
-  - Frontend runs on port 3000 (behind reverse proxy for HTTPS)
-- **Local Development:** Docker Compose + Supabase CLI (`supabase start`)
-- **Container Registry:** GitHub Container Registry (`ghcr.io/lucienkerl/mdb-esp32-cashless/frontend:latest`)
+- Self-hosted Docker (primary) - `Docker/docker-compose.yml` orchestrates all services
+- Supabase CLI (local development) - `supabase start` for local development environment
 
 **CI Pipeline:**
-- Not detected in repo (no `.github/workflows/` checked in)
-- Manual build: `docker compose build` from `Docker/` directory
+- GitHub Actions (optional) - Build/test via `.github/workflows/` (if present)
+- Docker image registry: ghcr.io (GitHub Container Registry)
+  - Frontend image: `ghcr.io/lucienkerl/mdb-esp32-cashless/frontend:latest`
+  - Build args: `GIT_HASH`, `BUILD_DATE` passed to Dockerfile
 
-**OTA Firmware Updates:**
-- Device receives binary URL via MQTT topic `/{company_id}/{device_id}/ota`
-- URL points to: Supabase Storage `firmware` bucket or GitHub release
-- Device downloads and flashes via `esp_https_ota_begin()`
-- No delta/patch updates (full binary only)
+**Deployment Path:**
+- Frontend: Multi-stage Node build → SSR runtime on port 3000
+- Edge functions: Deno files mounted from `Docker/supabase/functions/` → edge-runtime container
+- Firmware: Binary in `firmware` storage bucket → OTA via `trigger-ota` function
 
 ## Environment Configuration
 
 **Required env vars (Docker/.env):**
-- `POSTGRES_PASSWORD` - DB password (32+ chars)
-- `JWT_SECRET` - JWT signing key (32+ chars)
-- `ANON_KEY` - Supabase public JWT (generated)
-- `SERVICE_ROLE_KEY` - Supabase service JWT (generated)
-- `MQTT_WEBHOOK_SECRET` - Shared secret between forwarder and edge functions (32+ chars)
-- `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` - Generated by `setup.sh`
-- `SUPABASE_PUBLIC_URL` - Public API gateway URL (e.g., `http://10.0.1.181:8000` for LAN, `https://api.vmflow.xyz` for prod)
-- `MQTT_PUBLIC_HOST`, `MQTT_PUBLIC_PORT` - Public MQTT address returned to devices (LAN IP or domain)
-- `API_EXTERNAL_URL` - For GoTrue redirect callbacks (e.g., `http://localhost:8000`)
-- `SITE_URL` - For auth email links (e.g., `http://localhost:3000` or `https://vmflow.xyz`)
-- Optional: `GITHUB_FIRMWARE_REPO`, `FCM_SERVICE_ACCOUNT_JSON`, `OPENAI_API_KEY`
+- **Secrets**: `POSTGRES_PASSWORD`, `JWT_SECRET`, `ANON_KEY`, `SERVICE_ROLE_KEY`, `VAULT_ENC_KEY`, `PG_META_CRYPTO_KEY`
+- **Database**: `POSTGRES_HOST`, `POSTGRES_DB`, `POSTGRES_PORT`
+- **API**: `KONG_HTTP_PORT`, `SITE_URL`, `API_EXTERNAL_URL`
+- **Auth**: `JWT_EXPIRY`, `DISABLE_SIGNUP`, `ENABLE_EMAIL_SIGNUP`, `ENABLE_EMAIL_AUTOCONFIRM`
+- **SMTP**: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_ADMIN_EMAIL`
+- **MQTT**: `MQTT_HOST`, `MQTT_WEBHOOK_SECRET`, `MQTT_ADMIN_USER`, `MQTT_ADMIN_PASS`, `MQTT_PUBLIC_HOST`, `MQTT_PUBLIC_PORT`
+- **Push**: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`
+- **Optional**: `OPENAI_API_KEY`, `FCM_SERVICE_ACCOUNT_JSON`, `GITHUB_FIRMWARE_REPO`
 
 **Secrets location:**
-- `Docker/.env` - All secrets generated here by `setup.sh`
-- NVS (ESP32): Firmware stores `passkey`, `mqtt_host`, `mqtt_port` in device non-volatile storage
-- Database: `api_keys` table stores hashed API keys for external integrations
+- Docker: `Docker/.env` (gitignored)
+- Local Supabase: `Docker/supabase/.env` (gitignored)
+- Production setup: `Docker/setup.sh` auto-generates secrets; `Docker/update.sh` handles existing installs
+
+**Frontend runtime vars:**
+- `NUXT_PUBLIC_SUPABASE_URL`: Passed to frontend container as `SUPABASE_URL` env
+- `NUXT_PUBLIC_SUPABASE_KEY`: Passed as `SUPABASE_KEY`
+- `NUXT_PUBLIC_VAPID_PUBLIC_KEY`: Passed as `VAPID_PUBLIC_KEY`
+- `NUXT_PUBLIC_GITHUB_FIRMWARE_REPO`: Passed as `GITHUB_FIRMWARE_REPO`
+- `SUPABASE_URL` in `management-frontend/.env` (dev local)
+
+**Edge Function Configuration:**
+- `Docker/supabase/config.toml` `[functions.<name>]` sections define per-function settings
+- `[edge_runtime.secrets]` provides env vars to all functions via `Deno.env.get()`
+- JWT verification: `verify_jwt = false` for all functions (workaround for local ES256 bug)
 
 ## Webhooks & Callbacks
 
 **Incoming:**
-- **MQTT → Supabase:** Deno forwarder (`Docker/mqtt/forwarder/main.ts`)
-  - Subscribes to `/+/+/sale`, `/+/+/status`, `/+/+/paxcounter`, `/+/+/mdb-log` topics
-  - Forwards raw payloads (base64-encoded) to `mqtt-webhook` edge function via HTTP POST
-  - Header: `X-Webhook-Secret` (matches `MQTT_WEBHOOK_SECRET` env var)
-  - Response: `mqtt-webhook` decrypts XOR payloads, validates checksum + timestamp (±8s window), writes to DB
+- `claim-device` endpoint: Called by ESP32 firmware during provisioning
+  - POST `{server_url}/functions/v1/claim-device` with `{short_code, mac_address}`
+  - Returns `{company_id, device_id, passkey, mqtt_host, mqtt_port}`
+
+- `mqtt-webhook` endpoint: Called by MQTT forwarder for all published events
+  - POST `{SUPABASE_URL}/functions/v1/mqtt-webhook` with base64 payload + secret header
+  - Decrypts XOR payloads, validates checksum/timestamp, writes to DB tables
 
 **Outgoing:**
-- **Supabase → Device (MQTT):** Edge functions publish via `_shared/mqtt-publish.ts`
-  - Topics: `/{company_id}/{device_id}/credit`, `/{company_id}/{device_id}/ota`, `/{company_id}/{device_id}/config`
-  - Payloads: XOR-encrypted binary format (19 bytes: cmd + version + param + itemNumber + timestamp + padding + checksum)
-  - Functions: `send-credit`, `trigger-ota`, `send-device-config` edge functions
-- **Frontend → Push:** Browser push subscriptions
-  - Endpoint: User's push service endpoint (managed by browser)
-  - Payload: Encrypted via VAPID; sent by `test-push` edge function
+- MQTT publish: Edge functions publish to device topics (`credit`, `ota`, `config`)
+- Email notifications: GoTrue SMTP (signup confirmations, password resets, invitations)
+- Push notifications: VAPID web push + FCM native push (via edge function handlers)
+
+## Data Flow: MQTT Sales Event Example
+
+1. ESP32 vend completes → publishes XOR-encrypted binary to `/company_id/device_id/sale`
+2. Mosquitto broker routes to forwarder subscriber
+3. Forwarder decodes base64, POSTs to `mqtt-webhook` function with `X-Webhook-Secret` header
+4. `mqtt-webhook` function (Deno):
+   - Validates secret
+   - Decrypts XOR payload with passkey from `embeddeds` table
+   - Validates checksum + timestamp (±8s)
+   - Inserts into `sales` table + triggers `decrement_tray_stock`
+5. Supabase Realtime broadcasts schema change
+6. Frontend (`useMachines()` composable) receives update via realtime subscription
+7. Dashboard KPIs and machine detail page refresh
+
+## Database Integration Details
+
+**Multi-tenancy RLS Policies:**
+- All tables have `company_id` column with RLS policy: `auth.uid() IN (SELECT user_id FROM organization_members WHERE company_id = ...)` or admin check
+- Helper functions `my_company_id()` and `i_am_admin()` handle org lookups
+
+**Triggers & Automation:**
+- `decrement_tray_stock()` trigger fires on sales insert (auto-decrements `machine_trays.current_stock`)
+- `deduct_warehouse_stock_fifo()` function handles warehouse FIFO stock deductions on refill operations
+- Auth trigger `on_auth_user_created` (if present) inserts user record on signup
+
+**Key Tables with External Data:**
+- `embeddeds`: Device metadata + `passkey` for MQTT encryption
+- `device_provisioning`: One-time claim codes (expires_at, used_at)
+- `products`, `machine_trays`: Product catalog + machine slot configuration
+- `sales`, `paxcounter`: Event stream from firmware
+- `mdb_log`: MDB state-change diagnostics (plaintext JSON)
+- `push_subscriptions`: Browser push endpoint + keys
 
 ---
 
