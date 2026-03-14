@@ -76,6 +76,9 @@ export function useRefillWizard() {
   // Tour log
   const tourLog = ref<TourLogEntry[]>([])
 
+  // Track which machines have been completed or skipped during refill step
+  const completedMachineIds = ref(new Set<string>())
+
   // ── Computed ─────────────────────────────────────────────────────────────
 
   const currentMachine = computed(() => machines.value[currentMachineIndex.value] ?? null)
@@ -596,6 +599,8 @@ export function useRefillWizard() {
         // activity log failure is non-critical
       }
 
+      completedMachineIds.value = new Set([...completedMachineIds.value, machine.id])
+
       tourLog.value.push({
         machine_id: machine.id,
         machine_name: machine.name,
@@ -613,6 +618,7 @@ export function useRefillWizard() {
   function skipMachine() {
     const machine = currentMachine.value
     if (machine) {
+      completedMachineIds.value = new Set([...completedMachineIds.value, machine.id])
       tourLog.value.push({
         machine_id: machine.id,
         machine_name: machine.name,
@@ -624,9 +630,36 @@ export function useRefillWizard() {
     advanceToNextMachine()
   }
 
+  /** Navigate to a specific machine by index (for tab bar switching) */
+  async function goToMachine(index: number) {
+    if (index < 0 || index >= machines.value.length) return
+    if (index === currentMachineIndex.value) return
+    currentMachineIndex.value = index
+    await loadTraysForCurrentMachine()
+  }
+
+  /** Check if a machine has been completed or skipped */
+  function isMachineCompleted(machineId: string): boolean {
+    return completedMachineIds.value.has(machineId)
+  }
+
+  /** Check if all machines are completed */
+  const allMachinesCompleted = computed(() => {
+    return machines.value.every(m => completedMachineIds.value.has(m.id))
+  })
+
   async function advanceToNextMachine() {
-    const nextIndex = currentMachineIndex.value + 1
-    if (nextIndex >= machines.value.length) {
+    // Find the next uncompleted machine
+    let nextIndex = -1
+    for (let i = 0; i < machines.value.length; i++) {
+      if (!completedMachineIds.value.has(machines.value[i].id)) {
+        nextIndex = i
+        break
+      }
+    }
+
+    if (nextIndex === -1) {
+      // All machines completed
       currentStep.value = 'summary'
       return
     }
@@ -652,6 +685,7 @@ export function useRefillWizard() {
     packedItems.value = new Map()
     packedQuantities.value = new Map()
     committedQuantities.value = new Map()
+    completedMachineIds.value = new Set()
     currentTrays.value = []
     tourLog.value = []
   }
@@ -678,6 +712,8 @@ export function useRefillWizard() {
     totalMachinesInTour,
     currentMachineNumber,
     tourSummary,
+    allMachinesCompleted,
+    completedMachineIds,
 
     // Packing
     isPacked,
@@ -699,6 +735,8 @@ export function useRefillWizard() {
     setFillAmount,
     confirmMachineRefill,
     skipMachine,
+    goToMachine,
+    isMachineCompleted,
     resetWizard,
   }
 }

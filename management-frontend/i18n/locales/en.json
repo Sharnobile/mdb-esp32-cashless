@@ -169,7 +169,10 @@
     "skipped": "Skipped",
     "backToMachines": "Back to Machines",
     "noItemsPacked": "Check at least one item to start the tour",
-    "warehouseDeductionHint": "Warehouse stock will be deducted when starting the tour"
+    "warehouseDeductionHint": "Warehouse stock will be deducted when starting the tour",
+    "completed": "completed",
+    "alreadyCompleted": "Machine already completed",
+    "finishTour": "Finish Tour"
   },
   "machineDetail": {
     "sales": "Sales",

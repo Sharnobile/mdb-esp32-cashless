@@ -169,7 +169,10 @@
     "skipped": "Übersprungen",
     "backToMachines": "Zurück zu Automaten",
     "noItemsPacked": "Mindestens einen Artikel ankreuzen, um die Tour zu starten",
-    "warehouseDeductionHint": "Beim Starten der Tour wird der Lagerbestand abgebucht"
+    "warehouseDeductionHint": "Beim Starten der Tour wird der Lagerbestand abgebucht",
+    "completed": "erledigt",
+    "alreadyCompleted": "Automat bereits erledigt",
+    "finishTour": "Tour abschließen"
   },
   "machineDetail": {
     "sales": "Verkäufe",
