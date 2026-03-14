@@ -36,3 +36,23 @@ export function formatCurrency(amount: number | null | undefined, locale?: strin
   if (amount == null) return '—'
   return new Intl.NumberFormat(locale ?? 'en-US', { style: 'currency', currency: 'EUR' }).format(amount)
 }
+
+export function formatDate(dt: string | null | undefined, locale?: string): string {
+  if (!dt) return '\u2014'
+  return new Date(dt).toLocaleDateString(locale, {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  })
+}
+
+export function formatDateTime(dt: string | null | undefined, locale?: string): string {
+  if (!dt) return '\u2014'
+  return new Date(dt).toLocaleString(locale, {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
