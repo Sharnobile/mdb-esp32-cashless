@@ -104,7 +104,7 @@ function selectProduct(id: string | null) {
           <CommandGroup v-if="allowCreate">
             <CommandItem value="__create__" @select="emit('create', searchQuery)">
               <Plus class="mr-2 size-4" />
-              {{ t('warehouse.createNewProduct') }}
+              {{ searchQuery.trim() ? t('warehouse.createNewProduct', { name: searchQuery.trim() }) : t('warehouse.createNewProductShort') }}
             </CommandItem>
           </CommandGroup>
         </CommandList>
