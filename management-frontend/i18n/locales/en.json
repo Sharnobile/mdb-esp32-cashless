@@ -39,7 +39,8 @@
     "required": "{field} is required",
     "failedTo": "Failed to {action}",
     "confirm": "Confirm",
-    "back": "Back"
+    "back": "Back",
+    "noResults": "No results"
   },
   "nav": {
     "dashboard": "Dashboard",

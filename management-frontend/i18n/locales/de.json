@@ -39,7 +39,8 @@
     "required": "{field} ist erforderlich",
     "failedTo": "{action} fehlgeschlagen",
     "confirm": "Bestätigen",
-    "back": "Zurück"
+    "back": "Zurück",
+    "noResults": "Keine Ergebnisse"
   },
   "nav": {
     "dashboard": "Übersicht",
