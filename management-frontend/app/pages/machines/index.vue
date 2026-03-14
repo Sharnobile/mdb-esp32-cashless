@@ -2,8 +2,7 @@
 definePageMeta({ middleware: 'auth' })
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Separator } from '@/components/ui/separator'
-import { getProductImageUrl } from '@/composables/useProducts'
+import { IconTruck } from '@tabler/icons-vue'
 import { formatCurrency } from '@/lib/utils'
 
 const { t } = useI18n()
@@ -11,43 +10,14 @@ const { organization } = useOrganization()
 const {
   machines, loading, fetchMachines, subscribeToStatusUpdates, createMachine,
 } = useMachines()
-const { warehouses, fetchWarehouses, deductForRefill, fetchWarehouseStockMap } = useWarehouse()
 const { onResume } = useAppResume()
-const router = useRouter()
 
 // Re-fetch all machine data when app resumes from background (iOS PWA etc.)
 onResume(() => fetchMachines())
 usePullToRefresh(() => fetchMachines())
 
-// Warehouse selection for stock deduction
-const selectedWarehouseId = ref<string | null>(null)
-
-// Warehouse stock for packing list awareness (product_id → available quantity)
-const warehouseStock = ref(new Map<string, number>())
-const warehouseStockLoading = ref(false)
-
-async function loadWarehouseStock() {
-  if (!selectedWarehouseId.value) {
-    warehouseStock.value = new Map()
-    return
-  }
-  warehouseStockLoading.value = true
-  try {
-    warehouseStock.value = await fetchWarehouseStockMap(selectedWarehouseId.value)
-  } catch {
-    warehouseStock.value = new Map()
-  } finally {
-    warehouseStockLoading.value = false
-  }
-}
-
-// Re-fetch warehouse stock when warehouse selection changes
-watch(selectedWarehouseId, () => loadWarehouseStock())
-
 onMounted(async () => {
-  await Promise.all([fetchMachines(), fetchWarehouses()])
-  if (warehouses.value.length > 0) selectedWarehouseId.value = warehouses.value[0].id
-  await loadWarehouseStock()
+  await fetchMachines()
   const unsubscribe = subscribeToStatusUpdates()
   onUnmounted(unsubscribe)
 })
@@ -80,154 +50,28 @@ async function submitCreateMachine() {
     creatingMachine.value = false
   }
 }
-
-// ── Packing checklist state (local only, resets on page reload) ──────────────
-// Map<machineId, Set<productKey>>
-const packedItems = ref(new Map<string, Set<string>>())
-
-function itemKey(item: { product_id: string | null; product_name: string }) {
-  return item.product_id ?? item.product_name
-}
-
-function isPacked(machineId: string, item: { product_id: string | null; product_name: string }) {
-  return packedItems.value.get(machineId)?.has(itemKey(item)) ?? false
-}
-
-function togglePacked(machineId: string, item: { product_id: string | null; product_name: string }) {
-  // Don't allow toggling if out of stock in warehouse
-  if (isOutOfWarehouseStock(item)) return
-  const key = itemKey(item)
-  const current = packedItems.value.get(machineId) ?? new Set<string>()
-  if (current.has(key)) {
-    current.delete(key)
-  } else {
-    current.add(key)
-  }
-  packedItems.value.set(machineId, current)
-  // Trigger reactivity
-  packedItems.value = new Map(packedItems.value)
-}
-
-function allPacked(machineId: string, traySummary: { product_id: string | null; product_name: string }[]) {
-  if (!traySummary || traySummary.length === 0) return false
-  // Only consider items that are actually packable (have warehouse stock)
-  const packableItems = traySummary.filter(item => !isOutOfWarehouseStock(item))
-  if (packableItems.length === 0) return false
-  const set = packedItems.value.get(machineId)
-  if (!set) return false
-  return packableItems.every(item => set.has(itemKey(item)))
-}
-
-// ── Warehouse stock awareness ────────────────────────────────────────────────
-// Returns available warehouse stock for a product, or null if no warehouse selected
-function getWarehouseAvailable(item: { product_id: string | null }): number | null {
-  if (!selectedWarehouseId.value || !item.product_id) return null
-  return warehouseStock.value.get(item.product_id) ?? 0
-}
-
-// Effective deficit capped to warehouse availability
-function effectiveDeficit(item: { product_id: string | null; deficit: number }): number {
-  const available = getWarehouseAvailable(item)
-  if (available === null) return item.deficit
-  return Math.min(item.deficit, available)
-}
-
-// True if warehouse is selected but product has zero stock
-function isOutOfWarehouseStock(item: { product_id: string | null }): boolean {
-  const available = getWarehouseAvailable(item)
-  return available !== null && available <= 0
-}
-
-// True if warehouse has some stock but less than the deficit
-function hasPartialStock(item: { product_id: string | null; deficit: number }): boolean {
-  const available = getWarehouseAvailable(item)
-  if (available === null) return false
-  return available > 0 && available < item.deficit
-}
-
-// Effective stock health: if all critical products (below min_stock) are out of
-// warehouse stock, the machine doesn't need a refill visit (downgrade to 'ok')
-function effectiveStockHealth(machine: any): string {
-  const health = machine.stock_health ?? 'ok'
-  if (health === 'ok') return 'ok'
-  if (!selectedWarehouseId.value) return health
-  const criticalIds = machine.critical_product_ids as Set<string> | undefined
-  if (!criticalIds || criticalIds.size === 0) return health
-  // If every critical product is out of warehouse stock, treat as 'ok'
-  const hasRefillableCritical = [...criticalIds].some(pid => {
-    const available = warehouseStock.value.get(pid) ?? 0
-    return available > 0
-  })
-  return hasRefillableCritical ? health : 'ok'
-}
-
-// Deduct warehouse stock for a machine's packing list, then navigate to refill
-const deductingMachineId = ref<string | null>(null)
-const deductError = ref<Record<string, string>>({})
-
-async function handleUpdateWarehouseAndContinue(machine: any) {
-  const checkedItems = (machine.tray_summary ?? []).filter(
-    (item: any) => item.product_id && item.deficit > 0 && isPacked(machine.id, item)
-  )
-
-  if (!selectedWarehouseId.value || checkedItems.length === 0) {
-    // No warehouse or nothing checked — just navigate directly
-    router.push(`/machines/${machine.id}?tab=stock`)
-    return
-  }
-
-  deductingMachineId.value = machine.id
-  delete deductError.value[machine.id]
-  try {
-    // Build packed quantities map (product_id → amount deducted from warehouse)
-    const packedMap: Record<string, number> = {}
-    for (const item of checkedItems) {
-      const qty = effectiveDeficit(item)
-      if (qty <= 0) continue // skip items with no warehouse stock
-      await deductForRefill({
-        warehouse_id: selectedWarehouseId.value,
-        product_id: item.product_id,
-        quantity: qty,
-        machine_id: machine.id,
-      })
-      packedMap[item.product_id] = (packedMap[item.product_id] ?? 0) + qty
-    }
-    // Store packed quantities so the detail page's "Refill all" only fills what was packed
-    if (Object.keys(packedMap).length > 0) {
-      sessionStorage.setItem(`refill-packed-${machine.id}`, JSON.stringify(packedMap))
-    }
-    router.push(`/machines/${machine.id}?tab=stock`)
-  } catch (err: any) {
-    deductError.value[machine.id] = err.message?.includes('Insufficient')
-      ? t('machines.insufficientStock')
-      : (err.message ?? t('machines.deductionFailed'))
-  } finally {
-    deductingMachineId.value = null
-  }
-}
 </script>
 
 <template>
   <div class="flex flex-1 flex-col gap-4 p-4 md:p-6">
         <div class="flex flex-wrap items-center justify-between gap-2">
           <h1 class="text-2xl font-semibold">{{ t('machines.title') }}</h1>
-          <button
-            class="shrink-0 inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90"
-            @click="openMachineModal"
-          >
-            {{ t('machines.addMachine') }}
-          </button>
-        </div>
-
-        <!-- Warehouse selector -->
-        <div v-if="warehouses.length > 0" class="flex items-center gap-2 rounded-lg border bg-muted/30 px-3 sm:px-4 py-2.5">
-          <label class="shrink-0 text-sm text-muted-foreground">{{ t('machines.warehouse') }}</label>
-          <select
-            v-model="selectedWarehouseId"
-            class="h-8 min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-          >
-            <option v-for="wh in warehouses" :key="wh.id" :value="wh.id">{{ wh.name }}</option>
-          </select>
+          <div class="flex items-center gap-2">
+            <NuxtLink
+              v-if="machines.some(m => (m.stock_health ?? 'ok') !== 'ok')"
+              to="/refill"
+              class="shrink-0 inline-flex h-9 items-center justify-center gap-2 rounded-md border border-primary bg-primary/10 px-4 text-sm font-medium text-primary shadow-sm transition-colors hover:bg-primary/20"
+            >
+              <IconTruck class="h-4 w-4" />
+              {{ t('machines.startRefillTour') }}
+            </NuxtLink>
+            <button
+              class="shrink-0 inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90"
+              @click="openMachineModal"
+            >
+              {{ t('machines.addMachine') }}
+            </button>
+          </div>
         </div>
 
         <div v-if="loading" class="text-muted-foreground">{{ t('machines.loadingMachines') }}</div>
@@ -237,25 +81,24 @@ async function handleUpdateWarehouseAndContinue(machine: any) {
         </div>
 
         <div v-else class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          <div
+          <NuxtLink
             v-for="machine in machines"
             :key="machine.id"
+            :to="`/machines/${machine.id}`"
             class="block rounded-xl transition-shadow hover:shadow-md"
           >
             <Card class="h-full">
               <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
-                <NuxtLink :to="`/machines/${machine.id}`" class="min-w-0 flex-1">
-                  <CardTitle class="text-base font-semibold truncate">
-                    {{ machine.name ?? t('machines.unnamedMachine') }}
-                  </CardTitle>
-                </NuxtLink>
+                <CardTitle class="text-base font-semibold truncate">
+                  {{ machine.name ?? t('machines.unnamedMachine') }}
+                </CardTitle>
                 <!-- Stock health dot -->
                 <span
                   class="ml-2 inline-block h-3 w-3 shrink-0 rounded-full"
                   :class="{
-                    'bg-red-500': effectiveStockHealth(machine) === 'critical',
-                    'bg-amber-500': effectiveStockHealth(machine) === 'low',
-                    'bg-green-500': effectiveStockHealth(machine) === 'ok',
+                    'bg-red-500': (machine.stock_health ?? 'ok') === 'critical',
+                    'bg-amber-500': (machine.stock_health ?? 'ok') === 'low',
+                    'bg-green-500': (machine.stock_health ?? 'ok') === 'ok',
                   }"
                 />
               </CardHeader>
@@ -281,10 +124,8 @@ async function handleUpdateWarehouseAndContinue(machine: any) {
                   </div>
                 </div>
 
-                <Separator />
-
                 <!-- Healthy machine: compact view -->
-                <template v-if="effectiveStockHealth(machine) === 'ok'">
+                <template v-if="(machine.stock_health ?? 'ok') === 'ok'">
                   <p class="text-sm text-muted-foreground">
                     <template v-if="(machine.total_trays ?? 0) > 0">
                       {{ t('machines.allStocked', { count: machine.total_trays }) }}
@@ -295,7 +136,7 @@ async function handleUpdateWarehouseAndContinue(machine: any) {
                   </p>
                 </template>
 
-                <!-- Machine needing refill: expanded view -->
+                <!-- Machine needing refill: stock bar + urgency -->
                 <template v-else>
                   <!-- Urgency summary -->
                   <p class="text-sm">
@@ -320,89 +161,10 @@ async function handleUpdateWarehouseAndContinue(machine: any) {
                     </div>
                     <span class="text-xs font-medium text-muted-foreground w-8 text-right">{{ machine.stock_percent ?? 0 }}%</span>
                   </div>
-
-                  <!-- Packing checklist -->
-                  <div v-if="machine.tray_summary && machine.tray_summary.length > 0" class="space-y-2">
-                    <div class="flex items-center justify-between">
-                      <p class="text-xs font-medium text-muted-foreground uppercase tracking-wide">{{ t('machines.packForMachine') }}</p>
-                      <span
-                        v-if="allPacked(machine.id, machine.tray_summary)"
-                        class="text-xs font-medium text-green-600"
-                      >
-                        {{ t('machines.allPacked') }}
-                      </span>
-                    </div>
-                    <ul class="space-y-1">
-                      <li
-                        v-for="item in machine.tray_summary"
-                        :key="item.product_id ?? item.product_name"
-                        class="flex items-center gap-2 rounded-md px-2 py-1.5 -mx-2 transition-colors"
-                        :class="isOutOfWarehouseStock(item)
-                          ? 'opacity-50 cursor-not-allowed'
-                          : 'cursor-pointer select-none hover:bg-muted/50 active:bg-muted'"
-                        @click="togglePacked(machine.id, item)"
-                      >
-                        <!-- Checkbox -->
-                        <span
-                          class="flex h-5 w-5 shrink-0 items-center justify-center rounded border transition-colors"
-                          :class="isOutOfWarehouseStock(item)
-                            ? 'border-muted-foreground/20 bg-muted'
-                            : isPacked(machine.id, item)
-                              ? 'bg-primary border-primary text-primary-foreground'
-                              : 'border-muted-foreground/30'"
-                        >
-                          <svg v-if="isPacked(machine.id, item) && !isOutOfWarehouseStock(item)" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="h-3 w-3"><polyline points="20 6 9 17 4 12" /></svg>
-                        </span>
-                        <!-- Product image -->
-                        <img
-                          v-if="item.image_path"
-                          :src="getProductImageUrl(item.image_path)"
-                          :alt="item.product_name"
-                          class="h-8 w-8 shrink-0 rounded object-cover transition-opacity"
-                          :class="isPacked(machine.id, item) || isOutOfWarehouseStock(item) ? 'opacity-40' : ''"
-                        />
-                        <span
-                          v-else
-                          class="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-muted text-xs text-muted-foreground transition-opacity"
-                          :class="isPacked(machine.id, item) || isOutOfWarehouseStock(item) ? 'opacity-40' : ''"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4"><rect width="18" height="18" x="3" y="3" rx="2" /><circle cx="9" cy="9" r="2" /><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" /></svg>
-                        </span>
-                        <!-- Product name + quantity -->
-                        <span class="text-sm flex-1 transition-all" :class="isPacked(machine.id, item) ? 'line-through text-muted-foreground/50' : ''">
-                          <template v-if="isOutOfWarehouseStock(item)">
-                            <span class="text-muted-foreground">{{ item.deficit }}&times; {{ item.product_name }}</span>
-                            <span class="ml-1 text-xs text-red-500 dark:text-red-400">{{ t('machines.notInStock') }}</span>
-                          </template>
-                          <template v-else-if="hasPartialStock(item)">
-                            {{ effectiveDeficit(item) }}&times; {{ item.product_name }}
-                            <span class="ml-1 text-xs text-amber-500 dark:text-amber-400">{{ t('machines.needed', { count: item.deficit }) }}</span>
-                          </template>
-                          <template v-else>
-                            {{ effectiveDeficit(item) }}&times; {{ item.product_name }}
-                          </template>
-                        </span>
-                      </li>
-                    </ul>
-                  </div>
-
-                  <!-- Update warehouse stock & continue to refill -->
-                  <div class="space-y-2">
-                    <button
-                      :disabled="deductingMachineId === machine.id"
-                      class="inline-flex h-9 w-full items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90 disabled:opacity-50"
-                      @click="handleUpdateWarehouseAndContinue(machine)"
-                    >
-                      <span v-if="deductingMachineId === machine.id">{{ t('machines.updatingStock') }}</span>
-                      <span v-else-if="selectedWarehouseId">{{ t('machines.updateWarehouseStock') }}</span>
-                      <span v-else>{{ t('machines.refill') }}</span>
-                    </button>
-                    <p v-if="deductError[machine.id]" class="text-xs text-red-600 dark:text-red-400">{{ deductError[machine.id] }}</p>
-                  </div>
                 </template>
               </CardContent>
             </Card>
-          </div>
+          </NuxtLink>
         </div>
   </div>
 

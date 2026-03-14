@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { IconX, IconKeyboard } from '@tabler/icons-vue'
+import { BarcodeDetector } from 'barcode-detector/pure'
 
 const props = withDefaults(defineProps<{
   formats?: string[]
@@ -74,14 +75,7 @@ function stopCamera() {
 }
 
 function startDetection() {
-  if (!('BarcodeDetector' in window)) {
-    // Fallback: no BarcodeDetector API available
-    error.value = 'Barcode scanning not supported in this browser. Please enter the barcode manually.'
-    manualInput.value = true
-    return
-  }
-
-  const detector = new (window as any).BarcodeDetector({
+  const detector = new BarcodeDetector({
     formats: props.formats,
   })
 

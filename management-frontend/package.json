@@ -19,6 +19,7 @@
     "@unovis/ts": "^1.6.2",
     "@unovis/vue": "^1.6.2",
     "@vueuse/core": "^14.1.0",
+    "barcode-detector": "^3.1.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "dnd-kit-vue": "^0.0.2",

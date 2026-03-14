@@ -335,5 +335,50 @@ export function useMachineTrays() {
     return () => supabase.removeChannel(channel)
   }
 
-  return { trays, loading, fetchTrays, upsertTray, updateTray, batchCreateTrays, refillTray, refillToFull, refillAll, adjustStock, deleteTray, subscribeToTrayUpdates }
+  /**
+   * Delta-based refill: re-reads current_stock from DB before applying delta.
+   * This accounts for sales that happened between warehouse deduction and actual refill.
+   */
+  async function refillTrayByDelta(trayId: string, machineId: string, delta: number) {
+    if (delta <= 0) return
+
+    // Read current stock from DB (not local state) to account for sales during tour
+    const { data: freshTray, error: fetchErr } = await (supabase as any)
+      .from('machine_trays')
+      .select('current_stock, capacity, item_number, product_id')
+      .eq('id', trayId)
+      .single()
+    if (fetchErr) throw fetchErr
+
+    const currentStock = (freshTray as any).current_stock
+    const capacity = (freshTray as any).capacity
+    const newStock = Math.min(capacity, currentStock + delta)
+
+    if (newStock <= currentStock) return
+
+    const { error } = await (supabase as any)
+      .from('machine_trays')
+      .update({ current_stock: newStock })
+      .eq('id', trayId)
+    if (error) throw error
+
+    // Update local state
+    const localTray = trays.value.find(t => t.id === trayId)
+    if (localTray) localTray.current_stock = newStock
+
+    const machineName = await getMachineName(machineId)
+    const trayRef = localTray ?? freshTray as any
+    await logActivity('stock_updated', trayId, {
+      machine_id: machineId,
+      machine_name: machineName,
+      item_number: trayRef.item_number ?? null,
+      product_name: trayRef.product_name ?? null,
+      old_stock: currentStock,
+      new_stock: newStock,
+      capacity,
+      source: 'refill_wizard',
+    })
+  }
+
+  return { trays, loading, fetchTrays, upsertTray, updateTray, batchCreateTrays, refillTray, refillToFull, refillAll, adjustStock, refillTrayByDelta, deleteTray, subscribeToTrayUpdates }
 }
