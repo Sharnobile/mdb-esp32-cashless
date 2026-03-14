@@ -96,7 +96,7 @@ function sparklinePath(values: number[], width: number, height: number): { line:
         </CardAction>
       </CardHeader>
       <CardFooter class="relative flex-col items-start gap-1.5 text-sm">
-        <div class="text-muted-foreground">{{ t('dashboard.salesCount', todaySalesCount) }} &middot; {{ t('dashboard.vsYesterday') }}</div>
+        <div class="text-muted-foreground">{{ t('dashboard.salesCount', todaySalesCount) }} &middot; {{ t('common.yesterday') }}: {{ formatCurrency(yesterdayRevenue) }}</div>
       </CardFooter>
     </Card>
 
