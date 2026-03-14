@@ -9,7 +9,7 @@ import {
   IconPackageImport, IconChevronDown, IconChevronRight,
   IconAlertTriangle, IconSearch, IconX,
 } from '@tabler/icons-vue'
-import { timeAgo, formatCurrency } from '@/lib/utils'
+import { timeAgo, formatCurrency, formatDate } from '@/lib/utils'
 import { getProductImageUrl } from '@/composables/useProducts'
 import {
   expirationStatus, expirationBadgeClass, expirationLabel,
@@ -141,76 +141,6 @@ function productImagePath(productId: string): string | null {
 const showScanner = ref(false)
 const scannedBarcode = ref('')
 
-// Product autocomplete for incoming
-const incomingProductQuery = ref('')
-const incomingProductOpen = ref(false)
-const incomingHighlightedIndex = ref(-1)
-
-const incomingFilteredProducts = computed(() => {
-  const q = incomingProductQuery.value.toLowerCase().trim()
-  if (!q) return products.value
-  return products.value.filter(p => p.name.toLowerCase().includes(q))
-})
-
-watch(incomingProductQuery, () => {
-  if (!incomingProductOpen.value) return
-  const q = incomingProductQuery.value.toLowerCase().trim()
-  if (q && incomingFilteredProducts.value.length > 0) {
-    const startsIdx = incomingFilteredProducts.value.findIndex(p => p.name.toLowerCase().startsWith(q))
-    incomingHighlightedIndex.value = startsIdx >= 0 ? startsIdx : 0
-  } else {
-    incomingHighlightedIndex.value = -1
-  }
-})
-
-const incomingSelectedProductName = computed(() => {
-  if (!incomingProductId.value) return ''
-  return products.value.find(p => p.id === incomingProductId.value)?.name ?? ''
-})
-
-function onIncomingProductFocus() {
-  incomingProductOpen.value = true
-  incomingProductQuery.value = ''
-  incomingHighlightedIndex.value = -1
-}
-
-function selectIncomingProduct(productId: string, productName: string) {
-  incomingProductId.value = productId
-  incomingProductOpen.value = false
-  incomingProductQuery.value = ''
-}
-
-function handleIncomingProductBlur() {
-  setTimeout(() => { incomingProductOpen.value = false }, 200)
-}
-
-function handleIncomingProductKeydown(event: KeyboardEvent) {
-  const items = incomingFilteredProducts.value
-  if (event.key === 'Escape') {
-    event.preventDefault()
-    incomingProductOpen.value = false
-    ;(event.target as HTMLInputElement)?.blur()
-    return
-  }
-  if (event.key === 'ArrowDown') {
-    event.preventDefault()
-    incomingHighlightedIndex.value = Math.min(incomingHighlightedIndex.value + 1, items.length - 1)
-    return
-  }
-  if (event.key === 'ArrowUp') {
-    event.preventDefault()
-    incomingHighlightedIndex.value = Math.max(incomingHighlightedIndex.value - 1, 0)
-    return
-  }
-  if (event.key === 'Enter') {
-    event.preventDefault()
-    const p = items[incomingHighlightedIndex.value]
-    if (incomingHighlightedIndex.value >= 0 && p) {
-      selectIncomingProduct(p.id, p.name)
-    }
-  }
-}
-
 // ── Quick-create product modal ───────────────────────────────────────────────
 const { images: qcSuggestedImages, searching: qcSearchingImages, searchDebounced: qcSearchDebounced, downloadImage: qcDownloadSuggestedImage, clear: qcClearImageSearch } = useProductImageSearch()
 const showQuickCreateModal = ref(false)
@@ -245,9 +175,6 @@ function openQuickCreateProduct(name: string, target: 'incoming' | 'assign') {
   qcClearImageSearch()
   quickCreateError.value = ''
   quickCreateTarget.value = target
-  // Close dropdowns
-  incomingProductOpen.value = false
-  assignProductOpen.value = false
   showQuickCreateModal.value = true
 }
 
@@ -293,10 +220,8 @@ async function submitQuickCreate() {
     // Select the new product in the appropriate context
     if (quickCreateTarget.value === 'incoming') {
       incomingProductId.value = newId
-      incomingProductQuery.value = ''
     } else {
       assignBarcodeProductId.value = newId
-      assignProductQuery.value = ''
     }
     showQuickCreateModal.value = false
   } catch (err: any) {
@@ -319,76 +244,6 @@ const productsWithoutBarcode = computed(() => {
   return products.value.filter(p => !barcodeProductIds.has(p.id))
 })
 
-// Assign-barcode product autocomplete
-const assignProductQuery = ref('')
-const assignProductOpen = ref(false)
-const assignHighlightedIndex = ref(-1)
-
-const assignFilteredProducts = computed(() => {
-  const q = assignProductQuery.value.toLowerCase().trim()
-  if (!q) return productsWithoutBarcode.value
-  return productsWithoutBarcode.value.filter(p => p.name.toLowerCase().includes(q))
-})
-
-const assignSelectedProductName = computed(() => {
-  if (!assignBarcodeProductId.value) return ''
-  return products.value.find(p => p.id === assignBarcodeProductId.value)?.name ?? ''
-})
-
-watch(assignProductQuery, () => {
-  if (!assignProductOpen.value) return
-  const q = assignProductQuery.value.toLowerCase().trim()
-  if (q && assignFilteredProducts.value.length > 0) {
-    const startsIdx = assignFilteredProducts.value.findIndex(p => p.name.toLowerCase().startsWith(q))
-    assignHighlightedIndex.value = startsIdx >= 0 ? startsIdx : 0
-  } else {
-    assignHighlightedIndex.value = -1
-  }
-})
-
-function onAssignProductFocus() {
-  assignProductOpen.value = true
-  assignProductQuery.value = ''
-  assignHighlightedIndex.value = -1
-}
-
-function selectAssignProduct(productId: string) {
-  assignBarcodeProductId.value = productId
-  assignProductOpen.value = false
-  assignProductQuery.value = ''
-}
-
-function handleAssignProductBlur() {
-  setTimeout(() => { assignProductOpen.value = false }, 200)
-}
-
-function handleAssignProductKeydown(event: KeyboardEvent) {
-  const items = assignFilteredProducts.value
-  if (event.key === 'Escape') {
-    event.preventDefault()
-    assignProductOpen.value = false
-    ;(event.target as HTMLInputElement)?.blur()
-    return
-  }
-  if (event.key === 'ArrowDown') {
-    event.preventDefault()
-    assignHighlightedIndex.value = Math.min(assignHighlightedIndex.value + 1, items.length - 1)
-    return
-  }
-  if (event.key === 'ArrowUp') {
-    event.preventDefault()
-    assignHighlightedIndex.value = Math.max(assignHighlightedIndex.value - 1, 0)
-    return
-  }
-  if (event.key === 'Enter') {
-    event.preventDefault()
-    const p = items[assignHighlightedIndex.value]
-    if (assignHighlightedIndex.value >= 0 && p) {
-      selectAssignProduct(p.id)
-    }
-  }
-}
-
 async function onBarcodeDetected(barcode: string) {
   showScanner.value = false
   scannedBarcode.value = barcode
@@ -397,14 +252,11 @@ async function onBarcodeDetected(barcode: string) {
   const result = await lookupBarcode(barcode)
   if (result) {
     incomingProductId.value = result.product_id
-    incomingProductOpen.value = false
   } else {
     // Show assign flow
     assignBarcodeValue.value = barcode
     assignBarcodeProductId.value = ''
     assignBarcodeError.value = ''
-    assignProductQuery.value = ''
-    assignProductOpen.value = false
     showAssignBarcodeFlow.value = true
   }
 }
@@ -670,10 +522,6 @@ async function saveMinStock(productId: string) {
   await fetchProductSummaries(selectedWarehouseId.value)
 }
 
-function formatDate(dateStr: string | null): string {
-  if (!dateStr) return '—'
-  return new Date(dateStr).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
-}
 </script>
 
 <template>
@@ -799,7 +647,7 @@ function formatDate(dateStr: string | null): string {
                   <span class="text-sm font-medium">{{ p.product_name }}</span>
                   <span class="text-xs text-muted-foreground">{{ t('warehouse.unitsCount', { count: p.total_quantity }) }}</span>
                 </div>
-                <span class="text-sm text-muted-foreground">{{ t('warehouse.mhd', { date: formatDate(p.earliest_expiration) }) }}</span>
+                <span class="text-sm text-muted-foreground">{{ t('warehouse.mhd', { date: formatDate(p.earliest_expiration, locale.value) }) }}</span>
               </div>
             </div>
           </div>
@@ -844,7 +692,7 @@ function formatDate(dateStr: string | null): string {
                   </td>
                   <td class="px-4 py-3 text-right tabular-nums">{{ p.total_quantity }}</td>
                   <td class="hidden px-4 py-3 text-right tabular-nums md:table-cell">{{ p.min_stock || '—' }}</td>
-                  <td class="hidden px-4 py-3 md:table-cell">{{ formatDate(p.earliest_expiration) }}</td>
+                  <td class="hidden px-4 py-3 md:table-cell">{{ formatDate(p.earliest_expiration, locale.value) }}</td>
                   <td class="px-4 py-3">
                     <div class="flex gap-1.5">
                       <span
@@ -958,7 +806,7 @@ function formatDate(dateStr: string | null): string {
                       </div>
                     </td>
                     <td class="px-4 py-3 text-right tabular-nums font-medium">{{ p.total_quantity }}</td>
-                    <td class="hidden px-4 py-3 md:table-cell">{{ formatDate(p.earliest_expiration) }}</td>
+                    <td class="hidden px-4 py-3 md:table-cell">{{ formatDate(p.earliest_expiration, locale.value) }}</td>
                     <td class="px-4 py-3">
                       <span
                         :class="[expirationBadgeClass(p.expiration_status), 'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium']"
@@ -983,7 +831,7 @@ function formatDate(dateStr: string | null): string {
                       <span
                         :class="[expirationBadgeClass(expirationStatus(batch.expiration_date)), 'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium']"
                       >
-                        {{ formatDate(batch.expiration_date) }}
+                        {{ formatDate(batch.expiration_date, locale.value) }}
                       </span>
                     </td>
                     <td class="px-4 py-2">
@@ -1040,50 +888,14 @@ function formatDate(dateStr: string | null): string {
                 <IconX class="size-4" />
               </button>
             </div>
-            <div class="relative mb-2">
-              <input
-                :value="assignProductOpen ? assignProductQuery : assignSelectedProductName"
-                type="text"
-                :placeholder="t('warehouse.searchProducts')"
-                role="combobox"
-                :aria-expanded="assignProductOpen"
-                aria-autocomplete="list"
-                autocomplete="off"
-                class="h-9 w-full rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                @input="(e: Event) => { assignProductQuery = (e.target as HTMLInputElement).value }"
-                @focus="onAssignProductFocus"
-                @blur="handleAssignProductBlur"
-                @keydown="handleAssignProductKeydown"
+            <div class="mb-2">
+              <ProductCombobox
+                v-model="assignBarcodeProductId"
+                :products="productsWithoutBarcode"
+                :placeholder="t('warehouse.selectProduct')"
+                :allow-create="isAdmin"
+                @create="(query: string) => openQuickCreateProduct(query, 'assign')"
               />
-              <div v-if="assignProductOpen" class="absolute left-0 top-full z-50 mt-1 max-h-48 w-full overflow-auto rounded-md border bg-popover shadow-md" role="listbox">
-                <button
-                  v-for="(p, idx) in assignFilteredProducts"
-                  :key="p.id"
-                  type="button"
-                  tabindex="-1"
-                  class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-accent"
-                  :class="{ 'bg-accent': assignHighlightedIndex === idx }"
-                  role="option"
-                  @mousedown.prevent="selectAssignProduct(p.id)"
-                >
-                  <img v-if="p.image_path" :src="getProductImageUrl(p.image_path)" class="size-5 rounded object-cover" alt="" />
-                  <div v-else class="flex size-5 items-center justify-center rounded bg-muted text-[10px] font-medium text-muted-foreground">{{ p.name.charAt(0) }}</div>
-                  {{ p.name }}
-                </button>
-                <button
-                  v-if="assignProductQuery.trim() && isAdmin"
-                  type="button"
-                  tabindex="-1"
-                  class="flex w-full items-center gap-2 border-t px-3 py-1.5 text-left text-sm text-primary hover:bg-accent"
-                  @mousedown.prevent="openQuickCreateProduct(assignProductQuery, 'assign')"
-                >
-                  <IconPlus class="size-4" />
-                  {{ t('warehouse.createNewProduct', { name: assignProductQuery.trim() }) }}
-                </button>
-                <div v-if="assignFilteredProducts.length === 0 && assignProductQuery.trim() && !isAdmin" class="px-3 py-2 text-xs text-muted-foreground">
-                  {{ t('warehouse.noProductsFound') }}
-                </div>
-              </div>
             </div>
             <button
               class="h-9 w-full rounded-md border border-input bg-background text-sm font-medium hover:bg-muted disabled:opacity-50"
@@ -1092,58 +904,19 @@ function formatDate(dateStr: string | null): string {
             >
               {{ assignBarcodeLoading ? t('warehouse.assigningBarcode') : t('warehouse.assignBarcodeAndSelect') }}
             </button>
-            <p v-if="assignBarcodeError" class="mt-1 text-xs text-red-600 dark:text-red-400">{{ assignBarcodeError }}</p>
+            <FormError :message="assignBarcodeError" />
           </div>
 
-          <!-- Product selection (search input) -->
+          <!-- Product selection -->
           <div>
             <label class="mb-1 block text-sm font-medium">{{ t('warehouse.product') }} *</label>
-            <div class="relative">
-              <input
-                id="incoming-product-input"
-                :value="incomingProductOpen ? incomingProductQuery : incomingSelectedProductName"
-                type="text"
-                :placeholder="t('warehouse.searchProducts')"
-                role="combobox"
-                :aria-expanded="incomingProductOpen"
-                aria-autocomplete="list"
-                autocomplete="off"
-                class="h-9 w-full rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                @input="(e: Event) => { incomingProductQuery = (e.target as HTMLInputElement).value }"
-                @focus="onIncomingProductFocus"
-                @blur="handleIncomingProductBlur"
-                @keydown="handleIncomingProductKeydown"
-              />
-              <div v-if="incomingProductOpen" class="absolute left-0 top-full z-50 mt-1 max-h-48 w-full overflow-auto rounded-md border bg-popover shadow-md" role="listbox">
-                <button
-                  v-for="(p, idx) in incomingFilteredProducts"
-                  :key="p.id"
-                  type="button"
-                  tabindex="-1"
-                  class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-accent"
-                  :class="{ 'bg-accent': incomingHighlightedIndex === idx }"
-                  role="option"
-                  @mousedown.prevent="selectIncomingProduct(p.id, p.name)"
-                >
-                  <img v-if="p.image_path" :src="getProductImageUrl(p.image_path)" class="size-5 rounded object-cover" alt="" />
-                  <div v-else class="flex size-5 items-center justify-center rounded bg-muted text-[10px] font-medium text-muted-foreground">{{ p.name.charAt(0) }}</div>
-                  {{ p.name }}
-                </button>
-                <button
-                  v-if="incomingProductQuery.trim() && isAdmin"
-                  type="button"
-                  tabindex="-1"
-                  class="flex w-full items-center gap-2 border-t px-3 py-1.5 text-left text-sm text-primary hover:bg-accent"
-                  @mousedown.prevent="openQuickCreateProduct(incomingProductQuery, 'incoming')"
-                >
-                  <IconPlus class="size-4" />
-                  {{ t('warehouse.createNewProduct', { name: incomingProductQuery.trim() }) }}
-                </button>
-                <div v-if="incomingFilteredProducts.length === 0 && incomingProductQuery.trim() && !isAdmin" class="px-3 py-2 text-xs text-muted-foreground">
-                  {{ t('warehouse.noProductsFound') }}
-                </div>
-              </div>
-            </div>
+            <ProductCombobox
+              v-model="incomingProductId"
+              :products="products"
+              :placeholder="t('warehouse.selectProduct')"
+              :allow-create="isAdmin"
+              @create="(query: string) => openQuickCreateProduct(query, 'incoming')"
+            />
           </div>
 
           <!-- Quantity -->
@@ -1181,7 +954,7 @@ function formatDate(dateStr: string | null): string {
           </div>
 
           <!-- Error -->
-          <p v-if="incomingError" class="text-sm text-red-600 dark:text-red-400">{{ incomingError }}</p>
+          <FormError :message="incomingError" />
 
           <!-- Submit -->
           <button
@@ -1205,7 +978,7 @@ function formatDate(dateStr: string | null): string {
                 <div v-else class="flex size-5 items-center justify-center rounded bg-muted text-[10px] font-medium text-muted-foreground">{{ item.product_name.charAt(0) }}</div>
                 <span>{{ item.quantity }}x {{ item.product_name }}</span>
               </div>
-              <span v-if="item.expiration" class="text-muted-foreground">{{ t('warehouse.mhd', { date: formatDate(item.expiration) }) }}</span>
+              <span v-if="item.expiration" class="text-muted-foreground">{{ t('warehouse.mhd', { date: formatDate(item.expiration, locale.value) }) }}</span>
             </div>
           </div>
         </div>
@@ -1466,258 +1239,223 @@ function formatDate(dateStr: string | null): string {
     <!-- ═══════════════════════════════════════════════════════════════════── -->
 
     <!-- Warehouse add/edit modal -->
-    <div
-      v-if="showWarehouseModal"
-      class="fixed inset-0 z-[60] flex items-center justify-center bg-black/40"
-      @click.self="showWarehouseModal = false"
-    >
-      <div class="w-full max-w-md rounded-xl border bg-card p-6 shadow-lg">
-        <h2 class="mb-4 text-lg font-semibold">{{ editingWarehouse ? t('warehouse.editWarehouseModal') : t('warehouse.addWarehouseModal') }}</h2>
-        <form class="flex flex-col gap-3" @submit.prevent="submitWarehouse">
-          <div>
-            <label class="mb-1 block text-sm font-medium">{{ t('common.name') }} *</label>
-            <input v-model="warehouseForm.name" type="text" class="h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" />
-          </div>
-          <div>
-            <label class="mb-1 block text-sm font-medium">{{ t('warehouse.warehouseAddress') }}</label>
-            <input v-model="warehouseForm.address" type="text" class="h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" />
-          </div>
-          <div>
-            <label class="mb-1 block text-sm font-medium">{{ t('common.notes') }}</label>
-            <textarea v-model="warehouseForm.notes" rows="2" class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"></textarea>
-          </div>
-          <p v-if="warehouseError" class="text-sm text-red-600">{{ warehouseError }}</p>
-          <div class="flex justify-end gap-2">
-            <button type="button" class="h-9 rounded-md border px-4 text-sm hover:bg-muted" @click="showWarehouseModal = false">{{ t('common.cancel') }}</button>
-            <button type="submit" class="h-9 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50" :disabled="warehouseLoading">
-              {{ warehouseLoading ? t('common.saving') : t('common.save') }}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-
-    <!-- Delete warehouse confirm modal -->
-    <div
-      v-if="showDeleteWarehouseConfirm"
-      class="fixed inset-0 z-[60] flex items-center justify-center bg-black/40"
-      @click.self="showDeleteWarehouseConfirm = false"
-    >
-      <div class="w-full max-w-sm rounded-xl border bg-card p-6 shadow-lg">
-        <h2 class="mb-2 text-lg font-semibold">{{ t('warehouse.deleteWarehouseTitle') }}</h2>
-        <p class="mb-4 text-sm text-muted-foreground">
-          {{ t('warehouse.deleteWarehouseConfirm', { name: deletingWarehouse?.name ?? '' }) }}
-        </p>
+    <AppModal v-model:open="showWarehouseModal" :title="editingWarehouse ? t('warehouse.editWarehouseModal') : t('warehouse.addWarehouseModal')">
+      <form class="flex flex-col gap-3" @submit.prevent="submitWarehouse">
+        <div>
+          <label class="mb-1 block text-sm font-medium">{{ t('common.name') }} *</label>
+          <input v-model="warehouseForm.name" type="text" class="h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" />
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-medium">{{ t('warehouse.warehouseAddress') }}</label>
+          <input v-model="warehouseForm.address" type="text" class="h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" />
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-medium">{{ t('common.notes') }}</label>
+          <textarea v-model="warehouseForm.notes" rows="2" class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"></textarea>
+        </div>
+        <FormError :message="warehouseError" />
         <div class="flex justify-end gap-2">
-          <button class="h-9 rounded-md border px-4 text-sm hover:bg-muted" @click="showDeleteWarehouseConfirm = false">{{ t('common.cancel') }}</button>
-          <button
-            class="h-9 rounded-md bg-red-600 px-4 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
-            :disabled="warehouseLoading"
-            @click="confirmDeleteWarehouse"
-          >
-            {{ t('common.delete') }}
+          <button type="button" class="h-9 rounded-md border px-4 text-sm hover:bg-muted" @click="showWarehouseModal = false">{{ t('common.cancel') }}</button>
+          <button type="submit" class="h-9 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50" :disabled="warehouseLoading">
+            {{ warehouseLoading ? t('common.saving') : t('common.save') }}
           </button>
         </div>
+      </form>
+    </AppModal>
+
+    <!-- Delete warehouse confirm modal -->
+    <AppModal v-model:open="showDeleteWarehouseConfirm" :title="t('warehouse.deleteWarehouseTitle')" size="sm">
+      <p class="text-sm text-muted-foreground">
+        {{ t('warehouse.deleteWarehouseConfirm', { name: deletingWarehouse?.name ?? '' }) }}
+      </p>
+      <div class="flex justify-end gap-2 pt-2">
+        <button class="h-9 rounded-md border px-4 text-sm hover:bg-muted" @click="showDeleteWarehouseConfirm = false">{{ t('common.cancel') }}</button>
+        <button
+          class="h-9 rounded-md bg-red-600 px-4 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+          :disabled="warehouseLoading"
+          @click="confirmDeleteWarehouse"
+        >
+          {{ t('common.delete') }}
+        </button>
       </div>
-    </div>
+    </AppModal>
 
     <!-- Adjustment modal -->
-    <div
-      v-if="showAdjustModal"
-      class="fixed inset-0 z-[60] flex items-center justify-center bg-black/40"
-      @click.self="showAdjustModal = false"
-    >
-      <div class="w-full max-w-md rounded-xl border bg-card p-6 shadow-lg">
-        <h2 class="mb-4 text-lg font-semibold">{{ t('warehouse.adjustStockTitle') }}</h2>
-        <p class="mb-3 text-sm text-muted-foreground">
-          {{ t('warehouse.adjustBatchInfo', { product: adjustBatch?.product_name ?? '', batch: adjustBatch?.batch_number || t('warehouse.noBatchId'), quantity: adjustBatch?.quantity ?? 0 }) }}
-        </p>
-        <form class="flex flex-col gap-3" @submit.prevent="submitAdjust">
-          <div>
-            <label class="mb-1 block text-sm font-medium">{{ t('warehouse.reason') }} *</label>
-            <select v-model="adjustReason" class="h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
-              <option value="adjustment_damage">{{ t('warehouse.damaged') }}</option>
-              <option value="adjustment_expired">{{ t('warehouse.expiredDisposed') }}</option>
-              <option value="adjustment_correction">{{ t('warehouse.inventoryCorrection') }}</option>
-            </select>
-          </div>
-          <div>
-            <label class="mb-1 block text-sm font-medium">{{ t('warehouse.quantityToRemove') }} *</label>
-            <input v-model.number="adjustQuantity" type="number" min="1" :max="adjustBatch?.quantity" class="h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" />
-          </div>
-          <div>
-            <label class="mb-1 block text-sm font-medium">{{ t('common.notes') }}</label>
-            <textarea v-model="adjustNotes" rows="2" class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" :placeholder="t('warehouse.optionalDetails')"></textarea>
-          </div>
-          <p v-if="adjustError" class="text-sm text-red-600">{{ adjustError }}</p>
-          <div class="flex justify-end gap-2">
-            <button type="button" class="h-9 rounded-md border px-4 text-sm hover:bg-muted" @click="showAdjustModal = false">{{ t('common.cancel') }}</button>
-            <button type="submit" class="h-9 rounded-md bg-red-600 px-4 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50" :disabled="adjustLoading">
-              {{ adjustLoading ? t('warehouse.adjusting') : t('warehouse.removeStock') }}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+    <AppModal v-model:open="showAdjustModal" :title="t('warehouse.adjustStockTitle')">
+      <p class="mb-3 text-sm text-muted-foreground">
+        {{ t('warehouse.adjustBatchInfo', { product: adjustBatch?.product_name ?? '', batch: adjustBatch?.batch_number || t('warehouse.noBatchId'), quantity: adjustBatch?.quantity ?? 0 }) }}
+      </p>
+      <form class="flex flex-col gap-3" @submit.prevent="submitAdjust">
+        <div>
+          <label class="mb-1 block text-sm font-medium">{{ t('warehouse.reason') }} *</label>
+          <select v-model="adjustReason" class="h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+            <option value="adjustment_damage">{{ t('warehouse.damaged') }}</option>
+            <option value="adjustment_expired">{{ t('warehouse.expiredDisposed') }}</option>
+            <option value="adjustment_correction">{{ t('warehouse.inventoryCorrection') }}</option>
+          </select>
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-medium">{{ t('warehouse.quantityToRemove') }} *</label>
+          <input v-model.number="adjustQuantity" type="number" min="1" :max="adjustBatch?.quantity" class="h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" />
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-medium">{{ t('common.notes') }}</label>
+          <textarea v-model="adjustNotes" rows="2" class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" :placeholder="t('warehouse.optionalDetails')"></textarea>
+        </div>
+        <FormError :message="adjustError" />
+        <div class="flex justify-end gap-2">
+          <button type="button" class="h-9 rounded-md border px-4 text-sm hover:bg-muted" @click="showAdjustModal = false">{{ t('common.cancel') }}</button>
+          <button type="submit" class="h-9 rounded-md bg-red-600 px-4 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50" :disabled="adjustLoading">
+            {{ adjustLoading ? t('warehouse.adjusting') : t('warehouse.removeStock') }}
+          </button>
+        </div>
+      </form>
+    </AppModal>
 
     <!-- Barcode add modal -->
-    <div
-      v-if="showBarcodeModal"
-      class="fixed inset-0 z-[60] flex items-center justify-center bg-black/40"
-      @click.self="showBarcodeModal = false"
-    >
-      <div class="w-full max-w-md rounded-xl border bg-card p-6 shadow-lg">
-        <h2 class="mb-4 text-lg font-semibold">{{ t('warehouse.addBarcodeTitle') }}</h2>
-        <form class="flex flex-col gap-3" @submit.prevent="submitBarcode">
-          <div>
-            <label class="mb-1 block text-sm font-medium">{{ t('warehouse.product') }} *</label>
-            <select v-model="barcodeForm.product_id" class="h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
-              <option value="">{{ t('warehouse.selectProduct') }}</option>
-              <option v-for="p in products" :key="p.id" :value="p.id">{{ p.name }}</option>
-            </select>
-          </div>
-          <div>
-            <label class="mb-1 block text-sm font-medium">{{ t('warehouse.barcodeEan') }} *</label>
-            <input v-model="barcodeForm.barcode" type="text" :placeholder="t('warehouse.barcodeEanPlaceholder')" class="h-9 w-full rounded-md border border-input bg-background px-3 text-sm font-mono focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" />
-          </div>
-          <p v-if="barcodeError" class="text-sm text-red-600">{{ barcodeError }}</p>
-          <div class="flex justify-end gap-2">
-            <button type="button" class="h-9 rounded-md border px-4 text-sm hover:bg-muted" @click="showBarcodeModal = false">{{ t('common.cancel') }}</button>
-            <button type="submit" class="h-9 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50" :disabled="barcodeLoading">
-              {{ barcodeLoading ? t('common.saving') : t('common.save') }}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+    <AppModal v-model:open="showBarcodeModal" :title="t('warehouse.addBarcodeTitle')">
+      <form class="flex flex-col gap-3" @submit.prevent="submitBarcode">
+        <div>
+          <label class="mb-1 block text-sm font-medium">{{ t('warehouse.product') }} *</label>
+          <select v-model="barcodeForm.product_id" class="h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+            <option value="">{{ t('warehouse.selectProduct') }}</option>
+            <option v-for="p in products" :key="p.id" :value="p.id">{{ p.name }}</option>
+          </select>
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-medium">{{ t('warehouse.barcodeEan') }} *</label>
+          <input v-model="barcodeForm.barcode" type="text" :placeholder="t('warehouse.barcodeEanPlaceholder')" class="h-9 w-full rounded-md border border-input bg-background px-3 text-sm font-mono focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" />
+        </div>
+        <FormError :message="barcodeError" />
+        <div class="flex justify-end gap-2">
+          <button type="button" class="h-9 rounded-md border px-4 text-sm hover:bg-muted" @click="showBarcodeModal = false">{{ t('common.cancel') }}</button>
+          <button type="submit" class="h-9 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50" :disabled="barcodeLoading">
+            {{ barcodeLoading ? t('common.saving') : t('common.save') }}
+          </button>
+        </div>
+      </form>
+    </AppModal>
 
     <!-- Quick-create product modal -->
-    <div
-      v-if="showQuickCreateModal"
-      class="fixed inset-0 z-[70] flex items-center justify-center bg-black/40"
-      @click.self="showQuickCreateModal = false"
-    >
-      <div class="w-full max-w-sm rounded-xl border bg-card p-4 sm:p-6 shadow-lg max-h-[90vh] overflow-y-auto">
-        <h2 class="mb-4 text-lg font-semibold">{{ t('products.addProduct') }}</h2>
-        <form class="space-y-4" @submit.prevent="submitQuickCreate">
-          <div class="space-y-1">
-            <label class="text-sm font-medium" for="qc-product-name">{{ t('common.name') }} *</label>
-            <input
-              id="qc-product-name"
-              v-model="quickCreateForm.name"
-              type="text"
-              required
-              :placeholder="t('products.productName')"
-              class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            />
-          </div>
+    <AppModal v-model:open="showQuickCreateModal" :title="t('products.addProduct')" size="sm">
+      <form class="space-y-4" @submit.prevent="submitQuickCreate">
+        <div class="space-y-1">
+          <label class="text-sm font-medium" for="qc-product-name">{{ t('common.name') }} *</label>
+          <input
+            id="qc-product-name"
+            v-model="quickCreateForm.name"
+            type="text"
+            required
+            :placeholder="t('products.productName')"
+            class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          />
+        </div>
 
-          <!-- Image upload -->
-          <div class="space-y-1">
-            <label class="text-sm font-medium">{{ t('products.image') }}</label>
-            <div v-if="quickCreateImagePreview" class="relative inline-block">
-              <img :src="quickCreateImagePreview" alt="Preview" class="h-24 w-24 rounded-lg object-cover border" />
-              <button
-                type="button"
-                class="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-destructive-foreground text-xs shadow"
-                @click="clearQuickCreateImage"
-              >
-                &times;
-              </button>
-            </div>
-            <div v-else>
-              <label
-                for="qc-product-image"
-                class="flex h-24 w-full cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 text-sm text-muted-foreground transition-colors hover:border-muted-foreground/50 hover:bg-muted/30"
-              >
-                <div class="text-center">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="mx-auto mb-1 h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
-                  <span>{{ t('products.clickToUpload') }}</span>
-                </div>
-              </label>
-              <input
-                id="qc-product-image"
-                type="file"
-                accept="image/png,image/jpeg,image/webp"
-                class="hidden"
-                @change="onQuickCreateImageSelected"
-              />
-              <!-- Image suggestions -->
-              <div v-if="!quickCreateImagePreview && (qcSearchingImages || qcSuggestedImages.length > 0)" class="mt-2">
-                <p class="mb-1.5 text-xs text-muted-foreground">{{ qcSearchingImages ? t('products.searchingImages') : t('products.imageSuggestions') }}</p>
-                <div v-if="qcSearchingImages" class="flex items-center gap-2 text-xs text-muted-foreground">
-                  <svg class="size-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-                </div>
-                <div v-else class="grid grid-cols-4 gap-1.5">
-                  <button
-                    v-for="img in qcSuggestedImages"
-                    :key="img.image"
-                    type="button"
-                    class="group relative aspect-square overflow-hidden rounded-md border hover:ring-2 hover:ring-primary"
-                    :title="img.title"
-                    @click="selectQcSuggestedImage(img.thumbnail, img.image)"
-                  >
-                    <img :src="img.thumbnail" :alt="img.title" class="h-full w-full object-cover" loading="lazy" />
-                  </button>
-                </div>
+        <!-- Image upload -->
+        <div class="space-y-1">
+          <label class="text-sm font-medium">{{ t('products.image') }}</label>
+          <div v-if="quickCreateImagePreview" class="relative inline-block">
+            <img :src="quickCreateImagePreview" alt="Preview" class="h-24 w-24 rounded-lg object-cover border" />
+            <button
+              type="button"
+              class="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-destructive-foreground text-xs shadow"
+              @click="clearQuickCreateImage"
+            >
+              &times;
+            </button>
+          </div>
+          <div v-else>
+            <label
+              for="qc-product-image"
+              class="flex h-24 w-full cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 text-sm text-muted-foreground transition-colors hover:border-muted-foreground/50 hover:bg-muted/30"
+            >
+              <div class="text-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="mx-auto mb-1 h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
+                <span>{{ t('products.clickToUpload') }}</span>
+              </div>
+            </label>
+            <input
+              id="qc-product-image"
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              class="hidden"
+              @change="onQuickCreateImageSelected"
+            />
+            <!-- Image suggestions -->
+            <div v-if="!quickCreateImagePreview && (qcSearchingImages || qcSuggestedImages.length > 0)" class="mt-2">
+              <p class="mb-1.5 text-xs text-muted-foreground">{{ qcSearchingImages ? t('products.searchingImages') : t('products.imageSuggestions') }}</p>
+              <div v-if="qcSearchingImages" class="flex items-center gap-2 text-xs text-muted-foreground">
+                <svg class="size-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+              </div>
+              <div v-else class="grid grid-cols-4 gap-1.5">
+                <button
+                  v-for="img in qcSuggestedImages"
+                  :key="img.image"
+                  type="button"
+                  class="group relative aspect-square overflow-hidden rounded-md border hover:ring-2 hover:ring-primary"
+                  :title="img.title"
+                  @click="selectQcSuggestedImage(img.thumbnail, img.image)"
+                >
+                  <img :src="img.thumbnail" :alt="img.title" class="h-full w-full object-cover" loading="lazy" />
+                </button>
               </div>
             </div>
           </div>
+        </div>
 
-          <div class="space-y-1">
-            <label class="text-sm font-medium" for="qc-product-price">{{ t('products.price') }}</label>
-            <input
-              id="qc-product-price"
-              v-model.number="quickCreateForm.sellprice"
-              type="number"
-              step="0.01"
-              min="0"
-              :placeholder="t('products.pricePlaceholder')"
-              class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            />
-          </div>
-          <div class="space-y-1">
-            <label class="text-sm font-medium" for="qc-product-category">{{ t('products.category') }}</label>
-            <select
-              id="qc-product-category"
-              v-model="quickCreateForm.category"
-              class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            >
-              <option value="">—</option>
-              <option v-for="cat in categories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
-            </select>
-          </div>
-          <div class="space-y-1">
-            <label class="text-sm font-medium" for="qc-product-description">{{ t('common.description') }}</label>
-            <textarea
-              id="qc-product-description"
-              v-model="quickCreateForm.description"
-              rows="2"
-              :placeholder="t('products.optionalDescription')"
-              class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            />
-          </div>
+        <div class="space-y-1">
+          <label class="text-sm font-medium" for="qc-product-price">{{ t('products.price') }}</label>
+          <input
+            id="qc-product-price"
+            v-model.number="quickCreateForm.sellprice"
+            type="number"
+            step="0.01"
+            min="0"
+            :placeholder="t('products.pricePlaceholder')"
+            class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          />
+        </div>
+        <div class="space-y-1">
+          <label class="text-sm font-medium" for="qc-product-category">{{ t('products.category') }}</label>
+          <select
+            id="qc-product-category"
+            v-model="quickCreateForm.category"
+            class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          >
+            <option value="">—</option>
+            <option v-for="cat in categories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
+          </select>
+        </div>
+        <div class="space-y-1">
+          <label class="text-sm font-medium" for="qc-product-description">{{ t('common.description') }}</label>
+          <textarea
+            id="qc-product-description"
+            v-model="quickCreateForm.description"
+            rows="2"
+            :placeholder="t('products.optionalDescription')"
+            class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          />
+        </div>
 
-          <p v-if="quickCreateError" class="text-sm text-destructive">{{ quickCreateError }}</p>
-          <div class="flex gap-2">
-            <button
-              type="button"
-              class="inline-flex h-9 flex-1 items-center justify-center rounded-md border px-4 text-sm font-medium shadow-sm hover:bg-muted"
-              @click="showQuickCreateModal = false"
-            >
-              {{ t('common.cancel') }}
-            </button>
-            <button
-              type="submit"
-              :disabled="quickCreateLoading"
-              class="inline-flex h-9 flex-1 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90 disabled:opacity-50"
-            >
-              <span v-if="quickCreateLoading">{{ t('common.saving') }}</span>
-              <span v-else>{{ t('common.create') }}</span>
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        <FormError :message="quickCreateError" />
+        <div class="flex gap-2">
+          <button
+            type="button"
+            class="inline-flex h-9 flex-1 items-center justify-center rounded-md border px-4 text-sm font-medium shadow-sm hover:bg-muted"
+            @click="showQuickCreateModal = false"
+          >
+            {{ t('common.cancel') }}
+          </button>
+          <button
+            type="submit"
+            :disabled="quickCreateLoading"
+            class="inline-flex h-9 flex-1 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90 disabled:opacity-50"
+          >
+            <span v-if="quickCreateLoading">{{ t('common.saving') }}</span>
+            <span v-else>{{ t('common.create') }}</span>
+          </button>
+        </div>
+      </form>
+    </AppModal>
   </div>
 </template>
