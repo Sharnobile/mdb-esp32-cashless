@@ -4,7 +4,7 @@ definePageMeta({ middleware: 'auth' })
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { VisArea, VisAxis, VisLine, VisXYContainer } from '@unovis/vue'
-import { IconCreditCard, IconCoins, IconSend, IconSmartphone } from '@tabler/icons-vue'
+import { IconCreditCard, IconCoins, IconSend, IconDeviceMobile } from '@tabler/icons-vue'
 import { timeAgo, formatCurrency } from '@/lib/utils'
 
 const { t, locale } = useI18n()
@@ -991,7 +991,7 @@ function stockColor(tray: any) {
                                 : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'"
                           >
                             <IconCreditCard v-if="sale.channel === 'card'" class="size-3.5" />
-                            <IconSmartphone v-else-if="sale.channel === 'cashless'" class="size-3.5" />
+                            <IconDeviceMobile v-else-if="sale.channel === 'cashless'" class="size-3.5" />
                             <IconCoins v-else class="size-3.5" />
                             {{ sale.channel }}
                           </span>
