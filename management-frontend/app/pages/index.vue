@@ -11,6 +11,7 @@ import type { ActivityEntry } from "@/components/DashboardActivityFeed.vue"
 import { IconAlertTriangle } from '@tabler/icons-vue'
 import { expirationStatus } from '@/composables/useWarehouse'
 import { getProductImageUrl } from '@/composables/useProducts'
+import { buildWarehouseStockInfo, computeStockHealthPerMachine } from '@/lib/stock-health'
 
 const { t } = useI18n()
 const supabase = useSupabaseClient()
@@ -221,9 +222,10 @@ async function loadDashboard() {
   let lastSalePerMachine = new Map<string, string>()
 
   if (machineIds.length > 0) {
-    const [todayMachineRes, traysRes, ...lastSaleResults] = await Promise.all([
+    const [todayMachineRes, traysRes, warehouseStockRes, ...lastSaleResults] = await Promise.all([
       supabase.from('sales').select('machine_id, item_price').in('machine_id', machineIds).gte('created_at', todayStart),
-      supabase.from('machine_trays').select('machine_id, capacity, current_stock, min_stock').in('machine_id', machineIds),
+      supabase.from('machine_trays').select('machine_id, product_id, capacity, current_stock, min_stock').in('machine_id', machineIds),
+      supabase.from('warehouse_stock_batches').select('product_id, quantity').gt('quantity', 0),
       ...machines.map(m =>
         supabase.from('sales').select('created_at').eq('machine_id', m.id).order('created_at', { ascending: false }).limit(1).maybeSingle()
       ),
@@ -244,31 +246,21 @@ async function loadDashboard() {
       if (saleData) lastSalePerMachine.set(machines[i]!.id, saleData.created_at)
     }
 
-    // Stock health per machine
+    // Stock health per machine (warehouse-aware)
     const trayRows = (traysRes.data ?? []) as {
-      machine_id: string; capacity: number; current_stock: number; min_stock: number
+      machine_id: string; product_id: string | null; capacity: number; current_stock: number; min_stock: number
     }[]
-    const stockMap = new Map<string, { total: number; low: number; empty: number; totalStock: number; totalCapacity: number }>()
-    for (const tray of trayRows) {
-      if (!tray.machine_id) continue
-      let entry = stockMap.get(tray.machine_id)
-      if (!entry) {
-        entry = { total: 0, low: 0, empty: 0, totalStock: 0, totalCapacity: 0 }
-        stockMap.set(tray.machine_id, entry)
-      }
-      entry.total++
-      entry.totalStock += tray.current_stock
-      entry.totalCapacity += tray.capacity
-      if (tray.current_stock === 0) entry.empty++
-      else if (tray.min_stock > 0 && tray.current_stock <= tray.min_stock) entry.low++
-    }
+    const { warehouseStockMap, hasWarehouses } = buildWarehouseStockInfo(
+      (warehouseStockRes.data ?? []) as { product_id: string; quantity: number }[],
+    )
+    const stockMap = computeStockHealthPerMachine(trayRows, warehouseStockMap, hasWarehouses)
 
-    // Count stock alerts
+    // Count stock alerts (only refillable)
     let critCount = 0
     let lowCount = 0
     for (const [, stock] of stockMap) {
-      if (stock.empty > 0) critCount++
-      else if (stock.low > 0) lowCount++
+      if (stock.health === 'critical') critCount++
+      else if (stock.health === 'low') lowCount++
     }
     stockCritical.value = critCount
     stockLow.value = lowCount
@@ -277,12 +269,8 @@ async function loadDashboard() {
     const healthOrder: Record<string, number> = { critical: 0, low: 1, ok: 2 }
     dashboardMachines.value = machines.map(m => {
       const stock = stockMap.get(m.id)
-      const health: 'ok' | 'low' | 'critical' = stock
-        ? (stock.empty > 0 ? 'critical' : (stock.low > 0 ? 'low' : 'ok'))
-        : 'ok'
-      const pct = stock && stock.totalCapacity > 0
-        ? Math.round((stock.totalStock / stock.totalCapacity) * 100)
-        : 100
+      const health = stock?.health ?? 'ok'
+      const pct = stock?.percent ?? 100
       const dm: DashboardMachine & { _embeddedId?: string } = {
         id: m.id,
         name: m.name,

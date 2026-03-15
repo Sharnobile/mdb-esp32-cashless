@@ -1,4 +1,5 @@
 import { useSupabaseClient } from '#imports'
+import { buildWarehouseStockInfo, isProductRefillable } from '@/lib/stock-health'
 
 interface Embedded {
   id: string
@@ -194,13 +195,9 @@ export function useMachines() {
       }
 
       // Aggregate warehouse stock per product
-      const warehouseStockMap = new Map<string, number>()
-      const warehouseBatchRows = (warehouseStockRes.data ?? []) as { product_id: string; quantity: number }[]
-      for (const row of warehouseBatchRows) {
-        if (!row.product_id) continue
-        warehouseStockMap.set(row.product_id, (warehouseStockMap.get(row.product_id) ?? 0) + row.quantity)
-      }
-      const hasWarehouses = warehouseBatchRows.length > 0
+      const { warehouseStockMap, hasWarehouses } = buildWarehouseStockInfo(
+        (warehouseStockRes.data ?? []) as { product_id: string; quantity: number }[],
+      )
 
       // Apply last sale results
       for (let i = 0; i < machines.value.length; i++) {
@@ -273,13 +270,13 @@ export function useMachines() {
           // Skip unassigned trays — nothing to refill
           if (tray.product_id == null) continue
 
-          const inStock = !hasWarehouses || warehouseStockMap.has(tray.product_id)
+          const refillable = isProductRefillable(tray.product_id, warehouseStockMap, hasWarehouses)
           const deficit = tray.capacity - tray.current_stock
           const productName = tray.products?.name ?? `Slot ${tray.item_number}`
           const imagePath = tray.products?.image_path ?? null
           const key = tray.product_id
 
-          if (inStock) {
+          if (refillable) {
             if (isEmpty) entry.refillableEmpty++
             else entry.refillableLow++
             const existing = entry.deficits.get(key)
@@ -312,16 +309,16 @@ export function useMachines() {
           if (tray.product_id == null) continue
           const deficit = tray.capacity - tray.current_stock
           if (deficit <= 0) continue
-          const inStock = !hasWarehouses || warehouseStockMap.has(tray.product_id)
+          const refillable = isProductRefillable(tray.product_id, warehouseStockMap, hasWarehouses)
           const productName = tray.products?.name ?? `Slot ${tray.item_number}`
           const imagePath = tray.products?.image_path ?? null
           const key = tray.product_id
-          const targetMap = inStock ? entry.deficits : entry.noStockDeficits
+          const targetMap = refillable ? entry.deficits : entry.noStockDeficits
           const existing = targetMap.get(key)
           if (existing) {
             existing.deficit += deficit
           } else {
-            targetMap.set(key, { product_name: productName, product_id: tray.product_id, deficit, image_path: imagePath, in_stock: inStock })
+            targetMap.set(key, { product_name: productName, product_id: tray.product_id, deficit, image_path: imagePath, in_stock: refillable })
           }
         }
       }
