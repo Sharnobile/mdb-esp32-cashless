@@ -27,8 +27,10 @@ Currently (Pass 1 in `fetchMachines`), each tray is classified as `isEmpty`, `is
 
 ```
 For each tray where isEmpty OR isLow:
-  in_stock = tray.product_id == null
-             OR warehouseStock.has(tray.product_id)
+  If tray.product_id == null:
+    → skip (unassigned trays are ignored entirely)
+
+  in_stock = warehouseStock.has(tray.product_id)
 
   If in_stock:
     → count toward refillable_empty / refillable_low
@@ -119,7 +121,7 @@ No-stock-only machines are NOT promoted to critical/low. They stay in the "ok" g
 
 - **No warehouses configured:** All trays treated as refillable. UI looks identical to current.
 - **Product has 0 warehouse stock across all warehouses:** Tray classified as no-stock.
-- **Tray with no product assigned (`product_id = null`):** Treated as refillable (no warehouse check possible). This preserves current behavior for unconfigured trays.
+- **Tray with no product assigned (`product_id = null`):** Ignored entirely — does not count toward any stock health category. There is nothing to refill without a product assignment.
 - **Product exists in warehouse but quantity is 0:** Classified as no-stock (sum is 0).
 - **All low trays are no-stock:** Machine shows `stock_health = 'ok'` with gray "X kein Lager" badge. Not promoted to critical/low since nothing can be refilled.
 
