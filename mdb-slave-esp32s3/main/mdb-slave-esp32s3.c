@@ -366,6 +366,7 @@ void vTaskMdbEvent(void *pvParameters) {
 
 					cashless_reset_todo = true;
 					machine_state = INACTIVE_STATE;
+					vmc_feature_level = 1;
 					mdb_last_cmd = "RESET";
 
                     xEventGroupClearBits(xLedEventGroup, BIT_EVT_MDB);
