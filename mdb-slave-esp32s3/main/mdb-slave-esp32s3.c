@@ -304,7 +304,7 @@ uint8_t xorDecodeWithPasskey(uint16_t *itemPrice, uint16_t *itemNumber, uint8_t 
 // is idle for 5ms (no more bytes) or a new address byte (mode bit) arrives.
 static void mdb_drain_bus(void) {
 	for (uint8_t i = 0; i < 36; i++) {
-		int32_t b = read_9_timeout(NULL, 5000);
+		int32_t b = read_9_timeout(NULL, 1500);
 		if (b < 0) break;           // bus idle
 		if (b & BIT_MODE_SET) break; // next command starting
 	}
@@ -778,11 +778,7 @@ void vTaskMdbEvent(void *pvParameters) {
 					default: {
 						// Unknown EXPANSION subcommand — drain remaining bytes until
 						// bus goes idle to prevent desynchronization.
-						for (uint8_t x = 0; x < 36; x++) {
-							int32_t b = read_9_timeout(NULL, 5000); // 5ms timeout
-							if (b < 0) break;           // bus idle, no more data
-							if (b & BIT_MODE_SET) break; // mode bit = next command, stop
-						}
+						mdb_drain_bus();
 						mdb_last_cmd = "EXPANSION:UNKNOWN";
 						ESP_LOGW(TAG, "EXPANSION: unhandled subcommand, drained bus");
 						break;
@@ -792,6 +788,9 @@ void vTaskMdbEvent(void *pvParameters) {
 					break;
 				}
 				}
+
+				// Inter-frame gap: let bus settle before responding
+				ets_delay_us(200);
 
 				// Transmit the prepared payload via bit-banging
 				write_payload_9((uint8_t*) &mdb_payload, available_tx);
