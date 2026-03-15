@@ -12,10 +12,16 @@ const {
   machines, loading, fetchMachines, subscribeToStatusUpdates, createMachine,
 } = useMachines()
 const { onResume } = useAppResume()
-const { hasSavedTour } = useRefillWizard()
+const { hasSavedTour, resetWizard } = useRefillWizard()
 const savedTourAvailable = ref(false)
 
 onMounted(() => { savedTourAvailable.value = hasSavedTour() })
+
+function startNewTour() {
+  resetWizard()
+  savedTourAvailable.value = false
+  navigateTo('/refill')
+}
 
 // Re-fetch all machine data when app resumes from background (iOS PWA etc.)
 onResume(() => fetchMachines())
@@ -52,14 +58,14 @@ async function submitCreateMachine() {
               <IconPlayerPlay class="h-4 w-4" />
               {{ t('refill.resumeTour') }}
             </NuxtLink>
-            <NuxtLink
+            <button
               v-if="machines.some(m => (m.stock_health ?? 'ok') !== 'ok')"
-              to="/refill"
               class="shrink-0 inline-flex h-9 items-center justify-center gap-2 rounded-md border border-primary bg-primary/10 px-4 text-sm font-medium text-primary shadow-sm transition-colors hover:bg-primary/20"
+              @click="startNewTour"
             >
               <IconTruck class="h-4 w-4" />
               {{ t('machines.startRefillTour') }}
-            </NuxtLink>
+            </button>
             <button
               class="shrink-0 inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90"
               @click="openMachineModal"
