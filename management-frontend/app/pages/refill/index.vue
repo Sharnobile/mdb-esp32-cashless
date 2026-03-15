@@ -24,12 +24,11 @@ const {
   hasSavedTour, resumeTour,
 } = useRefillWizard()
 
-// Init — resume saved tour if available, otherwise start fresh
+const savedTourAvailable = ref(false)
+
+// Init
 onMounted(async () => {
-  if (hasSavedTour()) {
-    const resumed = await resumeTour()
-    if (resumed) return
-  }
+  savedTourAvailable.value = hasSavedTour()
   await fetchWarehouses()
   if (warehouses.value.length > 0) {
     selectedWarehouseId.value = warehouses.value[0]!.id
@@ -37,6 +36,16 @@ onMounted(async () => {
   await initTour()
   await loadWarehouseStock()
 })
+
+async function handleResumeTour() {
+  const resumed = await resumeTour()
+  if (resumed) savedTourAvailable.value = false
+}
+
+async function handleStartTour() {
+  savedTourAvailable.value = false
+  await startTour()
+}
 
 watch(selectedWarehouseId, () => loadWarehouseStock())
 
@@ -230,21 +239,37 @@ const currentMachineDone = computed(() =>
           </Card>
         </div>
 
-        <!-- Start Tour button — fixed bottom bar on mobile -->
+        <!-- Bottom bar — fixed on mobile -->
         <div class="fixed bottom-14 md:bottom-0 inset-x-0 z-20 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 p-3 sm:p-4 md:pb-[max(1rem,env(safe-area-inset-bottom))]">
-          <button
-            :disabled="!hasAnyPackedItems() || tourStarting"
-            class="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-6 text-base font-medium text-primary-foreground shadow-lg transition-colors hover:bg-primary/90 disabled:opacity-50"
-            @click="startTour"
-          >
-            <IconTruck v-if="!tourStarting" class="h-5 w-5" />
-            <span v-if="tourStarting">{{ t('refill.startingTour') }}</span>
-            <span v-else>{{ t('refill.startTour') }}</span>
-          </button>
-          <p v-if="!hasAnyPackedItems()" class="mt-1.5 text-center text-xs text-muted-foreground">
+          <div class="flex flex-col gap-2 max-w-3xl mx-auto">
+            <!-- Resume saved tour -->
+            <button
+              v-if="savedTourAvailable"
+              class="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-6 text-base font-medium text-primary-foreground shadow-lg transition-colors hover:bg-primary/90"
+              @click="handleResumeTour"
+            >
+              <IconTruck class="h-5 w-5" />
+              {{ t('refill.resumeTour') }}
+            </button>
+
+            <!-- Start new tour -->
+            <button
+              :disabled="!hasAnyPackedItems() || tourStarting"
+              class="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl px-6 text-base font-medium shadow-lg transition-colors disabled:opacity-50"
+              :class="savedTourAvailable
+                ? 'border bg-background text-foreground hover:bg-muted'
+                : 'bg-primary text-primary-foreground hover:bg-primary/90'"
+              @click="handleStartTour"
+            >
+              <IconTruck v-if="!tourStarting" class="h-5 w-5" />
+              <span v-if="tourStarting">{{ t('refill.startingTour') }}</span>
+              <span v-else>{{ t('refill.startTour') }}</span>
+            </button>
+          </div>
+          <p v-if="!hasAnyPackedItems() && !savedTourAvailable" class="mt-1.5 text-center text-xs text-muted-foreground">
             {{ t('refill.noItemsPacked') }}
           </p>
-          <p v-else class="mt-1.5 text-center text-xs text-muted-foreground">
+          <p v-else-if="hasAnyPackedItems() && !savedTourAvailable" class="mt-1.5 text-center text-xs text-muted-foreground">
             {{ t('refill.warehouseDeductionHint') }}
           </p>
         </div>

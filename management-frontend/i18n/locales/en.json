@@ -151,6 +151,7 @@
     "packForMachine": "Pack for this machine",
     "allPacked": "All packed",
     "startTour": "Start Tour",
+    "resumeTour": "Resume Tour",
     "startingTour": "Deducting warehouse stock…",
     "machineOf": "Machine {current} of {total}",
     "slot": "Slot",
