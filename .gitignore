@@ -1,3 +1,4 @@
+.superpowers/
 kicad/**/*-backups
 kicad/**/fp-info-cache
 kicad/**/*.lck
