@@ -1,7 +1,8 @@
 <script setup lang="ts">
 definePageMeta({ middleware: 'auth' })
 
-import { timeAgo } from '@/lib/utils'
+import { timeAgo, formatDate } from '@/lib/utils'
+import { useClipboard } from '@vueuse/core'
 
 const { t } = useI18n()
 const supabase = useSupabaseClient()
@@ -36,31 +37,26 @@ async function fetchKeys() {
 onMounted(fetchKeys)
 
 // Create key modal
-const showCreateModal = ref(false)
-const createName = ref('')
-const createLoading = ref(false)
-const createError = ref('')
 const createdKey = ref('')
-const copied = ref(false)
+const { copy, copied } = useClipboard({ copiedDuring: 2000 })
 
-function openCreateModal() {
-  createName.value = ''
-  createError.value = ''
-  createdKey.value = ''
-  createLoading.value = false
-  copied.value = false
-  showCreateModal.value = true
-}
+const {
+  open: showCreateModal,
+  form: createForm,
+  loading: createLoading,
+  error: createError,
+  openModal: openCreateModal,
+  closeModal: closeCreateModal,
+  submit,
+} = useModalForm({ name: '' })
 
 async function submitCreate() {
-  const name = createName.value.trim()
+  const name = createForm.value.name.trim()
   if (!name) {
     createError.value = t('common.required', { field: t('common.name') })
     return
   }
-  createLoading.value = true
-  createError.value = ''
-  try {
+  await submit(async () => {
     const { data, error } = await supabase.functions.invoke('create-api-key', {
       body: { name },
     })
@@ -68,28 +64,12 @@ async function submitCreate() {
     if (data?.error) throw new Error(data.error)
     createdKey.value = data.key
     await fetchKeys()
-  } catch (err: unknown) {
-    createError.value = err instanceof Error ? err.message : t('common.failedTo', { action: 'create API key' })
-  } finally {
-    createLoading.value = false
-  }
+  }, { closeOnSuccess: false })
 }
 
-async function copyKey() {
-  try {
-    await navigator.clipboard.writeText(createdKey.value)
-    copied.value = true
-    setTimeout(() => { copied.value = false }, 2000)
-  } catch {
-    const textarea = document.createElement('textarea')
-    textarea.value = createdKey.value
-    document.body.appendChild(textarea)
-    textarea.select()
-    document.execCommand('copy')
-    document.body.removeChild(textarea)
-    copied.value = true
-    setTimeout(() => { copied.value = false }, 2000)
-  }
+function handleOpenCreateModal() {
+  createdKey.value = ''
+  openCreateModal()
 }
 
 async function revokeKey(id: string) {
@@ -98,11 +78,6 @@ async function revokeKey(id: string) {
     .update({ revoked_at: new Date().toISOString() })
     .eq('id', id)
   await fetchKeys()
-}
-
-function formatDate(dt: string | null) {
-  if (!dt) return '—'
-  return new Date(dt).toLocaleDateString()
 }
 
 
@@ -118,7 +93,7 @@ function formatDate(dt: string | null) {
       <button
         v-if="isAdmin"
         class="shrink-0 inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90"
-        @click="openCreateModal"
+        @click="handleOpenCreateModal"
       >
         {{ t('apiKeys.createApiKey') }}
       </button>
@@ -194,74 +169,70 @@ function formatDate(dt: string | null) {
   </div>
 
   <!-- Create API key modal -->
-  <div
-    v-if="showCreateModal"
-    class="fixed inset-0 z-[60] flex items-center justify-center bg-black/40"
-    @click.self="showCreateModal = false"
+  <AppModal
+    :open="showCreateModal"
+    :title="createdKey ? t('apiKeys.apiKeyCreated') : t('apiKeys.createApiKey')"
+    @update:open="(v) => { if (!v) { closeCreateModal(); createdKey = '' } }"
   >
-    <div class="w-full max-w-md rounded-xl border bg-card p-6 shadow-lg">
-      <!-- Step 1: Name form -->
-      <template v-if="!createdKey">
-        <h2 class="mb-4 text-lg font-semibold">{{ t('apiKeys.createApiKey') }}</h2>
-        <form class="space-y-4" @submit.prevent="submitCreate">
-          <div class="space-y-1">
-            <label class="text-sm font-medium" for="key-name">{{ t('common.name') }}</label>
-            <input
-              id="key-name"
-              v-model="createName"
-              type="text"
-              required
-              :placeholder="t('apiKeys.namePlaceholder')"
-              class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            />
-          </div>
-          <p v-if="createError" class="text-sm text-destructive">{{ createError }}</p>
-          <div class="flex gap-2">
-            <button
-              type="button"
-              class="inline-flex h-9 flex-1 items-center justify-center rounded-md border px-4 text-sm font-medium shadow-sm transition-colors hover:bg-muted"
-              @click="showCreateModal = false"
-            >
-              {{ t('common.cancel') }}
-            </button>
-            <button
-              type="submit"
-              :disabled="createLoading"
-              class="inline-flex h-9 flex-1 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90 disabled:opacity-50"
-            >
-              <span v-if="createLoading">{{ t('common.creating') }}</span>
-              <span v-else>{{ t('common.create') }}</span>
-            </button>
-          </div>
-        </form>
-      </template>
-
-      <!-- Step 2: Show key -->
-      <template v-else>
-        <h2 class="mb-1 text-lg font-semibold">{{ t('apiKeys.apiKeyCreated') }}</h2>
-        <p class="mb-4 text-sm text-destructive font-medium">
-          {{ t('apiKeys.copyWarning') }}
-        </p>
-
-        <div class="mb-4 flex items-stretch gap-2">
-          <div class="flex-1 overflow-hidden rounded-md border border-input bg-muted/50 px-3 py-2">
-            <p class="truncate font-mono text-xs text-muted-foreground">{{ createdKey }}</p>
-          </div>
+    <!-- Step 1: Name form -->
+    <template v-if="!createdKey">
+      <form class="space-y-4" @submit.prevent="submitCreate">
+        <div class="space-y-1">
+          <label class="text-sm font-medium" for="key-name">{{ t('common.name') }}</label>
+          <input
+            id="key-name"
+            v-model="createForm.name"
+            type="text"
+            required
+            :placeholder="t('apiKeys.namePlaceholder')"
+            class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          />
+        </div>
+        <FormError :message="createError" />
+        <div class="flex gap-2">
           <button
-            class="inline-flex shrink-0 items-center justify-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90"
-            @click="copyKey"
+            type="button"
+            class="inline-flex h-9 flex-1 items-center justify-center rounded-md border px-4 text-sm font-medium shadow-sm transition-colors hover:bg-muted"
+            @click="closeCreateModal(); createdKey = ''"
           >
-            {{ copied ? t('common.copied') : t('common.copy') }}
+            {{ t('common.cancel') }}
+          </button>
+          <button
+            type="submit"
+            :disabled="createLoading"
+            class="inline-flex h-9 flex-1 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90 disabled:opacity-50"
+          >
+            <span v-if="createLoading">{{ t('common.creating') }}</span>
+            <span v-else>{{ t('common.create') }}</span>
           </button>
         </div>
+      </form>
+    </template>
 
+    <!-- Step 2: Show key -->
+    <template v-else>
+      <p class="mb-4 text-sm text-destructive font-medium">
+        {{ t('apiKeys.copyWarning') }}
+      </p>
+
+      <div class="mb-4 flex items-stretch gap-2">
+        <div class="flex-1 overflow-hidden rounded-md border border-input bg-muted/50 px-3 py-2">
+          <p class="truncate font-mono text-xs text-muted-foreground">{{ createdKey }}</p>
+        </div>
         <button
-          class="inline-flex h-9 w-full items-center justify-center rounded-md border px-4 text-sm font-medium shadow-sm transition-colors hover:bg-muted"
-          @click="showCreateModal = false; createdKey = ''"
+          class="inline-flex shrink-0 items-center justify-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90"
+          @click="copy(createdKey)"
         >
-          {{ t('common.done') }}
+          {{ copied ? t('common.copied') : t('common.copy') }}
         </button>
-      </template>
-    </div>
-  </div>
+      </div>
+
+      <button
+        class="inline-flex h-9 w-full items-center justify-center rounded-md border px-4 text-sm font-medium shadow-sm transition-colors hover:bg-muted"
+        @click="closeCreateModal(); createdKey = ''"
+      >
+        {{ t('common.done') }}
+      </button>
+    </template>
+  </AppModal>
 </template>
