@@ -231,7 +231,7 @@ const currentMachineDone = computed(() =>
         </div>
 
         <!-- Start Tour button — fixed bottom bar on mobile -->
-        <div class="fixed bottom-14 md:bottom-0 inset-x-0 z-20 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 p-3 sm:p-4 md:pb-[max(1rem,env(safe-area-inset-bottom))]">
+        <div class="fixed bottom-[calc(3.5rem+env(safe-area-inset-bottom))] md:bottom-0 inset-x-0 z-20 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 p-3 sm:p-4 md:pb-[max(1rem,env(safe-area-inset-bottom))]">
           <button
             :disabled="!hasAnyPackedItems() || tourStarting"
             class="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-6 text-base font-medium text-primary-foreground shadow-lg transition-colors hover:bg-primary/90 disabled:opacity-50"
@@ -357,7 +357,7 @@ const currentMachineDone = computed(() =>
       </div>
 
       <!-- Action buttons — fixed bottom bar -->
-      <div class="fixed bottom-14 md:bottom-0 inset-x-0 z-20 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 p-3 sm:p-4 md:pb-[max(1rem,env(safe-area-inset-bottom))]">
+      <div class="fixed bottom-[calc(3.5rem+env(safe-area-inset-bottom))] md:bottom-0 inset-x-0 z-20 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 p-3 sm:p-4 md:pb-[max(1rem,env(safe-area-inset-bottom))]">
         <div class="flex flex-col gap-2 max-w-3xl mx-auto">
           <!-- Already completed: show done state + finish tour option -->
           <template v-if="currentMachineDone">
@@ -450,10 +450,10 @@ const currentMachineDone = computed(() =>
       </div>
 
       <!-- Back button — fixed bottom bar -->
-      <div class="fixed bottom-14 md:bottom-0 inset-x-0 z-20 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 p-3 sm:p-4 md:pb-[max(1rem,env(safe-area-inset-bottom))]">
+      <div class="fixed bottom-[calc(3.5rem+env(safe-area-inset-bottom))] md:bottom-0 inset-x-0 z-20 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 p-3 sm:p-4 md:pb-[max(1rem,env(safe-area-inset-bottom))]">
         <button
           class="inline-flex h-12 w-full max-w-3xl mx-auto items-center justify-center gap-2 rounded-xl bg-primary px-6 text-base font-medium text-primary-foreground shadow-lg transition-colors hover:bg-primary/90"
-          @click="router.push('/machines')"
+          @click="resetWizard(); router.push('/machines')"
         >
           {{ t('refill.backToMachines') }}
         </button>

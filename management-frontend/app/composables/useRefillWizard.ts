@@ -466,19 +466,22 @@ export function useRefillWizard() {
         packedQuantities.value.set(machine.id, machinePackedQty)
       }
 
-      // Execute all deductions
-      for (const d of deductions) {
-        const { error } = await (supabase as any).rpc('deduct_warehouse_stock_fifo', {
-          p_warehouse_id: selectedWarehouseId.value,
-          p_product_id: d.product_id,
-          p_quantity: d.quantity,
-          p_user_id: session?.user?.id ?? null,
-          p_reference_id: d.machine_id,
-          p_notes: 'Refill tour',
-          p_metadata: { _user_email: session?.user?.email ?? null },
-        })
-        if (error) throw error
-      }
+      // Execute all deductions in parallel
+      const deductionResults = await Promise.all(
+        deductions.map(d =>
+          (supabase as any).rpc('deduct_warehouse_stock_fifo', {
+            p_warehouse_id: selectedWarehouseId.value,
+            p_product_id: d.product_id,
+            p_quantity: d.quantity,
+            p_user_id: session?.user?.id ?? null,
+            p_reference_id: d.machine_id,
+            p_notes: 'Refill tour',
+            p_metadata: { _user_email: session?.user?.email ?? null },
+          })
+        )
+      )
+      const firstError = deductionResults.find(r => r.error)
+      if (firstError) throw firstError.error
 
       // Filter machines list to only those with packed items, preserve order
       const tourMachines = machines.value.filter(m => {
@@ -591,33 +594,49 @@ export function useRefillWizard() {
     confirmingRefill.value = true
     try {
       const traysToRefill = currentTrays.value.filter(t => t.fill_amount > 0)
-      let totalAdded = 0
-
-      // Use refillTrayByDelta pattern: re-read from DB, apply delta
-      for (const tray of traysToRefill) {
-        const { data: freshTray, error: fetchErr } = await (supabase as any)
-          .from('machine_trays')
-          .select('current_stock, capacity')
-          .eq('id', tray.id)
-          .single()
-        if (fetchErr) throw fetchErr
-
-        const currentStock = (freshTray as any).current_stock
-        const capacity = (freshTray as any).capacity
-        const newStock = Math.min(capacity, currentStock + tray.fill_amount)
-
-        if (newStock <= currentStock) continue
-
-        const { error } = await (supabase as any)
-          .from('machine_trays')
-          .update({ current_stock: newStock })
-          .eq('id', tray.id)
-        if (error) throw error
-
-        totalAdded += (newStock - currentStock)
+      if (traysToRefill.length === 0) {
+        await advanceToNextMachine()
+        saveTourState()
+        return
       }
 
-      // Log activity
+      const trayIds = traysToRefill.map(t => t.id)
+
+      // Batch-fetch all fresh tray stocks in one query
+      const { data: freshTrays, error: fetchErr } = await (supabase as any)
+        .from('machine_trays')
+        .select('id, current_stock, capacity')
+        .in('id', trayIds)
+      if (fetchErr) throw fetchErr
+
+      const freshMap = new Map(
+        ((freshTrays ?? []) as any[]).map((t: any) => [t.id, { current_stock: t.current_stock, capacity: t.capacity }])
+      )
+
+      // Build updates and execute in parallel
+      const updates: Promise<void>[] = []
+      let totalAdded = 0
+
+      for (const tray of traysToRefill) {
+        const fresh = freshMap.get(tray.id)
+        if (!fresh) continue
+
+        const newStock = Math.min(fresh.capacity, fresh.current_stock + tray.fill_amount)
+        if (newStock <= fresh.current_stock) continue
+
+        totalAdded += (newStock - fresh.current_stock)
+        updates.push(
+          (supabase as any)
+            .from('machine_trays')
+            .update({ current_stock: newStock })
+            .eq('id', tray.id)
+            .then(({ error }: any) => { if (error) throw error })
+        )
+      }
+
+      await Promise.all(updates)
+
+      // Log activity (non-blocking, non-critical)
       try {
         const { data: { session } } = await supabase.auth.getSession()
         const u = session?.user ?? null
