@@ -1,3 +1,6 @@
+export type OtaDeviceStatus = 'pending' | 'sending' | 'sent' | 'failed'
+export type OtaProgressCallback = (deviceId: string, status: OtaDeviceStatus, error?: string) => void
+
 export interface FirmwareVersion {
   id: string
   created_at: string
@@ -96,6 +99,30 @@ export function useFirmware() {
     return data
   }
 
+  async function triggerOtaBatch(
+    deviceIds: string[],
+    firmwareId: string,
+    onProgress: OtaProgressCallback,
+  ): Promise<{ sent: string[]; failed: { id: string; error: string }[] }> {
+    const sent: string[] = []
+    const failed: { id: string; error: string }[] = []
+
+    for (const deviceId of deviceIds) {
+      onProgress(deviceId, 'sending')
+      try {
+        await triggerOta(deviceId, firmwareId)
+        sent.push(deviceId)
+        onProgress(deviceId, 'sent')
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : 'Unknown error'
+        failed.push({ id: deviceId, error: msg })
+        onProgress(deviceId, 'failed', msg)
+      }
+    }
+
+    return { sent, failed }
+  }
+
   async function deleteFirmwareVersion(id: string, filePath: string) {
     await supabase.storage.from('firmware').remove([filePath])
     const { error } = await supabase
@@ -154,6 +181,7 @@ export function useFirmware() {
     fetchFirmwareVersions,
     uploadFirmware,
     triggerOta,
+    triggerOtaBatch,
     deleteFirmwareVersion,
     // GitHub integration
     githubRepo,

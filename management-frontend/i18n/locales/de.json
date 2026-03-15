@@ -534,7 +534,22 @@
     "importedFrom": "{asset} aus {tag} importiert",
     "loadingReleases": "Releases werden von GitHub geladen…",
     "publishedCol": "Veröffentlicht",
-    "closeDeploy": "Schließen"
+    "closeDeploy": "Schließen",
+    "selectAll": "Alle auswählen",
+    "devicesSelected": "{count} Gerät ausgewählt | {count} Geräte ausgewählt",
+    "offlineWarning": "{count} Gerät ist offline — Update wird zugestellt sobald es online kommt | {count} Geräte sind offline — Update wird zugestellt sobald sie online kommen",
+    "updateDevices": "{count} Gerät updaten | {count} Geräte updaten",
+    "deployDescription_multi": "Wählen Sie Geräte für dieses Firmware-Update über Funk.",
+    "deploying_progress": "Firmware wird bereitgestellt…",
+    "sent": "Gesendet",
+    "pending": "Ausstehend",
+    "sending": "Sende…",
+    "failed": "Fehlgeschlagen",
+    "retryFailed": "Fehlgeschlagene erneut versuchen",
+    "progressSummary": "{sent}/{total} gesendet",
+    "searchDevices": "Geräte suchen…",
+    "filterAll": "Alle Geräte",
+    "filterOnline": "Nur online"
   },
   "apiKeys": {
     "title": "API-Schlüssel",

@@ -534,7 +534,22 @@
     "importedFrom": "Imported {asset} from {tag}",
     "loadingReleases": "Loading releases from GitHub…",
     "publishedCol": "Published",
-    "closeDeploy": "Close"
+    "closeDeploy": "Close",
+    "selectAll": "Select all",
+    "devicesSelected": "{count} device selected | {count} devices selected",
+    "offlineWarning": "{count} device is offline — update will be delivered when it comes online | {count} devices are offline — update will be delivered when they come online",
+    "updateDevices": "Update {count} device | Update {count} devices",
+    "deployDescription_multi": "Select devices to receive this firmware update over-the-air.",
+    "deploying_progress": "Deploying firmware…",
+    "sent": "Sent",
+    "pending": "Pending",
+    "sending": "Sending…",
+    "failed": "Failed",
+    "retryFailed": "Retry failed",
+    "progressSummary": "{sent}/{total} sent",
+    "searchDevices": "Search devices…",
+    "filterAll": "All devices",
+    "filterOnline": "Online only"
   },
   "apiKeys": {
     "title": "API Keys",

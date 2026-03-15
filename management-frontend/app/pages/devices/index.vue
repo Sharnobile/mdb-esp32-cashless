@@ -66,10 +66,42 @@ async function fetchDevices() {
   }
 }
 
+let unsubscribeDevices: (() => void) | null = null
+
 onMounted(() => {
   fetchDevices()
   fetchPendingTokens()
+  unsubscribeDevices = subscribeToDeviceUpdates()
 })
+
+onUnmounted(() => {
+  unsubscribeDevices?.()
+})
+
+function subscribeToDeviceUpdates() {
+  const channel = supabase
+    .channel('devices-realtime')
+    .on(
+      'postgres_changes',
+      { event: 'UPDATE', schema: 'public', table: 'embeddeds' },
+      (payload) => {
+        const updated = payload.new as any
+        const idx = devices.value.findIndex(d => d.id === updated.id)
+        if (idx !== -1) {
+          const existing = devices.value[idx]!
+          existing.status = updated.status ?? existing.status
+          existing.status_at = updated.status_at ?? existing.status_at
+          existing.firmware_version = updated.firmware_version ?? existing.firmware_version
+          existing.firmware_build_date = updated.firmware_build_date ?? existing.firmware_build_date
+        }
+      }
+    )
+    .subscribe((status, err) => {
+      if (err) console.error('[realtime] devices channel error:', err)
+    })
+
+  return () => supabase.removeChannel(channel)
+}
 
 // ── Register Device modal ──────────────────────────────────────────────────
 const showModal = ref(false)

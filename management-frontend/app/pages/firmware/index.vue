@@ -2,15 +2,19 @@
 definePageMeta({ middleware: 'auth' })
 
 import { timeAgo, formatDateTime } from '@/lib/utils'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Badge } from '@/components/ui/badge'
 
 const { t } = useI18n()
 const { role } = useOrganization()
 const {
   firmwareVersions, loading, fetchFirmwareVersions,
-  uploadFirmware, triggerOta, deleteFirmwareVersion,
+  uploadFirmware, triggerOta, triggerOtaBatch, deleteFirmwareVersion,
   githubRepo, githubReleases, githubLoading,
   fetchGitHubReleases, importGitHubRelease, isReleaseImported,
 } = useFirmware()
+
+import type { OtaDeviceStatus } from '@/composables/useFirmware'
 const { machines, fetchMachines } = useMachines()
 
 const isAdmin = computed(() => role.value === 'admin')
@@ -61,27 +65,17 @@ async function submitUpload() {
 }
 
 // ── OTA trigger modal ────────────────────────────────────────────────────────
+const showOtaModal = ref(false)
 const selectedFirmwareId = ref('')
-const otaSuccess = ref('')
-
-const {
-  open: showOtaModal,
-  form: otaForm,
-  loading: otaLoading,
-  error: otaError,
-  openModal: openOtaModalBase,
-  closeModal: closeOtaModal,
-  submit: submitOtaForm,
-} = useModalForm({ deviceId: '' })
-
-function openOtaModal(firmwareId: string) {
-  selectedFirmwareId.value = firmwareId
-  otaSuccess.value = ''
-  openOtaModalBase()
-}
+const otaPhase = ref<'select' | 'progress'>('select')
+const selectedDeviceIds = ref(new Set<string>())
+const searchQuery = ref('')
+const statusFilter = ref<'all' | 'online'>('all')
+const deployProgress = ref(new Map<string, { status: OtaDeviceStatus; error?: string }>())
+const otaDeploying = ref(false)
 
 // Get devices (embeddeds) from machines
-const onlineDevices = computed(() => {
+const availableDevices = computed(() => {
   return machines.value
     .filter((m: any) => m.embeddeds?.id)
     .map((m: any) => ({
@@ -94,15 +88,128 @@ const onlineDevices = computed(() => {
     }))
 })
 
-async function submitOta() {
-  if (!otaForm.value.deviceId) {
-    otaError.value = t('firmware.selectDevice')
-    return
+const filteredDevices = computed(() => {
+  let list = availableDevices.value
+  if (statusFilter.value === 'online') {
+    list = list.filter(d => d.status === 'online')
   }
-  await submitOtaForm(async () => {
-    const result = await triggerOta(otaForm.value.deviceId, selectedFirmwareId.value)
-    otaSuccess.value = t('firmware.otaTriggered', { status: result.status })
-  }, { closeOnSuccess: false })
+  if (searchQuery.value.trim()) {
+    const q = searchQuery.value.toLowerCase()
+    list = list.filter(d =>
+      d.name.toLowerCase().includes(q) ||
+      (d.mac && d.mac.toLowerCase().includes(q))
+    )
+  }
+  return list
+})
+
+const selectedCount = computed(() => selectedDeviceIds.value.size)
+const offlineSelectedCount = computed(() => {
+  return availableDevices.value.filter(
+    d => selectedDeviceIds.value.has(d.id) && d.status !== 'online'
+  ).length
+})
+const allFilteredSelected = computed(() => {
+  if (filteredDevices.value.length === 0) return false
+  return filteredDevices.value.every(d => selectedDeviceIds.value.has(d.id))
+})
+
+const selectedFirmwareLabel = computed(() => {
+  return firmwareVersions.value.find(fw => fw.id === selectedFirmwareId.value)?.version_label ?? ''
+})
+
+const progressSummary = computed(() => {
+  let sent = 0, failed = 0, pending = 0, sending = 0
+  for (const entry of deployProgress.value.values()) {
+    if (entry.status === 'sent') sent++
+    else if (entry.status === 'failed') failed++
+    else if (entry.status === 'sending') sending++
+    else pending++
+  }
+  return { sent, failed, pending, sending, total: deployProgress.value.size }
+})
+
+function openOtaModal(firmwareId: string) {
+  selectedFirmwareId.value = firmwareId
+  otaPhase.value = 'select'
+  selectedDeviceIds.value = new Set()
+  searchQuery.value = ''
+  statusFilter.value = 'all'
+  deployProgress.value = new Map()
+  otaDeploying.value = false
+  showOtaModal.value = true
+}
+
+function closeOtaModal() {
+  showOtaModal.value = false
+}
+
+function toggleAll() {
+  if (allFilteredSelected.value) {
+    for (const d of filteredDevices.value) {
+      selectedDeviceIds.value.delete(d.id)
+    }
+  } else {
+    for (const d of filteredDevices.value) {
+      selectedDeviceIds.value.add(d.id)
+    }
+  }
+  // Trigger reactivity
+  selectedDeviceIds.value = new Set(selectedDeviceIds.value)
+}
+
+function toggleDevice(id: string) {
+  if (selectedDeviceIds.value.has(id)) {
+    selectedDeviceIds.value.delete(id)
+  } else {
+    selectedDeviceIds.value.add(id)
+  }
+  selectedDeviceIds.value = new Set(selectedDeviceIds.value)
+}
+
+async function startDeploy() {
+  otaPhase.value = 'progress'
+  otaDeploying.value = true
+  const ids = Array.from(selectedDeviceIds.value)
+
+  // Init progress map
+  const progress = new Map<string, { status: OtaDeviceStatus; error?: string }>()
+  for (const id of ids) {
+    progress.set(id, { status: 'pending' })
+  }
+  deployProgress.value = progress
+
+  await triggerOtaBatch(ids, selectedFirmwareId.value, (deviceId, status, error) => {
+    const newMap = new Map(deployProgress.value)
+    newMap.set(deviceId, { status, error })
+    deployProgress.value = newMap
+  })
+
+  otaDeploying.value = false
+}
+
+async function retryFailed() {
+  const failedIds = Array.from(deployProgress.value.entries())
+    .filter(([_, v]) => v.status === 'failed')
+    .map(([id]) => id)
+
+  if (failedIds.length === 0) return
+  otaDeploying.value = true
+
+  // Reset failed to pending
+  const newMap = new Map(deployProgress.value)
+  for (const id of failedIds) {
+    newMap.set(id, { status: 'pending' })
+  }
+  deployProgress.value = newMap
+
+  await triggerOtaBatch(failedIds, selectedFirmwareId.value, (deviceId, status, error) => {
+    const updated = new Map(deployProgress.value)
+    updated.set(deviceId, { status, error })
+    deployProgress.value = updated
+  })
+
+  otaDeploying.value = false
 }
 
 // ── Delete ───────────────────────────────────────────────────────────────────
@@ -393,45 +500,223 @@ function formatSize(bytes: number | null) {
   <AppModal
     :open="showOtaModal"
     :title="t('firmware.deployFirmware')"
-    :description="t('firmware.deployDescription')"
-    size="sm"
-    @update:open="(v) => { if (!v) { closeOtaModal(); otaSuccess = '' } }"
+    :description="otaPhase === 'select' ? t('firmware.deployDescription_multi') : undefined"
+    size="lg"
+    @update:open="(v: boolean) => { if (!v) closeOtaModal() }"
   >
-    <form class="space-y-4" @submit.prevent="submitOta">
-      <div class="space-y-1">
-        <label class="text-sm font-medium" for="ota-device">{{ t('firmware.targetDevice') }}</label>
-        <select
-          id="ota-device"
-          v-model="otaForm.deviceId"
-          class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+    <!-- Phase: Select devices -->
+    <template v-if="otaPhase === 'select'">
+      <div class="space-y-3">
+        <!-- Firmware version label -->
+        <p v-if="selectedFirmwareLabel" class="text-sm text-muted-foreground">
+          {{ t('firmware.versionCol') }}: <span class="font-mono font-medium text-foreground">{{ selectedFirmwareLabel }}</span>
+        </p>
+
+        <!-- Search + filter row -->
+        <div class="flex gap-2">
+          <input
+            v-model="searchQuery"
+            type="text"
+            :placeholder="t('firmware.searchDevices')"
+            class="flex h-9 flex-1 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          />
+          <select
+            v-model="statusFilter"
+            class="flex h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          >
+            <option value="all">{{ t('firmware.filterAll') }}</option>
+            <option value="online">{{ t('firmware.filterOnline') }}</option>
+          </select>
+        </div>
+
+        <!-- Select all header -->
+        <div
+          class="flex items-center gap-3 rounded-md border bg-muted/50 px-3 py-2 cursor-pointer"
+          @click="toggleAll"
         >
-          <option value="" disabled>{{ t('firmware.selectDevice') }}</option>
-          <option v-for="d in onlineDevices" :key="d.id" :value="d.id">
-            {{ d.name }} — {{ d.mac ?? t('firmware.noMac') }} ({{ d.status }}{{ d.firmware_version ? `, v${d.firmware_version}` : '' }}{{ d.firmware_build_date ? `, ${t('firmware.built')} ${formatDateTime(d.firmware_build_date)}` : '' }})
-          </option>
-        </select>
-        <p v-if="onlineDevices.length === 0" class="text-xs text-muted-foreground">{{ t('firmware.noDevicesForDeploy') }}</p>
+          <Checkbox
+            :checked="allFilteredSelected && filteredDevices.length > 0"
+            @update:checked="toggleAll"
+          />
+          <span class="text-sm font-medium">
+            {{ t('firmware.selectAll') }}
+            <span class="text-muted-foreground font-normal">({{ filteredDevices.length }})</span>
+          </span>
+          <span v-if="selectedCount > 0" class="ml-auto text-xs text-muted-foreground">
+            {{ t('firmware.devicesSelected', { count: selectedCount }, selectedCount) }}
+          </span>
+        </div>
+
+        <!-- Device list -->
+        <div v-if="filteredDevices.length === 0" class="py-4 text-center text-sm text-muted-foreground">
+          {{ t('firmware.noDevicesForDeploy') }}
+        </div>
+        <div v-else class="max-h-64 overflow-y-auto rounded-md border divide-y">
+          <div
+            v-for="d in filteredDevices"
+            :key="d.id"
+            class="flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors hover:bg-muted/30"
+            :class="{ 'opacity-60': d.status !== 'online' }"
+            @click="toggleDevice(d.id)"
+          >
+            <Checkbox
+              :checked="selectedDeviceIds.has(d.id)"
+              @update:checked="toggleDevice(d.id)"
+            />
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2">
+                <span class="text-sm font-medium truncate">{{ d.name }}</span>
+                <Badge
+                  :variant="d.status === 'online' ? 'default' : 'secondary'"
+                  class="shrink-0"
+                >
+                  <span
+                    class="mr-1 inline-block h-1.5 w-1.5 rounded-full"
+                    :class="d.status === 'online' ? 'bg-green-400' : 'bg-muted-foreground/50'"
+                  />
+                  {{ d.status }}
+                </Badge>
+              </div>
+              <div class="flex items-center gap-2 text-xs text-muted-foreground">
+                <span class="font-mono">{{ d.mac ?? t('firmware.noMac') }}</span>
+                <span v-if="d.firmware_version">v{{ d.firmware_version }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Offline warning -->
+        <div
+          v-if="offlineSelectedCount > 0"
+          class="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-800/50 dark:bg-amber-950/30 dark:text-amber-200"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mt-0.5 shrink-0"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+          <span>{{ t('firmware.offlineWarning', { count: offlineSelectedCount }, offlineSelectedCount) }}</span>
+        </div>
+
+        <!-- Footer -->
+        <div class="flex gap-2 pt-1">
+          <button
+            type="button"
+            class="inline-flex h-9 flex-1 items-center justify-center rounded-md border px-4 text-sm font-medium shadow-sm transition-colors hover:bg-muted"
+            @click="closeOtaModal"
+          >
+            {{ t('common.cancel') }}
+          </button>
+          <button
+            type="button"
+            :disabled="selectedCount === 0"
+            class="inline-flex h-9 flex-1 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90 disabled:opacity-50"
+            @click="startDeploy"
+          >
+            {{ t('firmware.updateDevices', { count: selectedCount }, selectedCount) }}
+          </button>
+        </div>
       </div>
-      <FormError :message="otaError" />
-      <p v-if="otaSuccess" class="text-sm text-green-600 dark:text-green-400">{{ otaSuccess }}</p>
-      <div class="flex gap-2">
-        <button
-          type="button"
-          class="inline-flex h-9 flex-1 items-center justify-center rounded-md border px-4 text-sm font-medium shadow-sm transition-colors hover:bg-muted"
-          @click="closeOtaModal(); otaSuccess = ''"
-        >
-          {{ otaSuccess ? t('common.close') : t('common.cancel') }}
-        </button>
-        <button
-          v-if="!otaSuccess"
-          type="submit"
-          :disabled="otaLoading || !otaForm.deviceId"
-          class="inline-flex h-9 flex-1 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90 disabled:opacity-50"
-        >
-          <span v-if="otaLoading">{{ t('firmware.deploying') }}</span>
-          <span v-else>{{ t('common.deploy') }}</span>
-        </button>
+    </template>
+
+    <!-- Phase: Progress -->
+    <template v-else>
+      <div class="space-y-3">
+        <!-- Progress bar -->
+        <div>
+          <div class="flex items-center justify-between text-sm mb-1.5">
+            <span class="font-medium">{{ t('firmware.deploying_progress') }}</span>
+            <span class="text-muted-foreground">{{ t('firmware.progressSummary', { sent: progressSummary.sent, total: progressSummary.total }) }}</span>
+          </div>
+          <div class="h-2 w-full rounded-full bg-muted overflow-hidden">
+            <div
+              class="h-full rounded-full transition-all duration-300"
+              :class="progressSummary.failed > 0 ? 'bg-amber-500' : 'bg-primary'"
+              :style="{ width: `${((progressSummary.sent + progressSummary.failed) / progressSummary.total) * 100}%` }"
+            />
+          </div>
+        </div>
+
+        <!-- Device progress list -->
+        <div class="max-h-72 overflow-y-auto rounded-md border divide-y">
+          <div
+            v-for="d in availableDevices.filter(dev => deployProgress.has(dev.id))"
+            :key="d.id"
+            class="flex items-center gap-3 px-3 py-2.5"
+          >
+            <!-- Status icon -->
+            <div class="shrink-0 flex items-center justify-center w-5 h-5">
+              <!-- Pending -->
+              <span
+                v-if="deployProgress.get(d.id)?.status === 'pending'"
+                class="inline-block h-2 w-2 rounded-full bg-muted-foreground/30"
+              />
+              <!-- Sending -->
+              <svg
+                v-else-if="deployProgress.get(d.id)?.status === 'sending'"
+                class="h-4 w-4 animate-spin text-primary"
+                xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+              >
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              </svg>
+              <!-- Sent -->
+              <svg
+                v-else-if="deployProgress.get(d.id)?.status === 'sent'"
+                class="h-4 w-4 text-green-600 dark:text-green-400"
+                xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
+              >
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+              <!-- Failed -->
+              <svg
+                v-else-if="deployProgress.get(d.id)?.status === 'failed'"
+                class="h-4 w-4 text-destructive"
+                xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
+              >
+                <path d="M18 6 6 18" /><path d="m6 6 12 12" />
+              </svg>
+            </div>
+
+            <!-- Device info -->
+            <div class="flex-1 min-w-0">
+              <span class="text-sm font-medium">{{ d.name }}</span>
+              <span class="ml-2 text-xs text-muted-foreground font-mono">{{ d.mac ?? '' }}</span>
+            </div>
+
+            <!-- Status text -->
+            <span
+              class="shrink-0 text-xs font-medium"
+              :class="{
+                'text-muted-foreground': deployProgress.get(d.id)?.status === 'pending',
+                'text-primary': deployProgress.get(d.id)?.status === 'sending',
+                'text-green-600 dark:text-green-400': deployProgress.get(d.id)?.status === 'sent',
+                'text-destructive': deployProgress.get(d.id)?.status === 'failed',
+              }"
+            >
+              <template v-if="deployProgress.get(d.id)?.status === 'pending'">{{ t('firmware.pending') }}</template>
+              <template v-else-if="deployProgress.get(d.id)?.status === 'sending'">{{ t('firmware.sending') }}</template>
+              <template v-else-if="deployProgress.get(d.id)?.status === 'sent'">{{ t('firmware.sent') }}</template>
+              <template v-else-if="deployProgress.get(d.id)?.status === 'failed'">{{ deployProgress.get(d.id)?.error ?? t('firmware.failed') }}</template>
+            </span>
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="flex gap-2 pt-1">
+          <button
+            v-if="progressSummary.failed > 0 && !otaDeploying"
+            type="button"
+            class="inline-flex h-9 flex-1 items-center justify-center rounded-md border border-amber-300 bg-amber-50 px-4 text-sm font-medium text-amber-800 shadow-sm transition-colors hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200 dark:hover:bg-amber-950/50"
+            @click="retryFailed"
+          >
+            {{ t('firmware.retryFailed') }} ({{ progressSummary.failed }})
+          </button>
+          <button
+            type="button"
+            class="inline-flex h-9 flex-1 items-center justify-center rounded-md border px-4 text-sm font-medium shadow-sm transition-colors hover:bg-muted"
+            @click="closeOtaModal"
+          >
+            {{ t('common.close') }}
+          </button>
+        </div>
       </div>
-    </form>
+    </template>
   </AppModal>
 </template>
