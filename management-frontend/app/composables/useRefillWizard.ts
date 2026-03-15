@@ -21,6 +21,7 @@ export interface RefillItem {
   product_name: string
   deficit: number
   image_path: string | null
+  in_stock?: boolean
 }
 
 export interface TrayForRefill {
