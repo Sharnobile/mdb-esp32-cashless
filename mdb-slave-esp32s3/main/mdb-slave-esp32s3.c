@@ -155,7 +155,7 @@ bool session_cancel_todo = false;
 bool session_end_todo = false;
 bool vend_approved_todo = false;
 bool vend_denied_todo = false;
-bool cashless_reset_todo = false;
+bool cashless_reset_todo = true;
 bool out_of_sequence_todo = false;
 
 // MDB diagnostics
@@ -366,7 +366,21 @@ void vTaskMdbEvent(void *pvParameters) {
 
 					cashless_reset_todo = true;
 					machine_state = INACTIVE_STATE;
+					vmc_feature_level = 1;
 					mdb_last_cmd = "RESET";
+
+					// Clear all stale control flags to prevent out-of-context
+					// responses after the JUST RESET reply
+					session_begin_todo = false;
+					session_cancel_todo = false;
+					session_end_todo = false;
+					vend_approved_todo = false;
+					vend_denied_todo = false;
+					out_of_sequence_todo = false;
+
+					// Flush any pending credit from the queue
+					uint16_t discarded;
+					while (xQueueReceive(mdbSessionQueue, &discarded, 0) == pdTRUE) {}
 
                     xEventGroupClearBits(xLedEventGroup, BIT_EVT_MDB);
                     xEventGroupSetBits(xLedEventGroup, BIT_EVT_TRIGGER);
@@ -422,6 +436,12 @@ void vTaskMdbEvent(void *pvParameters) {
 						ESP_LOGI( TAG, "MAX_MIN_PRICES");
 						break;
 					}
+					default: {
+						mdb_drain_bus();
+						mdb_last_cmd = "SETUP:UNKNOWN";
+						ESP_LOGW(TAG, "SETUP: unhandled subcommand, drained bus");
+						break;
+					}
 					}
 
 					break;
@@ -454,7 +474,7 @@ void vTaskMdbEvent(void *pvParameters) {
 						mdb_payload[0] = 0x00;
 						available_tx = 1;
 
-					} else if (machine_state <= ENABLED_STATE && xQueueReceive(mdbSessionQueue, &fundsAvailable, 0)) {
+					} else if (machine_state == ENABLED_STATE && xQueueReceive(mdbSessionQueue, &fundsAvailable, 0)) {
 						// Begin session
 						session_begin_todo = false;
 
@@ -591,12 +611,21 @@ void vTaskMdbEvent(void *pvParameters) {
 						mdb_last_cmd = "VEND_SUCCESS";
 
 						/* PIPE_BLE */
-						uint8_t payload[19];
-						xorEncodeWithPasskey(0x0b, itemPrice, itemNumber, 0, (uint8_t*) &payload);
+						uint8_t payload_ble[19];
+						xorEncodeWithPasskey(0x0b, itemPrice, itemNumber, 0, (uint8_t*) &payload_ble);
 
-                        ble_notify_send((char*) &payload, sizeof(payload));
+                        ble_notify_send((char*) &payload_ble, sizeof(payload_ble));
 
-						ESP_LOGI( TAG, "VEND_SUCCESS");
+						/* PIPE_MQTT — publish cashless sale for telemetry */
+						uint8_t payload_mqtt[19];
+						xorEncodeWithPasskey(0x24, itemPrice, itemNumber, 0, (uint8_t*) &payload_mqtt);
+
+						char topic_sale[128];
+						snprintf(topic_sale, sizeof(topic_sale), "/%s/%s/sale", my_company_id, my_device_id);
+
+						esp_mqtt_client_publish(mqttClient, topic_sale, (char*) &payload_mqtt, sizeof(payload_mqtt), 1, 0);
+
+						ESP_LOGI( TAG, "VEND_SUCCESS price=%u item=%u", itemPrice, itemNumber);
 						break;
 					}
 					case VEND_FAILURE: {
@@ -647,6 +676,12 @@ void vTaskMdbEvent(void *pvParameters) {
                         ESP_LOGI( TAG, "CASH_SALE");
 						break;
 					}
+					default: {
+						mdb_drain_bus();
+						mdb_last_cmd = "VEND:UNKNOWN";
+						ESP_LOGW(TAG, "VEND: unhandled subcommand, drained bus");
+						break;
+					}
 					}
 
 					break;
@@ -682,6 +717,12 @@ void vTaskMdbEvent(void *pvParameters) {
 						available_tx = 1;
 
 						ESP_LOGI( TAG, "READER_CANCEL");
+						break;
+					}
+					default: {
+						mdb_drain_bus();
+						mdb_last_cmd = "READER:UNKNOWN";
+						ESP_LOGW(TAG, "READER: unhandled subcommand, drained bus");
 						break;
 					}
 					}
@@ -829,7 +870,7 @@ void vTaskMdbEvent(void *pvParameters) {
  *   0x20 CREDIT
  *
  *  MQTT target -> server:
- *   0x21 CASH_SALE | 0x22 PAX_COUNTER | 0x23 CARD_SALE
+ *   0x21 CASH_SALE | 0x22 PAX_COUNTER | 0x23 CARD_SALE | 0x24 CASHLESS_SALE
  *
  * [ random filler ] + [ structured fields per CMD ] → XOR → obfuscated payload
  */
@@ -1739,6 +1780,25 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 		                    } else {
 		                        ESP_LOGE(TAG, "CONFIG: invalid mdb_address %u (must be 1 or 2)", configParam);
 		                    }
+		                    break;
+		                case 0x32: // MDB soft reset — re-announce to VMC
+		                    ESP_LOGW(TAG, "CONFIG: MDB soft reset requested");
+		                    // Clear all pending flags and queue (same as hardware RESET handler)
+		                    session_begin_todo = false;
+		                    session_cancel_todo = false;
+		                    session_end_todo = false;
+		                    vend_approved_todo = false;
+		                    vend_denied_todo = false;
+		                    out_of_sequence_todo = false;
+		                    {
+		                        uint16_t discard;
+		                        while (xQueueReceive(mdbSessionQueue, &discard, 0) == pdTRUE) {}
+		                    }
+		                    // Signal "Just Reset" on next POLL — VMC will re-run SETUP sequence
+		                    machine_state = INACTIVE_STATE;
+		                    vmc_feature_level = 1;
+		                    cashless_reset_todo = true;
+		                    publish_mdb_diag();
 		                    break;
 		                default:
 		                    ESP_LOGW(TAG, "CONFIG: unknown encrypted cmd 0x%02X", cmd);

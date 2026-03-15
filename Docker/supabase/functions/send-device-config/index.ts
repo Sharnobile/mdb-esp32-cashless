@@ -4,6 +4,7 @@ import { mqttPublish } from '../_shared/mqtt-publish.ts'
 // Config command bytes (must match ESP32 firmware)
 const CMD_RESTART = 0x30
 const CMD_MDB_ADDRESS = 0x31
+const CMD_MDB_RESET = 0x32
 
 /**
  * Build a 19-byte XOR-encrypted config payload.
@@ -71,6 +72,11 @@ Deno.serve(async (req) => {
     // Remote restart — no DB update needed
     if (config.restart === true) {
       configActions.push({ cmd: CMD_RESTART, param: 0, label: 'restart' })
+    }
+
+    // MDB soft reset — device announces "Just Reset" on next POLL, VMC re-runs SETUP
+    if (config.mdb_reset === true) {
+      configActions.push({ cmd: CMD_MDB_RESET, param: 0, label: 'mdb_reset' })
     }
 
     if (configActions.length === 0) {

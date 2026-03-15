@@ -215,8 +215,8 @@ Deno.serve(async (req) => {
         payload[5];
       const itemNumber = (payload[6] << 8) | payload[7];
 
-      // 0x21 = CASH_SALE (coin/bill), 0x23 = CARD_SALE (credit card / cashless device #2)
-      const channel = cmd === 0x23 ? 'card' : 'cash';
+      // 0x21 = CASH_SALE (coin/bill), 0x23 = CARD_SALE (credit card / cashless device #2), 0x24 = CASHLESS_SALE
+      const channel = cmd === 0x23 ? 'card' : cmd === 0x24 ? 'cashless' : 'cash';
 
       const salePrice = fromScaleFactor(itemPrice >>> 0, 1, 2);
 
