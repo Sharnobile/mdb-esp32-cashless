@@ -1,7 +1,7 @@
 <script setup lang="ts">
 definePageMeta({ middleware: 'auth' })
 
-import { timeAgo } from '@/lib/utils'
+import { timeAgo, formatDateTime } from '@/lib/utils'
 
 const { t } = useI18n()
 const { role } = useOrganization()
@@ -24,22 +24,26 @@ onMounted(async () => {
 })
 
 // ── Upload modal ─────────────────────────────────────────────────────────────
-const showUploadModal = ref(false)
-const uploadForm = ref({ versionLabel: '', notes: '' })
 const uploadFile = ref<File | null>(null)
-const uploadLoading = ref(false)
-const uploadError = ref('')
 
-function openUploadModal() {
-  uploadForm.value = { versionLabel: '', notes: '' }
-  uploadFile.value = null
-  uploadError.value = ''
-  showUploadModal.value = true
-}
+const {
+  open: showUploadModal,
+  form: uploadForm,
+  loading: uploadLoading,
+  error: uploadError,
+  openModal: openUploadModal,
+  closeModal: closeUploadModal,
+  submit: submitUploadForm,
+} = useModalForm({ versionLabel: '', notes: '' })
 
 function onFileChange(e: Event) {
   const input = e.target as HTMLInputElement
   uploadFile.value = input.files?.[0] ?? null
+}
+
+function handleOpenUploadModal() {
+  uploadFile.value = null
+  openUploadModal()
 }
 
 async function submitUpload() {
@@ -51,32 +55,29 @@ async function submitUpload() {
     uploadError.value = t('firmware.versionRequired')
     return
   }
-  uploadLoading.value = true
-  uploadError.value = ''
-  try {
-    await uploadFirmware(uploadFile.value, uploadForm.value.versionLabel.trim(), uploadForm.value.notes.trim() || undefined)
-    showUploadModal.value = false
-  } catch (err: unknown) {
-    uploadError.value = err instanceof Error ? err.message : t('firmware.uploadFailed')
-  } finally {
-    uploadLoading.value = false
-  }
+  await submitUploadForm(async () => {
+    await uploadFirmware(uploadFile.value!, uploadForm.value.versionLabel.trim(), uploadForm.value.notes.trim() || undefined)
+  })
 }
 
 // ── OTA trigger modal ────────────────────────────────────────────────────────
-const showOtaModal = ref(false)
 const selectedFirmwareId = ref('')
-const selectedDeviceId = ref('')
-const otaLoading = ref(false)
-const otaError = ref('')
 const otaSuccess = ref('')
+
+const {
+  open: showOtaModal,
+  form: otaForm,
+  loading: otaLoading,
+  error: otaError,
+  openModal: openOtaModalBase,
+  closeModal: closeOtaModal,
+  submit: submitOtaForm,
+} = useModalForm({ deviceId: '' })
 
 function openOtaModal(firmwareId: string) {
   selectedFirmwareId.value = firmwareId
-  selectedDeviceId.value = ''
-  otaError.value = ''
   otaSuccess.value = ''
-  showOtaModal.value = true
+  openOtaModalBase()
 }
 
 // Get devices (embeddeds) from machines
@@ -94,21 +95,14 @@ const onlineDevices = computed(() => {
 })
 
 async function submitOta() {
-  if (!selectedDeviceId.value) {
+  if (!otaForm.value.deviceId) {
     otaError.value = t('firmware.selectDevice')
     return
   }
-  otaLoading.value = true
-  otaError.value = ''
-  otaSuccess.value = ''
-  try {
-    const result = await triggerOta(selectedDeviceId.value, selectedFirmwareId.value)
+  await submitOtaForm(async () => {
+    const result = await triggerOta(otaForm.value.deviceId, selectedFirmwareId.value)
     otaSuccess.value = t('firmware.otaTriggered', { status: result.status })
-  } catch (err: unknown) {
-    otaError.value = err instanceof Error ? err.message : t('firmware.otaFailed')
-  } finally {
-    otaLoading.value = false
-  }
+  }, { closeOnSuccess: false })
 }
 
 // ── Delete ───────────────────────────────────────────────────────────────────
@@ -155,10 +149,6 @@ function formatSize(bytes: number | null) {
   return `${(kb / 1024).toFixed(2)} MB`
 }
 
-function formatDate(dt: string) {
-  return new Date(dt).toLocaleString()
-}
-
 
 </script>
 
@@ -169,7 +159,7 @@ function formatDate(dt: string) {
       <button
         v-if="isAdmin"
         class="shrink-0 inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90"
-        @click="openUploadModal"
+        @click="handleOpenUploadModal"
       >
         {{ t('firmware.uploadFirmware') }}
       </button>
@@ -219,7 +209,7 @@ function formatDate(dt: string) {
             <td class="hidden sm:table-cell px-4 py-3 text-muted-foreground">{{ formatSize(fw.file_size) }}</td>
             <td class="hidden md:table-cell px-4 py-3 text-muted-foreground truncate max-w-xs">{{ fw.notes ?? '—' }}</td>
             <td class="px-4 py-3 text-muted-foreground">
-              <span :title="formatDate(fw.created_at)">{{ timeAgo(fw.created_at, t) }}</span>
+              <span :title="formatDateTime(fw.created_at)">{{ timeAgo(fw.created_at, t) }}</span>
             </td>
             <td v-if="isAdmin" class="px-4 py-3">
               <div class="flex items-center gap-3">
@@ -268,7 +258,7 @@ function formatDate(dt: string) {
       </div>
 
       <!-- Import status messages -->
-      <p v-if="importError" class="text-sm text-destructive">{{ importError }}</p>
+      <FormError :message="importError" />
       <p v-if="importSuccess" class="text-sm text-green-600 dark:text-green-400">{{ importSuccess }}</p>
 
       <div v-if="githubLoading && githubReleases.length === 0" class="text-muted-foreground text-sm">
@@ -311,7 +301,7 @@ function formatDate(dt: string) {
                 <td class="hidden sm:table-cell px-4 py-3 font-mono text-xs text-muted-foreground truncate max-w-[200px]">{{ asset.name }}</td>
                 <td class="hidden md:table-cell px-4 py-3 text-muted-foreground">{{ formatSize(asset.size) }}</td>
                 <td class="px-4 py-3 text-muted-foreground">
-                  <span :title="formatDate(release.published_at)">{{ timeAgo(release.published_at, t) }}</span>
+                  <span :title="formatDateTime(release.published_at)">{{ timeAgo(release.published_at, t) }}</span>
                 </td>
                 <td v-if="isAdmin" class="px-4 py-3">
                   <button
@@ -339,118 +329,109 @@ function formatDate(dt: string) {
   </div>
 
   <!-- Upload firmware modal -->
-  <div
-    v-if="showUploadModal"
-    class="fixed inset-0 z-[60] flex items-center justify-center bg-black/40"
-    @click.self="showUploadModal = false"
+  <AppModal
+    :open="showUploadModal"
+    :title="t('firmware.uploadFirmware')"
+    :description="t('firmware.uploadDescription')"
+    @update:open="(v) => { if (!v) closeUploadModal() }"
   >
-    <div class="w-full max-w-md rounded-xl border bg-card p-6 shadow-lg">
-      <h2 class="mb-1 text-lg font-semibold">{{ t('firmware.uploadFirmware') }}</h2>
-      <p class="mb-5 text-sm text-muted-foreground">
-        {{ t('firmware.uploadDescription') }}
-      </p>
-      <form class="space-y-4" @submit.prevent="submitUpload">
-        <div class="space-y-1">
-          <label class="text-sm font-medium" for="fw-version">{{ t('firmware.versionLabel') }}</label>
-          <input
-            id="fw-version"
-            v-model="uploadForm.versionLabel"
-            type="text"
-            :placeholder="t('firmware.versionPlaceholder')"
-            required
-            class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-          />
-        </div>
-        <div class="space-y-1">
-          <label class="text-sm font-medium" for="fw-file">{{ t('firmware.firmwareBinary') }}</label>
-          <input
-            id="fw-file"
-            type="file"
-            accept=".bin,application/octet-stream"
-            class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            @change="onFileChange"
-          />
-          <p class="text-xs text-muted-foreground">{{ t('firmware.maxSize') }}</p>
-        </div>
-        <div class="space-y-1">
-          <label class="text-sm font-medium" for="fw-notes">{{ t('firmware.notesCol') }}</label>
-          <input
-            id="fw-notes"
-            v-model="uploadForm.notes"
-            type="text"
-            :placeholder="t('firmware.notesPlaceholder')"
-            class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-          />
-        </div>
-        <p v-if="uploadError" class="text-sm text-destructive">{{ uploadError }}</p>
-        <div class="flex gap-2">
-          <button
-            type="button"
-            class="inline-flex h-9 flex-1 items-center justify-center rounded-md border px-4 text-sm font-medium shadow-sm transition-colors hover:bg-muted"
-            @click="showUploadModal = false"
-          >
-            {{ t('common.cancel') }}
-          </button>
-          <button
-            type="submit"
-            :disabled="uploadLoading"
-            class="inline-flex h-9 flex-1 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90 disabled:opacity-50"
-          >
-            <span v-if="uploadLoading">{{ t('firmware.uploading') }}</span>
-            <span v-else>{{ t('common.upload') }}</span>
-          </button>
-        </div>
-      </form>
-    </div>
-  </div>
+    <form class="space-y-4" @submit.prevent="submitUpload">
+      <div class="space-y-1">
+        <label class="text-sm font-medium" for="fw-version">{{ t('firmware.versionLabel') }}</label>
+        <input
+          id="fw-version"
+          v-model="uploadForm.versionLabel"
+          type="text"
+          :placeholder="t('firmware.versionPlaceholder')"
+          required
+          class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        />
+      </div>
+      <div class="space-y-1">
+        <label class="text-sm font-medium" for="fw-file">{{ t('firmware.firmwareBinary') }}</label>
+        <input
+          id="fw-file"
+          type="file"
+          accept=".bin,application/octet-stream"
+          class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          @change="onFileChange"
+        />
+        <p class="text-xs text-muted-foreground">{{ t('firmware.maxSize') }}</p>
+      </div>
+      <div class="space-y-1">
+        <label class="text-sm font-medium" for="fw-notes">{{ t('firmware.notesCol') }}</label>
+        <input
+          id="fw-notes"
+          v-model="uploadForm.notes"
+          type="text"
+          :placeholder="t('firmware.notesPlaceholder')"
+          class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        />
+      </div>
+      <FormError :message="uploadError" />
+      <div class="flex gap-2">
+        <button
+          type="button"
+          class="inline-flex h-9 flex-1 items-center justify-center rounded-md border px-4 text-sm font-medium shadow-sm transition-colors hover:bg-muted"
+          @click="closeUploadModal"
+        >
+          {{ t('common.cancel') }}
+        </button>
+        <button
+          type="submit"
+          :disabled="uploadLoading"
+          class="inline-flex h-9 flex-1 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90 disabled:opacity-50"
+        >
+          <span v-if="uploadLoading">{{ t('firmware.uploading') }}</span>
+          <span v-else>{{ t('common.upload') }}</span>
+        </button>
+      </div>
+    </form>
+  </AppModal>
 
   <!-- OTA trigger modal -->
-  <div
-    v-if="showOtaModal"
-    class="fixed inset-0 z-[60] flex items-center justify-center bg-black/40"
-    @click.self="showOtaModal = false"
+  <AppModal
+    :open="showOtaModal"
+    :title="t('firmware.deployFirmware')"
+    :description="t('firmware.deployDescription')"
+    size="sm"
+    @update:open="(v) => { if (!v) { closeOtaModal(); otaSuccess = '' } }"
   >
-    <div class="w-full max-w-sm rounded-xl border bg-card p-6 shadow-lg">
-      <h2 class="mb-1 text-lg font-semibold">{{ t('firmware.deployFirmware') }}</h2>
-      <p class="mb-4 text-sm text-muted-foreground">
-        {{ t('firmware.deployDescription') }}
-      </p>
-      <form class="space-y-4" @submit.prevent="submitOta">
-        <div class="space-y-1">
-          <label class="text-sm font-medium" for="ota-device">{{ t('firmware.targetDevice') }}</label>
-          <select
-            id="ota-device"
-            v-model="selectedDeviceId"
-            class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-          >
-            <option value="" disabled>{{ t('firmware.selectDevice') }}</option>
-            <option v-for="d in onlineDevices" :key="d.id" :value="d.id">
-              {{ d.name }} — {{ d.mac ?? t('firmware.noMac') }} ({{ d.status }}{{ d.firmware_version ? `, v${d.firmware_version}` : '' }}{{ d.firmware_build_date ? `, ${t('firmware.built')} ${new Date(d.firmware_build_date).toLocaleString()}` : '' }})
-            </option>
-          </select>
-          <p v-if="onlineDevices.length === 0" class="text-xs text-muted-foreground">{{ t('firmware.noDevicesForDeploy') }}</p>
-        </div>
-        <p v-if="otaError" class="text-sm text-destructive">{{ otaError }}</p>
-        <p v-if="otaSuccess" class="text-sm text-green-600 dark:text-green-400">{{ otaSuccess }}</p>
-        <div class="flex gap-2">
-          <button
-            type="button"
-            class="inline-flex h-9 flex-1 items-center justify-center rounded-md border px-4 text-sm font-medium shadow-sm transition-colors hover:bg-muted"
-            @click="showOtaModal = false"
-          >
-            {{ otaSuccess ? t('common.close') : t('common.cancel') }}
-          </button>
-          <button
-            v-if="!otaSuccess"
-            type="submit"
-            :disabled="otaLoading || !selectedDeviceId"
-            class="inline-flex h-9 flex-1 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90 disabled:opacity-50"
-          >
-            <span v-if="otaLoading">{{ t('firmware.deploying') }}</span>
-            <span v-else>{{ t('common.deploy') }}</span>
-          </button>
-        </div>
-      </form>
-    </div>
-  </div>
+    <form class="space-y-4" @submit.prevent="submitOta">
+      <div class="space-y-1">
+        <label class="text-sm font-medium" for="ota-device">{{ t('firmware.targetDevice') }}</label>
+        <select
+          id="ota-device"
+          v-model="otaForm.deviceId"
+          class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        >
+          <option value="" disabled>{{ t('firmware.selectDevice') }}</option>
+          <option v-for="d in onlineDevices" :key="d.id" :value="d.id">
+            {{ d.name }} — {{ d.mac ?? t('firmware.noMac') }} ({{ d.status }}{{ d.firmware_version ? `, v${d.firmware_version}` : '' }}{{ d.firmware_build_date ? `, ${t('firmware.built')} ${formatDateTime(d.firmware_build_date)}` : '' }})
+          </option>
+        </select>
+        <p v-if="onlineDevices.length === 0" class="text-xs text-muted-foreground">{{ t('firmware.noDevicesForDeploy') }}</p>
+      </div>
+      <FormError :message="otaError" />
+      <p v-if="otaSuccess" class="text-sm text-green-600 dark:text-green-400">{{ otaSuccess }}</p>
+      <div class="flex gap-2">
+        <button
+          type="button"
+          class="inline-flex h-9 flex-1 items-center justify-center rounded-md border px-4 text-sm font-medium shadow-sm transition-colors hover:bg-muted"
+          @click="closeOtaModal(); otaSuccess = ''"
+        >
+          {{ otaSuccess ? t('common.close') : t('common.cancel') }}
+        </button>
+        <button
+          v-if="!otaSuccess"
+          type="submit"
+          :disabled="otaLoading || !otaForm.deviceId"
+          class="inline-flex h-9 flex-1 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90 disabled:opacity-50"
+        >
+          <span v-if="otaLoading">{{ t('firmware.deploying') }}</span>
+          <span v-else>{{ t('common.deploy') }}</span>
+        </button>
+      </div>
+    </form>
+  </AppModal>
 </template>
