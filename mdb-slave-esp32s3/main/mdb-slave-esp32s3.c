@@ -208,6 +208,34 @@ uint16_t read_9(uint8_t *checksum) {
 	return coming_read;
 }
 
+// Timed version of read_9: returns -1 if no start bit arrives within timeout_us.
+// Used to drain remaining bytes from the bus after unrecognized commands.
+int32_t read_9_timeout(uint8_t *checksum, uint32_t timeout_us) {
+
+	uint16_t coming_read = 0;
+
+	// Wait for start bit with timeout
+	uint32_t waited = 0;
+	while (gpio_get_level(PIN_MDB_RX)) {
+		ets_delay_us(10);
+		waited += 10;
+		if (waited >= timeout_us) return -1; // no data arrived
+	}
+
+	ets_delay_us(104);
+
+	ets_delay_us(52);
+	for (int x = 0; x < 9; x++) {
+		coming_read |= (gpio_get_level(PIN_MDB_RX) << x);
+		ets_delay_us(104);
+	}
+
+	if (checksum)
+		*checksum += coming_read;
+
+	return (int32_t) coming_read;
+}
+
 void write_9(uint16_t nth9) {
 
     gpio_set_level(PIN_MDB_TX, 0);  // Start bit
@@ -248,6 +276,17 @@ void write_payload_9(uint8_t *mdb_payload, uint8_t length) {
 
 void xorEncodeWithPasskey(uint8_t cmd, uint16_t itemPrice, uint16_t itemNumber, uint16_t paxCounter, uint8_t *payload);
 uint8_t xorDecodeWithPasskey(uint16_t *itemPrice, uint16_t *itemNumber, uint8_t *payload);
+
+// Drain any remaining bytes from the MDB bus after a checksum error or
+// unrecognized command to prevent desynchronization. Reads until the bus
+// is idle for 5ms (no more bytes) or a new address byte (mode bit) arrives.
+static void mdb_drain_bus(void) {
+	for (uint8_t i = 0; i < 36; i++) {
+		int32_t b = read_9_timeout(NULL, 5000);
+		if (b < 0) break;           // bus idle
+		if (b & BIT_MODE_SET) break; // next command starting
+	}
+}
 
 // Main MDB loop function
 void vTaskMdbEvent(void *pvParameters) {
@@ -299,7 +338,7 @@ void vTaskMdbEvent(void *pvParameters) {
 
 				case RESET: {
 
-                    if (read_9(NULL) != checksum) { mdb_checksum_errors++; continue; }
+                    if (read_9(NULL) != checksum) { mdb_checksum_errors++; mdb_drain_bus(); continue; }
 
                     // Reset during VEND_STATE is interpreted as VEND_SUCCESS
 
@@ -327,7 +366,7 @@ void vTaskMdbEvent(void *pvParameters) {
 						(void) vmcColumnsOnDisplay;
 						vmc_feature_level = vmcFeatureLevel > 0 ? vmcFeatureLevel : 1;
 
-                        if (read_9(NULL) != checksum) { mdb_checksum_errors++; continue; }
+                        if (read_9(NULL) != checksum) { mdb_checksum_errors++; mdb_drain_bus(); continue; }
 
 						machine_state = DISABLED_STATE;
 						mdb_last_cmd = "SETUP:CONFIG_DATA";
@@ -355,7 +394,7 @@ void vTaskMdbEvent(void *pvParameters) {
 						(void) maxPrice;
 						(void) minPrice;
 
-                        if (read_9(NULL) != checksum) { mdb_checksum_errors++; continue; }
+                        if (read_9(NULL) != checksum) { mdb_checksum_errors++; mdb_drain_bus(); continue; }
 
 						mdb_last_cmd = "SETUP:MAX_MIN_PRICES";
 						ESP_LOGI( TAG, "MAX_MIN_PRICES");
@@ -367,7 +406,7 @@ void vTaskMdbEvent(void *pvParameters) {
 				}
 				case POLL: {
 
-				    if (read_9(NULL) != checksum) { mdb_checksum_errors++; continue; }
+				    if (read_9(NULL) != checksum) { mdb_checksum_errors++; mdb_drain_bus(); continue; }
 
 					mdb_poll_count++;
 
@@ -489,7 +528,7 @@ void vTaskMdbEvent(void *pvParameters) {
 						itemPrice = (read_9(&checksum) << 8) | read_9(&checksum);
 						itemNumber = (read_9(&checksum) << 8) | read_9(&checksum);
 
-                        if (read_9(NULL) != checksum) { mdb_checksum_errors++; continue; }
+                        if (read_9(NULL) != checksum) { mdb_checksum_errors++; mdb_drain_bus(); continue; }
 
 						machine_state = VEND_STATE;
 						mdb_last_cmd = "VEND_REQUEST";
@@ -514,7 +553,7 @@ void vTaskMdbEvent(void *pvParameters) {
 						break;
 					}
 					case VEND_CANCEL: {
-                        if (read_9(NULL) != checksum) { mdb_checksum_errors++; continue; }
+                        if (read_9(NULL) != checksum) { mdb_checksum_errors++; mdb_drain_bus(); continue; }
 
 						mdb_last_cmd = "VEND_CANCEL";
 						vend_denied_todo = true;
@@ -524,7 +563,7 @@ void vTaskMdbEvent(void *pvParameters) {
 
 						itemNumber = (read_9(&checksum) << 8) | read_9(&checksum);
 
-                        if (read_9(NULL) != checksum) { mdb_checksum_errors++; continue; }
+                        if (read_9(NULL) != checksum) { mdb_checksum_errors++; mdb_drain_bus(); continue; }
 
 						machine_state = IDLE_STATE;
 						mdb_last_cmd = "VEND_SUCCESS";
@@ -539,7 +578,7 @@ void vTaskMdbEvent(void *pvParameters) {
 						break;
 					}
 					case VEND_FAILURE: {
-                        if (read_9(NULL) != checksum) { mdb_checksum_errors++; continue; }
+                        if (read_9(NULL) != checksum) { mdb_checksum_errors++; mdb_drain_bus(); continue; }
 
 						machine_state = IDLE_STATE;
 						mdb_last_cmd = "VEND_FAILURE";
@@ -552,7 +591,7 @@ void vTaskMdbEvent(void *pvParameters) {
 						break;
 					}
 					case SESSION_COMPLETE: {
-                        if (read_9(NULL) != checksum) { mdb_checksum_errors++; continue; }
+                        if (read_9(NULL) != checksum) { mdb_checksum_errors++; mdb_drain_bus(); continue; }
 
 						mdb_last_cmd = "SESSION_COMPLETE";
 						session_end_todo = true;
@@ -571,7 +610,7 @@ void vTaskMdbEvent(void *pvParameters) {
 						uint16_t itemPrice = (read_9(&checksum) << 8) | read_9(&checksum);
 						uint16_t itemNumber = (read_9(&checksum) << 8) | read_9(&checksum);
 
-						if (read_9(NULL) != checksum) { mdb_checksum_errors++; continue; }
+						if (read_9(NULL) != checksum) { mdb_checksum_errors++; mdb_drain_bus(); continue; }
 
 						mdb_last_cmd = "CASH_SALE";
 
@@ -593,7 +632,7 @@ void vTaskMdbEvent(void *pvParameters) {
 				case READER: {
 					switch (read_9(&checksum)) {
 					case READER_DISABLE: {
-                        if (read_9(NULL) != checksum) { mdb_checksum_errors++; continue; }
+                        if (read_9(NULL) != checksum) { mdb_checksum_errors++; mdb_drain_bus(); continue; }
 
 						machine_state = DISABLED_STATE;
 						mdb_last_cmd = "READER_DISABLE";
@@ -604,7 +643,7 @@ void vTaskMdbEvent(void *pvParameters) {
 						break;
 					}
 					case READER_ENABLE: {
-                        if (read_9(NULL) != checksum) { mdb_checksum_errors++; continue; }
+                        if (read_9(NULL) != checksum) { mdb_checksum_errors++; mdb_drain_bus(); continue; }
 
 						machine_state = ENABLED_STATE;
 						mdb_last_cmd = "READER_ENABLE";
@@ -614,7 +653,7 @@ void vTaskMdbEvent(void *pvParameters) {
 						break;
 					}
 					case READER_CANCEL: {
-                        if (read_9(NULL) != checksum) { mdb_checksum_errors++; continue; }
+                        if (read_9(NULL) != checksum) { mdb_checksum_errors++; mdb_drain_bus(); continue; }
 
 						mdb_last_cmd = "READER_CANCEL";
 						mdb_payload[ 0 ] = 0x08; // Canceled
@@ -632,14 +671,12 @@ void vTaskMdbEvent(void *pvParameters) {
 					switch (read_9(&checksum)) {
 					case REQUEST_ID: {
 
-                        /*char manufacturerCode[3];
-                        char serialNumber[12];
-                        char modelNumber[12];
-                        char softwareVersion[2];*/
+                        // VMC sends: ManufacturerCode(3) + SerialNumber(12) + ModelNumber(12) + SoftwareVersion(2) = 29 bytes
+                        // Level 2+: adds Optional Feature Bits (4 bytes) = 33 bytes total
+                        uint8_t request_id_len = (vmc_feature_level >= 2) ? 33 : 29;
+					    for(uint8_t x = 0; x < request_id_len; x++) read_9(&checksum);
 
-					    for(uint8_t x= 0; x < 29; x++) read_9(&checksum); // ...drop
-
-				        if (read_9(NULL) != checksum) { mdb_checksum_errors++; continue; }
+				        if (read_9(NULL) != checksum) { mdb_checksum_errors++; mdb_drain_bus(); continue; }
 
 						mdb_last_cmd = "EXPANSION:REQUEST_ID";
 
@@ -650,9 +687,30 @@ void vTaskMdbEvent(void *pvParameters) {
                         memcpy( &mdb_payload[16], "            ", 12);  // Model number
                         memcpy( &mdb_payload[28], "03", 2);             // Software version
 
-                        available_tx = 30;
+                        if (vmc_feature_level >= 2) {
+                            // Level 2+: append Optional Feature Bits (4 bytes)
+                            mdb_payload[30] = 0x00;
+                            mdb_payload[31] = 0x00;
+                            mdb_payload[32] = 0x00;
+                            mdb_payload[33] = 0x00;
+                            available_tx = 34;
+                        } else {
+                            available_tx = 30;
+                        }
 
-                        ESP_LOGI( TAG, "REQUEST_ID");
+                        ESP_LOGI( TAG, "REQUEST_ID (L%u, read %u bytes)", vmc_feature_level, request_id_len);
+						break;
+					}
+					default: {
+						// Unknown EXPANSION subcommand — drain remaining bytes until
+						// bus goes idle to prevent desynchronization.
+						for (uint8_t x = 0; x < 36; x++) {
+							int32_t b = read_9_timeout(NULL, 5000); // 5ms timeout
+							if (b < 0) break;           // bus idle, no more data
+							if (b & BIT_MODE_SET) break; // mode bit = next command, stop
+						}
+						mdb_last_cmd = "EXPANSION:UNKNOWN";
+						ESP_LOGW(TAG, "EXPANSION: unhandled subcommand, drained bus");
 						break;
 					}
 					}
