@@ -36,8 +36,10 @@ interface VendingMachine {
   empty_trays?: number
   stock_health?: 'ok' | 'low' | 'critical'
   stock_percent?: number
-  tray_summary?: { product_name: string; product_id: string | null; deficit: number; image_path: string | null }[]
+  tray_summary?: { product_name: string; product_id: string | null; deficit: number; image_path: string | null; in_stock: boolean }[]
   critical_product_ids?: Set<string>
+  no_stock_trays?: number
+  no_stock_summary?: { product_name: string; product_id: string | null; deficit: number; image_path: string | null; in_stock: boolean }[]
 }
 
 interface PendingToken {
@@ -82,7 +84,7 @@ export function useMachines() {
       const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString()
 
       // Batch queries in parallel — use machine_id instead of embedded_id
-      const [todaySalesRes, yesterdaySalesRes, thisMonthSalesRes, lastMonthSalesRes, paxRes, traysRes, ...lastSaleResults] = await Promise.all([
+      const [todaySalesRes, yesterdaySalesRes, thisMonthSalesRes, lastMonthSalesRes, paxRes, traysRes, warehouseStockRes, ...lastSaleResults] = await Promise.all([
         // Today's sales
         supabase
           .from('sales')
@@ -120,6 +122,11 @@ export function useMachines() {
           .from('machine_trays')
           .select('machine_id, item_number, product_id, capacity, current_stock, min_stock, fill_when_below, products(name, image_path)')
           .in('machine_id', machineIds),
+        // Warehouse stock for availability check
+        supabase
+          .from('warehouse_stock_batches')
+          .select('product_id, quantity')
+          .gt('quantity', 0),
         // Last sale per machine
         ...machines.value.map(m =>
           supabase
@@ -185,6 +192,15 @@ export function useMachines() {
           paxMap.set(row.machine_id, row.count)
         }
       }
+
+      // Aggregate warehouse stock per product
+      const warehouseStockMap = new Map<string, number>()
+      const warehouseBatchRows = (warehouseStockRes.data ?? []) as { product_id: string; quantity: number }[]
+      for (const row of warehouseBatchRows) {
+        if (!row.product_id) continue
+        warehouseStockMap.set(row.product_id, (warehouseStockMap.get(row.product_id) ?? 0) + row.quantity)
+      }
+      const hasWarehouses = warehouseBatchRows.length > 0
 
       // Apply last sale results
       for (let i = 0; i < machines.value.length; i++) {
