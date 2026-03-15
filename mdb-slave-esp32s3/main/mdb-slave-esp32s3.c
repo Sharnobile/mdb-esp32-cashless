@@ -155,7 +155,7 @@ bool session_cancel_todo = false;
 bool session_end_todo = false;
 bool vend_approved_todo = false;
 bool vend_denied_todo = false;
-bool cashless_reset_todo = false;
+bool cashless_reset_todo = true;
 bool out_of_sequence_todo = false;
 
 // MDB diagnostics
