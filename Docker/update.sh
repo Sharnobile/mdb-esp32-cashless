@@ -12,12 +12,15 @@ cd "$SCRIPT_DIR"
 
 # ── Parse flags ──────────────────────────────────────────────────────────────
 SKIP_FRONTEND=false
+REBUILD_ALL=false
 for arg in "$@"; do
     case "$arg" in
-        --no-frontend)  SKIP_FRONTEND=true ;;
+        --no-frontend)   SKIP_FRONTEND=true ;;
+        --rebuild-all)   REBUILD_ALL=true ;;
         -h|--help)
             echo "Usage: bash update.sh [OPTIONS]"
             echo "  --no-frontend    Skip frontend rebuild"
+            echo "  --rebuild-all    Force rebuild & restart all services (incl. broker)"
             exit 0 ;;
     esac
 done
@@ -261,17 +264,28 @@ info "Rebuilding forwarder..."
 docker compose build forwarder
 success "Forwarder image built"
 
-# ── Restart all services ─────────────────────────────────────────────────────
-RESTART_SERVICES="functions forwarder broker"
+# ── Determine which services to restart ──────────────────────────────────────
+RESTART_SERVICES="functions forwarder"
 
 if [ "$SKIP_FRONTEND" = false ]; then
     RESTART_SERVICES="$RESTART_SERVICES frontend"
 fi
 
+# Only restart broker if its config changed (or --rebuild-all)
+if [ "$REBUILD_ALL" = true ]; then
+    RESTART_SERVICES="$RESTART_SERVICES broker"
+    info "Forcing full rebuild (--rebuild-all)"
+elif [ "$BEFORE" != "$AFTER" ] && git -C "$SCRIPT_DIR/.." diff --name-only "$BEFORE" "$AFTER" | grep -q "^Docker/mqtt/config/"; then
+    RESTART_SERVICES="$RESTART_SERVICES broker"
+    info "Broker config changed — including broker in restart"
+else
+    info "Broker config unchanged — skipping broker restart"
+fi
+
 info "Restarting: ${RESTART_SERVICES}..."
 docker compose up -d --no-deps --force-recreate $RESTART_SERVICES
 
-success "All services restarted"
+success "Services restarted"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Step 4: Health check
