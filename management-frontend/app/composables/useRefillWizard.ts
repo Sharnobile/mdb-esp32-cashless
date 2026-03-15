@@ -45,6 +45,26 @@ export interface TourLogEntry {
   skipped: boolean
 }
 
+// ── Persistence ──────────────────────────────────────────────────────────────
+
+const STORAGE_KEY = 'refill-tour-state'
+
+interface PersistedTourState {
+  currentStep: WizardStep
+  machines: RefillMachine[]
+  currentMachineIndex: number
+  selectedWarehouseId: string | null
+  /** packedQuantities as [machineId, [productId, qty][]][] */
+  packedQuantities: [string, [string, number][]][]
+  /** completedMachineIds as string[] */
+  completedMachineIds: string[]
+  tourLog: TourLogEntry[]
+  savedAt: number
+}
+
+/** Max age of persisted state (24 hours) */
+const MAX_AGE_MS = 24 * 60 * 60 * 1000
+
 // ── Composable ───────────────────────────────────────────────────────────────
 
 export function useRefillWizard() {
@@ -454,6 +474,8 @@ export function useRefillWizard() {
       } else {
         currentStep.value = 'summary'
       }
+
+      saveTourState()
     } finally {
       tourStarting.value = false
     }
@@ -610,6 +632,7 @@ export function useRefillWizard() {
       })
 
       await advanceToNextMachine()
+      saveTourState()
     } finally {
       confirmingRefill.value = false
     }
@@ -628,6 +651,7 @@ export function useRefillWizard() {
       })
     }
     advanceToNextMachine()
+    saveTourState()
   }
 
   /** Navigate to a specific machine by index (for tab bar switching) */
@@ -678,6 +702,91 @@ export function useRefillWizard() {
     return { totalMachines, machinesRefilled, machinesSkipped, totalTraysRefilled, totalItemsAdded }
   })
 
+  // ── Persistence ──────────────────────────────────────────────────────────
+
+  function saveTourState() {
+    if (import.meta.server) return
+    if (currentStep.value === 'packing') return // nothing to persist before tour starts
+
+    const state: PersistedTourState = {
+      currentStep: currentStep.value,
+      machines: machines.value,
+      currentMachineIndex: currentMachineIndex.value,
+      selectedWarehouseId: selectedWarehouseId.value,
+      packedQuantities: Array.from(packedQuantities.value.entries()).map(
+        ([mid, pmap]) => [mid, Array.from(pmap.entries())] as [string, [string, number][]]
+      ),
+      completedMachineIds: Array.from(completedMachineIds.value),
+      tourLog: tourLog.value,
+      savedAt: Date.now(),
+    }
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+    } catch {
+      // storage full or unavailable — non-critical
+    }
+  }
+
+  function clearSavedTourState() {
+    if (import.meta.server) return
+    try { localStorage.removeItem(STORAGE_KEY) } catch { /* ignore */ }
+  }
+
+  /** Check if there is a saved tour to resume */
+  function hasSavedTour(): boolean {
+    if (import.meta.server) return false
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY)
+      if (!raw) return false
+      const state = JSON.parse(raw) as PersistedTourState
+      if (Date.now() - state.savedAt > MAX_AGE_MS) {
+        localStorage.removeItem(STORAGE_KEY)
+        return false
+      }
+      return state.currentStep === 'refill' || state.currentStep === 'summary'
+    } catch {
+      return false
+    }
+  }
+
+  /** Restore a previously saved tour. Returns true if successful. */
+  async function resumeTour(): Promise<boolean> {
+    if (import.meta.server) return false
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY)
+      if (!raw) return false
+      const state = JSON.parse(raw) as PersistedTourState
+      if (Date.now() - state.savedAt > MAX_AGE_MS) {
+        localStorage.removeItem(STORAGE_KEY)
+        return false
+      }
+      if (state.currentStep !== 'refill' && state.currentStep !== 'summary') return false
+
+      // Restore state
+      currentStep.value = state.currentStep
+      machines.value = state.machines
+      currentMachineIndex.value = state.currentMachineIndex
+      selectedWarehouseId.value = state.selectedWarehouseId
+      completedMachineIds.value = new Set(state.completedMachineIds)
+      tourLog.value = state.tourLog
+
+      const pq = new Map<string, Map<string, number>>()
+      for (const [mid, entries] of state.packedQuantities) {
+        pq.set(mid, new Map(entries))
+      }
+      packedQuantities.value = pq
+
+      // Load trays for current machine if in refill step
+      if (state.currentStep === 'refill' && machines.value.length > 0) {
+        await loadTraysForCurrentMachine()
+      }
+
+      return true
+    } catch {
+      return false
+    }
+  }
+
   function resetWizard() {
     currentStep.value = 'packing'
     machines.value = []
@@ -688,6 +797,7 @@ export function useRefillWizard() {
     completedMachineIds.value = new Set()
     currentTrays.value = []
     tourLog.value = []
+    clearSavedTourState()
   }
 
   return {
@@ -738,5 +848,7 @@ export function useRefillWizard() {
     goToMachine,
     isMachineCompleted,
     resetWizard,
+    hasSavedTour,
+    resumeTour,
   }
 }

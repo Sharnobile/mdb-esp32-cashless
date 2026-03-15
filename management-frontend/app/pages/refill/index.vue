@@ -21,10 +21,15 @@ const {
   isOutOfWarehouseStock, hasPartialStock, hasAnyPackedItems, effectiveStockHealth,
   initTour, loadWarehouseStock, startTour,
   adjustFillAmount, confirmMachineRefill, skipMachine, goToMachine, isMachineCompleted, resetWizard,
+  hasSavedTour, resumeTour,
 } = useRefillWizard()
 
-// Init
+// Init — resume saved tour if available, otherwise start fresh
 onMounted(async () => {
+  if (hasSavedTour()) {
+    const resumed = await resumeTour()
+    if (resumed) return
+  }
   await fetchWarehouses()
   if (warehouses.value.length > 0) {
     selectedWarehouseId.value = warehouses.value[0]!.id
