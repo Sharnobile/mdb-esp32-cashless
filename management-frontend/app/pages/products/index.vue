@@ -240,35 +240,35 @@ async function handleDeleteProduct(id: string) {
 }
 
 // Category modal state
-const showCategoryModal = ref(false)
-const categoryName = ref('')
-const categoryLoading = ref(false)
-const categoryError = ref('')
+const {
+  open: showCategoryModal,
+  form: categoryForm,
+  loading: categoryLoading,
+  error: categoryError,
+  openModal: openCategoryModal,
+  submit: submitCategoryForm,
+} = useModalForm({ name: '' })
+
+const categoryName = computed({
+  get: () => categoryForm.value.name,
+  set: (v: string) => { categoryForm.value.name = v },
+})
 
 function openAddCategory() {
-  categoryName.value = ''
-  categoryError.value = ''
-  showCategoryModal.value = true
+  openCategoryModal({ name: '' })
 }
 
 async function submitCategory() {
-  if (!categoryName.value.trim()) {
+  if (!categoryForm.value.name.trim()) {
     categoryError.value = t('products.nameRequired')
     return
   }
-  categoryLoading.value = true
-  categoryError.value = ''
-  try {
+  await submitCategoryForm(async () => {
     await createCategory({
-      name: categoryName.value.trim(),
+      name: categoryForm.value.name.trim(),
       company: organization.value!.id,
     })
-    showCategoryModal.value = false
-  } catch (err: unknown) {
-    categoryError.value = err instanceof Error ? err.message : t('products.failedToCreateCategory')
-  } finally {
-    categoryLoading.value = false
-  }
+  })
 }
 
 async function handleDeleteCategory(id: string) {
@@ -509,13 +509,11 @@ async function runImport() {
       </div>
 
       <!-- Product modal -->
-      <div
-        v-if="showProductModal"
-        class="fixed inset-0 z-[60] flex items-center justify-center bg-black/40"
-        @click.self="showProductModal = false"
+      <AppModal
+        v-model:open="showProductModal"
+        :title="editingProduct ? t('products.editProduct') : t('products.addProduct')"
+        size="sm"
       >
-        <div class="w-full max-w-sm rounded-xl border bg-card p-4 sm:p-6 shadow-lg max-h-[90vh] overflow-y-auto">
-          <h2 class="mb-4 text-lg font-semibold">{{ editingProduct ? t('products.editProduct') : t('products.addProduct') }}</h2>
           <form class="space-y-4" @submit.prevent="submitProduct">
             <div class="space-y-1">
               <label class="text-sm font-medium" for="product-name">{{ t('common.name') }}</label>
@@ -684,7 +682,7 @@ async function runImport() {
               @close="showProductScanner = false"
             />
 
-            <p v-if="productError" class="text-sm text-destructive">{{ productError }}</p>
+            <FormError :message="productError" />
             <div class="flex gap-2">
               <button
                 type="button"
@@ -703,17 +701,14 @@ async function runImport() {
               </button>
             </div>
           </form>
-        </div>
-      </div>
+      </AppModal>
 
       <!-- Category modal -->
-      <div
-        v-if="showCategoryModal"
-        class="fixed inset-0 z-[60] flex items-center justify-center bg-black/40"
-        @click.self="showCategoryModal = false"
+      <AppModal
+        v-model:open="showCategoryModal"
+        :title="t('products.addCategory')"
+        size="sm"
       >
-        <div class="w-full max-w-sm rounded-xl border bg-card p-6 shadow-lg">
-          <h2 class="mb-4 text-lg font-semibold">{{ t('products.addCategory') }}</h2>
           <form class="space-y-4" @submit.prevent="submitCategory">
             <div class="space-y-1">
               <label class="text-sm font-medium" for="category-name">{{ t('common.name') }}</label>
@@ -726,7 +721,7 @@ async function runImport() {
                 class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               />
             </div>
-            <p v-if="categoryError" class="text-sm text-destructive">{{ categoryError }}</p>
+            <FormError :message="categoryError" />
             <div class="flex gap-2">
               <button
                 type="button"
@@ -745,20 +740,19 @@ async function runImport() {
               </button>
             </div>
           </form>
-        </div>
-      </div>
+      </AppModal>
 
       <!-- Import modal -->
-      <div
-        v-if="showImportModal"
-        class="fixed inset-0 z-[60] flex items-center justify-center bg-black/40"
-        @click.self="closeImportModal"
+      <AppModal
+        v-model:open="showImportModal"
+        :title="importStep === 1 ? t('products.importProducts') : importStep === 2 ? t('products.reviewProducts') : t('products.importComplete')"
+        size="lg"
+        @update:open="if (!$event) closeImportModal()"
       >
-        <div class="w-full max-w-3xl rounded-xl border bg-card p-4 sm:p-6 shadow-lg max-h-[90vh] flex flex-col">
+        <div class="flex flex-col max-h-[70vh]">
 
           <!-- Step 1: File upload -->
           <template v-if="importStep === 1">
-            <h2 class="mb-1 text-lg font-semibold">{{ t('products.importProducts') }}</h2>
             <p class="mb-5 text-sm text-muted-foreground">
               {{ t('products.importDescription') }}
             </p>
@@ -784,7 +778,7 @@ async function runImport() {
               />
             </label>
 
-            <p v-if="importParseError" class="mt-3 text-sm text-destructive">{{ importParseError }}</p>
+            <FormError :message="importParseError" class="mt-3" />
 
             <div class="mt-5 flex justify-end">
               <button
@@ -800,7 +794,6 @@ async function runImport() {
           <template v-else-if="importStep === 2">
             <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h2 class="text-lg font-semibold">{{ t('products.reviewProducts') }}</h2>
                 <p class="text-sm text-muted-foreground">
                   {{ t('products.selectedCount', { selected: importSelectedCount, total: importProducts.length }) }}
                   <template v-if="emptyPriceCount > 0">
@@ -915,8 +908,6 @@ async function runImport() {
 
           <!-- Step 3: Results -->
           <template v-else>
-            <h2 class="mb-4 text-lg font-semibold">{{ t('products.importComplete') }}</h2>
-
             <div class="space-y-3">
               <div class="flex items-center gap-3 rounded-lg border p-4">
                 <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-green-500/10">
@@ -960,5 +951,5 @@ async function runImport() {
             </div>
           </template>
         </div>
-      </div>
+      </AppModal>
 </template>
