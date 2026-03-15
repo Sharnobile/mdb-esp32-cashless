@@ -5,19 +5,9 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, formatDateTime } from '@/lib/utils'
 
 const { t, locale } = useI18n()
-
-function formatDateTime(dt: string): string {
-  return new Date(dt).toLocaleString(locale.value, {
-    day: '2-digit',
-    month: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  })
-}
 
 export interface RecentSale {
   id: string
@@ -77,7 +67,7 @@ defineProps<{
               {{ formatCurrency(sale.item_price, locale) }}
             </span>
             <p class="text-xs text-muted-foreground tabular-nums">
-              {{ formatDateTime(sale.created_at) }}
+              {{ formatDateTime(sale.created_at, locale.value) }}
             </p>
           </div>
         </div>

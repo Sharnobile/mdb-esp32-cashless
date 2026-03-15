@@ -1,7 +1,7 @@
 <script setup lang="ts">
 definePageMeta({ middleware: 'auth' })
 
-import { timeAgo } from '@/lib/utils'
+import { timeAgo, formatDateTime } from '@/lib/utils'
 import { useActivityLog } from '@/composables/useActivityLog'
 import { Badge } from '@/components/ui/badge'
 
@@ -188,7 +188,7 @@ function metadataChips(entry: { action: string; metadata: Record<string, unknown
             class="border-b transition-colors last:border-0 hover:bg-muted/30"
           >
             <td class="whitespace-nowrap px-4 py-3 text-muted-foreground">
-              <span :title="new Date(entry.created_at).toLocaleString()">
+              <span :title="formatDateTime(entry.created_at)">
                 {{ timeAgo(entry.created_at, t) }}
               </span>
             </td>
