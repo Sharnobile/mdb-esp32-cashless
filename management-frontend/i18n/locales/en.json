@@ -75,6 +75,14 @@
     "joiningOrg": "Joining organization…",
     "failedToJoin": "Failed to join organization"
   },
+  "serverLoading": {
+    "title": "Server is starting up…",
+    "description": "The backend services are not ready yet. This usually takes a few moments after a restart.",
+    "checking": "Checking…",
+    "retry": "Retry now",
+    "autoRetry": "Automatically retrying in the background…",
+    "timeout": "The server is still not reachable. Please check if the backend is running."
+  },
   "onboarding": {
     "createOrg": "Create your organization",
     "orgName": "Organization name",

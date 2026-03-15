@@ -4,6 +4,7 @@ export default defineNuxtRouteMiddleware(async (to) => {
     '/auth/register',
     '/onboarding/create-organization',
     '/onboarding/accept-invitation',
+    '/server-loading',
   ]
   if (publicRoutes.some(route => to.path.startsWith(route))) {
     return
@@ -20,7 +21,7 @@ export default defineNuxtRouteMiddleware(async (to) => {
     return
   }
 
-  const { organization, role, fetchOrganization } = useOrganization()
+  const { organization, role, fetchError, fetchOrganization } = useOrganization()
   if (organization.value !== null && organization.value !== undefined && role.value !== null) {
     return
   }
@@ -31,6 +32,11 @@ export default defineNuxtRouteMiddleware(async (to) => {
       return navigateTo('/onboarding/create-organization')
     }
   } catch {
+    // Server/network error (502, timeout, etc.) → show loading page
+    if (fetchError.value === 'server') {
+      return navigateTo('/server-loading')
+    }
+    // Other errors (auth issues, etc.) → fallback to onboarding
     return navigateTo('/onboarding/create-organization')
   }
 })

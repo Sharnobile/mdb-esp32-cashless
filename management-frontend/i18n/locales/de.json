@@ -75,6 +75,14 @@
     "joiningOrg": "Organisation wird beigetreten…",
     "failedToJoin": "Beitritt zur Organisation fehlgeschlagen"
   },
+  "serverLoading": {
+    "title": "Server wird gestartet…",
+    "description": "Die Backend-Dienste sind noch nicht bereit. Nach einem Neustart dauert dies in der Regel einige Augenblicke.",
+    "checking": "Prüfe…",
+    "retry": "Jetzt erneut versuchen",
+    "autoRetry": "Automatische Prüfung im Hintergrund…",
+    "timeout": "Der Server ist weiterhin nicht erreichbar. Bitte prüfen Sie, ob das Backend läuft."
+  },
   "onboarding": {
     "createOrg": "Organisation erstellen",
     "orgName": "Organisationsname",
