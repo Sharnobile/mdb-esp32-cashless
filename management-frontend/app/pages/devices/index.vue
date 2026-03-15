@@ -3,7 +3,7 @@ definePageMeta({ middleware: 'auth' })
 
 import { Badge } from '@/components/ui/badge'
 import QRCode from 'qrcode'
-import { timeAgo } from '@/lib/utils'
+import { timeAgo, formatDate, formatDateTime } from '@/lib/utils'
 
 const { t } = useI18n()
 const supabase = useSupabaseClient()
@@ -155,34 +155,23 @@ async function handleDeleteToken(id: string) {
 }
 
 // ── Delete device ────────────────────────────────────────────────────────
-const showDeleteModal = ref(false)
-const deleteTarget = ref<EmbeddedDevice | null>(null)
-const deleting = ref(false)
-const deleteError = ref('')
+const deleteModal = useModalForm({ target: null as EmbeddedDevice | null })
 
 function openDeleteModal(device: EmbeddedDevice) {
-  deleteTarget.value = device
-  deleteError.value = ''
-  showDeleteModal.value = true
+  deleteModal.openModal({ target: device })
 }
 
 async function confirmDelete() {
-  if (!deleteTarget.value) return
-  deleting.value = true
-  deleteError.value = ''
-  try {
+  if (!deleteModal.form.value.target) return
+  const target = deleteModal.form.value.target
+  await deleteModal.submit(async () => {
     const { error } = await supabase
       .from('embeddeds')
       .delete()
-      .eq('id', deleteTarget.value.id)
+      .eq('id', target.id)
     if (error) throw error
-    showDeleteModal.value = false
     await fetchDevices()
-  } catch (err: unknown) {
-    deleteError.value = err instanceof Error ? err.message : t('common.failedTo', { action: t('common.delete').toLowerCase() })
-  } finally {
-    deleting.value = false
-  }
+  })
 }
 
 
@@ -301,14 +290,14 @@ async function confirmDelete() {
               </div>
               <div>
                 <p class="text-xs text-muted-foreground">{{ t('devices.registeredCol') }}</p>
-                <p class="text-xs">{{ new Date(device.created_at).toLocaleDateString() }}</p>
+                <p class="text-xs">{{ formatDate(device.created_at) }}</p>
               </div>
               <div v-if="device.firmware_version" class="col-span-2">
                 <p class="text-xs text-muted-foreground">{{ t('devices.firmwareCol') }}</p>
                 <p class="font-mono text-xs">
                   {{ device.firmware_version }}
                   <span v-if="device.firmware_build_date" class="text-muted-foreground">
-                    ({{ new Date(device.firmware_build_date).toLocaleDateString() }})
+                    ({{ formatDate(device.firmware_build_date) }})
                   </span>
                 </p>
               </div>
@@ -362,7 +351,7 @@ async function confirmDelete() {
                   <template v-if="device.firmware_version">
                     <span class="font-mono">{{ device.firmware_version }}</span>
                     <span v-if="device.firmware_build_date" class="ml-1 text-xs">
-                      ({{ new Date(device.firmware_build_date).toLocaleString() }})
+                      ({{ formatDateTime(device.firmware_build_date) }})
                     </span>
                   </template>
                   <span v-else>—</span>
@@ -381,7 +370,7 @@ async function confirmDelete() {
                   {{ timeAgo(device.status_at, t) }}
                 </td>
                 <td class="px-4 py-3 text-muted-foreground">
-                  {{ new Date(device.created_at).toLocaleDateString() }}
+                  {{ formatDate(device.created_at) }}
                 </td>
                 <td class="px-4 py-3">
                   <button
@@ -399,32 +388,32 @@ async function confirmDelete() {
 
   <!-- Delete Confirmation Modal -->
   <div
-    v-if="showDeleteModal"
+    v-if="deleteModal.open.value"
     class="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/40"
-    @click.self="showDeleteModal = false"
+    @click.self="deleteModal.closeModal()"
   >
     <div class="w-full max-w-sm rounded-t-xl sm:rounded-xl border bg-card p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:pb-6 shadow-lg">
       <h2 class="mb-1 text-lg font-semibold">{{ t('devices.deleteDevice') }}</h2>
       <p class="mb-4 text-sm text-muted-foreground">
-        {{ t('devices.deleteConfirmation', { device: deleteTarget?.mac_address ?? `subdomain ${deleteTarget?.subdomain}` }) }}
+        {{ t('devices.deleteConfirmation', { device: deleteModal.form.value.target?.mac_address ?? `subdomain ${deleteModal.form.value.target?.subdomain}` }) }}
       </p>
-      <p v-if="deleteTarget?.machine_name" class="mb-4 text-sm text-muted-foreground">
-        {{ t('devices.assignedWarning', { machine: deleteTarget.machine_name }) }}
+      <p v-if="deleteModal.form.value.target?.machine_name" class="mb-4 text-sm text-muted-foreground">
+        {{ t('devices.assignedWarning', { machine: deleteModal.form.value.target.machine_name }) }}
       </p>
-      <p v-if="deleteError" class="mb-3 text-sm text-destructive">{{ deleteError }}</p>
+      <FormError :message="deleteModal.error.value" class="mb-3" />
       <div class="flex gap-2">
         <button
           class="inline-flex h-9 flex-1 items-center justify-center rounded-md border px-4 text-sm font-medium hover:bg-muted"
-          @click="showDeleteModal = false"
+          @click="deleteModal.closeModal()"
         >
           {{ t('common.cancel') }}
         </button>
         <button
-          :disabled="deleting"
+          :disabled="deleteModal.loading.value"
           class="inline-flex h-9 flex-1 items-center justify-center rounded-md bg-destructive px-4 text-sm font-medium text-destructive-foreground shadow hover:bg-destructive/90 disabled:opacity-50"
           @click="confirmDelete"
         >
-          <span v-if="deleting">{{ t('common.deleting') }}</span>
+          <span v-if="deleteModal.loading.value">{{ t('common.deleting') }}</span>
           <span v-else>{{ t('common.delete') }}</span>
         </button>
       </div>
@@ -444,7 +433,7 @@ async function confirmDelete() {
         <p class="mb-5 text-sm text-muted-foreground">
           {{ t('devices.registerDescription') }}
         </p>
-        <p v-if="genError" class="mb-3 text-sm text-destructive">{{ genError }}</p>
+        <FormError :message="genError" class="mb-3" />
         <div class="flex gap-2">
           <button
             class="inline-flex h-9 flex-1 items-center justify-center rounded-md border px-4 text-sm font-medium hover:bg-muted"
