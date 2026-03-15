@@ -2,8 +2,9 @@
 definePageMeta({ middleware: 'auth' })
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { IconTruck } from '@tabler/icons-vue'
+import { IconTruck, IconPlayerPlay } from '@tabler/icons-vue'
 import { formatCurrency } from '@/lib/utils'
+import { useRefillWizard } from '@/composables/useRefillWizard'
 
 const { t } = useI18n()
 const { organization } = useOrganization()
@@ -11,6 +12,10 @@ const {
   machines, loading, fetchMachines, subscribeToStatusUpdates, createMachine,
 } = useMachines()
 const { onResume } = useAppResume()
+const { hasSavedTour } = useRefillWizard()
+const savedTourAvailable = ref(false)
+
+onMounted(() => { savedTourAvailable.value = hasSavedTour() })
 
 // Re-fetch all machine data when app resumes from background (iOS PWA etc.)
 onResume(() => fetchMachines())
@@ -39,6 +44,14 @@ async function submitCreateMachine() {
         <div class="flex flex-wrap items-center justify-between gap-2">
           <h1 class="text-2xl font-semibold">{{ t('machines.title') }}</h1>
           <div class="flex items-center gap-2">
+            <NuxtLink
+              v-if="savedTourAvailable"
+              to="/refill"
+              class="shrink-0 inline-flex h-9 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90"
+            >
+              <IconPlayerPlay class="h-4 w-4" />
+              {{ t('refill.resumeTour') }}
+            </NuxtLink>
             <NuxtLink
               v-if="machines.some(m => (m.stock_health ?? 'ok') !== 'ok')"
               to="/refill"
