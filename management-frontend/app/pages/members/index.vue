@@ -1,6 +1,9 @@
 <script setup lang="ts">
 definePageMeta({ middleware: 'auth' })
 
+import { formatDate } from '@/lib/utils'
+import { useClipboard } from '@vueuse/core'
+
 const { t } = useI18n()
 const supabase = useSupabaseClient()
 const { role } = useOrganization()
@@ -9,14 +12,8 @@ const members = ref<any[]>([])
 const invitations = ref<any[]>([])
 const loading = ref(true)
 
-// Invite modal state
-const showInviteModal = ref(false)
-const inviteEmail = ref('')
-const inviteRole = ref<'admin' | 'viewer'>('viewer')
-const inviteLoading = ref(false)
-const inviteError = ref('')
 const inviteUrl = ref('')
-const copied = ref(false)
+const { copy, copied } = useClipboard({ copiedDuring: 2000 })
 
 const isAdmin = computed(() => role.value === 'admin')
 
@@ -53,44 +50,31 @@ onMounted(async () => {
   await loadData()
 })
 
+const {
+  open: showInviteModal,
+  form: inviteForm,
+  loading: inviteLoading,
+  error: inviteError,
+  openModal: openInviteModal,
+  closeModal: closeInviteModal,
+  submit,
+} = useModalForm({ email: '', role: 'viewer' as 'admin' | 'viewer' })
+
 async function sendInvite() {
-  inviteLoading.value = true
-  inviteError.value = ''
-  inviteUrl.value = ''
-  copied.value = false
-  try {
+  await submit(async () => {
     const { data, error } = await supabase.functions.invoke('invite-member', {
-      body: { email: inviteEmail.value, role: inviteRole.value },
+      body: { email: inviteForm.value.email, role: inviteForm.value.role },
     })
     if (error) throw error
     if (data?.error) throw new Error(data.error)
     inviteUrl.value = `${window.location.origin}/auth/register?token=${data.token}`
-    inviteEmail.value = ''
-    inviteRole.value = 'viewer'
     await loadData()
-  } catch (err: unknown) {
-    inviteError.value = err instanceof Error ? err.message : t('common.failedTo', { action: t('members.sendInvite').toLowerCase() })
-  } finally {
-    inviteLoading.value = false
-  }
+  }, { closeOnSuccess: false })
 }
 
-async function copyInviteUrl() {
-  try {
-    await navigator.clipboard.writeText(inviteUrl.value)
-    copied.value = true
-    setTimeout(() => { copied.value = false }, 2000)
-  } catch {
-    // Fallback for insecure contexts
-    const textarea = document.createElement('textarea')
-    textarea.value = inviteUrl.value
-    document.body.appendChild(textarea)
-    textarea.select()
-    document.execCommand('copy')
-    document.body.removeChild(textarea)
-    copied.value = true
-    setTimeout(() => { copied.value = false }, 2000)
-  }
+function handleOpenInviteModal() {
+  inviteUrl.value = ''
+  openInviteModal()
 }
 
 async function changeRole(memberId: string, newRole: string) {
@@ -107,10 +91,6 @@ async function revokeInvitation(invitationId: string) {
   await supabase.from('invitations').delete().eq('id', invitationId)
   await loadData()
 }
-
-function formatDate(dt: string) {
-  return new Date(dt).toLocaleDateString()
-}
 </script>
 
 <template>
@@ -120,7 +100,7 @@ function formatDate(dt: string) {
           <button
             v-if="isAdmin"
             class="shrink-0 inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90"
-            @click="showInviteModal = true"
+            @click="handleOpenInviteModal"
           >
             {{ t('members.inviteMember') }}
           </button>
@@ -231,85 +211,81 @@ function formatDate(dt: string) {
       </div>
 
       <!-- Invite modal -->
-      <div
-        v-if="showInviteModal"
-        class="fixed inset-0 z-[60] flex items-center justify-center bg-black/40"
-        @click.self="showInviteModal = false"
+      <AppModal
+        :open="showInviteModal"
+        :title="inviteUrl ? t('members.invitationLink') : t('members.inviteAMember')"
+        @update:open="(v) => { if (!v) { closeInviteModal(); inviteUrl = '' } }"
       >
-        <div class="w-full max-w-md rounded-xl border bg-card p-6 shadow-lg">
-          <!-- Step 1: Form -->
-          <template v-if="!inviteUrl">
-            <h2 class="mb-4 text-lg font-semibold">{{ t('members.inviteAMember') }}</h2>
-            <form class="space-y-4" @submit.prevent="sendInvite">
-              <div class="space-y-1">
-                <label class="text-sm font-medium" for="invite-email">{{ t('common.email') }}</label>
-                <input
-                  id="invite-email"
-                  v-model="inviteEmail"
-                  type="email"
-                  required
-                  placeholder="colleague@example.com"
-                  class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                />
-              </div>
-              <div class="space-y-1">
-                <label class="text-sm font-medium" for="invite-role">{{ t('members.roleCol') }}</label>
-                <select
-                  id="invite-role"
-                  v-model="inviteRole"
-                  class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                >
-                  <option value="viewer">Viewer</option>
-                  <option value="admin">Admin</option>
-                </select>
-              </div>
-              <p v-if="inviteError" class="text-sm text-destructive">{{ inviteError }}</p>
-              <div class="flex gap-2">
-                <button
-                  type="button"
-                  class="inline-flex h-9 flex-1 items-center justify-center rounded-md border px-4 text-sm font-medium shadow-sm transition-colors hover:bg-muted"
-                  @click="showInviteModal = false"
-                >
-                  {{ t('common.cancel') }}
-                </button>
-                <button
-                  type="submit"
-                  :disabled="inviteLoading"
-                  class="inline-flex h-9 flex-1 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90 disabled:opacity-50"
-                >
-                  <span v-if="inviteLoading">{{ t('members.sending') }}</span>
-                  <span v-else>{{ t('members.sendInvite') }}</span>
-                </button>
-              </div>
-            </form>
-          </template>
-
-          <!-- Step 2: Invite link -->
-          <template v-else>
-            <h2 class="mb-1 text-lg font-semibold">{{ t('members.invitationLink') }}</h2>
-            <p class="mb-4 text-sm text-muted-foreground">
-              {{ t('members.inviteLinkDescription') }}
-            </p>
-
-            <div class="mb-4 flex items-stretch gap-2">
-              <div class="flex-1 overflow-hidden rounded-md border border-input bg-muted/50 px-3 py-2">
-                <p class="truncate font-mono text-xs text-muted-foreground">{{ inviteUrl }}</p>
-              </div>
-              <button
-                class="inline-flex shrink-0 items-center justify-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90"
-                @click="copyInviteUrl"
+        <!-- Step 1: Form -->
+        <template v-if="!inviteUrl">
+          <form class="space-y-4" @submit.prevent="sendInvite">
+            <div class="space-y-1">
+              <label class="text-sm font-medium" for="invite-email">{{ t('common.email') }}</label>
+              <input
+                id="invite-email"
+                v-model="inviteForm.email"
+                type="email"
+                required
+                placeholder="colleague@example.com"
+                class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              />
+            </div>
+            <div class="space-y-1">
+              <label class="text-sm font-medium" for="invite-role">{{ t('members.roleCol') }}</label>
+              <select
+                id="invite-role"
+                v-model="inviteForm.role"
+                class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               >
-                {{ copied ? t('common.copied') : t('common.copy') }}
+                <option value="viewer">Viewer</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+            <FormError :message="inviteError" />
+            <div class="flex gap-2">
+              <button
+                type="button"
+                class="inline-flex h-9 flex-1 items-center justify-center rounded-md border px-4 text-sm font-medium shadow-sm transition-colors hover:bg-muted"
+                @click="closeInviteModal(); inviteUrl = ''"
+              >
+                {{ t('common.cancel') }}
+              </button>
+              <button
+                type="submit"
+                :disabled="inviteLoading"
+                class="inline-flex h-9 flex-1 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90 disabled:opacity-50"
+              >
+                <span v-if="inviteLoading">{{ t('members.sending') }}</span>
+                <span v-else>{{ t('members.sendInvite') }}</span>
               </button>
             </div>
+          </form>
+        </template>
 
+        <!-- Step 2: Invite link -->
+        <template v-else>
+          <p class="mb-4 text-sm text-muted-foreground">
+            {{ t('members.inviteLinkDescription') }}
+          </p>
+
+          <div class="mb-4 flex items-stretch gap-2">
+            <div class="flex-1 overflow-hidden rounded-md border border-input bg-muted/50 px-3 py-2">
+              <p class="truncate font-mono text-xs text-muted-foreground">{{ inviteUrl }}</p>
+            </div>
             <button
-              class="inline-flex h-9 w-full items-center justify-center rounded-md border px-4 text-sm font-medium shadow-sm transition-colors hover:bg-muted"
-              @click="showInviteModal = false; inviteUrl = ''"
+              class="inline-flex shrink-0 items-center justify-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90"
+              @click="copy(inviteUrl)"
             >
-              {{ t('common.done') }}
+              {{ copied ? t('common.copied') : t('common.copy') }}
             </button>
-          </template>
-        </div>
-      </div>
+          </div>
+
+          <button
+            class="inline-flex h-9 w-full items-center justify-center rounded-md border px-4 text-sm font-medium shadow-sm transition-colors hover:bg-muted"
+            @click="closeInviteModal(); inviteUrl = ''"
+          >
+            {{ t('common.done') }}
+          </button>
+        </template>
+      </AppModal>
 </template>
