@@ -337,6 +337,7 @@ services:
     restart: unless-stopped
     volumes:
       - ./supabase/functions:/home/deno/functions:Z
+      - deno-cache:/root/.cache/deno
     environment:
       JWT_SECRET: ${JWT_SECRET}
       SUPABASE_URL: http://kong:8000
@@ -405,3 +406,4 @@ services:
 
 volumes:
   db-config:
+  deno-cache:
