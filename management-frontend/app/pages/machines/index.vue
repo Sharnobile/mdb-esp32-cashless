@@ -124,8 +124,8 @@ async function submitCreateMachine() {
                   </div>
                 </div>
 
-                <!-- Healthy machine: compact view -->
-                <template v-if="(machine.stock_health ?? 'ok') === 'ok'">
+                <!-- Healthy machine with no stock issues at all -->
+                <template v-if="(machine.stock_health ?? 'ok') === 'ok' && (machine.no_stock_trays ?? 0) === 0">
                   <p class="text-sm text-muted-foreground">
                     <template v-if="(machine.total_trays ?? 0) > 0">
                       {{ t('machines.allStocked', { count: machine.total_trays }) }}
@@ -136,18 +136,57 @@ async function submitCreateMachine() {
                   </p>
                 </template>
 
-                <!-- Machine needing refill: stock bar + urgency -->
+                <!-- Machine has stock issues (refillable and/or no-stock) -->
                 <template v-else>
-                  <!-- Urgency summary -->
-                  <p class="text-sm">
-                    <span v-if="(machine.empty_trays ?? 0) > 0" class="font-medium text-red-500">{{ t('machines.emptyTrays', { count: machine.empty_trays }) }}</span>
-                    <span v-if="(machine.empty_trays ?? 0) > 0 && ((machine.low_trays ?? 0) - (machine.empty_trays ?? 0)) > 0"> &middot; </span>
-                    <span v-if="((machine.low_trays ?? 0) - (machine.empty_trays ?? 0)) > 0" class="font-medium text-amber-500">{{ t('machines.lowTrays', { count: (machine.low_trays ?? 0) - (machine.empty_trays ?? 0) }) }}</span>
-                    <span class="text-muted-foreground"> {{ t('machines.ofTrays', { count: machine.total_trays }) }}</span>
+                  <!-- "All stocked" context when only no-stock issues remain -->
+                  <p v-if="(machine.stock_health ?? 'ok') === 'ok'" class="text-sm text-muted-foreground">
+                    {{ t('machines.allStocked', { count: machine.total_trays }) }}
                   </p>
 
-                  <!-- Stock bar -->
-                  <div class="flex items-center gap-2">
+                  <!-- Badges row -->
+                  <div class="flex flex-wrap items-center gap-1.5">
+                    <span
+                      v-if="(machine.low_trays ?? 0) > 0"
+                      class="inline-flex items-center gap-1 rounded-md bg-red-500/10 px-2 py-0.5 text-xs font-semibold text-red-500"
+                    >
+                      {{ t('machines.refillNeeded', { count: machine.low_trays }) }}
+                    </span>
+                    <span
+                      v-if="(machine.no_stock_trays ?? 0) > 0"
+                      class="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground"
+                    >
+                      {{ t('machines.noWarehouseStock', { count: machine.no_stock_trays }) }}
+                    </span>
+                  </div>
+
+                  <!-- Product list -->
+                  <div v-if="(machine.tray_summary?.length ?? 0) > 0 || (machine.no_stock_summary?.length ?? 0) > 0" class="space-y-0.5 text-xs">
+                    <!-- Refillable products -->
+                    <div
+                      v-for="item in machine.tray_summary"
+                      :key="'refill-' + item.product_id"
+                      class="flex items-center justify-between"
+                    >
+                      <span :class="item.deficit >= (machine.tray_summary?.[0]?.deficit ?? 0) ? 'text-red-500' : 'text-amber-500'">
+                        {{ item.product_name }} <span class="text-muted-foreground">(-{{ item.deficit }})</span>
+                      </span>
+                      <span class="text-green-500 text-[10px]">{{ t('machines.inStock') }}</span>
+                    </div>
+                    <!-- No-stock products (dimmed, sorted to bottom) -->
+                    <div
+                      v-for="item in machine.no_stock_summary"
+                      :key="'nostock-' + item.product_id"
+                      class="flex items-center justify-between opacity-50"
+                    >
+                      <span>
+                        {{ item.product_name }} <span class="text-muted-foreground">(-{{ item.deficit }})</span>
+                      </span>
+                      <span class="text-muted-foreground text-[10px]">{{ t('machines.noStock') }}</span>
+                    </div>
+                  </div>
+
+                  <!-- Stock bar (only when there are refillable issues) -->
+                  <div v-if="(machine.stock_health ?? 'ok') !== 'ok'" class="flex items-center gap-2">
                     <div class="h-2 flex-1 overflow-hidden rounded-full bg-muted">
                       <div
                         class="h-full rounded-full transition-all"
