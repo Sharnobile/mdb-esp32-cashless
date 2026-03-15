@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { IconArrowLeft, IconCheck, IconPlayerSkipForward, IconTruck } from '@tabler/icons-vue'
 import { getProductImageUrl } from '@/composables/useProducts'
-import { useRefillWizard } from '@/composables/useRefillWizard'
+import { useRefillWizard, hasSavedTour } from '@/composables/useRefillWizard'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -21,7 +21,7 @@ const {
   isOutOfWarehouseStock, hasPartialStock, hasAnyPackedItems, effectiveStockHealth,
   initTour, loadWarehouseStock, startTour,
   adjustFillAmount, confirmMachineRefill, skipMachine, goToMachine, isMachineCompleted, resetWizard,
-  hasSavedTour, resumeTour,
+  resumeTour,
 } = useRefillWizard()
 
 // Init — auto-resume saved tour if available, otherwise start fresh

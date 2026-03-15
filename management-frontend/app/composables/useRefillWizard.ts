@@ -65,6 +65,29 @@ interface PersistedTourState {
 /** Max age of persisted state (24 hours) */
 const MAX_AGE_MS = 24 * 60 * 60 * 1000
 
+/** Check if there is a saved tour to resume (standalone, no composable needed) */
+export function hasSavedTour(): boolean {
+  if (import.meta.server) return false
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return false
+    const state = JSON.parse(raw) as PersistedTourState
+    if (Date.now() - state.savedAt > MAX_AGE_MS) {
+      localStorage.removeItem(STORAGE_KEY)
+      return false
+    }
+    return state.currentStep === 'refill' || state.currentStep === 'summary'
+  } catch {
+    return false
+  }
+}
+
+/** Clear saved tour state (standalone, no composable needed) */
+export function clearSavedTourState(): void {
+  if (import.meta.server) return
+  try { localStorage.removeItem(STORAGE_KEY) } catch { /* ignore */ }
+}
+
 // ── Composable ───────────────────────────────────────────────────────────────
 
 export function useRefillWizard() {
@@ -727,28 +750,6 @@ export function useRefillWizard() {
     }
   }
 
-  function clearSavedTourState() {
-    if (import.meta.server) return
-    try { localStorage.removeItem(STORAGE_KEY) } catch { /* ignore */ }
-  }
-
-  /** Check if there is a saved tour to resume */
-  function hasSavedTour(): boolean {
-    if (import.meta.server) return false
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY)
-      if (!raw) return false
-      const state = JSON.parse(raw) as PersistedTourState
-      if (Date.now() - state.savedAt > MAX_AGE_MS) {
-        localStorage.removeItem(STORAGE_KEY)
-        return false
-      }
-      return state.currentStep === 'refill' || state.currentStep === 'summary'
-    } catch {
-      return false
-    }
-  }
-
   /** Restore a previously saved tour. Returns true if successful. */
   async function resumeTour(): Promise<boolean> {
     if (import.meta.server) return false
@@ -848,7 +849,6 @@ export function useRefillWizard() {
     goToMachine,
     isMachineCompleted,
     resetWizard,
-    hasSavedTour,
     resumeTour,
   }
 }

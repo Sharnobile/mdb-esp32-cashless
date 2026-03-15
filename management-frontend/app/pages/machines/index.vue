@@ -4,7 +4,7 @@ definePageMeta({ middleware: 'auth' })
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { IconTruck, IconPlayerPlay } from '@tabler/icons-vue'
 import { formatCurrency } from '@/lib/utils'
-import { useRefillWizard } from '@/composables/useRefillWizard'
+import { hasSavedTour, clearSavedTourState } from '@/composables/useRefillWizard'
 
 const { t } = useI18n()
 const { organization } = useOrganization()
@@ -12,13 +12,12 @@ const {
   machines, loading, fetchMachines, subscribeToStatusUpdates, createMachine,
 } = useMachines()
 const { onResume } = useAppResume()
-const { hasSavedTour, resetWizard } = useRefillWizard()
 const savedTourAvailable = ref(false)
 
 onMounted(() => { savedTourAvailable.value = hasSavedTour() })
 
 function startNewTour() {
-  resetWizard()
+  clearSavedTourState()
   savedTourAvailable.value = false
   navigateTo('/refill')
 }
