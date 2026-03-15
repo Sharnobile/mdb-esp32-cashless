@@ -167,6 +167,11 @@ static void publish_mdb_diag(void); // forward declaration
 
 static uint8_t vmc_feature_level = 1; // VMC feature level from SETUP (default Level 1)
 
+// Spinlock for MDB bit-banging critical sections.
+// Disables interrupts on Core 1 during bit sampling to prevent
+// WiFi/MQTT/BLE tasks from disrupting the 9600-baud timing.
+static portMUX_TYPE mdb_mux = portMUX_INITIALIZER_UNLOCKED;
+
 static const char *machine_state_name(machine_state_t s) {
     switch (s) {
         case INACTIVE_STATE: return "INACTIVE";
@@ -190,9 +195,15 @@ uint16_t read_9(uint8_t *checksum) {
 
 	uint16_t coming_read = 0;
 
-	// Wait start bit
+	// Wait start bit (idle, interruptible — no timing constraint here)
 	while (gpio_get_level(PIN_MDB_RX))
 		;
+
+	// Enter critical section: disable interrupts on this core so that
+	// WiFi/MQTT/BLE tasks cannot preempt the timing-sensitive bit sampling.
+	// The critical section lasts ~1.1ms (11 bits at 9600 baud) which is safe
+	// for the interrupt watchdog (timeout >> 1ms) and only affects Core 1.
+	portENTER_CRITICAL(&mdb_mux);
 
 	ets_delay_us(104);
 
@@ -201,6 +212,8 @@ uint16_t read_9(uint8_t *checksum) {
 		coming_read |= (gpio_get_level(PIN_MDB_RX) << x);
 		ets_delay_us(104); // 9600bps
 	}
+
+	portEXIT_CRITICAL(&mdb_mux);
 
 	if (checksum)
 		*checksum += coming_read;
@@ -214,13 +227,16 @@ int32_t read_9_timeout(uint8_t *checksum, uint32_t timeout_us) {
 
 	uint16_t coming_read = 0;
 
-	// Wait for start bit with timeout
+	// Wait for start bit with timeout (idle, interruptible)
 	uint32_t waited = 0;
 	while (gpio_get_level(PIN_MDB_RX)) {
 		ets_delay_us(10);
 		waited += 10;
 		if (waited >= timeout_us) return -1; // no data arrived
 	}
+
+	// Critical section for bit sampling (same as read_9)
+	portENTER_CRITICAL(&mdb_mux);
 
 	ets_delay_us(104);
 
@@ -230,6 +246,8 @@ int32_t read_9_timeout(uint8_t *checksum, uint32_t timeout_us) {
 		ets_delay_us(104);
 	}
 
+	portEXIT_CRITICAL(&mdb_mux);
+
 	if (checksum)
 		*checksum += coming_read;
 
@@ -237,6 +255,8 @@ int32_t read_9_timeout(uint8_t *checksum, uint32_t timeout_us) {
 }
 
 void write_9(uint16_t nth9) {
+
+	portENTER_CRITICAL(&mdb_mux);
 
     gpio_set_level(PIN_MDB_TX, 0);  // Start bit
     ets_delay_us(104); // 9600bps
@@ -249,6 +269,8 @@ void write_9(uint16_t nth9) {
 
     gpio_set_level(PIN_MDB_TX, 1);  // Stop bit
     ets_delay_us(104); // 9600bps
+
+	portEXIT_CRITICAL(&mdb_mux);
 }
 
 // Function to transmit the payload via bit-banging (using MDB protocol)
@@ -673,8 +695,19 @@ void vTaskMdbEvent(void *pvParameters) {
 
                         // VMC sends: ManufacturerCode(3) + SerialNumber(12) + ModelNumber(12) + SoftwareVersion(2) = 29 bytes
                         // Level 2+: adds Optional Feature Bits (4 bytes) = 33 bytes total
-                        uint8_t request_id_len = (vmc_feature_level >= 2) ? 33 : 29;
-					    for(uint8_t x = 0; x < request_id_len; x++) read_9(&checksum);
+                        // Always read the guaranteed 29 bytes first.
+					    for(uint8_t x = 0; x < 29; x++) read_9(&checksum);
+
+                        // Level 2+: try to read 4 additional Optional Feature Bytes.
+                        // Use timeout so we don't hang if vmc_feature_level was misdetected.
+                        uint8_t extra_bytes_read = 0;
+                        if (vmc_feature_level >= 2) {
+                            for (uint8_t x = 0; x < 4; x++) {
+                                int32_t b = read_9_timeout(&checksum, 2000); // 2ms timeout per byte
+                                if (b < 0) break; // no more data — VMC is actually Level 1
+                                extra_bytes_read++;
+                            }
+                        }
 
 				        if (read_9(NULL) != checksum) { mdb_checksum_errors++; mdb_drain_bus(); continue; }
 
@@ -687,8 +720,8 @@ void vTaskMdbEvent(void *pvParameters) {
                         memcpy( &mdb_payload[16], "            ", 12);  // Model number
                         memcpy( &mdb_payload[28], "03", 2);             // Software version
 
-                        if (vmc_feature_level >= 2) {
-                            // Level 2+: append Optional Feature Bits (4 bytes)
+                        if (extra_bytes_read == 4) {
+                            // VMC actually sent Level 2+ data — respond with Optional Feature Bits
                             mdb_payload[30] = 0x00;
                             mdb_payload[31] = 0x00;
                             mdb_payload[32] = 0x00;
@@ -698,7 +731,7 @@ void vTaskMdbEvent(void *pvParameters) {
                             available_tx = 30;
                         }
 
-                        ESP_LOGI( TAG, "REQUEST_ID (L%u, read %u bytes)", vmc_feature_level, request_id_len);
+                        ESP_LOGI( TAG, "REQUEST_ID (L%u, extra=%u)", vmc_feature_level, extra_bytes_read);
 						break;
 					}
 					default: {
