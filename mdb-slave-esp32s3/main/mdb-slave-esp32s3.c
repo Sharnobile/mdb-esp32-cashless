@@ -369,6 +369,19 @@ void vTaskMdbEvent(void *pvParameters) {
 					vmc_feature_level = 1;
 					mdb_last_cmd = "RESET";
 
+					// Clear all stale control flags to prevent out-of-context
+					// responses after the JUST RESET reply
+					session_begin_todo = false;
+					session_cancel_todo = false;
+					session_end_todo = false;
+					vend_approved_todo = false;
+					vend_denied_todo = false;
+					out_of_sequence_todo = false;
+
+					// Flush any pending credit from the queue
+					uint16_t discarded;
+					while (xQueueReceive(mdbSessionQueue, &discarded, 0) == pdTRUE) {}
+
                     xEventGroupClearBits(xLedEventGroup, BIT_EVT_MDB);
                     xEventGroupSetBits(xLedEventGroup, BIT_EVT_TRIGGER);
 
@@ -598,12 +611,21 @@ void vTaskMdbEvent(void *pvParameters) {
 						mdb_last_cmd = "VEND_SUCCESS";
 
 						/* PIPE_BLE */
-						uint8_t payload[19];
-						xorEncodeWithPasskey(0x0b, itemPrice, itemNumber, 0, (uint8_t*) &payload);
+						uint8_t payload_ble[19];
+						xorEncodeWithPasskey(0x0b, itemPrice, itemNumber, 0, (uint8_t*) &payload_ble);
 
-                        ble_notify_send((char*) &payload, sizeof(payload));
+                        ble_notify_send((char*) &payload_ble, sizeof(payload_ble));
 
-						ESP_LOGI( TAG, "VEND_SUCCESS");
+						/* PIPE_MQTT — publish cashless sale for telemetry */
+						uint8_t payload_mqtt[19];
+						xorEncodeWithPasskey(0x24, itemPrice, itemNumber, 0, (uint8_t*) &payload_mqtt);
+
+						char topic_sale[128];
+						snprintf(topic_sale, sizeof(topic_sale), "/%s/%s/sale", my_company_id, my_device_id);
+
+						esp_mqtt_client_publish(mqttClient, topic_sale, (char*) &payload_mqtt, sizeof(payload_mqtt), 1, 0);
+
+						ESP_LOGI( TAG, "VEND_SUCCESS price=%u item=%u", itemPrice, itemNumber);
 						break;
 					}
 					case VEND_FAILURE: {
@@ -848,7 +870,7 @@ void vTaskMdbEvent(void *pvParameters) {
  *   0x20 CREDIT
  *
  *  MQTT target -> server:
- *   0x21 CASH_SALE | 0x22 PAX_COUNTER | 0x23 CARD_SALE
+ *   0x21 CASH_SALE | 0x22 PAX_COUNTER | 0x23 CARD_SALE | 0x24 CASHLESS_SALE
  *
  * [ random filler ] + [ structured fields per CMD ] → XOR → obfuscated payload
  */
