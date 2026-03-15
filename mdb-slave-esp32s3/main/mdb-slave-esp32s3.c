@@ -423,6 +423,12 @@ void vTaskMdbEvent(void *pvParameters) {
 						ESP_LOGI( TAG, "MAX_MIN_PRICES");
 						break;
 					}
+					default: {
+						mdb_drain_bus();
+						mdb_last_cmd = "SETUP:UNKNOWN";
+						ESP_LOGW(TAG, "SETUP: unhandled subcommand, drained bus");
+						break;
+					}
 					}
 
 					break;
@@ -455,7 +461,7 @@ void vTaskMdbEvent(void *pvParameters) {
 						mdb_payload[0] = 0x00;
 						available_tx = 1;
 
-					} else if (machine_state <= ENABLED_STATE && xQueueReceive(mdbSessionQueue, &fundsAvailable, 0)) {
+					} else if (machine_state == ENABLED_STATE && xQueueReceive(mdbSessionQueue, &fundsAvailable, 0)) {
 						// Begin session
 						session_begin_todo = false;
 
@@ -648,6 +654,12 @@ void vTaskMdbEvent(void *pvParameters) {
                         ESP_LOGI( TAG, "CASH_SALE");
 						break;
 					}
+					default: {
+						mdb_drain_bus();
+						mdb_last_cmd = "VEND:UNKNOWN";
+						ESP_LOGW(TAG, "VEND: unhandled subcommand, drained bus");
+						break;
+					}
 					}
 
 					break;
@@ -683,6 +695,12 @@ void vTaskMdbEvent(void *pvParameters) {
 						available_tx = 1;
 
 						ESP_LOGI( TAG, "READER_CANCEL");
+						break;
+					}
+					default: {
+						mdb_drain_bus();
+						mdb_last_cmd = "READER:UNKNOWN";
+						ESP_LOGW(TAG, "READER: unhandled subcommand, drained bus");
 						break;
 					}
 					}
