@@ -4,6 +4,7 @@ definePageMeta({ middleware: 'auth' })
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { IconTruck, IconPlayerPlay } from '@tabler/icons-vue'
 import { formatCurrency } from '@/lib/utils'
+import { getProductImageUrl } from '@/composables/useProducts'
 import { hasSavedTour, clearSavedTourState } from '@/composables/useRefillWizard'
 
 const { t } = useI18n()
@@ -165,23 +166,29 @@ async function submitCreateMachine() {
                     <div
                       v-for="item in machine.tray_summary"
                       :key="'refill-' + item.product_id"
-                      class="flex items-center justify-between"
+                      class="flex items-center justify-between gap-2"
                     >
-                      <span :class="item.deficit >= (machine.tray_summary?.[0]?.deficit ?? 0) ? 'text-red-500' : 'text-amber-500'">
-                        {{ item.product_name }} <span class="text-muted-foreground">(-{{ item.deficit }})</span>
-                      </span>
-                      <span class="text-green-500 text-[10px]">{{ t('machines.inStock') }}</span>
+                      <div class="flex items-center gap-1.5 min-w-0">
+                        <img v-if="item.image_path" :src="getProductImageUrl(item.image_path)" class="size-5 shrink-0 rounded object-cover" alt="" />
+                        <span class="truncate" :class="item.deficit >= (machine.tray_summary?.[0]?.deficit ?? 0) ? 'text-red-500' : 'text-amber-500'">
+                          {{ item.product_name }} <span class="text-muted-foreground">(-{{ item.deficit }})</span>
+                        </span>
+                      </div>
+                      <span class="shrink-0 text-green-500 text-[10px]">{{ t('machines.inStock') }}</span>
                     </div>
                     <!-- No-stock products (dimmed, sorted to bottom) -->
                     <div
                       v-for="item in machine.no_stock_summary"
                       :key="'nostock-' + item.product_id"
-                      class="flex items-center justify-between opacity-50"
+                      class="flex items-center justify-between gap-2 opacity-50"
                     >
-                      <span>
-                        {{ item.product_name }} <span class="text-muted-foreground">(-{{ item.deficit }})</span>
-                      </span>
-                      <span class="text-muted-foreground text-[10px]">{{ t('machines.noStock') }}</span>
+                      <div class="flex items-center gap-1.5 min-w-0">
+                        <img v-if="item.image_path" :src="getProductImageUrl(item.image_path)" class="size-5 shrink-0 rounded object-cover" alt="" />
+                        <span class="truncate">
+                          {{ item.product_name }} <span class="text-muted-foreground">(-{{ item.deficit }})</span>
+                        </span>
+                      </div>
+                      <span class="shrink-0 text-muted-foreground text-[10px]">{{ t('machines.noStock') }}</span>
                     </div>
                   </div>
 
