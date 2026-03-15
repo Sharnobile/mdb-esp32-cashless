@@ -103,6 +103,8 @@
     "alert": "Warnung",
     "belowMin": "{count} unter Minimum",
     "expiring": "{count} läuft ab",
+    "refillBanner": "{count} Automat muss befüllt werden | {count} Automaten müssen befüllt werden",
+    "viewMachines": "Automaten anzeigen",
     "dailySales": "Tägliche Verkäufe",
     "revenuePerDay": "Umsatz pro Tag der letzten 30 Tage",
     "noSalesData": "Noch keine Verkaufsdaten",

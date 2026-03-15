@@ -103,6 +103,8 @@
     "alert": "Alert",
     "belowMin": "{count} below min",
     "expiring": "{count} expiring",
+    "refillBanner": "{count} machine needs refilling | {count} machines need refilling",
+    "viewMachines": "View machines",
     "dailySales": "Daily Sales",
     "revenuePerDay": "Revenue per day for the last 30 days",
     "noSalesData": "No sales data yet",

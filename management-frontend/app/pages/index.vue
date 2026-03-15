@@ -8,9 +8,11 @@ import DashboardActivityFeed from "@/components/DashboardActivityFeed.vue"
 import type { DashboardMachine } from "@/components/DashboardMachineList.vue"
 import type { RecentSale } from "@/components/DashboardRecentSales.vue"
 import type { ActivityEntry } from "@/components/DashboardActivityFeed.vue"
+import { IconAlertTriangle } from '@tabler/icons-vue'
 import { expirationStatus } from '@/composables/useWarehouse'
 import { getProductImageUrl } from '@/composables/useProducts'
 
+const { t } = useI18n()
 const supabase = useSupabaseClient()
 const { fetchOrganization } = useOrganization()
 const { onResume } = useAppResume()
@@ -29,6 +31,8 @@ const stockCritical = ref(0)
 const stockLow = ref(0)
 const warehouseBelowMin = ref(0)
 const warehouseExpiringSoon = ref(0)
+
+const machinesNeedingRefill = computed(() => stockCritical.value + stockLow.value)
 
 // ── Chart + sections ──────────────────────────────────────────────────────────
 const dashboardMachines = ref<DashboardMachine[]>([])
@@ -377,6 +381,19 @@ async function loadDashboard() {
   <div class="flex flex-1 flex-col">
     <div class="@container/main flex flex-1 flex-col gap-2">
       <div class="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
+        <!-- Refill banner -->
+        <NuxtLink
+          v-if="machinesNeedingRefill > 0"
+          to="/machines"
+          class="mx-4 flex items-center justify-between gap-3 rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3 transition-colors hover:bg-red-500/15 lg:mx-6"
+        >
+          <div class="flex items-center gap-2 text-sm font-medium text-red-500">
+            <IconAlertTriangle class="size-4 shrink-0" />
+            {{ t('dashboard.refillBanner', machinesNeedingRefill) }}
+          </div>
+          <span class="shrink-0 text-xs font-medium text-red-500/70">{{ t('dashboard.viewMachines') }} →</span>
+        </NuxtLink>
+
         <!-- KPI Cards -->
         <SectionCards
           :today-sales="todaySales"
