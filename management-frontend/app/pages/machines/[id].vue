@@ -5,7 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { VisArea, VisAxis, VisLine, VisXYContainer } from '@unovis/vue'
 import { IconCreditCard, IconCoins, IconSend } from '@tabler/icons-vue'
-import { timeAgo, formatCurrency } from '@/lib/utils'
+import { timeAgo, formatCurrency, formatDate, formatDateTime } from '@/lib/utils'
 
 const { t, locale } = useI18n()
 const route = useRoute()
@@ -157,11 +157,6 @@ const salesChartData = computed(() => {
 })
 
 type ChartPoint = { date: Date; total: number }
-
-function formatDate(dt: string | null | undefined) {
-  if (!dt) return '—'
-  return new Date(dt).toLocaleString()
-}
 
 // Map item_number → product info from trays
 const trayProductMap = computed(() => {
@@ -414,49 +409,37 @@ async function setMdbAddress(address: 1 | 2) {
 }
 
 // ── Tray management ─────────────────────────────────────────────────────────
-const showTrayModal = ref(false)
-const trayForm = ref({ item_number: 0, product_id: '', capacity: 10, current_stock: 0 })
-const trayLoading = ref(false)
-const trayError = ref('')
+const trayModal = useModalForm({ item_number: 0, product_id: '' as string | null, capacity: 10, current_stock: 0 })
 
 function openAddTray() {
   const maxSlot = trays.value.length > 0
     ? Math.max(...trays.value.map(t => t.item_number)) + 1
     : 0
-  trayForm.value = { item_number: maxSlot, product_id: '', capacity: 10, current_stock: 0 }
-  trayError.value = ''
-  showTrayModal.value = true
+  trayModal.openModal({ item_number: maxSlot, product_id: '', capacity: 10, current_stock: 0 })
 }
 
 async function submitTray() {
-  if (trayForm.value.item_number < 0) {
-    trayError.value = t('machineDetail.slotMustBePositive')
+  if (trayModal.form.value.item_number < 0) {
+    trayModal.error.value = t('machineDetail.slotMustBePositive')
     return
   }
-  if (trayForm.value.capacity < 1) {
-    trayError.value = t('machineDetail.capacityAtLeastOne')
+  if (trayModal.form.value.capacity < 1) {
+    trayModal.error.value = t('machineDetail.capacityAtLeastOne')
     return
   }
-  if (trayForm.value.current_stock > trayForm.value.capacity) {
-    trayError.value = t('machineDetail.stockCannotExceed')
+  if (trayModal.form.value.current_stock > trayModal.form.value.capacity) {
+    trayModal.error.value = t('machineDetail.stockCannotExceed')
     return
   }
-  trayLoading.value = true
-  trayError.value = ''
-  try {
+  await trayModal.submit(async () => {
     await upsertTray({
       machine_id: machine.value.id,
-      item_number: trayForm.value.item_number,
-      product_id: trayForm.value.product_id || null,
-      capacity: trayForm.value.capacity,
-      current_stock: trayForm.value.current_stock,
+      item_number: trayModal.form.value.item_number,
+      product_id: trayModal.form.value.product_id || null,
+      capacity: trayModal.form.value.capacity,
+      current_stock: trayModal.form.value.current_stock,
     })
-    showTrayModal.value = false
-  } catch (err: unknown) {
-    trayError.value = err instanceof Error ? err.message : t('machineDetail.failedToSaveTray')
-  } finally {
-    trayLoading.value = false
-  }
+  })
 }
 
 // ── Inline tray editing ─────────────────────────────────────────────────────
@@ -671,47 +654,35 @@ function handleFillBelowKeydown(event: KeyboardEvent, trayId: string) {
 }
 
 // Batch add trays
-const showBatchModal = ref(false)
-const batchForm = ref({ startSlot: 0, count: 10, capacity: 10 })
-const batchLoading = ref(false)
-const batchError = ref('')
+const batchModal = useModalForm({ startSlot: 0, count: 10, capacity: 10 })
 
 function openBatchAdd() {
   const maxSlot = trays.value.length > 0
     ? Math.max(...trays.value.map(t => t.item_number)) + 1
     : 0
-  batchForm.value = { startSlot: maxSlot, count: 10, capacity: 10 }
-  batchError.value = ''
-  showBatchModal.value = true
+  batchModal.openModal({ startSlot: maxSlot, count: 10, capacity: 10 })
 }
 
 async function submitBatch() {
-  if (batchForm.value.count < 1) {
-    batchError.value = t('machineDetail.countAtLeastOne')
+  if (batchModal.form.value.count < 1) {
+    batchModal.error.value = t('machineDetail.countAtLeastOne')
     return
   }
-  if (batchForm.value.count > 100) {
-    batchError.value = t('machineDetail.maxTrays')
+  if (batchModal.form.value.count > 100) {
+    batchModal.error.value = t('machineDetail.maxTrays')
     return
   }
-  if (batchForm.value.startSlot < 0) {
-    batchError.value = t('machineDetail.startSlotPositive')
+  if (batchModal.form.value.startSlot < 0) {
+    batchModal.error.value = t('machineDetail.startSlotPositive')
     return
   }
-  if (batchForm.value.capacity < 1) {
-    batchError.value = t('machineDetail.capacityAtLeastOne')
+  if (batchModal.form.value.capacity < 1) {
+    batchModal.error.value = t('machineDetail.capacityAtLeastOne')
     return
   }
-  batchLoading.value = true
-  batchError.value = ''
-  try {
-    await batchCreateTrays(machine.value.id, batchForm.value.startSlot, batchForm.value.count, batchForm.value.capacity)
-    showBatchModal.value = false
-  } catch (err: unknown) {
-    batchError.value = err instanceof Error ? err.message : t('machineDetail.failedToCreateTrays')
-  } finally {
-    batchLoading.value = false
-  }
+  await batchModal.submit(async () => {
+    await batchCreateTrays(machine.value.id, batchModal.form.value.startSlot, batchModal.form.value.count, batchModal.form.value.capacity)
+  })
 }
 
 // One-click "Full" refill (no warehouse deduction — that happens at the packing list stage)
@@ -997,7 +968,7 @@ function stockColor(tray: any) {
                       <!-- Price + Timestamp -->
                       <div class="shrink-0 text-right">
                         <span class="text-sm font-medium">{{ formatCurrency(sale.item_price, locale) }}</span>
-                        <p class="mt-0.5 text-[11px] text-muted-foreground">{{ new Date(sale.created_at).toLocaleString(locale, { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }) }}</p>
+                        <p class="mt-0.5 text-[11px] text-muted-foreground">{{ formatDateTime(sale.created_at, locale) }}</p>
                       </div>
                     </div>
                   </div>
@@ -1696,22 +1667,7 @@ function stockColor(tray: any) {
       </div>
 
       <!-- Device info modal -->
-      <div
-        v-if="showDeviceInfoModal && machine?.embeddeds"
-        class="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/40"
-        @click.self="showDeviceInfoModal = false"
-      >
-        <div class="w-full max-w-sm rounded-t-xl sm:rounded-xl border bg-card p-5 sm:p-6 shadow-lg">
-          <div class="flex items-center justify-between mb-4">
-            <h2 class="text-lg font-semibold">{{ t('machineDetail.deviceDetails') }}</h2>
-            <button
-              class="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
-              @click="showDeviceInfoModal = false"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-            </button>
-          </div>
-
+      <AppModal v-if="machine?.embeddeds" v-model:open="showDeviceInfoModal" :title="t('machineDetail.deviceDetails')" size="sm">
           <div class="space-y-3 text-sm">
             <!-- Status -->
             <div class="flex justify-between items-center">
@@ -1747,7 +1703,7 @@ function stockColor(tray: any) {
               <span v-if="machine.embeddeds.firmware_version" class="text-right">
                 <span class="font-mono text-xs">v{{ machine.embeddeds.firmware_version }}</span>
                 <span v-if="machine.embeddeds.firmware_build_date" class="block text-xs text-muted-foreground">
-                  {{ t('settings.built') }} {{ new Date(machine.embeddeds.firmware_build_date).toLocaleDateString() }}
+                  {{ t('settings.built') }} {{ formatDate(machine.embeddeds.firmware_build_date, locale) }}
                 </span>
               </span>
               <span v-else class="text-xs text-muted-foreground">—</span>
@@ -1756,7 +1712,7 @@ function stockColor(tray: any) {
             <!-- Last seen -->
             <div class="flex justify-between items-center">
               <span class="text-muted-foreground">{{ t('machineDetail.lastSeen') }}</span>
-              <span class="text-xs">{{ formatDate(machine.embeddeds.status_at) }}</span>
+              <span class="text-xs">{{ formatDateTime(machine.embeddeds.status_at, locale) }}</span>
             </div>
 
             <!-- MDB Address -->
@@ -1793,7 +1749,7 @@ function stockColor(tray: any) {
                 #{{ (machine.embeddeds as any).mdb_address ?? 1 }} ({{ ((machine.embeddeds as any).mdb_address ?? 1) === 1 ? '0x10' : '0x60' }})
               </span>
             </div>
-            <p v-if="mdbAddressError" class="text-xs text-destructive">{{ mdbAddressError }}</p>
+            <FormError :message="mdbAddressError" />
           </div>
 
           <!-- Actions -->
@@ -1822,20 +1778,10 @@ function stockColor(tray: any) {
               {{ restartLoading ? t('common.loading') : t('machineDetail.restartDevice') }}
             </button>
           </div>
-        </div>
-      </div>
+      </AppModal>
 
       <!-- Device swap/assign modal -->
-      <div
-        v-if="showDeviceModal"
-        class="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/40"
-        @click.self="showDeviceModal = false"
-      >
-        <div class="w-full max-w-sm rounded-xl border bg-card p-6 shadow-lg">
-          <h2 class="mb-4 text-lg font-semibold">{{ machine.embeddeds ? t('machineDetail.changeDevice') : t('machineDetail.assignDevice') }}</h2>
-          <p class="mb-4 text-sm text-muted-foreground">
-            {{ t('machineDetail.selectDevice') }}
-          </p>
+      <AppModal v-model:open="showDeviceModal" :title="machine?.embeddeds ? t('machineDetail.changeDevice') : t('machineDetail.assignDevice')" :description="t('machineDetail.selectDevice')" size="sm">
           <form class="space-y-4" @submit.prevent="submitDeviceSwap">
             <div class="space-y-1">
               <label class="text-sm font-medium" for="device-select">{{ t('machineDetail.availableDevices') }}</label>
@@ -1851,7 +1797,7 @@ function stockColor(tray: any) {
               </select>
               <p v-if="availableDevices.length === 0" class="text-xs text-muted-foreground">{{ t('machineDetail.noUnassignedDevices') }}</p>
             </div>
-            <p v-if="deviceSwapError" class="text-sm text-destructive">{{ deviceSwapError }}</p>
+            <FormError :message="deviceSwapError" />
             <div class="flex gap-2">
               <button
                 type="button"
@@ -1870,23 +1816,16 @@ function stockColor(tray: any) {
               </button>
             </div>
           </form>
-        </div>
-      </div>
+      </AppModal>
 
       <!-- Add Tray modal -->
-      <div
-        v-if="showTrayModal"
-        class="fixed inset-0 z-[60] flex items-center justify-center bg-black/40"
-        @click.self="showTrayModal = false"
-      >
-        <div class="w-full max-w-sm rounded-xl border bg-card p-6 shadow-lg">
-          <h2 class="mb-4 text-lg font-semibold">{{ t('machineDetail.addTray') }}</h2>
+      <AppModal v-model:open="trayModal.open.value" :title="t('machineDetail.addTray')" size="sm">
           <form class="space-y-4" @submit.prevent="submitTray">
             <div class="space-y-1">
               <label class="text-sm font-medium" for="tray-slot">{{ t('machineDetail.slot') }}</label>
               <input
                 id="tray-slot"
-                v-model.number="trayForm.item_number"
+                v-model.number="trayModal.form.value.item_number"
                 type="number"
                 min="0"
                 required
@@ -1894,21 +1833,18 @@ function stockColor(tray: any) {
               />
             </div>
             <div class="space-y-1">
-              <label class="text-sm font-medium" for="tray-product">{{ t('machineDetail.product') }}</label>
-              <select
-                id="tray-product"
-                v-model="trayForm.product_id"
-                class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              >
-                <option value="">{{ t('machineDetail.none') }}</option>
-                <option v-for="p in products" :key="p.id" :value="p.id">{{ p.name }}</option>
-              </select>
+              <label class="text-sm font-medium">{{ t('machineDetail.product') }}</label>
+              <ProductCombobox
+                v-model="trayModal.form.value.product_id"
+                :products="products"
+                :placeholder="t('machineDetail.selectProduct')"
+              />
             </div>
             <div class="space-y-1">
               <label class="text-sm font-medium" for="tray-capacity">{{ t('machineDetail.capacity') }}</label>
               <input
                 id="tray-capacity"
-                v-model.number="trayForm.capacity"
+                v-model.number="trayModal.form.value.capacity"
                 type="number"
                 min="1"
                 required
@@ -1919,53 +1855,43 @@ function stockColor(tray: any) {
               <label class="text-sm font-medium" for="tray-stock">{{ t('machineDetail.currentStock') }}</label>
               <input
                 id="tray-stock"
-                v-model.number="trayForm.current_stock"
+                v-model.number="trayModal.form.value.current_stock"
                 type="number"
                 min="0"
-                :max="trayForm.capacity"
+                :max="trayModal.form.value.capacity"
                 required
                 class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               />
             </div>
-            <p v-if="trayError" class="text-sm text-destructive">{{ trayError }}</p>
+            <FormError :message="trayModal.error.value" />
             <div class="flex gap-2">
               <button
                 type="button"
                 class="inline-flex h-9 flex-1 items-center justify-center rounded-md border px-4 text-sm font-medium shadow-sm transition-colors hover:bg-muted"
-                @click="showTrayModal = false"
+                @click="trayModal.closeModal()"
               >
                 {{ t('common.cancel') }}
               </button>
               <button
                 type="submit"
-                :disabled="trayLoading"
+                :disabled="trayModal.loading.value"
                 class="inline-flex h-9 flex-1 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90 disabled:opacity-50"
               >
-                <span v-if="trayLoading">{{ t('common.creating') }}</span>
+                <span v-if="trayModal.loading.value">{{ t('common.creating') }}</span>
                 <span v-else>{{ t('common.create') }}</span>
               </button>
             </div>
           </form>
-        </div>
-      </div>
+      </AppModal>
 
       <!-- Batch add trays modal -->
-      <div
-        v-if="showBatchModal"
-        class="fixed inset-0 z-[60] flex items-center justify-center bg-black/40"
-        @click.self="showBatchModal = false"
-      >
-        <div class="w-full max-w-sm rounded-xl border bg-card p-6 shadow-lg">
-          <h2 class="mb-4 text-lg font-semibold">{{ t('machineDetail.batchAddTrays') }}</h2>
-          <p class="mb-4 text-sm text-muted-foreground">
-            {{ t('machineDetail.batchDescription') }}
-          </p>
+      <AppModal v-model:open="batchModal.open.value" :title="t('machineDetail.batchAddTrays')" :description="t('machineDetail.batchDescription')" size="sm">
           <form class="space-y-4" @submit.prevent="submitBatch">
             <div class="space-y-1">
               <label class="text-sm font-medium" for="batch-start">{{ t('machineDetail.startingSlot') }}</label>
               <input
                 id="batch-start"
-                v-model.number="batchForm.startSlot"
+                v-model.number="batchModal.form.value.startSlot"
                 type="number"
                 min="0"
                 required
@@ -1976,7 +1902,7 @@ function stockColor(tray: any) {
               <label class="text-sm font-medium" for="batch-count">{{ t('machineDetail.numberOfTrays') }}</label>
               <input
                 id="batch-count"
-                v-model.number="batchForm.count"
+                v-model.number="batchModal.form.value.count"
                 type="number"
                 min="1"
                 max="100"
@@ -1988,7 +1914,7 @@ function stockColor(tray: any) {
               <label class="text-sm font-medium" for="batch-capacity">{{ t('machineDetail.capacityPerTray') }}</label>
               <input
                 id="batch-capacity"
-                v-model.number="batchForm.capacity"
+                v-model.number="batchModal.form.value.capacity"
                 type="number"
                 min="1"
                 required
@@ -1996,41 +1922,31 @@ function stockColor(tray: any) {
               />
             </div>
             <p class="text-xs text-muted-foreground">
-              {{ t('machineDetail.batchSlots', { start: batchForm.startSlot, end: batchForm.startSlot + batchForm.count - 1 }) }}
+              {{ t('machineDetail.batchSlots', { start: batchModal.form.value.startSlot, end: batchModal.form.value.startSlot + batchModal.form.value.count - 1 }) }}
             </p>
-            <p v-if="batchError" class="text-sm text-destructive">{{ batchError }}</p>
+            <FormError :message="batchModal.error.value" />
             <div class="flex gap-2">
               <button
                 type="button"
                 class="inline-flex h-9 flex-1 items-center justify-center rounded-md border px-4 text-sm font-medium shadow-sm transition-colors hover:bg-muted"
-                @click="showBatchModal = false"
+                @click="batchModal.closeModal()"
               >
                 {{ t('common.cancel') }}
               </button>
               <button
                 type="submit"
-                :disabled="batchLoading"
+                :disabled="batchModal.loading.value"
                 class="inline-flex h-9 flex-1 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90 disabled:opacity-50"
               >
-                <span v-if="batchLoading">{{ t('common.creating') }}</span>
-                <span v-else>{{ t('machineDetail.createCount', { count: batchForm.count }) }}</span>
+                <span v-if="batchModal.loading.value">{{ t('common.creating') }}</span>
+                <span v-else>{{ t('machineDetail.createCount', { count: batchModal.form.value.count }) }}</span>
               </button>
             </div>
           </form>
-        </div>
-      </div>
+      </AppModal>
 
       <!-- Send credit modal -->
-      <div
-        v-if="showCreditModal"
-        class="fixed inset-0 z-[60] flex items-center justify-center bg-black/40"
-        @click.self="showCreditModal = false"
-      >
-        <div class="w-full max-w-sm rounded-xl border bg-card p-6 shadow-lg">
-          <h2 class="mb-2 text-lg font-semibold">{{ t('machineDetail.sendCredit') }}</h2>
-          <p class="mb-4 text-sm text-muted-foreground">
-            {{ t('machineDetail.sendCreditDescription', { name: machine?.name ?? '' }) }}
-          </p>
+      <AppModal v-model:open="showCreditModal" :title="t('machineDetail.sendCredit')" :description="t('machineDetail.sendCreditDescription', { name: machine?.name ?? '' })" size="sm">
           <form class="space-y-4" @submit.prevent="submitCredit">
             <div class="space-y-1">
               <label class="text-sm font-medium" for="credit-amount">{{ t('machineDetail.creditAmount') }}</label>
@@ -2045,7 +1961,7 @@ function stockColor(tray: any) {
                 class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               />
             </div>
-            <p v-if="creditError" class="text-sm text-destructive">{{ creditError }}</p>
+            <FormError :message="creditError" />
             <p v-if="creditSuccess" class="text-sm text-green-600 dark:text-green-400">{{ creditSuccess }}</p>
             <div class="flex flex-wrap gap-2">
               <button
@@ -2077,6 +1993,5 @@ function stockColor(tray: any) {
               </button>
             </div>
           </form>
-        </div>
-      </div>
+      </AppModal>
 </template>
