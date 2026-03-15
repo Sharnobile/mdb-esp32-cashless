@@ -23,32 +23,14 @@ onMounted(async () => {
 })
 
 // ── Add Machine modal ────────────────────────────────────────────────────────
-const showMachineModal = ref(false)
-const machineName = ref('')
-const machineError = ref('')
-const creatingMachine = ref(false)
-
-function openMachineModal() {
-  machineName.value = ''
-  machineError.value = ''
-  showMachineModal.value = true
-}
+const { open: showMachineModal, form: machineForm, loading: creatingMachine, error: machineError, openModal: openMachineModal, closeModal, submit } = useModalForm({ name: '' })
 
 async function submitCreateMachine() {
-  if (!machineName.value.trim()) {
+  if (!machineForm.value.name.trim()) {
     machineError.value = t('machines.nameRequired')
     return
   }
-  creatingMachine.value = true
-  machineError.value = ''
-  try {
-    await createMachine(machineName.value.trim(), organization.value!.id)
-    showMachineModal.value = false
-  } catch (err: unknown) {
-    machineError.value = err instanceof Error ? err.message : t('machines.failedToCreate')
-  } finally {
-    creatingMachine.value = false
-  }
+  await submit(() => createMachine(machineForm.value.name.trim(), organization.value!.id))
 }
 </script>
 
@@ -169,45 +151,39 @@ async function submitCreateMachine() {
   </div>
 
   <!-- Add Machine Modal -->
-  <div
-    v-if="showMachineModal"
-    class="fixed inset-0 z-[60] flex items-center justify-center bg-black/40"
-    @click.self="showMachineModal = false"
+  <AppModal
+    v-model:open="showMachineModal"
+    :title="t('machines.addMachine')"
+    :description="t('machines.addMachineDescription')"
   >
-    <div class="w-full max-w-md rounded-xl border bg-card p-6 shadow-lg">
-      <h2 class="mb-1 text-lg font-semibold">{{ t('machines.addMachine') }}</h2>
-      <p class="mb-5 text-sm text-muted-foreground">
-        {{ t('machines.addMachineDescription') }}
-      </p>
-      <div class="mb-4">
-        <label for="machine-name" class="mb-1.5 block text-sm font-medium">{{ t('machines.machineName') }}</label>
-        <input
-          id="machine-name"
-          v-model="machineName"
-          type="text"
-          :placeholder="t('machines.machineNamePlaceholder')"
-          class="flex h-9 w-full rounded-md border bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-          @keydown.enter="submitCreateMachine"
-        />
-      </div>
-      <p v-if="machineError" class="mb-3 text-sm text-destructive">{{ machineError }}</p>
-      <div class="flex gap-2">
-        <button
-          class="inline-flex h-9 flex-1 items-center justify-center rounded-md border px-4 text-sm font-medium hover:bg-muted"
-          @click="showMachineModal = false"
-        >
-          {{ t('common.cancel') }}
-        </button>
-        <button
-          :disabled="creatingMachine"
-          class="inline-flex h-9 flex-1 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90 disabled:opacity-50"
-          @click="submitCreateMachine"
-        >
-          <span v-if="creatingMachine">{{ t('common.creating') }}</span>
-          <span v-else>{{ t('common.create') }}</span>
-        </button>
-      </div>
+    <div class="mb-4">
+      <label for="machine-name" class="mb-1.5 block text-sm font-medium">{{ t('machines.machineName') }}</label>
+      <input
+        id="machine-name"
+        v-model="machineForm.name"
+        type="text"
+        :placeholder="t('machines.machineNamePlaceholder')"
+        class="flex h-9 w-full rounded-md border bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        @keydown.enter="submitCreateMachine"
+      />
     </div>
-  </div>
+    <FormError :message="machineError" />
+    <template #footer>
+      <button
+        class="inline-flex h-9 flex-1 items-center justify-center rounded-md border px-4 text-sm font-medium hover:bg-muted"
+        @click="closeModal"
+      >
+        {{ t('common.cancel') }}
+      </button>
+      <button
+        :disabled="creatingMachine"
+        class="inline-flex h-9 flex-1 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90 disabled:opacity-50"
+        @click="submitCreateMachine"
+      >
+        <span v-if="creatingMachine">{{ t('common.creating') }}</span>
+        <span v-else>{{ t('common.create') }}</span>
+      </button>
+    </template>
+  </AppModal>
 
 </template>
