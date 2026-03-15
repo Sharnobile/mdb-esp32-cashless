@@ -242,21 +242,23 @@ export function useMachines() {
 
       const stockMap = new Map<string, {
         total: number
-        low: number
-        empty: number
+        refillableEmpty: number
+        refillableLow: number
+        noStockCount: number
         totalStock: number
         totalCapacity: number
-        deficits: Map<string, { product_name: string; product_id: string | null; deficit: number; image_path: string | null }>
+        deficits: Map<string, { product_name: string; product_id: string | null; deficit: number; image_path: string | null; in_stock: boolean }>
+        noStockDeficits: Map<string, { product_name: string; product_id: string | null; deficit: number; image_path: string | null; in_stock: boolean }>
         criticalProductIds: Set<string>
         fillBelowPending: { product_id: string | null; capacity: number; current_stock: number; item_number: number; products: { name: string; image_path: string | null } | null }[]
       }>()
 
-      // Pass 1: count low/empty trays and collect fill_when_below candidates
+      // Pass 1: count low/empty trays, split by warehouse availability
       for (const tray of trayRows) {
         if (!tray.machine_id) continue
         let entry = stockMap.get(tray.machine_id)
         if (!entry) {
-          entry = { total: 0, low: 0, empty: 0, totalStock: 0, totalCapacity: 0, deficits: new Map(), criticalProductIds: new Set(), fillBelowPending: [] }
+          entry = { total: 0, refillableEmpty: 0, refillableLow: 0, noStockCount: 0, totalStock: 0, totalCapacity: 0, deficits: new Map(), noStockDeficits: new Map(), criticalProductIds: new Set(), fillBelowPending: [] }
           stockMap.set(tray.machine_id, entry)
         }
         entry.total++
@@ -267,21 +269,35 @@ export function useMachines() {
         const isEmpty = tray.current_stock === 0
         const isFillBelow = !isLow && !isEmpty && tray.fill_when_below > 0 && tray.current_stock <= tray.fill_when_below
 
-        if (isEmpty) entry.empty++
-        else if (isLow) entry.low++
-
         if (isLow || isEmpty) {
+          // Skip unassigned trays — nothing to refill
+          if (tray.product_id == null) continue
+
+          const inStock = !hasWarehouses || warehouseStockMap.has(tray.product_id)
           const deficit = tray.capacity - tray.current_stock
           const productName = tray.products?.name ?? `Slot ${tray.item_number}`
           const imagePath = tray.products?.image_path ?? null
-          const key = tray.product_id ?? `slot-${tray.item_number}`
-          const existing = entry.deficits.get(key)
-          if (existing) {
-            existing.deficit += deficit
+          const key = tray.product_id
+
+          if (inStock) {
+            if (isEmpty) entry.refillableEmpty++
+            else entry.refillableLow++
+            const existing = entry.deficits.get(key)
+            if (existing) {
+              existing.deficit += deficit
+            } else {
+              entry.deficits.set(key, { product_name: productName, product_id: tray.product_id, deficit, image_path: imagePath, in_stock: true })
+            }
+            entry.criticalProductIds.add(tray.product_id)
           } else {
-            entry.deficits.set(key, { product_name: productName, product_id: tray.product_id, deficit, image_path: imagePath })
+            entry.noStockCount++
+            const existing = entry.noStockDeficits.get(key)
+            if (existing) {
+              existing.deficit += deficit
+            } else {
+              entry.noStockDeficits.set(key, { product_name: productName, product_id: tray.product_id, deficit, image_path: imagePath, in_stock: false })
+            }
           }
-          if (tray.product_id) entry.criticalProductIds.add(tray.product_id)
         }
 
         if (isFillBelow) {
@@ -289,20 +305,23 @@ export function useMachines() {
         }
       }
 
-      // Pass 2: for machines with critical/low trays, add fill_when_below deficits to packing list
+      // Pass 2: for machines with refillable critical/low trays, add fill_when_below deficits
       for (const [, entry] of stockMap) {
-        if (entry.low + entry.empty === 0) continue
+        if (entry.refillableLow + entry.refillableEmpty === 0) continue
         for (const tray of entry.fillBelowPending) {
+          if (tray.product_id == null) continue
           const deficit = tray.capacity - tray.current_stock
           if (deficit <= 0) continue
+          const inStock = !hasWarehouses || warehouseStockMap.has(tray.product_id)
           const productName = tray.products?.name ?? `Slot ${tray.item_number}`
           const imagePath = tray.products?.image_path ?? null
-          const key = tray.product_id ?? `slot-${tray.item_number}`
-          const existing = entry.deficits.get(key)
+          const key = tray.product_id
+          const targetMap = inStock ? entry.deficits : entry.noStockDeficits
+          const existing = targetMap.get(key)
           if (existing) {
             existing.deficit += deficit
           } else {
-            entry.deficits.set(key, { product_name: productName, product_id: tray.product_id, deficit, image_path: imagePath })
+            targetMap.set(key, { product_name: productName, product_id: tray.product_id, deficit, image_path: imagePath, in_stock: inStock })
           }
         }
       }
@@ -312,14 +331,16 @@ export function useMachines() {
         const stock = stockMap.get(machine.id)
         if (stock) {
           machine.total_trays = stock.total
-          machine.low_trays = stock.low + stock.empty
-          machine.empty_trays = stock.empty
-          machine.stock_health = stock.empty > 0 ? 'critical' : (stock.low > 0 ? 'low' : 'ok')
+          machine.low_trays = stock.refillableLow + stock.refillableEmpty
+          machine.empty_trays = stock.refillableEmpty
+          machine.stock_health = stock.refillableEmpty > 0 ? 'critical' : (stock.refillableLow > 0 ? 'low' : 'ok')
           machine.stock_percent = stock.totalCapacity > 0
             ? Math.round((stock.totalStock / stock.totalCapacity) * 100)
             : 0
           machine.tray_summary = Array.from(stock.deficits.values()).sort((a, b) => b.deficit - a.deficit)
           machine.critical_product_ids = stock.criticalProductIds
+          machine.no_stock_trays = stock.noStockCount
+          machine.no_stock_summary = Array.from(stock.noStockDeficits.values()).sort((a, b) => b.deficit - a.deficit)
         } else {
           machine.total_trays = 0
           machine.low_trays = 0
@@ -328,6 +349,8 @@ export function useMachines() {
           machine.stock_percent = 0
           machine.tray_summary = []
           machine.critical_product_ids = new Set()
+          machine.no_stock_trays = 0
+          machine.no_stock_summary = []
         }
       }
 
