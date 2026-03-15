@@ -170,7 +170,7 @@ async function submitCreateMachine() {
                     >
                       <div class="flex items-center gap-1.5 min-w-0">
                         <img v-if="item.image_path" :src="getProductImageUrl(item.image_path)" class="size-5 shrink-0 rounded object-cover" alt="" />
-                        <span class="truncate" :class="item.deficit >= (machine.tray_summary?.[0]?.deficit ?? 0) ? 'text-red-500' : 'text-amber-500'">
+                        <span :class="item.deficit >= (machine.tray_summary?.[0]?.deficit ?? 0) ? 'text-red-500' : 'text-amber-500'">
                           {{ item.product_name }} <span class="text-muted-foreground">(-{{ item.deficit }})</span>
                         </span>
                       </div>
@@ -184,7 +184,7 @@ async function submitCreateMachine() {
                     >
                       <div class="flex items-center gap-1.5 min-w-0">
                         <img v-if="item.image_path" :src="getProductImageUrl(item.image_path)" class="size-5 shrink-0 rounded object-cover" alt="" />
-                        <span class="truncate">
+                        <span>
                           {{ item.product_name }} <span class="text-muted-foreground">(-{{ item.deficit }})</span>
                         </span>
                       </div>
