@@ -1317,10 +1317,12 @@ async function saveMinStock(productId: string) {
       <form class="flex flex-col gap-3" @submit.prevent="submitBarcode">
         <div>
           <label class="mb-1 block text-sm font-medium">{{ t('warehouse.product') }} *</label>
-          <select v-model="barcodeForm.product_id" class="h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
-            <option value="">{{ t('warehouse.selectProduct') }}</option>
-            <option v-for="p in products" :key="p.id" :value="p.id">{{ p.name }}</option>
-          </select>
+          <ProductCombobox
+            :model-value="barcodeForm.product_id || null"
+            :products="products"
+            :placeholder="t('warehouse.selectProduct')"
+            @update:model-value="barcodeForm.product_id = $event ?? ''"
+          />
         </div>
         <div>
           <label class="mb-1 block text-sm font-medium">{{ t('warehouse.barcodeEan') }} *</label>

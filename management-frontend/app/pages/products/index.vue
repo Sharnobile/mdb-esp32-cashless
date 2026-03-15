@@ -747,7 +747,7 @@ async function runImport() {
         v-model:open="showImportModal"
         :title="importStep === 1 ? t('products.importProducts') : importStep === 2 ? t('products.reviewProducts') : t('products.importComplete')"
         size="xl"
-        @update:open="if (!$event) closeImportModal()"
+        @update:open="!$event && closeImportModal()"
       >
         <div class="flex flex-col max-h-[70vh]">
 
