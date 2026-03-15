@@ -22,6 +22,7 @@ interface Product {
   id: string
   name: string
   image_path?: string | null
+  image_url?: string | null
 }
 
 const props = withDefaults(
@@ -70,7 +71,13 @@ function selectProduct(id: string | null) {
           'flex h-9 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50',
         )"
       >
-        <span :class="{ 'text-muted-foreground': !selectedProduct }">
+        <span class="flex items-center gap-2 truncate" :class="{ 'text-muted-foreground': !selectedProduct }">
+          <img
+            v-if="selectedProduct?.image_url"
+            :src="selectedProduct.image_url"
+            :alt="selectedProduct.name"
+            class="h-5 w-5 shrink-0 rounded object-cover"
+          />
           {{ selectedProduct?.name || placeholder }}
         </span>
         <ChevronsUpDown class="ml-2 size-4 shrink-0 opacity-50" />
@@ -98,6 +105,13 @@ function selectProduct(id: string | null) {
               @select="selectProduct(product.id)"
             >
               <Check :class="cn('mr-2 size-4', modelValue === product.id ? 'opacity-100' : 'opacity-0')" />
+              <img
+                v-if="product.image_url"
+                :src="product.image_url"
+                :alt="product.name"
+                class="mr-2 h-6 w-6 shrink-0 rounded object-cover"
+              />
+              <div v-else class="mr-2 h-6 w-6 shrink-0 rounded bg-muted" />
               {{ product.name }}
             </CommandItem>
           </CommandGroup>
