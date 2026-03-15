@@ -1781,6 +1781,25 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 		                        ESP_LOGE(TAG, "CONFIG: invalid mdb_address %u (must be 1 or 2)", configParam);
 		                    }
 		                    break;
+		                case 0x32: // MDB soft reset — re-announce to VMC
+		                    ESP_LOGW(TAG, "CONFIG: MDB soft reset requested");
+		                    // Clear all pending flags and queue (same as hardware RESET handler)
+		                    session_begin_todo = false;
+		                    session_cancel_todo = false;
+		                    session_end_todo = false;
+		                    vend_approved_todo = false;
+		                    vend_denied_todo = false;
+		                    out_of_sequence_todo = false;
+		                    {
+		                        uint16_t discard;
+		                        while (xQueueReceive(mdbSessionQueue, &discard, 0) == pdTRUE) {}
+		                    }
+		                    // Signal "Just Reset" on next POLL — VMC will re-run SETUP sequence
+		                    machine_state = INACTIVE_STATE;
+		                    vmc_feature_level = 1;
+		                    cashless_reset_todo = true;
+		                    publish_mdb_diag();
+		                    break;
 		                default:
 		                    ESP_LOGW(TAG, "CONFIG: unknown encrypted cmd 0x%02X", cmd);
 		                    break;
