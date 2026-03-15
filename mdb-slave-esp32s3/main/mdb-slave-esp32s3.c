@@ -155,7 +155,7 @@ bool session_cancel_todo = false;
 bool session_end_todo = false;
 bool vend_approved_todo = false;
 bool vend_denied_todo = false;
-bool cashless_reset_todo = false;
+bool cashless_reset_todo = true;
 bool out_of_sequence_todo = false;
 
 // MDB diagnostics
@@ -166,6 +166,11 @@ static machine_state_t mdb_prev_state = INACTIVE_STATE;
 static void publish_mdb_diag(void); // forward declaration
 
 static uint8_t vmc_feature_level = 1; // VMC feature level from SETUP (default Level 1)
+
+// Spinlock for MDB bit-banging critical sections.
+// Disables interrupts on Core 1 during bit sampling to prevent
+// WiFi/MQTT/BLE tasks from disrupting the 9600-baud timing.
+static portMUX_TYPE mdb_mux = portMUX_INITIALIZER_UNLOCKED;
 
 static const char *machine_state_name(machine_state_t s) {
     switch (s) {
@@ -190,9 +195,15 @@ uint16_t read_9(uint8_t *checksum) {
 
 	uint16_t coming_read = 0;
 
-	// Wait start bit
+	// Wait start bit (idle, interruptible — no timing constraint here)
 	while (gpio_get_level(PIN_MDB_RX))
 		;
+
+	// Enter critical section: disable interrupts on this core so that
+	// WiFi/MQTT/BLE tasks cannot preempt the timing-sensitive bit sampling.
+	// The critical section lasts ~1.1ms (11 bits at 9600 baud) which is safe
+	// for the interrupt watchdog (timeout >> 1ms) and only affects Core 1.
+	portENTER_CRITICAL(&mdb_mux);
 
 	ets_delay_us(104);
 
@@ -202,13 +213,50 @@ uint16_t read_9(uint8_t *checksum) {
 		ets_delay_us(104); // 9600bps
 	}
 
+	portEXIT_CRITICAL(&mdb_mux);
+
 	if (checksum)
 		*checksum += coming_read;
 
 	return coming_read;
 }
 
+// Timed version of read_9: returns -1 if no start bit arrives within timeout_us.
+// Used to drain remaining bytes from the bus after unrecognized commands.
+int32_t read_9_timeout(uint8_t *checksum, uint32_t timeout_us) {
+
+	uint16_t coming_read = 0;
+
+	// Wait for start bit with timeout (idle, interruptible)
+	uint32_t waited = 0;
+	while (gpio_get_level(PIN_MDB_RX)) {
+		ets_delay_us(10);
+		waited += 10;
+		if (waited >= timeout_us) return -1; // no data arrived
+	}
+
+	// Critical section for bit sampling (same as read_9)
+	portENTER_CRITICAL(&mdb_mux);
+
+	ets_delay_us(104);
+
+	ets_delay_us(52);
+	for (int x = 0; x < 9; x++) {
+		coming_read |= (gpio_get_level(PIN_MDB_RX) << x);
+		ets_delay_us(104);
+	}
+
+	portEXIT_CRITICAL(&mdb_mux);
+
+	if (checksum)
+		*checksum += coming_read;
+
+	return (int32_t) coming_read;
+}
+
 void write_9(uint16_t nth9) {
+
+	portENTER_CRITICAL(&mdb_mux);
 
     gpio_set_level(PIN_MDB_TX, 0);  // Start bit
     ets_delay_us(104); // 9600bps
@@ -221,6 +269,8 @@ void write_9(uint16_t nth9) {
 
     gpio_set_level(PIN_MDB_TX, 1);  // Stop bit
     ets_delay_us(104); // 9600bps
+
+	portEXIT_CRITICAL(&mdb_mux);
 }
 
 // Function to transmit the payload via bit-banging (using MDB protocol)
@@ -248,6 +298,17 @@ void write_payload_9(uint8_t *mdb_payload, uint8_t length) {
 
 void xorEncodeWithPasskey(uint8_t cmd, uint16_t itemPrice, uint16_t itemNumber, uint16_t paxCounter, uint8_t *payload);
 uint8_t xorDecodeWithPasskey(uint16_t *itemPrice, uint16_t *itemNumber, uint8_t *payload);
+
+// Drain any remaining bytes from the MDB bus after a checksum error or
+// unrecognized command to prevent desynchronization. Reads until the bus
+// is idle for 5ms (no more bytes) or a new address byte (mode bit) arrives.
+static void mdb_drain_bus(void) {
+	for (uint8_t i = 0; i < 36; i++) {
+		int32_t b = read_9_timeout(NULL, 5000);
+		if (b < 0) break;           // bus idle
+		if (b & BIT_MODE_SET) break; // next command starting
+	}
+}
 
 // Main MDB loop function
 void vTaskMdbEvent(void *pvParameters) {
@@ -299,13 +360,27 @@ void vTaskMdbEvent(void *pvParameters) {
 
 				case RESET: {
 
-                    if (read_9(NULL) != checksum) { mdb_checksum_errors++; continue; }
+                    if (read_9(NULL) != checksum) { mdb_checksum_errors++; mdb_drain_bus(); continue; }
 
                     // Reset during VEND_STATE is interpreted as VEND_SUCCESS
 
 					cashless_reset_todo = true;
 					machine_state = INACTIVE_STATE;
+					vmc_feature_level = 1;
 					mdb_last_cmd = "RESET";
+
+					// Clear all stale control flags to prevent out-of-context
+					// responses after the JUST RESET reply
+					session_begin_todo = false;
+					session_cancel_todo = false;
+					session_end_todo = false;
+					vend_approved_todo = false;
+					vend_denied_todo = false;
+					out_of_sequence_todo = false;
+
+					// Flush any pending credit from the queue
+					uint16_t discarded;
+					while (xQueueReceive(mdbSessionQueue, &discarded, 0) == pdTRUE) {}
 
                     xEventGroupClearBits(xLedEventGroup, BIT_EVT_MDB);
                     xEventGroupSetBits(xLedEventGroup, BIT_EVT_TRIGGER);
@@ -327,7 +402,7 @@ void vTaskMdbEvent(void *pvParameters) {
 						(void) vmcColumnsOnDisplay;
 						vmc_feature_level = vmcFeatureLevel > 0 ? vmcFeatureLevel : 1;
 
-                        if (read_9(NULL) != checksum) { mdb_checksum_errors++; continue; }
+                        if (read_9(NULL) != checksum) { mdb_checksum_errors++; mdb_drain_bus(); continue; }
 
 						machine_state = DISABLED_STATE;
 						mdb_last_cmd = "SETUP:CONFIG_DATA";
@@ -355,10 +430,16 @@ void vTaskMdbEvent(void *pvParameters) {
 						(void) maxPrice;
 						(void) minPrice;
 
-                        if (read_9(NULL) != checksum) { mdb_checksum_errors++; continue; }
+                        if (read_9(NULL) != checksum) { mdb_checksum_errors++; mdb_drain_bus(); continue; }
 
 						mdb_last_cmd = "SETUP:MAX_MIN_PRICES";
 						ESP_LOGI( TAG, "MAX_MIN_PRICES");
+						break;
+					}
+					default: {
+						mdb_drain_bus();
+						mdb_last_cmd = "SETUP:UNKNOWN";
+						ESP_LOGW(TAG, "SETUP: unhandled subcommand, drained bus");
 						break;
 					}
 					}
@@ -367,7 +448,7 @@ void vTaskMdbEvent(void *pvParameters) {
 				}
 				case POLL: {
 
-				    if (read_9(NULL) != checksum) { mdb_checksum_errors++; continue; }
+				    if (read_9(NULL) != checksum) { mdb_checksum_errors++; mdb_drain_bus(); continue; }
 
 					mdb_poll_count++;
 
@@ -393,7 +474,7 @@ void vTaskMdbEvent(void *pvParameters) {
 						mdb_payload[0] = 0x00;
 						available_tx = 1;
 
-					} else if (machine_state <= ENABLED_STATE && xQueueReceive(mdbSessionQueue, &fundsAvailable, 0)) {
+					} else if (machine_state == ENABLED_STATE && xQueueReceive(mdbSessionQueue, &fundsAvailable, 0)) {
 						// Begin session
 						session_begin_todo = false;
 
@@ -489,7 +570,7 @@ void vTaskMdbEvent(void *pvParameters) {
 						itemPrice = (read_9(&checksum) << 8) | read_9(&checksum);
 						itemNumber = (read_9(&checksum) << 8) | read_9(&checksum);
 
-                        if (read_9(NULL) != checksum) { mdb_checksum_errors++; continue; }
+                        if (read_9(NULL) != checksum) { mdb_checksum_errors++; mdb_drain_bus(); continue; }
 
 						machine_state = VEND_STATE;
 						mdb_last_cmd = "VEND_REQUEST";
@@ -514,7 +595,7 @@ void vTaskMdbEvent(void *pvParameters) {
 						break;
 					}
 					case VEND_CANCEL: {
-                        if (read_9(NULL) != checksum) { mdb_checksum_errors++; continue; }
+                        if (read_9(NULL) != checksum) { mdb_checksum_errors++; mdb_drain_bus(); continue; }
 
 						mdb_last_cmd = "VEND_CANCEL";
 						vend_denied_todo = true;
@@ -524,22 +605,31 @@ void vTaskMdbEvent(void *pvParameters) {
 
 						itemNumber = (read_9(&checksum) << 8) | read_9(&checksum);
 
-                        if (read_9(NULL) != checksum) { mdb_checksum_errors++; continue; }
+                        if (read_9(NULL) != checksum) { mdb_checksum_errors++; mdb_drain_bus(); continue; }
 
 						machine_state = IDLE_STATE;
 						mdb_last_cmd = "VEND_SUCCESS";
 
 						/* PIPE_BLE */
-						uint8_t payload[19];
-						xorEncodeWithPasskey(0x0b, itemPrice, itemNumber, 0, (uint8_t*) &payload);
+						uint8_t payload_ble[19];
+						xorEncodeWithPasskey(0x0b, itemPrice, itemNumber, 0, (uint8_t*) &payload_ble);
 
-                        ble_notify_send((char*) &payload, sizeof(payload));
+                        ble_notify_send((char*) &payload_ble, sizeof(payload_ble));
 
-						ESP_LOGI( TAG, "VEND_SUCCESS");
+						/* PIPE_MQTT — publish cashless sale for telemetry */
+						uint8_t payload_mqtt[19];
+						xorEncodeWithPasskey(0x24, itemPrice, itemNumber, 0, (uint8_t*) &payload_mqtt);
+
+						char topic_sale[128];
+						snprintf(topic_sale, sizeof(topic_sale), "/%s/%s/sale", my_company_id, my_device_id);
+
+						esp_mqtt_client_publish(mqttClient, topic_sale, (char*) &payload_mqtt, sizeof(payload_mqtt), 1, 0);
+
+						ESP_LOGI( TAG, "VEND_SUCCESS price=%u item=%u", itemPrice, itemNumber);
 						break;
 					}
 					case VEND_FAILURE: {
-                        if (read_9(NULL) != checksum) { mdb_checksum_errors++; continue; }
+                        if (read_9(NULL) != checksum) { mdb_checksum_errors++; mdb_drain_bus(); continue; }
 
 						machine_state = IDLE_STATE;
 						mdb_last_cmd = "VEND_FAILURE";
@@ -552,7 +642,7 @@ void vTaskMdbEvent(void *pvParameters) {
 						break;
 					}
 					case SESSION_COMPLETE: {
-                        if (read_9(NULL) != checksum) { mdb_checksum_errors++; continue; }
+                        if (read_9(NULL) != checksum) { mdb_checksum_errors++; mdb_drain_bus(); continue; }
 
 						mdb_last_cmd = "SESSION_COMPLETE";
 						session_end_todo = true;
@@ -571,7 +661,7 @@ void vTaskMdbEvent(void *pvParameters) {
 						uint16_t itemPrice = (read_9(&checksum) << 8) | read_9(&checksum);
 						uint16_t itemNumber = (read_9(&checksum) << 8) | read_9(&checksum);
 
-						if (read_9(NULL) != checksum) { mdb_checksum_errors++; continue; }
+						if (read_9(NULL) != checksum) { mdb_checksum_errors++; mdb_drain_bus(); continue; }
 
 						mdb_last_cmd = "CASH_SALE";
 
@@ -586,6 +676,12 @@ void vTaskMdbEvent(void *pvParameters) {
                         ESP_LOGI( TAG, "CASH_SALE");
 						break;
 					}
+					default: {
+						mdb_drain_bus();
+						mdb_last_cmd = "VEND:UNKNOWN";
+						ESP_LOGW(TAG, "VEND: unhandled subcommand, drained bus");
+						break;
+					}
 					}
 
 					break;
@@ -593,7 +689,7 @@ void vTaskMdbEvent(void *pvParameters) {
 				case READER: {
 					switch (read_9(&checksum)) {
 					case READER_DISABLE: {
-                        if (read_9(NULL) != checksum) { mdb_checksum_errors++; continue; }
+                        if (read_9(NULL) != checksum) { mdb_checksum_errors++; mdb_drain_bus(); continue; }
 
 						machine_state = DISABLED_STATE;
 						mdb_last_cmd = "READER_DISABLE";
@@ -604,7 +700,7 @@ void vTaskMdbEvent(void *pvParameters) {
 						break;
 					}
 					case READER_ENABLE: {
-                        if (read_9(NULL) != checksum) { mdb_checksum_errors++; continue; }
+                        if (read_9(NULL) != checksum) { mdb_checksum_errors++; mdb_drain_bus(); continue; }
 
 						machine_state = ENABLED_STATE;
 						mdb_last_cmd = "READER_ENABLE";
@@ -614,13 +710,19 @@ void vTaskMdbEvent(void *pvParameters) {
 						break;
 					}
 					case READER_CANCEL: {
-                        if (read_9(NULL) != checksum) { mdb_checksum_errors++; continue; }
+                        if (read_9(NULL) != checksum) { mdb_checksum_errors++; mdb_drain_bus(); continue; }
 
 						mdb_last_cmd = "READER_CANCEL";
 						mdb_payload[ 0 ] = 0x08; // Canceled
 						available_tx = 1;
 
 						ESP_LOGI( TAG, "READER_CANCEL");
+						break;
+					}
+					default: {
+						mdb_drain_bus();
+						mdb_last_cmd = "READER:UNKNOWN";
+						ESP_LOGW(TAG, "READER: unhandled subcommand, drained bus");
 						break;
 					}
 					}
@@ -632,14 +734,23 @@ void vTaskMdbEvent(void *pvParameters) {
 					switch (read_9(&checksum)) {
 					case REQUEST_ID: {
 
-                        /*char manufacturerCode[3];
-                        char serialNumber[12];
-                        char modelNumber[12];
-                        char softwareVersion[2];*/
+                        // VMC sends: ManufacturerCode(3) + SerialNumber(12) + ModelNumber(12) + SoftwareVersion(2) = 29 bytes
+                        // Level 2+: adds Optional Feature Bits (4 bytes) = 33 bytes total
+                        // Always read the guaranteed 29 bytes first.
+					    for(uint8_t x = 0; x < 29; x++) read_9(&checksum);
 
-					    for(uint8_t x= 0; x < 29; x++) read_9(&checksum); // ...drop
+                        // Level 2+: try to read 4 additional Optional Feature Bytes.
+                        // Use timeout so we don't hang if vmc_feature_level was misdetected.
+                        uint8_t extra_bytes_read = 0;
+                        if (vmc_feature_level >= 2) {
+                            for (uint8_t x = 0; x < 4; x++) {
+                                int32_t b = read_9_timeout(&checksum, 2000); // 2ms timeout per byte
+                                if (b < 0) break; // no more data — VMC is actually Level 1
+                                extra_bytes_read++;
+                            }
+                        }
 
-				        if (read_9(NULL) != checksum) { mdb_checksum_errors++; continue; }
+				        if (read_9(NULL) != checksum) { mdb_checksum_errors++; mdb_drain_bus(); continue; }
 
 						mdb_last_cmd = "EXPANSION:REQUEST_ID";
 
@@ -650,9 +761,30 @@ void vTaskMdbEvent(void *pvParameters) {
                         memcpy( &mdb_payload[16], "            ", 12);  // Model number
                         memcpy( &mdb_payload[28], "03", 2);             // Software version
 
-                        available_tx = 30;
+                        if (extra_bytes_read == 4) {
+                            // VMC actually sent Level 2+ data — respond with Optional Feature Bits
+                            mdb_payload[30] = 0x00;
+                            mdb_payload[31] = 0x00;
+                            mdb_payload[32] = 0x00;
+                            mdb_payload[33] = 0x00;
+                            available_tx = 34;
+                        } else {
+                            available_tx = 30;
+                        }
 
-                        ESP_LOGI( TAG, "REQUEST_ID");
+                        ESP_LOGI( TAG, "REQUEST_ID (L%u, extra=%u)", vmc_feature_level, extra_bytes_read);
+						break;
+					}
+					default: {
+						// Unknown EXPANSION subcommand — drain remaining bytes until
+						// bus goes idle to prevent desynchronization.
+						for (uint8_t x = 0; x < 36; x++) {
+							int32_t b = read_9_timeout(NULL, 5000); // 5ms timeout
+							if (b < 0) break;           // bus idle, no more data
+							if (b & BIT_MODE_SET) break; // mode bit = next command, stop
+						}
+						mdb_last_cmd = "EXPANSION:UNKNOWN";
+						ESP_LOGW(TAG, "EXPANSION: unhandled subcommand, drained bus");
 						break;
 					}
 					}
@@ -738,7 +870,7 @@ void vTaskMdbEvent(void *pvParameters) {
  *   0x20 CREDIT
  *
  *  MQTT target -> server:
- *   0x21 CASH_SALE | 0x22 PAX_COUNTER | 0x23 CARD_SALE
+ *   0x21 CASH_SALE | 0x22 PAX_COUNTER | 0x23 CARD_SALE | 0x24 CASHLESS_SALE
  *
  * [ random filler ] + [ structured fields per CMD ] → XOR → obfuscated payload
  */
@@ -1648,6 +1780,25 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 		                    } else {
 		                        ESP_LOGE(TAG, "CONFIG: invalid mdb_address %u (must be 1 or 2)", configParam);
 		                    }
+		                    break;
+		                case 0x32: // MDB soft reset — re-announce to VMC
+		                    ESP_LOGW(TAG, "CONFIG: MDB soft reset requested");
+		                    // Clear all pending flags and queue (same as hardware RESET handler)
+		                    session_begin_todo = false;
+		                    session_cancel_todo = false;
+		                    session_end_todo = false;
+		                    vend_approved_todo = false;
+		                    vend_denied_todo = false;
+		                    out_of_sequence_todo = false;
+		                    {
+		                        uint16_t discard;
+		                        while (xQueueReceive(mdbSessionQueue, &discard, 0) == pdTRUE) {}
+		                    }
+		                    // Signal "Just Reset" on next POLL — VMC will re-run SETUP sequence
+		                    machine_state = INACTIVE_STATE;
+		                    vmc_feature_level = 1;
+		                    cashless_reset_todo = true;
+		                    publish_mdb_diag();
 		                    break;
 		                default:
 		                    ESP_LOGW(TAG, "CONFIG: unknown encrypted cmd 0x%02X", cmd);
