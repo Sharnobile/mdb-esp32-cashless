@@ -1645,9 +1645,10 @@ function stockColor(tray: any) {
                     </div>
 
                     <!-- Timestamp -->
-                    <p class="shrink-0 text-xs text-muted-foreground">
-                      {{ timeAgo(entry.created_at, t) }}
-                    </p>
+                    <div class="shrink-0 text-right text-xs text-muted-foreground">
+                      <p>{{ timeAgo(entry.created_at, t) }}</p>
+                      <p class="tabular-nums">{{ new Date(entry.created_at).toLocaleString() }}</p>
+                    </div>
                   </div>
                 </div>
 

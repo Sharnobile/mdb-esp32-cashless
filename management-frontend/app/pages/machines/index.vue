@@ -2,8 +2,9 @@
 definePageMeta({ middleware: 'auth' })
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { IconTruck } from '@tabler/icons-vue'
+import { IconTruck, IconPlayerPlay } from '@tabler/icons-vue'
 import { formatCurrency } from '@/lib/utils'
+import { hasSavedTour, clearSavedTourState } from '@/composables/useRefillWizard'
 
 const { t } = useI18n()
 const { organization } = useOrganization()
@@ -11,6 +12,15 @@ const {
   machines, loading, fetchMachines, subscribeToStatusUpdates, createMachine,
 } = useMachines()
 const { onResume } = useAppResume()
+const savedTourAvailable = ref(false)
+
+onMounted(() => { savedTourAvailable.value = hasSavedTour() })
+
+function startNewTour() {
+  clearSavedTourState()
+  savedTourAvailable.value = false
+  navigateTo('/refill')
+}
 
 // Re-fetch all machine data when app resumes from background (iOS PWA etc.)
 onResume(() => fetchMachines())
@@ -38,17 +48,25 @@ async function submitCreateMachine() {
   <div class="flex flex-1 flex-col gap-4 p-4 md:p-6">
         <div class="flex flex-wrap items-center justify-between gap-2">
           <h1 class="text-2xl font-semibold">{{ t('machines.title') }}</h1>
-          <div class="flex items-center gap-2">
+          <div class="flex flex-wrap items-center gap-2">
             <NuxtLink
-              v-if="machines.some(m => (m.stock_health ?? 'ok') !== 'ok')"
+              v-if="savedTourAvailable"
               to="/refill"
-              class="shrink-0 inline-flex h-9 items-center justify-center gap-2 rounded-md border border-primary bg-primary/10 px-4 text-sm font-medium text-primary shadow-sm transition-colors hover:bg-primary/20"
+              class="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90"
+            >
+              <IconPlayerPlay class="h-4 w-4" />
+              {{ t('refill.resumeTour') }}
+            </NuxtLink>
+            <button
+              v-if="machines.some(m => (m.stock_health ?? 'ok') !== 'ok')"
+              class="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-primary bg-primary/10 px-4 text-sm font-medium text-primary shadow-sm transition-colors hover:bg-primary/20"
+              @click="startNewTour"
             >
               <IconTruck class="h-4 w-4" />
               {{ t('machines.startRefillTour') }}
-            </NuxtLink>
+            </button>
             <button
-              class="shrink-0 inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90"
+              class="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90"
               @click="openMachineModal"
             >
               {{ t('machines.addMachine') }}

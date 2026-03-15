@@ -151,6 +151,7 @@
     "packForMachine": "Für diesen Automaten packen",
     "allPacked": "Alles gepackt",
     "startTour": "Tour starten",
+    "resumeTour": "Tour fortsetzen",
     "startingTour": "Lagerbestand wird abgebucht…",
     "machineOf": "Automat {current} von {total}",
     "slot": "Fach",
