@@ -5,7 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { VisArea, VisAxis, VisLine, VisXYContainer } from '@unovis/vue'
 import { IconCreditCard, IconCoins, IconSend } from '@tabler/icons-vue'
-import { timeAgo, formatCurrency, formatDateTime } from '@/lib/utils'
+import { timeAgo, formatCurrency, formatDate, formatDateTime } from '@/lib/utils'
 
 const { t, locale } = useI18n()
 const route = useRoute()
