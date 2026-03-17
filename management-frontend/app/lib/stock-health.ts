@@ -50,6 +50,7 @@ export interface MachineStockSummary {
   refillableEmpty: number
   refillableLow: number
   noStockCount: number
+  noStockEmptyCount: number
   totalStock: number
   totalCapacity: number
   health: 'ok' | 'low' | 'critical'
@@ -84,7 +85,7 @@ export function computeStockHealthPerMachine(
 
     let entry = map.get(tray.machine_id)
     if (!entry) {
-      entry = { refillableEmpty: 0, refillableLow: 0, noStockCount: 0, totalStock: 0, totalCapacity: 0, health: 'ok', percent: 100 }
+      entry = { refillableEmpty: 0, refillableLow: 0, noStockCount: 0, noStockEmptyCount: 0, totalStock: 0, totalCapacity: 0, health: 'ok', percent: 100 }
       map.set(tray.machine_id, entry)
     }
 
@@ -104,6 +105,7 @@ export function computeStockHealthPerMachine(
         else entry.refillableLow++
       } else {
         entry.noStockCount++
+        if (isEmpty) entry.noStockEmptyCount++
       }
     }
   }

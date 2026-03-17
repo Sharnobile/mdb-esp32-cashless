@@ -30,10 +30,11 @@ const machinesOnline = ref(0)
 const totalMachines = ref(0)
 const stockCritical = ref(0)
 const stockLow = ref(0)
+const stockSwap = ref(0)
 const warehouseBelowMin = ref(0)
 const warehouseExpiringSoon = ref(0)
 
-const machinesNeedingRefill = computed(() => stockCritical.value + stockLow.value)
+const machinesNeedingRefill = computed(() => stockCritical.value + stockLow.value + stockSwap.value)
 
 // ── Chart + sections ──────────────────────────────────────────────────────────
 const dashboardMachines = ref<DashboardMachine[]>([])
@@ -255,15 +256,18 @@ async function loadDashboard() {
     )
     const stockMap = computeStockHealthPerMachine(trayRows, warehouseStockMap, hasWarehouses)
 
-    // Count stock alerts (only refillable)
+    // Count stock alerts (refillable + swap)
     let critCount = 0
     let lowCount = 0
+    let swapCount = 0
     for (const [, stock] of stockMap) {
       if (stock.health === 'critical') critCount++
       else if (stock.health === 'low') lowCount++
+      if (stock.health === 'ok' && stock.noStockEmptyCount > 0) swapCount++
     }
     stockCritical.value = critCount
     stockLow.value = lowCount
+    stockSwap.value = swapCount
 
     // Build dashboard machine list (sorted by stock urgency)
     const healthOrder: Record<string, number> = { critical: 0, low: 1, ok: 2 }

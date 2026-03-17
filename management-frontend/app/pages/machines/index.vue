@@ -2,7 +2,7 @@
 definePageMeta({ middleware: 'auth' })
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { IconTruck, IconPlayerPlay } from '@tabler/icons-vue'
+import { IconTruck, IconPlayerPlay, IconArrowsExchange } from '@tabler/icons-vue'
 import { formatCurrency } from '@/lib/utils'
 import { getProductImageUrl } from '@/composables/useProducts'
 import { hasSavedTour, clearSavedTourState } from '@/composables/useRefillWizard'
@@ -159,10 +159,16 @@ async function submitCreateMachine() {
                       {{ t('machines.refillNeeded', { count: (machine.low_trays ?? 0) - (machine.empty_trays ?? 0) }) }}
                     </span>
                     <span
-                      v-if="(machine.no_stock_trays ?? 0) > 0"
+                      v-if="machine.no_stock_summary?.some(i => i.severity === 'critical')"
+                      class="inline-flex items-center gap-1 rounded-md bg-orange-500/10 px-2 py-0.5 text-xs font-semibold text-orange-400"
+                    >
+                      {{ t('machines.swapNeeded', { count: machine.no_stock_summary!.filter(i => i.severity === 'critical').length }) }}
+                    </span>
+                    <span
+                      v-if="machine.no_stock_summary?.some(i => i.severity !== 'critical')"
                       class="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground"
                     >
-                      {{ t('machines.noWarehouseStock', { count: machine.no_stock_trays }) }}
+                      {{ t('machines.noWarehouseStock', { count: machine.no_stock_summary!.filter(i => i.severity !== 'critical').length }) }}
                     </span>
                   </div>
 
@@ -182,9 +188,29 @@ async function submitCreateMachine() {
                       </div>
                       <span class="shrink-0 text-green-500 text-[10px]">{{ t('machines.inStock') }}</span>
                     </div>
-                    <!-- No-stock products (dimmed, sorted to bottom) -->
+                    <!-- Divider before swap products -->
                     <div
-                      v-for="item in machine.no_stock_summary"
+                      v-if="(machine.tray_summary?.length ?? 0) > 0 && machine.no_stock_summary?.some(i => i.severity === 'critical')"
+                      class="border-t border-border my-1"
+                    />
+                    <!-- Swap products (stock=0 + no warehouse) -->
+                    <div
+                      v-for="item in machine.no_stock_summary?.filter(i => i.severity === 'critical')"
+                      :key="'swap-' + item.product_id"
+                      class="flex items-center justify-between gap-2"
+                    >
+                      <div class="flex items-center gap-1.5 min-w-0">
+                        <img v-if="item.image_path" :src="getProductImageUrl(item.image_path)" class="size-5 shrink-0 rounded object-cover" alt="" />
+                        <span class="text-orange-400">
+                          <IconArrowsExchange class="inline h-3 w-3 mr-0.5 -mt-0.5 shrink-0" />
+                          {{ item.product_name }} <span class="text-muted-foreground">(-{{ item.deficit }})</span>
+                        </span>
+                      </div>
+                      <span class="shrink-0 text-orange-400 text-[10px]">{{ t('machines.swap') }}</span>
+                    </div>
+                    <!-- No-stock products (low/empty but no warehouse — dimmed) -->
+                    <div
+                      v-for="item in machine.no_stock_summary?.filter(i => i.severity !== 'critical')"
                       :key="'nostock-' + item.product_id"
                       class="flex items-center justify-between gap-2 opacity-50"
                     >
