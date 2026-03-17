@@ -140,6 +140,7 @@
     "emptyTrays": "{count} leer",
     "lowTrays": "{count} niedrig",
     "ofTrays": "von {count} Fächern",
+    "outOfStock": "{count} ausverkauft",
     "refillNeeded": "{count} Refill nötig",
     "noWarehouseStock": "{count} kein Lager",
     "inStock": "auf Lager",

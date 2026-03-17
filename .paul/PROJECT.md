@@ -1,0 +1,109 @@
+# Project: mdb-esp32-cashless
+
+## What This Is
+
+An open-source MDB telemetry system for vending machines using ESP32-S3 firmware, a self-hosted Docker backend (Supabase + MQTT), and a Nuxt 4 management dashboard. Enables vending machine operators to accept cashless payments, monitor device health, track sales, and manage inventory remotely.
+
+## Core Value
+
+Vending machine operators can manage all the telemetry, monitor sales, and optimize inventory from a single dashboard.
+
+## Current State
+
+| Attribute | Value |
+|-----------|-------|
+| Version | Production |
+| Status | Production |
+| Last Updated | 2026-03-17 |
+
+## Requirements
+
+### Validated (Shipped)
+
+- [x] MDB cashless payment via ESP32-S3 firmware
+- [x] Self-hosted backend (Supabase + MQTT + Deno forwarder)
+- [x] Management dashboard (machines, sales, products, inventory)
+- [x] Device provisioning (SoftAP + captive portal + claim flow)
+- [x] OTA firmware updates
+- [x] Warehouse inventory management with FIFO tracking
+- [x] Machine tray/slot configuration with auto stock decrement
+- [x] Multi-tenancy with RLS
+- [x] Push notifications
+- [x] MDB diagnostics logging
+
+### Active (In Progress)
+
+- [ ] AI-powered sales/inventory analysis and recommendations
+
+### Planned (Next)
+
+- [To be defined during planning]
+
+### Out of Scope
+
+- [To be identified during planning]
+
+## Target Users
+
+**Primary:** Vending machine operators
+- Manage fleets of vending machines
+- Need real-time sales and inventory visibility
+- Want to optimize product placement and refill schedules
+
+**Secondary:** Vending machine technicians
+- Monitor device health and MDB diagnostics
+- Perform firmware updates and troubleshooting
+
+## Context
+
+**Business Context:**
+Production system with live ESP32 devices installed in the field. Backward compatibility is critical — not all devices run latest firmware.
+
+**Technical Context:**
+- Firmware: ESP-IDF v5.x, FreeRTOS, MDB protocol (9600 baud, 9-bit)
+- Backend: Supabase (PostgreSQL + Auth + Edge Functions), Mosquitto MQTT, Deno forwarder
+- Frontend: Nuxt 4, shadcn-nuxt, TailwindCSS 4
+- Security: XOR obfuscation on MQTT payloads with timestamp replay prevention
+
+## Constraints
+
+### Technical Constraints
+- All changes must be backward-compatible with deployed ESP32 firmware
+- MQTT payloads must use XOR encryption (except diagnostics)
+- ESP-IDF v5.x with CMake build system
+- Self-hosted Docker deployment
+
+### Business Constraints
+- Production system is live — no breaking changes
+- Multi-tenant architecture required
+
+## Key Decisions
+
+| Decision | Rationale | Date | Status |
+|----------|-----------|------|--------|
+| XOR encryption for MQTT | Lightweight security suitable for ESP32 | - | Active |
+| Supabase for backend | Auth + DB + Edge Functions + Storage in one stack | - | Active |
+| Nuxt 4 for dashboard | SSR + Vue 3 + TypeScript ecosystem | - | Active |
+
+## Success Metrics
+
+| Metric | Target | Current | Status |
+|--------|--------|---------|--------|
+| Device uptime | >99% | - | - |
+| Dashboard usability | Operators self-serve | - | On track |
+
+## Tech Stack
+
+| Layer | Technology | Notes |
+|-------|------------|-------|
+| Firmware | ESP-IDF v5.x | C, FreeRTOS, NimBLE |
+| Backend | Supabase (PostgreSQL) | Docker self-hosted |
+| Edge Functions | Deno | Supabase Edge Runtime |
+| Frontend | Nuxt 4 | Vue 3, TypeScript |
+| UI | shadcn-nuxt + TailwindCSS 4 | |
+| MQTT | Eclipse Mosquitto | Deno forwarder bridge |
+| Auth | Supabase GoTrue | JWT + RLS |
+
+---
+*PROJECT.md — Updated when requirements or context change*
+*Last updated: 2026-03-17*

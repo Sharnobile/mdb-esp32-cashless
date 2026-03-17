@@ -37,10 +37,10 @@ interface VendingMachine {
   empty_trays?: number
   stock_health?: 'ok' | 'low' | 'critical'
   stock_percent?: number
-  tray_summary?: { product_name: string; product_id: string | null; deficit: number; image_path: string | null; in_stock: boolean }[]
+  tray_summary?: { product_name: string; product_id: string | null; deficit: number; image_path: string | null; in_stock: boolean; severity: 'critical' | 'low' | 'fill' }[]
   critical_product_ids?: Set<string>
   no_stock_trays?: number
-  no_stock_summary?: { product_name: string; product_id: string | null; deficit: number; image_path: string | null; in_stock: boolean }[]
+  no_stock_summary?: { product_name: string; product_id: string | null; deficit: number; image_path: string | null; in_stock: boolean; severity: 'critical' | 'low' | 'fill' }[]
 }
 
 interface PendingToken {
@@ -244,8 +244,8 @@ export function useMachines() {
         noStockCount: number
         totalStock: number
         totalCapacity: number
-        deficits: Map<string, { product_name: string; product_id: string | null; deficit: number; image_path: string | null; in_stock: boolean }>
-        noStockDeficits: Map<string, { product_name: string; product_id: string | null; deficit: number; image_path: string | null; in_stock: boolean }>
+        deficits: Map<string, { product_name: string; product_id: string | null; deficit: number; image_path: string | null; in_stock: boolean; severity: 'critical' | 'low' | 'fill' }>
+        noStockDeficits: Map<string, { product_name: string; product_id: string | null; deficit: number; image_path: string | null; in_stock: boolean; severity: 'critical' | 'low' | 'fill' }>
         criticalProductIds: Set<string>
         fillBelowPending: { product_id: string | null; capacity: number; current_stock: number; item_number: number; products: { name: string; image_path: string | null } | null }[]
       }>()
@@ -276,14 +276,16 @@ export function useMachines() {
           const imagePath = tray.products?.image_path ?? null
           const key = tray.product_id
 
+          const severity = isEmpty ? 'critical' : 'low'
           if (refillable) {
             if (isEmpty) entry.refillableEmpty++
             else entry.refillableLow++
             const existing = entry.deficits.get(key)
             if (existing) {
               existing.deficit += deficit
+              if (severity === 'critical') existing.severity = 'critical'
             } else {
-              entry.deficits.set(key, { product_name: productName, product_id: tray.product_id, deficit, image_path: imagePath, in_stock: true })
+              entry.deficits.set(key, { product_name: productName, product_id: tray.product_id, deficit, image_path: imagePath, in_stock: true, severity })
             }
             entry.criticalProductIds.add(tray.product_id)
           } else {
@@ -291,8 +293,9 @@ export function useMachines() {
             const existing = entry.noStockDeficits.get(key)
             if (existing) {
               existing.deficit += deficit
+              if (severity === 'critical') existing.severity = 'critical'
             } else {
-              entry.noStockDeficits.set(key, { product_name: productName, product_id: tray.product_id, deficit, image_path: imagePath, in_stock: false })
+              entry.noStockDeficits.set(key, { product_name: productName, product_id: tray.product_id, deficit, image_path: imagePath, in_stock: false, severity })
             }
           }
         }
@@ -317,8 +320,9 @@ export function useMachines() {
           const existing = targetMap.get(key)
           if (existing) {
             existing.deficit += deficit
+            // Don't downgrade severity — fill is lowest priority
           } else {
-            targetMap.set(key, { product_name: productName, product_id: tray.product_id, deficit, image_path: imagePath, in_stock: refillable })
+            targetMap.set(key, { product_name: productName, product_id: tray.product_id, deficit, image_path: imagePath, in_stock: refillable, severity: 'fill' })
           }
         }
       }

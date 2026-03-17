@@ -140,6 +140,7 @@
     "emptyTrays": "{count} empty",
     "lowTrays": "{count} low",
     "ofTrays": "of {count} trays",
+    "outOfStock": "{count} out of stock",
     "refillNeeded": "{count} refill needed",
     "noWarehouseStock": "{count} no stock",
     "inStock": "in stock",

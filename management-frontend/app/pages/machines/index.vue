@@ -147,10 +147,16 @@ async function submitCreateMachine() {
                   <!-- Badges row -->
                   <div class="flex flex-wrap items-center gap-1.5">
                     <span
-                      v-if="(machine.low_trays ?? 0) > 0"
+                      v-if="(machine.empty_trays ?? 0) > 0"
                       class="inline-flex items-center gap-1 rounded-md bg-red-500/10 px-2 py-0.5 text-xs font-semibold text-red-500"
                     >
-                      {{ t('machines.refillNeeded', { count: machine.low_trays }) }}
+                      {{ t('machines.outOfStock', { count: machine.empty_trays }) }}
+                    </span>
+                    <span
+                      v-if="(machine.low_trays ?? 0) - (machine.empty_trays ?? 0) > 0"
+                      class="inline-flex items-center gap-1 rounded-md bg-amber-500/10 px-2 py-0.5 text-xs font-semibold text-amber-500"
+                    >
+                      {{ t('machines.refillNeeded', { count: (machine.low_trays ?? 0) - (machine.empty_trays ?? 0) }) }}
                     </span>
                     <span
                       v-if="(machine.no_stock_trays ?? 0) > 0"
@@ -170,7 +176,7 @@ async function submitCreateMachine() {
                     >
                       <div class="flex items-center gap-1.5 min-w-0">
                         <img v-if="item.image_path" :src="getProductImageUrl(item.image_path)" class="size-5 shrink-0 rounded object-cover" alt="" />
-                        <span :class="item.deficit >= (machine.tray_summary?.[0]?.deficit ?? 0) ? 'text-red-500' : 'text-amber-500'">
+                        <span :class="item.severity === 'critical' ? 'text-red-500' : item.severity === 'low' ? 'text-amber-500' : 'text-blue-600 dark:text-blue-400'">
                           {{ item.product_name }} <span class="text-muted-foreground">(-{{ item.deficit }})</span>
                         </span>
                       </div>
