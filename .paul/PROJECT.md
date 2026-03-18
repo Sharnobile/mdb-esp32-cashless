@@ -34,14 +34,18 @@ Vending machine operators can manage all the telemetry, monitor sales, and optim
 ### Active (In Progress)
 
 - [ ] AI-powered sales/inventory analysis and recommendations
+  - [x] Phase 01: KPI aggregation RPC (`get_machine_insights_kpis`) — Phase 01 complete
+  - [ ] Phase 02: `machine-insights` edge function + Claude API integration
+  - [ ] Phase 03: Dashboard UI — "AI Insights" button + recommendations modal
 
 ### Planned (Next)
 
-- [To be defined during planning]
+- [ ] SonarQube code quality integration (configured via /paul:flows)
 
 ### Out of Scope
 
-- [To be identified during planning]
+- Real-time AI recommendations (on-demand only, not streaming)
+- Cross-company benchmarking (single-tenant analysis only)
 
 ## Target Users
 
@@ -84,6 +88,9 @@ Production system with live ESP32 devices installed in the field. Backward compa
 | XOR encryption for MQTT | Lightweight security suitable for ESP32 | - | Active |
 | Supabase for backend | Auth + DB + Edge Functions + Storage in one stack | - | Active |
 | Nuxt 4 for dashboard | SSR + Vue 3 + TypeScript ecosystem | - | Active |
+| AI KPIs pre-aggregated in SQL (not app layer) | Keeps edge function simple, reduces Claude API token usage, enforces tenancy at DB level | 2026-03-18 | Active |
+| `security definer` + manual `p_company_id` check for AI RPCs | Service role client in edge functions bypasses RLS — manual check is the tenancy gate | 2026-03-18 | Active |
+| Schema FK pattern: `company`, not `company_id` | Existing schema uses `company` as the FK column name in vendingMachine, embeddeds, products | 2026-03-18 | Active |
 
 ## Success Metrics
 
@@ -106,4 +113,4 @@ Production system with live ESP32 devices installed in the field. Backward compa
 
 ---
 *PROJECT.md — Updated when requirements or context change*
-*Last updated: 2026-03-17*
+*Last updated: 2026-03-18 after Phase 01 (data-aggregation)*
