@@ -75,6 +75,16 @@ export interface WarehouseProductPosition {
   sort_order: number
   location_label: string | null
   has_stock: boolean
+  group_id: string | null
+}
+
+export interface WarehousePositionGroup {
+  id: string
+  parent_id: string | null
+  name: string
+  sort_order: number
+  children: WarehousePositionGroup[]
+  products: WarehouseProductPosition[]
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -121,6 +131,7 @@ export function useWarehouse() {
   const barcodes = ref<ProductBarcode[]>([])
   const minStocks = ref<MinStockEntry[]>([])
   const positions = ref<WarehouseProductPosition[]>([])
+  const groups = ref<WarehousePositionGroup[]>([])
   const loading = ref(false)
   const transactionLoading = ref(false)
   const transactionHasMore = ref(false)
@@ -636,6 +647,85 @@ export function useWarehouse() {
     }
   }
 
+  // ── Position groups ──────────────────────────────────────────────────
+
+  async function fetchGroups(warehouseId: string) {
+    const { data, error } = await (supabase as any)
+      .from('warehouse_position_groups')
+      .select('id, parent_id, name, sort_order')
+      .eq('warehouse_id', warehouseId)
+      .order('sort_order')
+    if (error) throw error
+
+    // Build tree from flat list
+    const flat = (data ?? []) as { id: string; parent_id: string | null; name: string; sort_order: number }[]
+    const nodeMap = new Map<string, WarehousePositionGroup>()
+    for (const g of flat) {
+      nodeMap.set(g.id, { id: g.id, parent_id: g.parent_id, name: g.name, sort_order: g.sort_order, children: [], products: [] })
+    }
+    const roots: WarehousePositionGroup[] = []
+    for (const node of nodeMap.values()) {
+      if (node.parent_id && nodeMap.has(node.parent_id)) {
+        nodeMap.get(node.parent_id)!.children.push(node)
+      } else {
+        roots.push(node)
+      }
+    }
+    // Sort children at each level
+    const sortChildren = (nodes: WarehousePositionGroup[]) => {
+      nodes.sort((a, b) => a.sort_order - b.sort_order)
+      for (const n of nodes) sortChildren(n.children)
+    }
+    sortChildren(roots)
+    groups.value = roots
+  }
+
+  async function createGroup(warehouseId: string, input: { name: string; parent_id?: string | null; sort_order?: number }) {
+    const companyId = organization.value?.id
+    if (!companyId) throw new Error('No organization')
+    const { data, error } = await (supabase as any)
+      .from('warehouse_position_groups')
+      .insert({
+        warehouse_id: warehouseId,
+        company_id: companyId,
+        name: input.name,
+        parent_id: input.parent_id ?? null,
+        sort_order: input.sort_order ?? 0,
+      })
+      .select('id')
+      .single()
+    if (error) throw error
+    return (data as any).id as string
+  }
+
+  async function updateGroup(groupId: string, updates: { name?: string; sort_order?: number; parent_id?: string | null }) {
+    const { error } = await (supabase as any)
+      .from('warehouse_position_groups')
+      .update(updates)
+      .eq('id', groupId)
+    if (error) throw error
+  }
+
+  async function deleteGroup(groupId: string) {
+    const { error } = await (supabase as any)
+      .from('warehouse_position_groups')
+      .delete()
+      .eq('id', groupId)
+    if (error) throw error
+  }
+
+  async function saveGroupOrder(warehouseId: string, items: { id: string; sort_order: number; parent_id: string | null }[]) {
+    const updates = items.map((item) =>
+      (supabase as any)
+        .from('warehouse_position_groups')
+        .update({ sort_order: item.sort_order, parent_id: item.parent_id })
+        .eq('id', item.id)
+    )
+    const results = await Promise.all(updates)
+    const firstError = results.find((r: any) => r.error)
+    if (firstError) throw (firstError as any).error
+  }
+
   // ── Product positions ─────────────────────────────────────────────────
 
   /**
@@ -643,11 +733,11 @@ export function useWarehouse() {
    * Positioned products come first (by sort_order), unpositioned last (alphabetically).
    */
   async function fetchPositions(warehouseId: string) {
-    // Fetch positions and stocked products in parallel
+    // Fetch positions, groups, and stocked products in parallel
     const [posRes, stockRes] = await Promise.all([
       (supabase as any)
         .from('warehouse_product_positions')
-        .select('product_id, sort_order, location_label, products(name, image_path)')
+        .select('product_id, sort_order, location_label, group_id, products(name, image_path)')
         .eq('warehouse_id', warehouseId)
         .order('sort_order'),
       (supabase as any)
@@ -660,7 +750,7 @@ export function useWarehouse() {
     if (posRes.error) throw posRes.error
     if (stockRes.error) throw stockRes.error
 
-    // Build stock map: product_id → { name, image_path, has_stock }
+    // Build stock map
     const stockMap = new Map<string, { name: string; image_path: string | null }>()
     for (const b of (stockRes.data ?? []) as any[]) {
       if (!stockMap.has(b.product_id)) {
@@ -683,6 +773,7 @@ export function useWarehouse() {
         sort_order: p.sort_order,
         location_label: p.location_label,
         has_stock: stockMap.has(p.product_id),
+        group_id: p.group_id ?? null,
       }
     })
 
@@ -697,21 +788,37 @@ export function useWarehouse() {
           sort_order: -1,
           location_label: null,
           has_stock: true,
+          group_id: null,
         })
       }
     }
     unpositioned.sort((a, b) => a.product_name.localeCompare(b.product_name))
 
     positions.value = [...positioned, ...unpositioned]
+
+    // Populate group.products from positions
+    const groupMap = new Map<string, WarehousePositionGroup>()
+    const collectGroups = (nodes: WarehousePositionGroup[]) => {
+      for (const n of nodes) {
+        n.products = []
+        groupMap.set(n.id, n)
+        collectGroups(n.children)
+      }
+    }
+    collectGroups(groups.value)
+    for (const pos of positioned) {
+      if (pos.group_id && groupMap.has(pos.group_id)) {
+        groupMap.get(pos.group_id)!.products.push(pos)
+      }
+    }
   }
 
   /**
    * Save (upsert) product positions for a warehouse.
-   * Accepts an array of { product_id, sort_order, location_label? }.
    */
   async function savePositions(
     warehouseId: string,
-    items: { product_id: string; sort_order: number; location_label?: string | null }[],
+    items: { product_id: string; sort_order: number; location_label?: string | null; group_id?: string | null }[],
   ) {
     const companyId = organization.value?.id
     if (!companyId) throw new Error('No organization')
@@ -721,6 +828,7 @@ export function useWarehouse() {
       product_id: item.product_id,
       sort_order: item.sort_order,
       location_label: item.location_label ?? null,
+      group_id: item.group_id ?? null,
       company_id: companyId,
       updated_at: new Date().toISOString(),
     }))
@@ -743,26 +851,80 @@ export function useWarehouse() {
   }
 
   /**
-   * Lightweight helper: returns product_id[] in warehouse position order.
-   * Useful for sorting pick lists in the refill wizard.
+   * Returns product_id[] in depth-first warehouse position order.
+   * Traverses groups tree, then appends ungrouped positioned products, then unpositioned.
    */
   async function fetchOrderedProductIds(warehouseId: string): Promise<string[]> {
-    const { data, error } = await (supabase as any)
-      .from('warehouse_product_positions')
-      .select('product_id')
-      .eq('warehouse_id', warehouseId)
-      .order('sort_order')
-    if (error) throw error
-    return ((data ?? []) as any[]).map((r: any) => r.product_id)
+    // Fetch groups and positions in parallel
+    const [grpRes, posRes] = await Promise.all([
+      (supabase as any)
+        .from('warehouse_position_groups')
+        .select('id, parent_id, sort_order')
+        .eq('warehouse_id', warehouseId)
+        .order('sort_order'),
+      (supabase as any)
+        .from('warehouse_product_positions')
+        .select('product_id, sort_order, group_id')
+        .eq('warehouse_id', warehouseId)
+        .order('sort_order'),
+    ])
+    if (grpRes.error) throw grpRes.error
+    if (posRes.error) throw posRes.error
+
+    const grpFlat = (grpRes.data ?? []) as { id: string; parent_id: string | null; sort_order: number }[]
+    const posFlat = (posRes.data ?? []) as { product_id: string; sort_order: number; group_id: string | null }[]
+
+    // Build group tree
+    const nodeMap = new Map<string, { id: string; parent_id: string | null; sort_order: number; children: any[]; productIds: string[] }>()
+    for (const g of grpFlat) {
+      nodeMap.set(g.id, { ...g, children: [], productIds: [] })
+    }
+    const roots: typeof nodeMap extends Map<string, infer V> ? V[] : never[] = []
+    for (const node of nodeMap.values()) {
+      if (node.parent_id && nodeMap.has(node.parent_id)) {
+        nodeMap.get(node.parent_id)!.children.push(node)
+      } else {
+        (roots as any[]).push(node)
+      }
+    }
+    const sortNodes = (nodes: any[]) => {
+      nodes.sort((a: any, b: any) => a.sort_order - b.sort_order)
+      for (const n of nodes) sortNodes(n.children)
+    }
+    sortNodes(roots as any[])
+
+    // Assign products to groups
+    const ungrouped: string[] = []
+    for (const p of posFlat) {
+      if (p.group_id && nodeMap.has(p.group_id)) {
+        nodeMap.get(p.group_id)!.productIds.push(p.product_id)
+      } else {
+        ungrouped.push(p.product_id)
+      }
+    }
+
+    // Depth-first traversal
+    const result: string[] = []
+    const traverse = (nodes: any[]) => {
+      for (const node of nodes) {
+        result.push(...node.productIds)
+        traverse(node.children)
+      }
+    }
+    traverse(roots as any[])
+    result.push(...ungrouped)
+
+    return result
   }
 
   return {
-    warehouses, batches, transactions, productSummaries, barcodes, minStocks, positions,
+    warehouses, batches, transactions, productSummaries, barcodes, minStocks, positions, groups,
     loading, transactionLoading, transactionHasMore,
     fetchWarehouses, createWarehouse, updateWarehouse, deleteWarehouse,
     fetchBarcodes, lookupBarcode, addBarcode, removeBarcode,
     fetchBatches, fetchProductSummaries, bookIncoming, adjustStock, deductForRefill, getProductStock, fetchWarehouseStockMap,
     fetchMinStocks, setMinStock,
+    fetchGroups, createGroup, updateGroup, deleteGroup, saveGroupOrder,
     fetchPositions, savePositions, removePosition, fetchOrderedProductIds,
     fetchTransactions, fetchMoreTransactions,
     subscribeToStockUpdates,

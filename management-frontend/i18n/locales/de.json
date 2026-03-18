@@ -467,7 +467,19 @@
     "locationLabel": "Lagerplatz",
     "locationPlaceholder": "z.B. A1-03",
     "positionsSaved": "Positionen gespeichert",
-    "failedToSavePositions": "Positionen konnten nicht gespeichert werden"
+    "failedToSavePositions": "Positionen konnten nicht gespeichert werden",
+    "addGroup": "Gruppe hinzufügen",
+    "addSubGroup": "Untergruppe hinzufügen",
+    "groupName": "Gruppenname",
+    "groupNamePlaceholder": "z.B. Regal A, Kühlschrank",
+    "editGroup": "Gruppe bearbeiten",
+    "deleteGroup": "Gruppe löschen",
+    "deleteGroupConfirm": "\"{name}\" löschen? Untergruppen werden mitgelöscht. Produkte werden nicht entfernt.",
+    "ungrouped": "Ohne Gruppe",
+    "moveToGroup": "In Gruppe verschieben",
+    "nSelected": "{count} ausgewählt",
+    "deselectAll": "Alle abwählen",
+    "rootLevel": "Stammebene"
   },
   "devices": {
     "title": "Geräte",

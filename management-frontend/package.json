@@ -28,6 +28,7 @@
     "qrcode": "^1.5.4",
     "reka-ui": "^2.9.2",
     "shadcn-nuxt": "^2.4.3",
+    "sortablejs": "^1.15.7",
     "tailwind-merge": "^3.4.0",
     "vue": "^3.5.26",
     "vue-router": "^4.6.4",
@@ -37,6 +38,7 @@
   "devDependencies": {
     "@nuxtjs/supabase": "^2.0.3",
     "@nuxtjs/tailwindcss": "^7.0.0-beta.1",
+    "@types/sortablejs": "^1.15.9",
     "@vite-pwa/nuxt": "^1.1.1",
     "@vue/test-utils": "^2.4.6",
     "happy-dom": "^20.8.3",

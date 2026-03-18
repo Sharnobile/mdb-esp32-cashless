@@ -4,18 +4,21 @@ definePageMeta({ middleware: 'auth' })
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import Sortable from 'sortablejs'
 import {
   IconPlus, IconBarcode, IconAdjustments, IconTrash,
   IconPackageImport, IconChevronDown, IconChevronRight,
   IconAlertTriangle, IconSearch, IconX,
-  IconArrowUp, IconArrowDown, IconGripVertical,
+  IconGripVertical,
+  IconFolder, IconFolderPlus, IconChevronDown as IconChevronDownSmall, IconChevronRight as IconChevronRightSmall,
+  IconEdit, IconSquareCheck, IconSquare,
 } from '@tabler/icons-vue'
 import { timeAgo, formatCurrency, formatDate } from '@/lib/utils'
 import { getProductImageUrl } from '@/composables/useProducts'
 import {
   expirationStatus, expirationBadgeClass, expirationLabel,
   type Warehouse, type StockBatch, type WarehouseProductSummary,
-  type WarehouseProductPosition,
+  type WarehouseProductPosition, type WarehousePositionGroup,
 } from '@/composables/useWarehouse'
 
 const { t, locale } = useI18n()
@@ -28,7 +31,8 @@ const {
   fetchBarcodes, lookupBarcode, addBarcode, removeBarcode,
   fetchBatches, fetchProductSummaries, bookIncoming, adjustStock,
   fetchMinStocks, setMinStock,
-  positions, fetchPositions, savePositions, removePosition,
+  positions, groups, fetchPositions, savePositions, removePosition,
+  fetchGroups, createGroup, updateGroup, deleteGroup, saveGroupOrder,
   fetchTransactions, fetchMoreTransactions,
   subscribeToStockUpdates,
   transactionTypeLabel, transactionTypeBadgeClass,
@@ -44,10 +48,17 @@ const selectedWarehouse = computed(() =>
   warehouses.value.find(w => w.id === selectedWarehouseId.value) ?? null
 )
 
-usePullToRefresh(async () => {
+const pullRefreshHandler = async () => {
   await Promise.all([fetchWarehouses(), fetchProducts()])
   if (selectedWarehouseId.value) await loadWarehouseData()
-})
+}
+usePullToRefresh(pullRefreshHandler)
+
+// Disable pull-to-refresh on positions tab (conflicts with touch drag-and-drop)
+const pullRefreshState = useState<(() => Promise<void> | void) | null>('pull-refresh-handler')
+watch(activeTab, (tab) => {
+  pullRefreshState.value = tab === 'positions' ? null : pullRefreshHandler
+}, { immediate: true })
 
 let unsubscribe: (() => void) | null = null
 
@@ -134,17 +145,66 @@ const positionsLoading = ref(false)
 const positionsSaving = ref(false)
 let positionSaveTimer: ReturnType<typeof setTimeout> | null = null
 
+// Group management
+const expandedGroups = ref(new Set<string>())
+const editingGroupId = ref<string | null>(null)
+const editingGroupName = ref('')
+const showAddGroupModal = ref(false)
+const addGroupForm = ref({ name: '', parent_id: null as string | null })
+const deletingGroup = ref<WarehousePositionGroup | null>(null)
+const showDeleteGroupConfirm = ref(false)
+
+// Multi-select
+const selectedProducts = ref(new Set<string>())
+const showMoveToGroupMenu = ref(false)
+
+// Cleanup sortables on unmount
+onUnmounted(() => destroySortables())
+
 const positionedItems = computed(() => positions.value.filter(p => p.sort_order >= 0))
 const unpositionedItems = computed(() => positions.value.filter(p => p.sort_order < 0))
+const rootProducts = computed(() => positionedItems.value.filter(p => !p.group_id))
+const ungroupedPositioned = computed(() => positionedItems.value.filter(p => !p.group_id))
+
+// Flat list of all groups for move-to-group dropdown
+const allGroupsFlat = computed(() => {
+  const result: { id: string; name: string; depth: number }[] = []
+  const traverse = (nodes: WarehousePositionGroup[], depth: number) => {
+    for (const n of nodes) {
+      result.push({ id: n.id, name: n.name, depth })
+      traverse(n.children, depth + 1)
+    }
+  }
+  traverse(groups.value, 0)
+  return result
+})
+
+function toggleGroup(groupId: string) {
+  if (expandedGroups.value.has(groupId)) {
+    expandedGroups.value.delete(groupId)
+  } else {
+    expandedGroups.value.add(groupId)
+  }
+}
 
 async function loadPositions() {
   if (!selectedWarehouseId.value) return
   positionsLoading.value = true
   try {
+    await fetchGroups(selectedWarehouseId.value)
     await fetchPositions(selectedWarehouseId.value)
+    // Auto-expand all groups
+    const expandAll = (nodes: WarehousePositionGroup[]) => {
+      for (const n of nodes) {
+        expandedGroups.value.add(n.id)
+        expandAll(n.children)
+      }
+    }
+    expandAll(groups.value)
   } finally {
     positionsLoading.value = false
   }
+  nextTick(() => { initSortables(); initGroupSortable() })
 }
 
 function debouncedSavePositions() {
@@ -160,6 +220,7 @@ async function doSavePositions() {
       product_id: p.product_id,
       sort_order: idx + 1,
       location_label: p.location_label,
+      group_id: p.group_id,
     }))
     await savePositions(selectedWarehouseId.value, items)
   } catch (e) {
@@ -169,41 +230,77 @@ async function doSavePositions() {
   }
 }
 
-function movePositionUp(index: number) {
-  if (index <= 0) return
-  const list = [...positionedItems.value]
-  const temp = list[index]!
-  list[index] = list[index - 1]!
-  list[index - 1] = temp
-  // Reassign sort_order
-  list.forEach((item, i) => { item.sort_order = i + 1 })
-  positions.value = [...list, ...unpositionedItems.value]
-  debouncedSavePositions()
+// ── Group CRUD ──────────────────────────────────────────────────────────
+
+function openAddGroup(parentId: string | null = null) {
+  addGroupForm.value = { name: '', parent_id: parentId }
+  showAddGroupModal.value = true
 }
 
-function movePositionDown(index: number) {
-  const list = [...positionedItems.value]
-  if (index >= list.length - 1) return
-  const temp = list[index]!
-  list[index] = list[index + 1]!
-  list[index + 1] = temp
-  list.forEach((item, i) => { item.sort_order = i + 1 })
-  positions.value = [...list, ...unpositionedItems.value]
-  debouncedSavePositions()
+async function submitAddGroup() {
+  if (!selectedWarehouseId.value || !addGroupForm.value.name.trim()) return
+  try {
+    await createGroup(selectedWarehouseId.value, {
+      name: addGroupForm.value.name.trim(),
+      parent_id: addGroupForm.value.parent_id,
+    })
+    showAddGroupModal.value = false
+    await loadPositions()
+  } catch (e) {
+    console.error('Failed to create group', e)
+  }
 }
 
-function addToPositions(item: WarehouseProductPosition) {
-  const list = [...positionedItems.value]
-  item.sort_order = list.length + 1
-  list.push(item)
-  positions.value = [...list, ...unpositionedItems.value.filter(u => u.product_id !== item.product_id)]
+function startEditGroup(group: WarehousePositionGroup) {
+  editingGroupId.value = group.id
+  editingGroupName.value = group.name
+}
+
+async function saveEditGroup() {
+  if (!editingGroupId.value || !editingGroupName.value.trim()) return
+  try {
+    await updateGroup(editingGroupId.value, { name: editingGroupName.value.trim() })
+    editingGroupId.value = null
+    await loadPositions()
+  } catch (e) {
+    console.error('Failed to update group', e)
+  }
+}
+
+function cancelEditGroup() {
+  editingGroupId.value = null
+}
+
+async function confirmDeleteGroup() {
+  if (!deletingGroup.value) return
+  try {
+    await deleteGroup(deletingGroup.value.id)
+    showDeleteGroupConfirm.value = false
+    deletingGroup.value = null
+    if (selectedWarehouseId.value) await loadPositions()
+  } catch (e) {
+    console.error('Failed to delete group', e)
+  }
+}
+
+// ── Product operations ──────────────────────────────────────────────────
+
+function addToPositions(item: WarehouseProductPosition, groupId: string | null = null) {
+  item.sort_order = positionedItems.value.length + 1
+  item.group_id = groupId
+  positions.value = [
+    ...positionedItems.value,
+    item,
+    ...unpositionedItems.value.filter(u => u.product_id !== item.product_id),
+  ]
   debouncedSavePositions()
 }
 
 async function removeFromPositions(item: WarehouseProductPosition) {
   if (!selectedWarehouseId.value) return
   item.sort_order = -1
-  const list = positionedItems.value
+  item.group_id = null
+  const list = positionedItems.value.filter(p => p.product_id !== item.product_id)
   list.forEach((p, i) => { p.sort_order = i + 1 })
   positions.value = [...list, ...unpositionedItems.value, item].filter((p, i, arr) =>
     arr.findIndex(x => x.product_id === p.product_id) === i
@@ -220,6 +317,146 @@ function updateLocationLabel(item: WarehouseProductPosition, value: string) {
   item.location_label = value || null
   debouncedSavePositions()
 }
+
+// ── Multi-select ────────────────────────────────────────────────────────
+
+function toggleSelectProduct(productId: string) {
+  if (selectedProducts.value.has(productId)) {
+    selectedProducts.value.delete(productId)
+  } else {
+    selectedProducts.value.add(productId)
+  }
+  selectedProducts.value = new Set(selectedProducts.value)
+}
+
+function deselectAll() {
+  selectedProducts.value = new Set()
+  showMoveToGroupMenu.value = false
+}
+
+/** Rebuild group.products arrays from current positions */
+function rebuildGroupProducts() {
+  const groupMap = new Map<string, WarehousePositionGroup>()
+  const collect = (nodes: WarehousePositionGroup[]) => {
+    for (const n of nodes) {
+      n.products = []
+      groupMap.set(n.id, n)
+      collect(n.children)
+    }
+  }
+  collect(groups.value)
+  for (const pos of positionedItems.value) {
+    if (pos.group_id && groupMap.has(pos.group_id)) {
+      groupMap.get(pos.group_id)!.products.push(pos)
+    }
+  }
+}
+
+async function moveSelectedToGroup(groupId: string | null) {
+  for (const pid of selectedProducts.value) {
+    const item = positionedItems.value.find(p => p.product_id === pid)
+    if (item) item.group_id = groupId
+  }
+  rebuildGroupProducts()
+  deselectAll()
+  showMoveToGroupMenu.value = false
+  debouncedSavePositions()
+}
+
+// ── Sortable.js integration ─────────────────────────────────────────────
+
+const sortableInstances = ref<Sortable[]>([])
+
+function destroySortables() {
+  for (const s of sortableInstances.value) s.destroy()
+  sortableInstances.value = []
+}
+
+function initSortables() {
+  if (import.meta.server) return
+  destroySortables()
+
+  nextTick(() => {
+    // Init sortable on each product list container
+    const containers = document.querySelectorAll('[data-sortable-group]')
+    for (const el of containers) {
+      const groupId = el.getAttribute('data-sortable-group') || null
+      const resolvedGroupId = groupId === '__root__' ? null : groupId
+
+      const instance = Sortable.create(el as HTMLElement, {
+        group: 'products', // allows cross-group dragging
+        handle: '.drag-handle',
+        animation: 150,
+        ghostClass: 'opacity-30',
+        dragClass: 'shadow-lg',
+        onEnd(evt) {
+          const productId = evt.item.getAttribute('data-product-id')
+          if (!productId) return
+
+          const toGroupId = evt.to.getAttribute('data-sortable-group')
+          const targetGroupId = !toGroupId || toGroupId === '__root__' ? null : toGroupId
+
+          // Update group_id if moved between groups
+          const item = positionedItems.value.find(p => p.product_id === productId)
+          if (item) {
+            item.group_id = targetGroupId
+
+            // Reorder within target group based on new DOM order
+            const targetContainer = evt.to
+            const children = targetContainer.querySelectorAll('[data-product-id]')
+            children.forEach((child, idx) => {
+              const pid = child.getAttribute('data-product-id')
+              const pos = positionedItems.value.find(p => p.product_id === pid)
+              if (pos) pos.sort_order = idx + 1
+            })
+
+            rebuildGroupProducts()
+            debouncedSavePositions()
+          }
+        },
+      })
+      sortableInstances.value.push(instance)
+    }
+  })
+}
+
+// ── Sortable for groups themselves ───────────────────────────────────────
+
+function initGroupSortable() {
+  if (import.meta.server) return
+  nextTick(() => {
+    const container = document.querySelector('[data-sortable-groups]')
+    if (!container) return
+
+    const instance = Sortable.create(container as HTMLElement, {
+      handle: '.group-drag-handle',
+      animation: 150,
+      ghostClass: 'opacity-30',
+      onEnd(evt) {
+        if (evt.oldIndex === undefined || evt.newIndex === undefined) return
+        if (evt.oldIndex === evt.newIndex) return
+        const list = [...groups.value]
+        const [moved] = list.splice(evt.oldIndex, 1)
+        list.splice(evt.newIndex, 0, moved!)
+        list.forEach((g, i) => { g.sort_order = i + 1 })
+        groups.value = list
+        rebuildGroupProducts()
+        // Save group order
+        if (selectedWarehouseId.value) {
+          saveGroupOrder(selectedWarehouseId.value, list.map(g => ({
+            id: g.id,
+            sort_order: g.sort_order,
+            parent_id: g.parent_id,
+          }))).catch(e => console.error('Failed to save group order', e))
+        }
+      },
+    })
+    sortableInstances.value.push(instance)
+  })
+}
+
+// Re-init sortables when groups expand/collapse
+watch(expandedGroups, () => { nextTick(() => initSortables()) }, { deep: true })
 
 // Load positions when tab switches to positions
 watch(activeTab, (tab) => {
@@ -1174,14 +1411,26 @@ async function saveMinStock(productId: string) {
       </TabsContent>
 
       <!-- ═══════════════════════════════════════════════════════════════════ -->
-      <!-- SETTINGS TAB (admin only)                                          -->
-      <!-- ═══════════════════════════════════════════════════════════════════ -->
       <!-- ═══════════════════════════════════════════════════════════════════ -->
       <!-- POSITIONS TAB                                                       -->
       <!-- ═══════════════════════════════════════════════════════════════════ -->
       <TabsContent v-if="isAdmin" value="positions">
-        <div class="flex flex-col gap-4">
-          <p class="text-sm text-muted-foreground">{{ t('warehouse.positionsDescription') }}</p>
+        <div class="relative flex flex-col gap-4">
+          <!-- Saving indicator -->
+          <div v-if="positionsSaving" class="absolute -top-5 right-0 text-xs text-muted-foreground">
+            {{ t('common.saving') }}...
+          </div>
+
+          <div class="flex items-center justify-between">
+            <p class="text-sm text-muted-foreground">{{ t('warehouse.positionsDescription') }}</p>
+            <button
+              class="inline-flex h-8 items-center gap-1 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+              @click="openAddGroup(null)"
+            >
+              <IconFolderPlus class="size-3.5" />
+              {{ t('warehouse.addGroup') }}
+            </button>
+          </div>
 
           <!-- Loading -->
           <div v-if="positionsLoading" class="flex items-center justify-center py-12">
@@ -1189,86 +1438,155 @@ async function saveMinStock(productId: string) {
           </div>
 
           <!-- Empty state -->
-          <div v-else-if="positions.length === 0" class="rounded-lg border border-dashed p-8 text-center">
+          <div v-else-if="positions.length === 0 && groups.length === 0" class="rounded-lg border border-dashed p-8 text-center">
             <p class="text-muted-foreground">{{ t('warehouse.positionsEmpty') }}</p>
           </div>
 
           <template v-else>
-            <!-- Saving indicator -->
-            <div v-if="positionsSaving" class="text-xs text-muted-foreground">
-              {{ t('common.saving') }}...
-            </div>
+            <!-- ── Group tree (sortable container) ─────────────────────── -->
+            <div data-sortable-groups class="flex flex-col gap-3">
+              <div v-for="group in groups" :key="group.id" class="rounded-md border transition-colors">
+                <!-- Group header -->
+                <div class="flex items-center gap-2 px-3 py-2 bg-muted/30 cursor-pointer select-none" @click="toggleGroup(group.id)">
+                  <IconGripVertical class="group-drag-handle size-4 text-muted-foreground/40 cursor-grab active:cursor-grabbing shrink-0 touch-none" @click.stop />
+                  <IconFolder class="size-4 text-muted-foreground" />
+                  <component :is="expandedGroups.has(group.id) ? IconChevronDownSmall : IconChevronRightSmall" class="size-4 text-muted-foreground" />
 
-            <!-- Positioned products -->
-            <div class="rounded-md border">
-              <div v-if="positionedItems.length === 0" class="px-4 py-6 text-center text-sm text-muted-foreground">
-                {{ t('warehouse.unpositioned') }} — {{ t('warehouse.positionsDescription') }}
-              </div>
-              <div
-                v-for="(item, index) in positionedItems"
-                :key="item.product_id"
-                class="flex items-center gap-3 border-b px-3 py-2.5 last:border-0 hover:bg-muted/30 transition-colors"
-              >
-                <!-- Position number -->
-                <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-muted text-xs font-medium tabular-nums">
-                  {{ index + 1 }}
-                </span>
+                  <!-- Group name (inline edit) -->
+                  <template v-if="editingGroupId === group.id">
+                    <input
+                      v-model="editingGroupName"
+                      type="text"
+                      class="h-7 flex-1 rounded-md border border-input bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      @click.stop
+                      @keyup.enter="saveEditGroup"
+                      @keyup.escape="cancelEditGroup"
+                    />
+                    <button class="h-6 rounded px-1.5 text-xs bg-primary text-primary-foreground" @click.stop="saveEditGroup">OK</button>
+                    <button class="h-6 rounded px-1.5 text-xs border hover:bg-muted" @click.stop="cancelEditGroup">{{ t('common.cancel') }}</button>
+                  </template>
+                  <template v-else>
+                    <span class="flex-1 text-sm font-semibold">{{ group.name }}</span>
+                    <span class="text-xs text-muted-foreground">{{ group.products.length }} {{ group.products.length === 1 ? 'Produkt' : 'Produkte' }}</span>
+                  </template>
 
-                <!-- Move buttons -->
-                <div class="flex shrink-0 flex-col gap-0.5">
-                  <button
-                    class="inline-flex h-5 w-5 items-center justify-center rounded hover:bg-muted disabled:opacity-30"
-                    :disabled="index === 0"
-                    @click="movePositionUp(index)"
-                  >
-                    <IconArrowUp class="size-3" />
-                  </button>
-                  <button
-                    class="inline-flex h-5 w-5 items-center justify-center rounded hover:bg-muted disabled:opacity-30"
-                    :disabled="index === positionedItems.length - 1"
-                    @click="movePositionDown(index)"
-                  >
-                    <IconArrowDown class="size-3" />
-                  </button>
+                  <!-- Group actions -->
+                  <div v-if="editingGroupId !== group.id" class="flex items-center gap-0.5" @click.stop>
+                    <button class="h-6 w-6 inline-flex items-center justify-center rounded hover:bg-muted" @click="openAddGroup(group.id)" :title="t('warehouse.addSubGroup')">
+                      <IconFolderPlus class="size-3.5" />
+                    </button>
+                    <button class="h-6 w-6 inline-flex items-center justify-center rounded hover:bg-muted" @click="startEditGroup(group)" :title="t('warehouse.editGroup')">
+                      <IconEdit class="size-3.5" />
+                    </button>
+                    <button
+                      class="h-6 w-6 inline-flex items-center justify-center rounded hover:bg-red-50 text-red-600 dark:hover:bg-red-950/20 dark:text-red-400"
+                      @click="deletingGroup = group; showDeleteGroupConfirm = true"
+                      :title="t('warehouse.deleteGroup')"
+                    >
+                      <IconTrash class="size-3.5" />
+                    </button>
+                  </div>
                 </div>
 
-                <!-- Product image -->
-                <img
-                  v-if="item.image_path"
-                  :src="getProductImageUrl(item.image_path)"
-                  class="size-8 shrink-0 rounded object-cover"
-                  alt=""
-                />
+                <!-- Group content (products + subgroups) -->
+                <div v-if="expandedGroups.has(group.id)" class="border-t">
+                  <!-- Subgroups (recursive - one level shown inline) -->
+                  <template v-for="child in group.children" :key="child.id">
+                    <div class="ml-4 border-l transition-colors">
+                      <div class="flex items-center gap-2 px-3 py-1.5 bg-muted/20 cursor-pointer select-none" @click="toggleGroup(child.id)">
+                        <IconFolder class="size-3.5 text-muted-foreground" />
+                        <component :is="expandedGroups.has(child.id) ? IconChevronDownSmall : IconChevronRightSmall" class="size-3.5 text-muted-foreground" />
+                        <template v-if="editingGroupId === child.id">
+                          <input v-model="editingGroupName" type="text" class="h-6 flex-1 rounded border border-input bg-background px-2 text-xs" @click.stop @keyup.enter="saveEditGroup" @keyup.escape="cancelEditGroup" />
+                          <button class="h-5 rounded px-1 text-[10px] bg-primary text-primary-foreground" @click.stop="saveEditGroup">OK</button>
+                        </template>
+                        <template v-else>
+                          <span class="flex-1 text-xs font-semibold">{{ child.name }}</span>
+                          <span class="text-[10px] text-muted-foreground">{{ child.products.length }}</span>
+                        </template>
+                        <div v-if="editingGroupId !== child.id" class="flex items-center gap-0.5" @click.stop>
+                          <button class="h-5 w-5 inline-flex items-center justify-center rounded hover:bg-muted" @click="openAddGroup(child.id)"><IconFolderPlus class="size-3" /></button>
+                          <button class="h-5 w-5 inline-flex items-center justify-center rounded hover:bg-muted" @click="startEditGroup(child)"><IconEdit class="size-3" /></button>
+                          <button class="h-5 w-5 inline-flex items-center justify-center rounded hover:bg-red-50 text-red-600 dark:hover:bg-red-950/20 dark:text-red-400" @click="deletingGroup = child; showDeleteGroupConfirm = true"><IconTrash class="size-3" /></button>
+                        </div>
+                      </div>
+                      <!-- Child products (sortable) -->
+                      <div v-if="expandedGroups.has(child.id)" :data-sortable-group="child.id" class="min-h-[2rem]">
+                        <div
+                          v-for="item in child.products"
+                          :key="item.product_id"
+                          :data-product-id="item.product_id"
+                          class="flex items-center gap-2 border-t px-4 py-2 ml-2 hover:bg-muted/30 transition-colors"
+                        >
+                          <button class="shrink-0" @click="toggleSelectProduct(item.product_id)">
+                            <component :is="selectedProducts.has(item.product_id) ? IconSquareCheck : IconSquare" class="size-4 text-muted-foreground" />
+                          </button>
+                          <IconGripVertical class="drag-handle size-3.5 text-muted-foreground/40 cursor-grab active:cursor-grabbing shrink-0 touch-none" />
+                          <img v-if="item.image_path" :src="getProductImageUrl(item.image_path)" class="size-7 shrink-0 rounded object-cover" alt="" />
+                          <div v-else class="flex size-7 shrink-0 items-center justify-center rounded bg-muted text-[10px] font-medium text-muted-foreground">{{ item.product_name.charAt(0) }}</div>
+                          <span class="min-w-0 flex-1 truncate text-xs font-medium">{{ item.product_name }}</span>
+                          <input type="text" :value="item.location_label ?? ''" :placeholder="t('warehouse.locationPlaceholder')" class="h-6 w-24 shrink-0 rounded border border-input bg-background px-1.5 text-[10px] sm:w-28" @input="updateLocationLabel(item, ($event.target as HTMLInputElement).value)" />
+                          <button class="shrink-0 h-6 w-6 inline-flex items-center justify-center rounded border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950/20" @click="removeFromPositions(item)"><IconX class="size-3" /></button>
+                        </div>
+                      </div>
+                    </div>
+                  </template>
+
+                  <!-- Products directly in this group (sortable) -->
+                  <div :data-sortable-group="group.id" class="min-h-[2rem]">
+                    <div
+                      v-for="item in group.products"
+                      :key="item.product_id"
+                      :data-product-id="item.product_id"
+                      class="flex items-center gap-2 border-t px-3 py-2 hover:bg-muted/30 transition-colors"
+                    >
+                      <button class="shrink-0" @click="toggleSelectProduct(item.product_id)">
+                        <component :is="selectedProducts.has(item.product_id) ? IconSquareCheck : IconSquare" class="size-4 text-muted-foreground" />
+                      </button>
+                      <IconGripVertical class="drag-handle size-4 text-muted-foreground/40 cursor-grab active:cursor-grabbing shrink-0 touch-none" />
+                      <img v-if="item.image_path" :src="getProductImageUrl(item.image_path)" class="size-8 shrink-0 rounded object-cover" alt="" />
+                      <div v-else class="flex size-8 shrink-0 items-center justify-center rounded bg-muted text-xs font-medium text-muted-foreground">{{ item.product_name.charAt(0) }}</div>
+                      <span class="min-w-0 flex-1 truncate text-sm font-medium">{{ item.product_name }}</span>
+                      <input type="text" :value="item.location_label ?? ''" :placeholder="t('warehouse.locationPlaceholder')" class="h-7 w-28 shrink-0 rounded-md border border-input bg-background px-2 text-xs sm:w-36" @input="updateLocationLabel(item, ($event.target as HTMLInputElement).value)" />
+                      <button class="shrink-0 inline-flex h-7 items-center rounded-md border border-red-200 px-2 text-xs text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950/20" @click="removeFromPositions(item)"><IconX class="size-3" /></button>
+                    </div>
+                  </div>
+
+                  <!-- Empty group hint -->
+                  <div v-if="group.products.length === 0 && group.children.length === 0" class="px-4 py-3 text-xs text-muted-foreground text-center border-t">
+                    {{ t('warehouse.positionsEmpty') }}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- ── Root-level products (no group, sortable) ─────────────── -->
+            <div
+              v-if="ungroupedPositioned.length > 0 || groups.length > 0"
+              class="rounded-md border transition-colors"
+            >
+              <div class="px-3 py-2 bg-muted/20 text-xs font-medium text-muted-foreground">{{ t('warehouse.ungrouped') }}</div>
+              <div data-sortable-group="__root__" class="min-h-[2rem]">
                 <div
-                  v-else
-                  class="flex size-8 shrink-0 items-center justify-center rounded bg-muted text-xs font-medium text-muted-foreground"
+                  v-for="item in ungroupedPositioned"
+                  :key="item.product_id"
+                  :data-product-id="item.product_id"
+                  class="flex items-center gap-2 border-t px-3 py-2 hover:bg-muted/30 transition-colors"
                 >
-                  {{ item.product_name.charAt(0) }}
+                  <button class="shrink-0" @click="toggleSelectProduct(item.product_id)">
+                    <component :is="selectedProducts.has(item.product_id) ? IconSquareCheck : IconSquare" class="size-4 text-muted-foreground" />
+                  </button>
+                  <IconGripVertical class="drag-handle size-4 text-muted-foreground/40 cursor-grab active:cursor-grabbing shrink-0 touch-none" />
+                  <img v-if="item.image_path" :src="getProductImageUrl(item.image_path)" class="size-8 shrink-0 rounded object-cover" alt="" />
+                  <div v-else class="flex size-8 shrink-0 items-center justify-center rounded bg-muted text-xs font-medium text-muted-foreground">{{ item.product_name.charAt(0) }}</div>
+                  <span class="min-w-0 flex-1 truncate text-sm font-medium">{{ item.product_name }}</span>
+                  <input type="text" :value="item.location_label ?? ''" :placeholder="t('warehouse.locationPlaceholder')" class="h-7 w-28 shrink-0 rounded-md border border-input bg-background px-2 text-xs sm:w-36" @input="updateLocationLabel(item, ($event.target as HTMLInputElement).value)" />
+                  <button class="shrink-0 inline-flex h-7 items-center rounded-md border border-red-200 px-2 text-xs text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950/20" @click="removeFromPositions(item)"><IconX class="size-3" /></button>
                 </div>
-
-                <!-- Product name -->
-                <span class="min-w-0 flex-1 truncate text-sm font-medium">{{ item.product_name }}</span>
-
-                <!-- Location label input -->
-                <input
-                  type="text"
-                  :value="item.location_label ?? ''"
-                  :placeholder="t('warehouse.locationPlaceholder')"
-                  class="h-7 w-28 shrink-0 rounded-md border border-input bg-background px-2 text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring sm:w-36"
-                  @input="updateLocationLabel(item, ($event.target as HTMLInputElement).value)"
-                />
-
-                <!-- Remove button -->
-                <button
-                  class="inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-red-200 px-2 text-xs text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950/20"
-                  @click="removeFromPositions(item)"
-                >
-                  <IconX class="size-3" />
-                </button>
               </div>
             </div>
 
-            <!-- Unpositioned products -->
+            <!-- ── Unpositioned products ──────────────────────────────── -->
             <div v-if="unpositionedItems.length > 0">
               <h3 class="mb-2 text-sm font-medium text-muted-foreground">{{ t('warehouse.unpositioned') }}</h3>
               <div class="rounded-md border border-dashed">
@@ -1277,28 +1595,10 @@ async function saveMinStock(productId: string) {
                   :key="item.product_id"
                   class="flex items-center gap-3 border-b border-dashed px-3 py-2.5 last:border-0 opacity-60 hover:opacity-100 transition-opacity"
                 >
-                  <!-- Product image -->
-                  <img
-                    v-if="item.image_path"
-                    :src="getProductImageUrl(item.image_path)"
-                    class="size-8 shrink-0 rounded object-cover"
-                    alt=""
-                  />
-                  <div
-                    v-else
-                    class="flex size-8 shrink-0 items-center justify-center rounded bg-muted text-xs font-medium text-muted-foreground"
-                  >
-                    {{ item.product_name.charAt(0) }}
-                  </div>
-
-                  <!-- Product name -->
+                  <img v-if="item.image_path" :src="getProductImageUrl(item.image_path)" class="size-8 shrink-0 rounded object-cover" alt="" />
+                  <div v-else class="flex size-8 shrink-0 items-center justify-center rounded bg-muted text-xs font-medium text-muted-foreground">{{ item.product_name.charAt(0) }}</div>
                   <span class="min-w-0 flex-1 truncate text-sm">{{ item.product_name }}</span>
-
-                  <!-- Add button -->
-                  <button
-                    class="inline-flex h-7 shrink-0 items-center gap-1 rounded-md border px-2 text-xs hover:bg-muted"
-                    @click="addToPositions(item)"
-                  >
+                  <button class="inline-flex h-7 shrink-0 items-center gap-1 rounded-md border px-2 text-xs hover:bg-muted" @click="addToPositions(item)">
                     <IconPlus class="size-3" />
                     {{ t('warehouse.addToPositions') }}
                   </button>
@@ -1306,8 +1606,66 @@ async function saveMinStock(productId: string) {
               </div>
             </div>
           </template>
+
+          <!-- ── Multi-select floating bar ────────────────────────────── -->
+          <div
+            v-if="selectedProducts.size > 0"
+            class="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-lg border bg-background px-4 py-2.5 shadow-lg"
+          >
+            <span class="text-sm font-medium">{{ t('warehouse.nSelected', { count: selectedProducts.size }) }}</span>
+            <div class="relative">
+              <button
+                class="inline-flex h-8 items-center gap-1 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+                @click="showMoveToGroupMenu = !showMoveToGroupMenu"
+              >
+                <IconFolder class="size-3.5" />
+                {{ t('warehouse.moveToGroup') }}
+              </button>
+              <!-- Dropdown -->
+              <div v-if="showMoveToGroupMenu" class="absolute bottom-full left-0 mb-1 w-56 rounded-md border bg-popover p-1 shadow-md">
+                <button class="w-full rounded px-2 py-1.5 text-left text-sm hover:bg-muted" @click="moveSelectedToGroup(null)">
+                  {{ t('warehouse.rootLevel') }}
+                </button>
+                <button
+                  v-for="g in allGroupsFlat"
+                  :key="g.id"
+                  class="w-full rounded px-2 py-1.5 text-left text-sm hover:bg-muted"
+                  :style="{ paddingLeft: `${(g.depth + 1) * 12 + 8}px` }"
+                  @click="moveSelectedToGroup(g.id)"
+                >
+                  {{ g.name }}
+                </button>
+              </div>
+            </div>
+            <button class="h-8 rounded-md border px-3 text-xs hover:bg-muted" @click="deselectAll">
+              {{ t('warehouse.deselectAll') }}
+            </button>
+          </div>
         </div>
       </TabsContent>
+
+      <!-- ── Add group modal ──────────────────────────────────────────── -->
+      <AppModal v-model:open="showAddGroupModal" :title="t('warehouse.addGroup')" size="sm">
+        <form class="flex flex-col gap-3" @submit.prevent="submitAddGroup">
+          <div>
+            <label class="mb-1 block text-sm font-medium">{{ t('warehouse.groupName') }} *</label>
+            <input v-model="addGroupForm.name" type="text" :placeholder="t('warehouse.groupNamePlaceholder')" class="h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" />
+          </div>
+          <div class="flex justify-end gap-2">
+            <button type="button" class="h-9 rounded-md border px-4 text-sm hover:bg-muted" @click="showAddGroupModal = false">{{ t('common.cancel') }}</button>
+            <button type="submit" class="h-9 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90" :disabled="!addGroupForm.name.trim()">{{ t('common.save') }}</button>
+          </div>
+        </form>
+      </AppModal>
+
+      <!-- ── Delete group confirm modal ──────────────────────────────── -->
+      <AppModal v-model:open="showDeleteGroupConfirm" :title="t('warehouse.deleteGroup')" size="sm">
+        <p class="text-sm text-muted-foreground">{{ t('warehouse.deleteGroupConfirm', { name: deletingGroup?.name ?? '' }) }}</p>
+        <div class="flex justify-end gap-2 pt-2">
+          <button class="h-9 rounded-md border px-4 text-sm hover:bg-muted" @click="showDeleteGroupConfirm = false">{{ t('common.cancel') }}</button>
+          <button class="h-9 rounded-md bg-red-600 px-4 text-sm font-medium text-white hover:bg-red-700" @click="confirmDeleteGroup">{{ t('common.delete') }}</button>
+        </div>
+      </AppModal>
 
       <!-- ═══════════════════════════════════════════════════════════════════ -->
       <!-- SETTINGS TAB                                                       -->

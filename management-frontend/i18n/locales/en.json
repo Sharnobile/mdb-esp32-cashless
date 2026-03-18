@@ -467,7 +467,19 @@
     "locationLabel": "Location",
     "locationPlaceholder": "e.g. A1-03",
     "positionsSaved": "Positions saved",
-    "failedToSavePositions": "Failed to save positions"
+    "failedToSavePositions": "Failed to save positions",
+    "addGroup": "Add group",
+    "addSubGroup": "Add subgroup",
+    "groupName": "Group name",
+    "groupNamePlaceholder": "e.g. Shelf A, Fridge",
+    "editGroup": "Edit group",
+    "deleteGroup": "Delete group",
+    "deleteGroupConfirm": "Delete \"{name}\"? Subgroups will also be deleted. Products will not be removed.",
+    "ungrouped": "Without group",
+    "moveToGroup": "Move to group",
+    "nSelected": "{count} selected",
+    "deselectAll": "Deselect all",
+    "rootLevel": "Root level"
   },
   "devices": {
     "title": "Devices",

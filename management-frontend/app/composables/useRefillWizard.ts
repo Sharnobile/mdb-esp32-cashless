@@ -1,5 +1,6 @@
 import { useSupabaseClient } from '#imports'
 import { useOrganization } from './useOrganization'
+import { useWarehouse } from './useWarehouse'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -105,6 +106,7 @@ export function clearSavedTourState(): void {
 export function useRefillWizard() {
   const supabase = useSupabaseClient()
   const { organization } = useOrganization()
+  const { fetchOrderedProductIds } = useWarehouse()
 
   // Wizard state
   const currentStep = ref<WizardStep>('packing')
@@ -420,18 +422,14 @@ export function useRefillWizard() {
       return
     }
     try {
-      // Fetch stock and product positions in parallel
-      const [stockRes, posRes] = await Promise.all([
+      // Fetch stock and product positions (depth-first via groups) in parallel
+      const [stockRes, orderedIds] = await Promise.all([
         (supabase as any)
           .from('warehouse_stock_batches')
           .select('product_id, quantity')
           .eq('warehouse_id', selectedWarehouseId.value)
           .gt('quantity', 0),
-        (supabase as any)
-          .from('warehouse_product_positions')
-          .select('product_id')
-          .eq('warehouse_id', selectedWarehouseId.value)
-          .order('sort_order'),
+        fetchOrderedProductIds(selectedWarehouseId.value).catch(() => [] as string[]),
       ])
       if (stockRes.error) throw stockRes.error
 
@@ -441,12 +439,10 @@ export function useRefillWizard() {
       }
       warehouseStock.value = map
 
-      // Build position order map: product_id → index
+      // Build position order map: product_id → index (depth-first group traversal)
       const orderMap = new Map<string, number>()
-      if (!posRes.error) {
-        for (let i = 0; i < (posRes.data ?? []).length; i++) {
-          orderMap.set((posRes.data as any[])[i].product_id, i)
-        }
+      for (let i = 0; i < orderedIds.length; i++) {
+        orderMap.set(orderedIds[i], i)
       }
       warehouseProductOrder.value = orderMap
 
