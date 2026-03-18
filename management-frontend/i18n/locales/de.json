@@ -191,7 +191,11 @@
     "warehouseDeductionHint": "Beim Starten der Tour wird der Lagerbestand abgebucht",
     "completed": "erledigt",
     "alreadyCompleted": "Automat bereits erledigt",
-    "finishTour": "Tour abschließen"
+    "finishTour": "Tour abschließen",
+    "perMachine": "Pro Automat",
+    "combined": "Alle zusammen",
+    "forMachines": "für {machines}",
+    "totalQty": "{count} gesamt"
   },
   "machineDetail": {
     "sales": "Verkäufe",

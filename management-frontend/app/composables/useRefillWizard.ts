@@ -24,6 +24,16 @@ export interface RefillItem {
   in_stock?: boolean
 }
 
+export type PickingMode = 'per-machine' | 'combined'
+
+export interface CombinedPickItem {
+  product_id: string
+  product_name: string
+  image_path: string | null
+  total_deficit: number
+  machines: { id: string; name: string; deficit: number }[]
+}
+
 export interface TrayForRefill {
   id: string
   item_number: number
@@ -60,6 +70,7 @@ interface PersistedTourState {
   /** completedMachineIds as string[] */
   completedMachineIds: string[]
   tourLog: TourLogEntry[]
+  pickingMode?: PickingMode
   savedAt: number
 }
 
@@ -122,6 +133,11 @@ export function useRefillWizard() {
 
   // Track which machines have been completed or skipped during refill step
   const completedMachineIds = ref(new Set<string>())
+
+  // Picking mode and warehouse product order
+  const pickingMode = ref<PickingMode>('per-machine')
+  /** product_id → sort index (0-based). Empty = no positions defined. */
+  const warehouseProductOrder = ref(new Map<string, number>())
 
   // ── Computed ─────────────────────────────────────────────────────────────
 
@@ -400,23 +416,44 @@ export function useRefillWizard() {
   async function loadWarehouseStock() {
     if (!selectedWarehouseId.value) {
       warehouseStock.value = new Map()
+      warehouseProductOrder.value = new Map()
       return
     }
     try {
-      const { data, error } = await (supabase as any)
-        .from('warehouse_stock_batches')
-        .select('product_id, quantity')
-        .eq('warehouse_id', selectedWarehouseId.value)
-        .gt('quantity', 0)
-      if (error) throw error
+      // Fetch stock and product positions in parallel
+      const [stockRes, posRes] = await Promise.all([
+        (supabase as any)
+          .from('warehouse_stock_batches')
+          .select('product_id, quantity')
+          .eq('warehouse_id', selectedWarehouseId.value)
+          .gt('quantity', 0),
+        (supabase as any)
+          .from('warehouse_product_positions')
+          .select('product_id')
+          .eq('warehouse_id', selectedWarehouseId.value)
+          .order('sort_order'),
+      ])
+      if (stockRes.error) throw stockRes.error
+
       const map = new Map<string, number>()
-      for (const b of (data ?? []) as any[]) {
+      for (const b of (stockRes.data ?? []) as any[]) {
         map.set(b.product_id, (map.get(b.product_id) ?? 0) + b.quantity)
       }
       warehouseStock.value = map
+
+      // Build position order map: product_id → index
+      const orderMap = new Map<string, number>()
+      if (!posRes.error) {
+        for (let i = 0; i < (posRes.data ?? []).length; i++) {
+          orderMap.set((posRes.data as any[])[i].product_id, i)
+        }
+      }
+      warehouseProductOrder.value = orderMap
+
       recalculateCommittedQuantities()
     } catch {
       warehouseStock.value = new Map()
+      warehouseProductOrder.value = new Map()
       recalculateCommittedQuantities()
     }
   }
@@ -715,6 +752,143 @@ export function useRefillWizard() {
     return machines.value.every(m => completedMachineIds.value.has(m.id))
   })
 
+  // ── Position-sorted computeds ──────────────────────────────────────────
+
+  /** Sort helper: sort RefillItems by warehouse position, unpositioned last alphabetically */
+  function sortByPosition(items: RefillItem[]): RefillItem[] {
+    const order = warehouseProductOrder.value
+    if (order.size === 0) return items // no positions defined — keep deficit-based order
+    return [...items].sort((a, b) => {
+      const posA = a.product_id ? order.get(a.product_id) : undefined
+      const posB = b.product_id ? order.get(b.product_id) : undefined
+      // Both positioned: sort by position
+      if (posA !== undefined && posB !== undefined) return posA - posB
+      // Only one positioned: positioned comes first
+      if (posA !== undefined) return -1
+      if (posB !== undefined) return 1
+      // Neither positioned: alphabetical
+      return a.product_name.localeCompare(b.product_name)
+    })
+  }
+
+  /** Machines with tray_summary sorted by warehouse position */
+  const sortedMachines = computed<RefillMachine[]>(() => {
+    return machines.value.map(m => ({
+      ...m,
+      tray_summary: sortByPosition(m.tray_summary),
+    }))
+  })
+
+  /** All products across all machines merged and sorted by warehouse position */
+  const combinedPickList = computed<CombinedPickItem[]>(() => {
+    const grouped = new Map<string, CombinedPickItem>()
+    for (const machine of machines.value) {
+      for (const item of machine.tray_summary) {
+        if (!item.product_id) continue
+        const existing = grouped.get(item.product_id)
+        if (existing) {
+          existing.total_deficit += item.deficit
+          existing.machines.push({ id: machine.id, name: machine.name, deficit: item.deficit })
+        } else {
+          grouped.set(item.product_id, {
+            product_id: item.product_id,
+            product_name: item.product_name,
+            image_path: item.image_path,
+            total_deficit: item.deficit,
+            machines: [{ id: machine.id, name: machine.name, deficit: item.deficit }],
+          })
+        }
+      }
+    }
+
+    const items = Array.from(grouped.values())
+    const order = warehouseProductOrder.value
+    if (order.size === 0) {
+      // No positions — sort by total deficit descending
+      return items.sort((a, b) => b.total_deficit - a.total_deficit)
+    }
+    return items.sort((a, b) => {
+      const posA = order.get(a.product_id)
+      const posB = order.get(b.product_id)
+      if (posA !== undefined && posB !== undefined) return posA - posB
+      if (posA !== undefined) return -1
+      if (posB !== undefined) return 1
+      return a.product_name.localeCompare(b.product_name)
+    })
+  })
+
+  // ── Combined mode helpers ──────────────────────────────────────────────
+
+  /** Check if a product is packed for ALL machines that need it */
+  function isPackedCombined(productId: string): boolean {
+    for (const machine of machines.value) {
+      const needsIt = machine.tray_summary.some(item => item.product_id === productId)
+      if (!needsIt) continue
+      const set = packedItems.value.get(machine.id)
+      if (!set || !set.has(productId)) return false
+    }
+    return true
+  }
+
+  /** Toggle pack/unpack for a product across ALL machines that need it */
+  function togglePackedCombined(productId: string) {
+    const allPacked = isPackedCombined(productId)
+    for (const machine of machines.value) {
+      const item = machine.tray_summary.find(i => i.product_id === productId)
+      if (!item) continue
+      if (isOutOfWarehouseStock(item, machine.id) && !allPacked) continue
+
+      const current = packedItems.value.get(machine.id) ?? new Set<string>()
+      if (allPacked) {
+        current.delete(productId)
+      } else {
+        current.add(productId)
+      }
+      packedItems.value.set(machine.id, current)
+    }
+    packedItems.value = new Map(packedItems.value)
+    recalculateCommittedQuantities()
+  }
+
+  /** Check if all combined pick list items are packed */
+  const allPackedCombined = computed(() => {
+    if (combinedPickList.value.length === 0) return false
+    return combinedPickList.value.every(item => isPackedCombined(item.product_id))
+  })
+
+  /** Get effective deficit for a combined pick item, capped by warehouse stock */
+  function effectiveDeficitCombined(productId: string): number {
+    // Sum raw deficit across all machines
+    let totalDeficit = 0
+    for (const machine of machines.value) {
+      const item = machine.tray_summary.find(i => i.product_id === productId)
+      if (!item) continue
+      totalDeficit += item.deficit
+    }
+
+    if (!selectedWarehouseId.value) return totalDeficit
+
+    // If all machines have this product packed, sum committed quantities
+    let totalCommitted = 0
+    let allChecked = true
+    for (const machine of machines.value) {
+      const item = machine.tray_summary.find(i => i.product_id === productId)
+      if (!item) continue
+      const checked = packedItems.value.get(machine.id)
+      if (checked?.has(productId)) {
+        totalCommitted += committedQuantities.value.get(machine.id)?.get(productId) ?? 0
+      } else {
+        allChecked = false
+      }
+    }
+
+    if (allChecked) return totalCommitted
+
+    // Unchecked: cap total deficit by total warehouse stock
+    const warehouseTotal = warehouseStock.value.get(productId) ?? 0
+    return Math.min(totalDeficit, warehouseTotal)
+  }
+
   async function advanceToNextMachine() {
     // Find the next uncompleted machine
     let nextIndex = -1
@@ -761,6 +935,7 @@ export function useRefillWizard() {
       ),
       completedMachineIds: Array.from(completedMachineIds.value),
       tourLog: tourLog.value,
+      pickingMode: pickingMode.value,
       savedAt: Date.now(),
     }
     try {
@@ -790,6 +965,7 @@ export function useRefillWizard() {
       selectedWarehouseId.value = state.selectedWarehouseId
       completedMachineIds.value = new Set(state.completedMachineIds)
       tourLog.value = state.tourLog
+      pickingMode.value = state.pickingMode ?? 'per-machine'
 
       const pq = new Map<string, Map<string, number>>()
       for (const [mid, entries] of state.packedQuantities) {
@@ -818,6 +994,8 @@ export function useRefillWizard() {
     completedMachineIds.value = new Set()
     currentTrays.value = []
     tourLog.value = []
+    pickingMode.value = 'per-machine'
+    warehouseProductOrder.value = new Map()
     clearSavedTourState()
   }
 
@@ -836,6 +1014,7 @@ export function useRefillWizard() {
     currentTrays,
     currentTraysLoading,
     tourLog,
+    pickingMode,
 
     // Computed
     currentMachine,
@@ -845,6 +1024,9 @@ export function useRefillWizard() {
     tourSummary,
     allMachinesCompleted,
     completedMachineIds,
+    sortedMachines,
+    combinedPickList,
+    allPackedCombined,
 
     // Packing
     isPacked,
@@ -856,6 +1038,9 @@ export function useRefillWizard() {
     hasPartialStock,
     hasAnyPackedItems,
     effectiveStockHealth,
+    isPackedCombined,
+    togglePackedCombined,
+    effectiveDeficitCombined,
 
     // Actions
     initTour,

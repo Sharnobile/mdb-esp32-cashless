@@ -191,7 +191,11 @@
     "warehouseDeductionHint": "Warehouse stock will be deducted when starting the tour",
     "completed": "completed",
     "alreadyCompleted": "Machine already completed",
-    "finishTour": "Finish Tour"
+    "finishTour": "Finish Tour",
+    "perMachine": "Per machine",
+    "combined": "All together",
+    "forMachines": "for {machines}",
+    "totalQty": "{count} total"
   },
   "machineDetail": {
     "sales": "Sales",

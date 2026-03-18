@@ -37,9 +37,9 @@ Vending machine operators can manage all the telemetry, monitor sales, and optim
   - [x] Phase 01: KPI aggregation RPC (`get_machine_insights_kpis`) — Phase 01 complete
   - [ ] Phase 02: `machine-insights` edge function + Claude API integration
   - [ ] Phase 03: Dashboard UI — "AI Insights" button + recommendations modal
-- [ ] Warehouse picking optimization (sorted pick lists for refill tours)
+- [x] Warehouse picking optimization (sorted pick lists for refill tours)
   - [x] Phase 04: Warehouse product positions — table + admin UI — Phase 04 complete
-  - [ ] Phase 05: Sorted pick list — refill wizard integration + per-machine/combined mode
+  - [x] Phase 05: Sorted pick list — refill wizard integration + per-machine/combined mode — Phase 05 complete
 
 ### Planned (Next)
 
@@ -117,4 +117,4 @@ Production system with live ESP32 devices installed in the field. Backward compa
 
 ---
 *PROJECT.md — Updated when requirements or context change*
-*Last updated: 2026-03-18 after Phase 04 (warehouse-product-positions)*
+*Last updated: 2026-03-18 after Phase 05 (sorted-picklist) — Milestone v1.2 complete*

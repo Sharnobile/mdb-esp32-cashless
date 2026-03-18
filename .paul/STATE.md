@@ -5,39 +5,39 @@
 See: .paul/PROJECT.md (updated 2026-03-18)
 
 **Core value:** Vending machine operators can manage all the telemetry, monitor sales, and optimize inventory from a single dashboard
-**Current focus:** Warehouse Picking Optimization — Phase 05: sorted-picklist
+**Current focus:** Milestone v1.2 complete — no active work
 
 ## Current Position
 
-Milestone: Warehouse Picking Optimization (v1.2)
-Phase: 2 of 2 (sorted-picklist) — Not started
-Plan: Not started
-Status: Ready to plan
-Last activity: 2026-03-18 — Phase 04 complete, transitioned to Phase 05
+Milestone: Warehouse Picking Optimization (v1.2) — Complete
+Phase: 2 of 2 complete
+Plan: All plans complete
+Status: Milestone complete
+Last activity: 2026-03-18 — Phase 05 complete, milestone v1.2 closed
 
 Progress:
-- Milestone v1.2: [█████░░░░░] 50%
-- Phase 05: [░░░░░░░░░░] 0%
+- Milestone v1.2: [██████████] 100%
 
 ## Loop Position
 
 Current loop state:
 ```
 PLAN ──▶ APPLY ──▶ UNIFY
-  ○        ○        ○     [Ready for next PLAN]
+  ✓        ✓        ✓     [Loop complete — milestone finished]
 ```
 
 ## Accumulated Context
 
 ### Decisions
-- New milestone (v1.2) for warehouse picking, independent of AI Insights (v1.1)
 - `warehouse_product_positions` table: per-warehouse, per-product sort_order + optional location_label
 - Denormalized `company_id` on positions table for RLS consistency
 - Button-based reordering (up/down arrows) for mobile compatibility
-- `fetchOrderedProductIds(warehouseId)` available for Phase 05 pick list sorting
+- Computed sort layer over raw machines (sortedMachines) — zero risk to existing logic
+- Combined deficit capped by warehouse total stock, not per-machine remaining
+- Position fetch in parallel with stock fetch inside loadWarehouseStock()
 
 ### Git State
-Last commit: (pending — phase commit next)
+Last commit: 988caed
 Branch: main
 
 ### Paused Work
@@ -46,6 +46,7 @@ Branch: main
 
 ### Deferred Issues
 - `supabase db reset` does not work locally — pre-existing issue.
+- Phase 04 migration not yet applied to production DB (needs Docker restart)
 
 ### Blockers/Concerns
 None.
@@ -53,8 +54,8 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-18
-Stopped at: Phase 04 complete, ready to plan Phase 05
-Next action: /paul:plan for Phase 05 (sorted-picklist)
+Stopped at: Milestone v1.2 complete
+Next action: Start next milestone, resume AI Insights (v1.1), or pause
 Resume file: .paul/ROADMAP.md
 
 ---

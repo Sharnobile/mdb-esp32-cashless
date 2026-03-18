@@ -17,8 +17,10 @@ const {
   currentTrays, currentTraysLoading,
   tourLog, tourSummary, currentMachine, totalMachinesInTour, currentMachineNumber,
   completedMachineIds, allMachinesCompleted,
+  pickingMode, sortedMachines, combinedPickList, allPackedCombined,
   isPacked, togglePacked, allPacked, effectiveDeficit,
   isOutOfWarehouseStock, hasPartialStock, hasAnyPackedItems, effectiveStockHealth,
+  isPackedCombined, togglePackedCombined, effectiveDeficitCombined,
   initTour, loadWarehouseStock, startTour,
   adjustFillAmount, confirmMachineRefill, skipMachine, goToMachine, isMachineCompleted, resetWizard,
   resumeTour,
@@ -123,10 +125,85 @@ const currentMachineDone = computed(() =>
           </select>
         </div>
 
-        <!-- Per-machine packing cards — single column on mobile -->
-        <div class="flex flex-col gap-3 pb-20 sm:pb-24 md:grid md:grid-cols-2 xl:grid-cols-3 md:gap-4">
+        <!-- Picking mode toggle -->
+        <div class="flex items-center gap-1 rounded-lg border p-1">
+          <button
+            class="flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
+            :class="pickingMode === 'per-machine' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'"
+            @click="pickingMode = 'per-machine'"
+          >
+            {{ t('refill.perMachine') }}
+          </button>
+          <button
+            class="flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
+            :class="pickingMode === 'combined' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'"
+            @click="pickingMode = 'combined'"
+          >
+            {{ t('refill.combined') }}
+          </button>
+        </div>
+
+        <!-- ── COMBINED PICKING MODE ──────────────────────────────────── -->
+        <div v-if="pickingMode === 'combined'" class="flex flex-col gap-3 pb-20 sm:pb-24">
+          <Card>
+            <CardContent class="space-y-1 px-4 py-3 sm:px-6">
+              <div class="flex items-center justify-between mb-2">
+                <p class="text-xs font-medium text-muted-foreground uppercase tracking-wide">{{ t('refill.packForMachine') }}</p>
+                <span
+                  v-if="allPackedCombined"
+                  class="text-xs font-medium text-green-600"
+                >
+                  {{ t('refill.allPacked') }}
+                </span>
+              </div>
+              <ul class="space-y-0.5">
+                <li
+                  v-for="item in combinedPickList"
+                  :key="item.product_id"
+                  class="flex items-center gap-2.5 rounded-lg px-2 py-2.5 -mx-2 transition-colors cursor-pointer select-none hover:bg-muted/50 active:bg-muted"
+                  @click="togglePackedCombined(item.product_id)"
+                >
+                  <!-- Checkbox -->
+                  <span
+                    class="flex h-6 w-6 shrink-0 items-center justify-center rounded border-2 transition-colors"
+                    :class="isPackedCombined(item.product_id)
+                      ? 'bg-primary border-primary text-primary-foreground'
+                      : 'border-muted-foreground/30'"
+                  >
+                    <svg v-if="isPackedCombined(item.product_id)" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="h-3.5 w-3.5"><polyline points="20 6 9 17 4 12" /></svg>
+                  </span>
+                  <!-- Product image -->
+                  <img
+                    v-if="item.image_path"
+                    :src="getProductImageUrl(item.image_path)"
+                    :alt="item.product_name"
+                    class="h-10 w-10 shrink-0 rounded object-cover transition-opacity"
+                    :class="isPackedCombined(item.product_id) ? 'opacity-40' : ''"
+                  />
+                  <span
+                    v-else
+                    class="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-muted text-xs text-muted-foreground transition-opacity"
+                    :class="isPackedCombined(item.product_id) ? 'opacity-40' : ''"
+                  >
+                    {{ item.product_name.charAt(0) }}
+                  </span>
+                  <!-- Product info -->
+                  <div class="min-w-0 flex-1 transition-all" :class="isPackedCombined(item.product_id) ? 'line-through text-muted-foreground/50' : ''">
+                    <span class="text-sm block">{{ effectiveDeficitCombined(item.product_id) }}&times; {{ item.product_name }}</span>
+                    <span class="text-xs text-muted-foreground block">
+                      {{ t('refill.forMachines', { machines: item.machines.map(m => m.name).join(', ') }) }}
+                    </span>
+                  </div>
+                </li>
+              </ul>
+            </CardContent>
+          </Card>
+        </div>
+
+        <!-- ── PER-MACHINE PICKING MODE ───────────────────────────────── -->
+        <div v-else class="flex flex-col gap-3 pb-20 sm:pb-24 md:grid md:grid-cols-2 xl:grid-cols-3 md:gap-4">
           <Card
-            v-for="machine in machines"
+            v-for="machine in sortedMachines"
             :key="machine.id"
             class="h-full"
             :class="effectiveStockHealth(machine) === 'ok' ? 'opacity-40' : ''"

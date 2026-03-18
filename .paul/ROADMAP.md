@@ -17,13 +17,13 @@ Phases: 1 of 3 complete
 | 03 | insights-ui | 1 | Not started | - |
 
 ### Warehouse Picking Optimization (v1.2)
-Status: In progress
-Phases: 1 of 2 complete
+Status: ✅ Complete
+Phases: 2 of 2 complete
 
 | Phase | Name | Plans | Status | Completed |
 |-------|------|-------|--------|-----------|
 | 04 | warehouse-product-positions | 1 | ✅ Complete | 2026-03-18 |
-| 05 | sorted-picklist | 1 | Not started | - |
+| 05 | sorted-picklist | 1 | ✅ Complete | 2026-03-18 |
 
 ## Phase Details
 
