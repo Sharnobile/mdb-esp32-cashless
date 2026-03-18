@@ -453,7 +453,17 @@
     "createNewProductShort": "Create new product",
     "productCreated": "Product created",
     "quantityPlaceholder": "e.g. 48",
-    "noBatchId": "N/A"
+    "noBatchId": "N/A",
+    "positionsTab": "Positions",
+    "positionsEmpty": "No products in this warehouse. Book incoming stock first.",
+    "positionsDescription": "Define the physical order of products in your warehouse. Pick lists will follow this order.",
+    "unpositioned": "Not positioned",
+    "addToPositions": "Add",
+    "removeFromPositions": "Remove",
+    "locationLabel": "Location",
+    "locationPlaceholder": "e.g. A1-03",
+    "positionsSaved": "Positions saved",
+    "failedToSavePositions": "Failed to save positions"
   },
   "devices": {
     "title": "Devices",

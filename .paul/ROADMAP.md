@@ -2,21 +2,28 @@
 
 ## Overview
 
-Extend the existing production vending machine telemetry system with AI-powered analytics to help operators optimize product placement, reduce refill frequency, and maximize revenue per machine.
+Extend the existing production vending machine telemetry system with AI-powered analytics and optimized warehouse picking workflows.
 
-## Current Milestone
+## Milestones
 
-**AI Insights & Optimization** (v1.1)
-Status: In progress
+### AI Insights & Optimization (v1.1)
+Status: In progress (paused — Phase 02 applied, UNIFY pending)
 Phases: 1 of 3 complete
-
-## Phases
 
 | Phase | Name | Plans | Status | Completed |
 |-------|------|-------|--------|-----------|
 | 01 | data-aggregation | 1 | ✅ Complete | 2026-03-18 |
-| 02 | insights-edge-function | 1 | Not started | - |
+| 02 | insights-edge-function | 1 | Applied (UNIFY pending) | - |
 | 03 | insights-ui | 1 | Not started | - |
+
+### Warehouse Picking Optimization (v1.2)
+Status: In progress
+Phases: 1 of 2 complete
+
+| Phase | Name | Plans | Status | Completed |
+|-------|------|-------|--------|-----------|
+| 04 | warehouse-product-positions | 1 | ✅ Complete | 2026-03-18 |
+| 05 | sorted-picklist | 1 | Not started | - |
 
 ## Phase Details
 
@@ -35,6 +42,16 @@ Phases: 1 of 3 complete
 **Depends on:** Phase 02 (needs edge function endpoint + response schema)
 **Output:** Working UI operators can use to get AI recommendations per machine
 
+### Phase 04: warehouse-product-positions
+**Goal:** Add `warehouse_product_positions` table so operators can define the physical order/location of products in each warehouse. Management UI ("Positionen" tab) for drag-and-drop reordering and optional location labels (e.g. "Regal 2, Fach 5").
+**Depends on:** Nothing (independent of AI Insights milestone)
+**Output:** DB migration + composable extensions + warehouse UI tab
+
+### Phase 05: sorted-picklist
+**Goal:** Update the refill wizard packing step to sort pick lists by warehouse product position. Two modes: per-machine picking (separate box per machine, one warehouse pass each) and combined picking (all products in one box, single warehouse pass).
+**Depends on:** Phase 04 (needs warehouse_product_positions data)
+**Output:** Optimized pick list ordering in refill tour
+
 ---
 *Roadmap created: 2026-03-17*
-*Last updated: 2026-03-17*
+*Last updated: 2026-03-18 — Phase 04 complete*

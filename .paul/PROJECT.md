@@ -14,7 +14,7 @@ Vending machine operators can manage all the telemetry, monitor sales, and optim
 |-----------|-------|
 | Version | Production |
 | Status | Production |
-| Last Updated | 2026-03-17 |
+| Last Updated | 2026-03-18 |
 
 ## Requirements
 
@@ -37,6 +37,9 @@ Vending machine operators can manage all the telemetry, monitor sales, and optim
   - [x] Phase 01: KPI aggregation RPC (`get_machine_insights_kpis`) — Phase 01 complete
   - [ ] Phase 02: `machine-insights` edge function + Claude API integration
   - [ ] Phase 03: Dashboard UI — "AI Insights" button + recommendations modal
+- [ ] Warehouse picking optimization (sorted pick lists for refill tours)
+  - [x] Phase 04: Warehouse product positions — table + admin UI — Phase 04 complete
+  - [ ] Phase 05: Sorted pick list — refill wizard integration + per-machine/combined mode
 
 ### Planned (Next)
 
@@ -91,6 +94,7 @@ Production system with live ESP32 devices installed in the field. Backward compa
 | AI KPIs pre-aggregated in SQL (not app layer) | Keeps edge function simple, reduces Claude API token usage, enforces tenancy at DB level | 2026-03-18 | Active |
 | `security definer` + manual `p_company_id` check for AI RPCs | Service role client in edge functions bypasses RLS — manual check is the tenancy gate | 2026-03-18 | Active |
 | Schema FK pattern: `company`, not `company_id` | Existing schema uses `company` as the FK column name in vendingMachine, embeddeds, products | 2026-03-18 | Active |
+| Denormalized `company_id` on warehouse position tables | Matches `warehouse_stock_batches` RLS pattern — simpler policies | 2026-03-18 | Active |
 
 ## Success Metrics
 
@@ -113,4 +117,4 @@ Production system with live ESP32 devices installed in the field. Backward compa
 
 ---
 *PROJECT.md — Updated when requirements or context change*
-*Last updated: 2026-03-18 after Phase 01 (data-aggregation)*
+*Last updated: 2026-03-18 after Phase 04 (warehouse-product-positions)*

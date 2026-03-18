@@ -8,12 +8,14 @@ import {
   IconPlus, IconBarcode, IconAdjustments, IconTrash,
   IconPackageImport, IconChevronDown, IconChevronRight,
   IconAlertTriangle, IconSearch, IconX,
+  IconArrowUp, IconArrowDown, IconGripVertical,
 } from '@tabler/icons-vue'
 import { timeAgo, formatCurrency, formatDate } from '@/lib/utils'
 import { getProductImageUrl } from '@/composables/useProducts'
 import {
   expirationStatus, expirationBadgeClass, expirationLabel,
   type Warehouse, type StockBatch, type WarehouseProductSummary,
+  type WarehouseProductPosition,
 } from '@/composables/useWarehouse'
 
 const { t, locale } = useI18n()
@@ -26,6 +28,7 @@ const {
   fetchBarcodes, lookupBarcode, addBarcode, removeBarcode,
   fetchBatches, fetchProductSummaries, bookIncoming, adjustStock,
   fetchMinStocks, setMinStock,
+  positions, fetchPositions, savePositions, removePosition,
   fetchTransactions, fetchMoreTransactions,
   subscribeToStockUpdates,
   transactionTypeLabel, transactionTypeBadgeClass,
@@ -124,6 +127,106 @@ const filteredSummaries = computed(() => {
 function batchesForProduct(productId: string): StockBatch[] {
   return batches.value.filter(b => b.product_id === productId)
 }
+
+// ── Positions tab state ─────────────────────────────────────────────────────
+
+const positionsLoading = ref(false)
+const positionsSaving = ref(false)
+let positionSaveTimer: ReturnType<typeof setTimeout> | null = null
+
+const positionedItems = computed(() => positions.value.filter(p => p.sort_order >= 0))
+const unpositionedItems = computed(() => positions.value.filter(p => p.sort_order < 0))
+
+async function loadPositions() {
+  if (!selectedWarehouseId.value) return
+  positionsLoading.value = true
+  try {
+    await fetchPositions(selectedWarehouseId.value)
+  } finally {
+    positionsLoading.value = false
+  }
+}
+
+function debouncedSavePositions() {
+  if (positionSaveTimer) clearTimeout(positionSaveTimer)
+  positionSaveTimer = setTimeout(() => doSavePositions(), 500)
+}
+
+async function doSavePositions() {
+  if (!selectedWarehouseId.value) return
+  positionsSaving.value = true
+  try {
+    const items = positionedItems.value.map((p, idx) => ({
+      product_id: p.product_id,
+      sort_order: idx + 1,
+      location_label: p.location_label,
+    }))
+    await savePositions(selectedWarehouseId.value, items)
+  } catch (e) {
+    console.error('Failed to save positions', e)
+  } finally {
+    positionsSaving.value = false
+  }
+}
+
+function movePositionUp(index: number) {
+  if (index <= 0) return
+  const list = [...positionedItems.value]
+  const temp = list[index]!
+  list[index] = list[index - 1]!
+  list[index - 1] = temp
+  // Reassign sort_order
+  list.forEach((item, i) => { item.sort_order = i + 1 })
+  positions.value = [...list, ...unpositionedItems.value]
+  debouncedSavePositions()
+}
+
+function movePositionDown(index: number) {
+  const list = [...positionedItems.value]
+  if (index >= list.length - 1) return
+  const temp = list[index]!
+  list[index] = list[index + 1]!
+  list[index + 1] = temp
+  list.forEach((item, i) => { item.sort_order = i + 1 })
+  positions.value = [...list, ...unpositionedItems.value]
+  debouncedSavePositions()
+}
+
+function addToPositions(item: WarehouseProductPosition) {
+  const list = [...positionedItems.value]
+  item.sort_order = list.length + 1
+  list.push(item)
+  positions.value = [...list, ...unpositionedItems.value.filter(u => u.product_id !== item.product_id)]
+  debouncedSavePositions()
+}
+
+async function removeFromPositions(item: WarehouseProductPosition) {
+  if (!selectedWarehouseId.value) return
+  item.sort_order = -1
+  const list = positionedItems.value
+  list.forEach((p, i) => { p.sort_order = i + 1 })
+  positions.value = [...list, ...unpositionedItems.value, item].filter((p, i, arr) =>
+    arr.findIndex(x => x.product_id === p.product_id) === i
+  )
+  try {
+    await removePosition(selectedWarehouseId.value, item.product_id)
+    await doSavePositions()
+  } catch (e) {
+    console.error('Failed to remove position', e)
+  }
+}
+
+function updateLocationLabel(item: WarehouseProductPosition, value: string) {
+  item.location_label = value || null
+  debouncedSavePositions()
+}
+
+// Load positions when tab switches to positions
+watch(activeTab, (tab) => {
+  if (tab === 'positions' && selectedWarehouseId.value) {
+    loadPositions()
+  }
+})
 
 // ── Incoming tab state ──────────────────────────────────────────────────────
 
@@ -575,6 +678,7 @@ async function saveMinStock(productId: string) {
         <TabsTrigger value="stock">{{ t('warehouse.stockTab') }}</TabsTrigger>
         <TabsTrigger value="incoming">{{ t('warehouse.incoming') }}</TabsTrigger>
         <TabsTrigger value="history">{{ t('warehouse.historyTab') }}</TabsTrigger>
+        <TabsTrigger v-if="isAdmin" value="positions">{{ t('warehouse.positionsTab') }}</TabsTrigger>
         <TabsTrigger v-if="isAdmin" value="settings">{{ t('warehouse.settings') }}</TabsTrigger>
       </TabsList>
 
@@ -1071,6 +1175,142 @@ async function saveMinStock(productId: string) {
 
       <!-- ═══════════════════════════════════════════════════════════════════ -->
       <!-- SETTINGS TAB (admin only)                                          -->
+      <!-- ═══════════════════════════════════════════════════════════════════ -->
+      <!-- ═══════════════════════════════════════════════════════════════════ -->
+      <!-- POSITIONS TAB                                                       -->
+      <!-- ═══════════════════════════════════════════════════════════════════ -->
+      <TabsContent v-if="isAdmin" value="positions">
+        <div class="flex flex-col gap-4">
+          <p class="text-sm text-muted-foreground">{{ t('warehouse.positionsDescription') }}</p>
+
+          <!-- Loading -->
+          <div v-if="positionsLoading" class="flex items-center justify-center py-12">
+            <div class="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          </div>
+
+          <!-- Empty state -->
+          <div v-else-if="positions.length === 0" class="rounded-lg border border-dashed p-8 text-center">
+            <p class="text-muted-foreground">{{ t('warehouse.positionsEmpty') }}</p>
+          </div>
+
+          <template v-else>
+            <!-- Saving indicator -->
+            <div v-if="positionsSaving" class="text-xs text-muted-foreground">
+              {{ t('common.saving') }}...
+            </div>
+
+            <!-- Positioned products -->
+            <div class="rounded-md border">
+              <div v-if="positionedItems.length === 0" class="px-4 py-6 text-center text-sm text-muted-foreground">
+                {{ t('warehouse.unpositioned') }} — {{ t('warehouse.positionsDescription') }}
+              </div>
+              <div
+                v-for="(item, index) in positionedItems"
+                :key="item.product_id"
+                class="flex items-center gap-3 border-b px-3 py-2.5 last:border-0 hover:bg-muted/30 transition-colors"
+              >
+                <!-- Position number -->
+                <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-muted text-xs font-medium tabular-nums">
+                  {{ index + 1 }}
+                </span>
+
+                <!-- Move buttons -->
+                <div class="flex shrink-0 flex-col gap-0.5">
+                  <button
+                    class="inline-flex h-5 w-5 items-center justify-center rounded hover:bg-muted disabled:opacity-30"
+                    :disabled="index === 0"
+                    @click="movePositionUp(index)"
+                  >
+                    <IconArrowUp class="size-3" />
+                  </button>
+                  <button
+                    class="inline-flex h-5 w-5 items-center justify-center rounded hover:bg-muted disabled:opacity-30"
+                    :disabled="index === positionedItems.length - 1"
+                    @click="movePositionDown(index)"
+                  >
+                    <IconArrowDown class="size-3" />
+                  </button>
+                </div>
+
+                <!-- Product image -->
+                <img
+                  v-if="item.image_path"
+                  :src="getProductImageUrl(item.image_path)"
+                  class="size-8 shrink-0 rounded object-cover"
+                  alt=""
+                />
+                <div
+                  v-else
+                  class="flex size-8 shrink-0 items-center justify-center rounded bg-muted text-xs font-medium text-muted-foreground"
+                >
+                  {{ item.product_name.charAt(0) }}
+                </div>
+
+                <!-- Product name -->
+                <span class="min-w-0 flex-1 truncate text-sm font-medium">{{ item.product_name }}</span>
+
+                <!-- Location label input -->
+                <input
+                  type="text"
+                  :value="item.location_label ?? ''"
+                  :placeholder="t('warehouse.locationPlaceholder')"
+                  class="h-7 w-28 shrink-0 rounded-md border border-input bg-background px-2 text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring sm:w-36"
+                  @input="updateLocationLabel(item, ($event.target as HTMLInputElement).value)"
+                />
+
+                <!-- Remove button -->
+                <button
+                  class="inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-red-200 px-2 text-xs text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950/20"
+                  @click="removeFromPositions(item)"
+                >
+                  <IconX class="size-3" />
+                </button>
+              </div>
+            </div>
+
+            <!-- Unpositioned products -->
+            <div v-if="unpositionedItems.length > 0">
+              <h3 class="mb-2 text-sm font-medium text-muted-foreground">{{ t('warehouse.unpositioned') }}</h3>
+              <div class="rounded-md border border-dashed">
+                <div
+                  v-for="item in unpositionedItems"
+                  :key="item.product_id"
+                  class="flex items-center gap-3 border-b border-dashed px-3 py-2.5 last:border-0 opacity-60 hover:opacity-100 transition-opacity"
+                >
+                  <!-- Product image -->
+                  <img
+                    v-if="item.image_path"
+                    :src="getProductImageUrl(item.image_path)"
+                    class="size-8 shrink-0 rounded object-cover"
+                    alt=""
+                  />
+                  <div
+                    v-else
+                    class="flex size-8 shrink-0 items-center justify-center rounded bg-muted text-xs font-medium text-muted-foreground"
+                  >
+                    {{ item.product_name.charAt(0) }}
+                  </div>
+
+                  <!-- Product name -->
+                  <span class="min-w-0 flex-1 truncate text-sm">{{ item.product_name }}</span>
+
+                  <!-- Add button -->
+                  <button
+                    class="inline-flex h-7 shrink-0 items-center gap-1 rounded-md border px-2 text-xs hover:bg-muted"
+                    @click="addToPositions(item)"
+                  >
+                    <IconPlus class="size-3" />
+                    {{ t('warehouse.addToPositions') }}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </template>
+        </div>
+      </TabsContent>
+
+      <!-- ═══════════════════════════════════════════════════════════════════ -->
+      <!-- SETTINGS TAB                                                       -->
       <!-- ═══════════════════════════════════════════════════════════════════ -->
       <TabsContent v-if="isAdmin" value="settings">
         <div class="flex flex-col gap-6">

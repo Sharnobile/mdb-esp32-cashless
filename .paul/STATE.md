@@ -2,51 +2,60 @@
 
 ## Project Reference
 
-See: .paul/PROJECT.md (updated 2026-03-17)
+See: .paul/PROJECT.md (updated 2026-03-18)
 
 **Core value:** Vending machine operators can manage all the telemetry, monitor sales, and optimize inventory from a single dashboard
-**Current focus:** AI Insights & Optimization — Phase 01: data-aggregation
+**Current focus:** Warehouse Picking Optimization — Phase 05: sorted-picklist
 
 ## Current Position
 
-Milestone: AI Insights & Optimization (v1.1)
-Phase: 1 of 3 (data-aggregation) — Applied
-Plan: 01-01 executed
-Status: APPLY complete, ready for UNIFY
-Last activity: 2026-03-17 — Applied Docker/supabase/migrations/20260317000000_machine_insights_rpc.sql
+Milestone: Warehouse Picking Optimization (v1.2)
+Phase: 2 of 2 (sorted-picklist) — Not started
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-03-18 — Phase 04 complete, transitioned to Phase 05
 
 Progress:
-- Milestone: [█░░░░░░░░░] 10%
-- Phase 01: [██████████] 100% (APPLY done)
+- Milestone v1.2: [█████░░░░░] 50%
+- Phase 05: [░░░░░░░░░░] 0%
 
 ## Loop Position
 
 Current loop state:
 ```
 PLAN ──▶ APPLY ──▶ UNIFY
-  ✓        ✓        ○     [APPLY complete, awaiting UNIFY]
+  ○        ○        ○     [Ready for next PLAN]
 ```
 
 ## Accumulated Context
 
 ### Decisions
-- SonarQube integration: enabled (configure via /paul:flows after planning)
-- 3 phases defined: 01-data-aggregation → 02-insights-edge-function → 03-insights-ui
-- RPC uses security definer + manual company_id validation (not RLS) so edge function can call it via service role
-- supabase db reset pre-existing failure: companies table missing from migrations (predates migration tracking). Workaround: apply migrations directly via `docker exec supabase_db_supabase-test psql -U postgres -d postgres < <migration>`. Does not affect production deploy flow.
+- New milestone (v1.2) for warehouse picking, independent of AI Insights (v1.1)
+- `warehouse_product_positions` table: per-warehouse, per-product sort_order + optional location_label
+- Denormalized `company_id` on positions table for RLS consistency
+- Button-based reordering (up/down arrows) for mobile compatibility
+- `fetchOrderedProductIds(warehouseId)` available for Phase 05 pick list sorting
+
+### Git State
+Last commit: (pending — phase commit next)
+Branch: main
+
+### Paused Work
+- AI Insights v1.1: Phase 02 applied (UNIFY pending), Phase 03 not started
+- Resume with: /paul:unify .paul/phases/02-insights-edge-function/02-01-PLAN.md
 
 ### Deferred Issues
-- supabase db reset does not work locally (companies table never captured in migrations). Pre-existing issue, not introduced by this feature.
+- `supabase db reset` does not work locally — pre-existing issue.
 
 ### Blockers/Concerns
 None.
 
 ## Session Continuity
 
-Last session: 2026-03-17
-Stopped at: Plan 01-01 applied
-Next action: Run /paul:unify to close loop, then plan Phase 02
-Resume file: .paul/phases/01-data-aggregation/01-01-PLAN.md
+Last session: 2026-03-18
+Stopped at: Phase 04 complete, ready to plan Phase 05
+Next action: /paul:plan for Phase 05 (sorted-picklist)
+Resume file: .paul/ROADMAP.md
 
 ---
 *STATE.md — Updated after every significant action*

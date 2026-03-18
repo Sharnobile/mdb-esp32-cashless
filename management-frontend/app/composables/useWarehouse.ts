@@ -68,6 +68,15 @@ export interface MinStockEntry {
   min_quantity: number
 }
 
+export interface WarehouseProductPosition {
+  product_id: string
+  product_name: string
+  image_path: string | null
+  sort_order: number
+  location_label: string | null
+  has_stock: boolean
+}
+
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
 export function expirationStatus(dateStr: string | null): 'ok' | 'warning' | 'critical' {
@@ -111,6 +120,7 @@ export function useWarehouse() {
   const productSummaries = ref<WarehouseProductSummary[]>([])
   const barcodes = ref<ProductBarcode[]>([])
   const minStocks = ref<MinStockEntry[]>([])
+  const positions = ref<WarehouseProductPosition[]>([])
   const loading = ref(false)
   const transactionLoading = ref(false)
   const transactionHasMore = ref(false)
@@ -626,13 +636,134 @@ export function useWarehouse() {
     }
   }
 
+  // ── Product positions ─────────────────────────────────────────────────
+
+  /**
+   * Fetch product positions for a warehouse, merged with stocked products.
+   * Positioned products come first (by sort_order), unpositioned last (alphabetically).
+   */
+  async function fetchPositions(warehouseId: string) {
+    // Fetch positions and stocked products in parallel
+    const [posRes, stockRes] = await Promise.all([
+      (supabase as any)
+        .from('warehouse_product_positions')
+        .select('product_id, sort_order, location_label, products(name, image_path)')
+        .eq('warehouse_id', warehouseId)
+        .order('sort_order'),
+      (supabase as any)
+        .from('warehouse_stock_batches')
+        .select('product_id, quantity, products(name, image_path)')
+        .eq('warehouse_id', warehouseId)
+        .gt('quantity', 0),
+    ])
+
+    if (posRes.error) throw posRes.error
+    if (stockRes.error) throw stockRes.error
+
+    // Build stock map: product_id → { name, image_path, has_stock }
+    const stockMap = new Map<string, { name: string; image_path: string | null }>()
+    for (const b of (stockRes.data ?? []) as any[]) {
+      if (!stockMap.has(b.product_id)) {
+        stockMap.set(b.product_id, {
+          name: b.products?.name ?? 'Unknown',
+          image_path: b.products?.image_path ?? null,
+        })
+      }
+    }
+
+    // Positioned products
+    const positionedIds = new Set<string>()
+    const positioned: WarehouseProductPosition[] = ((posRes.data ?? []) as any[]).map((p: any) => {
+      positionedIds.add(p.product_id)
+      const stock = stockMap.get(p.product_id)
+      return {
+        product_id: p.product_id,
+        product_name: stock?.name ?? p.products?.name ?? 'Unknown',
+        image_path: stock?.image_path ?? p.products?.image_path ?? null,
+        sort_order: p.sort_order,
+        location_label: p.location_label,
+        has_stock: stockMap.has(p.product_id),
+      }
+    })
+
+    // Unpositioned products (have stock but no position entry)
+    const unpositioned: WarehouseProductPosition[] = []
+    for (const [productId, info] of stockMap) {
+      if (!positionedIds.has(productId)) {
+        unpositioned.push({
+          product_id: productId,
+          product_name: info.name,
+          image_path: info.image_path,
+          sort_order: -1,
+          location_label: null,
+          has_stock: true,
+        })
+      }
+    }
+    unpositioned.sort((a, b) => a.product_name.localeCompare(b.product_name))
+
+    positions.value = [...positioned, ...unpositioned]
+  }
+
+  /**
+   * Save (upsert) product positions for a warehouse.
+   * Accepts an array of { product_id, sort_order, location_label? }.
+   */
+  async function savePositions(
+    warehouseId: string,
+    items: { product_id: string; sort_order: number; location_label?: string | null }[],
+  ) {
+    const companyId = organization.value?.id
+    if (!companyId) throw new Error('No organization')
+
+    const rows = items.map((item) => ({
+      warehouse_id: warehouseId,
+      product_id: item.product_id,
+      sort_order: item.sort_order,
+      location_label: item.location_label ?? null,
+      company_id: companyId,
+      updated_at: new Date().toISOString(),
+    }))
+
+    const { error } = await (supabase as any)
+      .from('warehouse_product_positions')
+      .upsert(rows, { onConflict: 'warehouse_id,product_id' })
+
+    if (error) throw error
+  }
+
+  /** Remove a product's position entry from a warehouse */
+  async function removePosition(warehouseId: string, productId: string) {
+    const { error } = await (supabase as any)
+      .from('warehouse_product_positions')
+      .delete()
+      .eq('warehouse_id', warehouseId)
+      .eq('product_id', productId)
+    if (error) throw error
+  }
+
+  /**
+   * Lightweight helper: returns product_id[] in warehouse position order.
+   * Useful for sorting pick lists in the refill wizard.
+   */
+  async function fetchOrderedProductIds(warehouseId: string): Promise<string[]> {
+    const { data, error } = await (supabase as any)
+      .from('warehouse_product_positions')
+      .select('product_id')
+      .eq('warehouse_id', warehouseId)
+      .order('sort_order')
+    if (error) throw error
+    return ((data ?? []) as any[]).map((r: any) => r.product_id)
+  }
+
   return {
-    warehouses, batches, transactions, productSummaries, barcodes, minStocks,
+    warehouses, batches, transactions, productSummaries, barcodes, minStocks, positions,
     loading, transactionLoading, transactionHasMore,
     fetchWarehouses, createWarehouse, updateWarehouse, deleteWarehouse,
     fetchBarcodes, lookupBarcode, addBarcode, removeBarcode,
     fetchBatches, fetchProductSummaries, bookIncoming, adjustStock, deductForRefill, getProductStock, fetchWarehouseStockMap,
     fetchMinStocks, setMinStock,
+    fetchPositions, savePositions, removePosition, fetchOrderedProductIds,
     fetchTransactions, fetchMoreTransactions,
     subscribeToStockUpdates,
     transactionTypeLabel, transactionTypeBadgeClass,

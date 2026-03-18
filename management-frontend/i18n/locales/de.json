@@ -453,7 +453,17 @@
     "createNewProductShort": "Neues Produkt anlegen",
     "productCreated": "Produkt erstellt",
     "quantityPlaceholder": "z.B. 48",
-    "noBatchId": "k.A."
+    "noBatchId": "k.A.",
+    "positionsTab": "Positionen",
+    "positionsEmpty": "Keine Produkte in diesem Lager. Buchen Sie zuerst Ware ein.",
+    "positionsDescription": "Legen Sie die physische Reihenfolge der Produkte in Ihrem Lager fest. Picklisten folgen dieser Reihenfolge.",
+    "unpositioned": "Nicht positioniert",
+    "addToPositions": "Hinzufügen",
+    "removeFromPositions": "Entfernen",
+    "locationLabel": "Lagerplatz",
+    "locationPlaceholder": "z.B. A1-03",
+    "positionsSaved": "Positionen gespeichert",
+    "failedToSavePositions": "Positionen konnten nicht gespeichert werden"
   },
   "devices": {
     "title": "Geräte",
