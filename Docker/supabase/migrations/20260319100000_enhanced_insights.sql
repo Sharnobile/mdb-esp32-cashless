@@ -109,7 +109,7 @@ begin
       mt.product_id,
       mt.capacity,
       count(s.id)                                                         as units_sold,
-      round((coalesce(sum(s.item_price), 0)::numeric) / 100.0, 2)        as revenue_eur,
+      round(coalesce(sum(s.item_price), 0)::numeric, 2)                   as revenue_eur,
       round(
         case
           when mt.capacity > 0 and p_days > 0
@@ -185,9 +185,9 @@ begin
 
   -- ── Trends: current vs previous period ─────────────────────────────────────
   v_trends_json := json_build_object(
-    'current_revenue_eur',  round(v_total_revenue / 100.0, 2),
+    'current_revenue_eur',  round(v_total_revenue::numeric, 2),
     'current_total_units',  v_total_units,
-    'prev_revenue_eur',     round(v_prev_revenue / 100.0, 2),
+    'prev_revenue_eur',     round(v_prev_revenue::numeric, 2),
     'prev_total_units',     v_prev_units,
     'revenue_change_pct',   case
                               when v_prev_revenue > 0
@@ -203,9 +203,9 @@ begin
 
   -- ── Summary ────────────────────────────────────────────────────────────────
   v_summary_json := json_build_object(
-    'total_revenue_eur',      round(v_total_revenue / 100.0, 2),
+    'total_revenue_eur',      round(v_total_revenue::numeric, 2),
     'total_units',            v_total_units,
-    'avg_daily_revenue_eur',  round(v_total_revenue / 100.0 / p_days, 2)
+    'avg_daily_revenue_eur',  round(v_total_revenue::numeric / p_days, 2)
   );
 
   -- ── Assemble and return ────────────────────────────────────────────────────

@@ -71,7 +71,7 @@ begin
       mt.capacity,
       mt.current_stock,
       count(s.id)                                                         as units_sold,
-      round((coalesce(sum(s.item_price), 0)::numeric) / 100, 2)            as revenue_eur,
+      round(coalesce(sum(s.item_price), 0)::numeric, 2)                     as revenue_eur,
       -- sell-through: units sold relative to theoretic weekly capacity over period
       round(
         case
@@ -147,9 +147,9 @@ begin
 
   -- ── Summary ───────────────────────────────────────────────────────────────────
   v_summary_json := json_build_object(
-    'total_revenue_eur',      round(v_total_revenue / 100, 2),
+    'total_revenue_eur',      round(v_total_revenue::numeric, 2),
     'total_units',            v_total_units,
-    'avg_daily_revenue_eur',  round(v_total_revenue / 100 / p_days, 2)
+    'avg_daily_revenue_eur',  round(v_total_revenue::numeric / p_days, 2)
   );
 
   -- ── Assemble and return ───────────────────────────────────────────────────────

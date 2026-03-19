@@ -142,7 +142,7 @@ begin
       mt.product_id,
       mt.capacity,
       count(s.id) as units_sold,
-      round((coalesce(sum(s.item_price), 0)::numeric) / 100.0, 2) as revenue_eur,
+      round(coalesce(sum(s.item_price), 0)::numeric, 2) as revenue_eur,
       round(
         case when mt.capacity > 0 and p_days > 0
           then least(count(s.id)::numeric / (mt.capacity::numeric * p_days / 7) * 100, 100)
@@ -215,7 +215,7 @@ begin
         when 3 then 'Wed' when 4 then 'Thu' when 5 then 'Fri'
         when 6 then 'Sat' end as day_name,
       count(*)::int as total_sales,
-      round(coalesce(sum(item_price), 0)::numeric / 100.0, 2) as revenue_eur
+      round(coalesce(sum(item_price), 0)::numeric, 2) as revenue_eur
     from public.sales
     where machine_id = p_machine_id and created_at >= v_window_start
     group by extract(dow from created_at)::int
@@ -228,7 +228,7 @@ begin
     select
       extract(hour from created_at)::int as hour,
       count(*)::int as total_sales,
-      round(coalesce(sum(item_price), 0)::numeric / 100.0, 2) as revenue_eur
+      round(coalesce(sum(item_price), 0)::numeric, 2) as revenue_eur
     from public.sales
     where machine_id = p_machine_id and created_at >= v_window_start
     group by extract(hour from created_at)::int
@@ -251,9 +251,9 @@ begin
 
   -- Trends
   v_trends_json := json_build_object(
-    'current_revenue_eur', round(v_total_revenue / 100.0, 2),
+    'current_revenue_eur', round(v_total_revenue::numeric, 2),
     'current_total_units', v_total_units,
-    'prev_revenue_eur', round(v_prev_revenue / 100.0, 2),
+    'prev_revenue_eur', round(v_prev_revenue::numeric, 2),
     'prev_total_units', v_prev_units,
     'revenue_change_pct', case when v_prev_revenue > 0
       then round(((v_total_revenue - v_prev_revenue)::numeric / v_prev_revenue) * 100, 1) else null end,
@@ -263,9 +263,9 @@ begin
 
   -- Summary
   v_summary_json := json_build_object(
-    'total_revenue_eur', round(v_total_revenue / 100.0, 2),
+    'total_revenue_eur', round(v_total_revenue::numeric, 2),
     'total_units', v_total_units,
-    'avg_daily_revenue_eur', round(v_total_revenue / 100.0 / p_days, 2)
+    'avg_daily_revenue_eur', round(v_total_revenue::numeric / p_days, 2)
   );
 
   return json_build_object(
@@ -350,7 +350,7 @@ begin
       vm.name,
       coalesce(e.status, 'unknown') as status,
       count(s.id)::int as units,
-      round(coalesce(sum(s.item_price), 0)::numeric / 100.0, 2) as revenue_eur
+      round(coalesce(sum(s.item_price), 0)::numeric, 2) as revenue_eur
     from public."vendingMachine" vm
     left join public.embeddeds e on e.id = vm.embedded
     left join public.sales s
@@ -388,7 +388,7 @@ begin
         when 3 then 'Wed' when 4 then 'Thu' when 5 then 'Fri'
         when 6 then 'Sat' end as day_name,
       count(*)::int as total_sales,
-      round(coalesce(sum(s.item_price), 0)::numeric / 100.0, 2) as revenue_eur
+      round(coalesce(sum(s.item_price), 0)::numeric, 2) as revenue_eur
     from public.sales s
     join public."vendingMachine" vm on vm.id = s.machine_id
     where vm.company = p_company_id and s.created_at >= v_window_start
@@ -402,7 +402,7 @@ begin
     select
       extract(hour from s.created_at)::int as hour,
       count(*)::int as total_sales,
-      round(coalesce(sum(s.item_price), 0)::numeric / 100.0, 2) as revenue_eur
+      round(coalesce(sum(s.item_price), 0)::numeric, 2) as revenue_eur
     from public.sales s
     join public."vendingMachine" vm on vm.id = s.machine_id
     where vm.company = p_company_id and s.created_at >= v_window_start
@@ -411,9 +411,9 @@ begin
 
   -- Trends
   v_trends_json := json_build_object(
-    'current_revenue_eur', round(v_total_revenue / 100.0, 2),
+    'current_revenue_eur', round(v_total_revenue::numeric, 2),
     'current_total_units', v_total_units,
-    'prev_revenue_eur', round(v_prev_revenue / 100.0, 2),
+    'prev_revenue_eur', round(v_prev_revenue::numeric, 2),
     'prev_total_units', v_prev_units,
     'revenue_change_pct', case when v_prev_revenue > 0
       then round(((v_total_revenue - v_prev_revenue)::numeric / v_prev_revenue) * 100, 1) else null end,
@@ -425,11 +425,11 @@ begin
     'company', json_build_object('id', p_company_id, 'name', v_company_name),
     'period_days', p_days,
     'summary', json_build_object(
-      'total_revenue_eur', round(v_total_revenue / 100.0, 2),
+      'total_revenue_eur', round(v_total_revenue::numeric, 2),
       'total_units', v_total_units,
       'machine_count', v_machine_count,
       'avg_revenue_per_machine', case when v_machine_count > 0
-        then round(v_total_revenue / 100.0 / v_machine_count, 2) else 0 end
+        then round(v_total_revenue::numeric / v_machine_count, 2) else 0 end
     ),
     'machines', coalesce(v_machines_json, '[]'::json),
     'top_machines', coalesce(v_top_json, '[]'::json),
