@@ -296,12 +296,15 @@ async function confirmDeleteGroup() {
 // ── Product operations ──────────────────────────────────────────────────
 
 function addToPositions(item: WarehouseProductPosition, groupId: string | null = null) {
-  item.sort_order = positionedItems.value.length + 1
+  // Snapshot positioned list BEFORE mutating item (item is reactive — mutating
+  // sort_order would immediately make it appear in positionedItems computed)
+  const currentPositioned = positions.value.filter(p => p.sort_order >= 0 && p.product_id !== item.product_id)
+  item.sort_order = currentPositioned.length + 1
   item.group_id = groupId
   positions.value = [
-    ...positionedItems.value,
+    ...currentPositioned,
     item,
-    ...unpositionedItems.value.filter(u => u.product_id !== item.product_id),
+    ...positions.value.filter(p => p.sort_order < 0 && p.product_id !== item.product_id),
   ]
   debouncedSavePositions()
 }
