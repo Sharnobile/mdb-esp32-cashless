@@ -226,9 +226,9 @@ async function doSavePositions() {
   if (!selectedWarehouseId.value) return
   positionsSaving.value = true
   try {
-    const items = positionedItems.value.map((p, idx) => ({
+    const items = positionedItems.value.map((p) => ({
       product_id: p.product_id,
-      sort_order: idx + 1,
+      sort_order: p.sort_order,
       location_label: p.location_label,
       group_id: p.group_id,
     }))
