@@ -21,6 +21,7 @@ const {
   isPacked, togglePacked, allPacked, effectiveDeficit,
   isOutOfWarehouseStock, hasPartialStock, hasAnyPackedItems, effectiveStockHealth,
   isPackedCombined, togglePackedCombined, effectiveDeficitCombined,
+  setCustomQuantity, getCustomQuantity, getMaxCustomQuantity, getDisplayedPackingQty,
   initTour, loadWarehouseStock, startTour,
   adjustFillAmount, confirmMachineRefill, skipMachine, goToMachine, isMachineCompleted, resetWizard,
   resumeTour,
@@ -188,10 +189,13 @@ const currentMachineDone = computed(() =>
                     {{ item.product_name.charAt(0) }}
                   </span>
                   <!-- Product info -->
-                  <div class="min-w-0 flex-1 transition-all" :class="isPackedCombined(item.product_id) ? 'line-through text-muted-foreground/50' : ''">
+                  <div class="min-w-0 flex-1 transition-all" :class="isPackedCombined(item.product_id) ? 'text-muted-foreground/50' : ''">
                     <span class="text-sm block">{{ effectiveDeficitCombined(item.product_id) }}&times; {{ item.product_name }}</span>
                     <span class="text-xs text-muted-foreground block">
                       {{ t('refill.forMachines', { machines: item.machines.map(m => m.name).join(', ') }) }}
+                    </span>
+                    <span v-if="isPackedCombined(item.product_id)" class="text-[11px] text-primary/60 block">
+                      {{ t('refill.adjustPerMachine') }}
                     </span>
                   </div>
                 </li>
@@ -287,10 +291,14 @@ const currentMachineDone = computed(() =>
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4"><rect width="18" height="18" x="3" y="3" rx="2" /><circle cx="9" cy="9" r="2" /><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" /></svg>
                     </span>
                     <!-- Product name + quantity -->
-                    <span class="text-sm flex-1 transition-all" :class="isPacked(machine.id, item) ? 'line-through text-muted-foreground/50' : ''">
+                    <span class="min-w-0 flex-1 text-sm transition-all" :class="isPacked(machine.id, item) ? 'text-muted-foreground/50' : ''">
                       <template v-if="isOutOfWarehouseStock(item, machine.id)">
                         <span class="text-muted-foreground">{{ item.deficit }}&times; {{ item.product_name }}</span>
                         <span class="ml-1 text-xs text-red-500 dark:text-red-400">{{ t('machines.notInStock') }}</span>
+                      </template>
+                      <template v-else-if="isPacked(machine.id, item) && item.product_id && selectedWarehouseId">
+                        <span class="truncate block">{{ item.product_name }}</span>
+                        <span v-if="hasPartialStock(item, machine.id)" class="text-xs text-amber-500 dark:text-amber-400">{{ t('machines.needed', { count: item.deficit }) }}</span>
                       </template>
                       <template v-else-if="hasPartialStock(item, machine.id)">
                         {{ effectiveDeficit(item, machine.id) }}&times; {{ item.product_name }}
@@ -300,6 +308,26 @@ const currentMachineDone = computed(() =>
                         {{ effectiveDeficit(item, machine.id) }}&times; {{ item.product_name }}
                       </template>
                     </span>
+                    <!-- Quantity adjuster (shown when item is checked and has warehouse context) -->
+                    <div
+                      v-if="isPacked(machine.id, item) && item.product_id && selectedWarehouseId"
+                      class="flex items-center gap-1 shrink-0"
+                      @click.stop
+                    >
+                      <button
+                        class="inline-flex h-8 w-8 items-center justify-center rounded-lg border text-sm font-semibold active:bg-muted disabled:opacity-30 transition-colors"
+                        :disabled="getDisplayedPackingQty(machine.id, item) <= 1"
+                        @click="setCustomQuantity(machine.id, item.product_id!, getDisplayedPackingQty(machine.id, item) - 1)"
+                      >&minus;</button>
+                      <span class="inline-flex h-8 min-w-10 items-center justify-center rounded-lg bg-primary/10 px-1.5 text-sm font-bold tabular-nums text-primary">
+                        {{ getDisplayedPackingQty(machine.id, item) }}
+                      </span>
+                      <button
+                        class="inline-flex h-8 w-8 items-center justify-center rounded-lg border text-sm font-semibold active:bg-muted disabled:opacity-30 transition-colors"
+                        :disabled="getDisplayedPackingQty(machine.id, item) >= getMaxCustomQuantity(machine.id, item)"
+                        @click="setCustomQuantity(machine.id, item.product_id!, getDisplayedPackingQty(machine.id, item) + 1)"
+                      >+</button>
+                    </div>
                   </li>
                 </ul>
               </div>
@@ -526,14 +554,22 @@ const currentMachineDone = computed(() =>
         </div>
       </div>
 
-      <!-- Back button — fixed bottom bar -->
+      <!-- Bottom bar — Back to Machines + Tour History link -->
       <div class="fixed bottom-[calc(3.5rem+env(safe-area-inset-bottom))] md:bottom-0 inset-x-0 z-20 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 p-3 sm:p-4 md:pb-[max(1rem,env(safe-area-inset-bottom))]">
-        <button
-          class="inline-flex h-12 w-full max-w-3xl mx-auto items-center justify-center gap-2 rounded-xl bg-primary px-6 text-base font-medium text-primary-foreground shadow-lg transition-colors hover:bg-primary/90"
-          @click="resetWizard(); router.push('/machines')"
-        >
-          {{ t('refill.backToMachines') }}
-        </button>
+        <div class="flex flex-col gap-2 max-w-3xl mx-auto">
+          <button
+            class="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-6 text-base font-medium text-primary-foreground shadow-lg transition-colors hover:bg-primary/90"
+            @click="resetWizard(); router.push('/machines')"
+          >
+            {{ t('refill.backToMachines') }}
+          </button>
+          <button
+            class="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border px-4 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted"
+            @click="resetWizard(); router.push('/tour-history')"
+          >
+            {{ t('tourHistory.viewTourHistory') }}
+          </button>
+        </div>
       </div>
     </template>
   </div>

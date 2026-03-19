@@ -12,12 +12,13 @@ See: .paul/PROJECT.md (updated 2026-03-19)
 Milestone: Awaiting next milestone
 Phase: None active
 Plan: None
-Status: Milestones v1.1 + v1.2 complete — ready for next
-Last activity: 2026-03-19 — Milestone v1.1 completed
+Status: Milestones v1.1 + v1.2 + v1.3 complete — ready for next
+Last activity: 2026-03-19 — Milestone v1.3 completed
 
 Progress:
 - AI Insights v1.1: [██████████] 100% ✓
 - Warehouse v1.2: [██████████] 100% ✓
+- Refill Tour v1.3: [██████████] 100% ✓
 
 ## Loop Position
 
@@ -32,12 +33,12 @@ PLAN ──▶ APPLY ──▶ UNIFY
 ### Decisions
 - Per-company Anthropic API key (not global env var)
 - `claude-haiku-4-5` model for structured JSON output
-- Sheet overlay for recommendations display
-- Pre-aggregated KPIs in SQL via RPC
+- Custom quantity adjuster shows user intent (customQty) not allocated amount (effectiveDeficit)
+- `crypto.randomUUID` fallback for environments without Web Crypto
+- `hasCritical` must include `current_stock === 0` to match initTour behavior
 
 ### Git State
 Branch: main
-Note: All v1.1 changes uncommitted
 
 ### Deferred Issues
 - `supabase db reset` does not work locally — pre-existing issue
@@ -49,7 +50,7 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-19
-Stopped at: Milestone v1.1 complete
+Stopped at: Milestone v1.3 complete
 Next action: /paul:discuss-milestone or /paul:milestone
 Resume file: .paul/MILESTONES.md
 

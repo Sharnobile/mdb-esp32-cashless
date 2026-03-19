@@ -40,6 +40,9 @@ Vending machine operators can manage all the telemetry, monitor sales, and optim
 - [x] Warehouse picking optimization (sorted pick lists for refill tours)
   - [x] Phase 04: Warehouse product positions — table + admin UI — Phase 04 complete
   - [x] Phase 05: Sorted pick list — refill wizard integration + per-machine/combined mode — Phase 05 complete
+- [x] Refill tour optimizations
+  - [x] Phase 06: Custom packing quantities — adjustable amounts per product per machine — Phase 06 complete
+  - [x] Phase 07: Tour history — dedicated page showing past refill tours with detail — Phase 07 complete
 
 ### Planned (Next)
 

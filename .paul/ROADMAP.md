@@ -31,6 +31,16 @@ Run /paul:discuss-milestone or /paul:milestone to define.
 
 </details>
 
+<details>
+<summary>Refill Tour Optimizations (v1.3) — 2026-03-19 (2 phases)</summary>
+
+| Phase | Name | Plans | Completed |
+|-------|------|-------|-----------|
+| 06 | custom-packing-quantities | 1 | 2026-03-19 |
+| 07 | tour-history | 1 | 2026-03-19 |
+
+</details>
+
 ---
 *Roadmap created: 2026-03-17*
-*Last updated: 2026-03-19 — Milestones v1.1 + v1.2 complete*
+*Last updated: 2026-03-19 — Milestone v1.3 complete*

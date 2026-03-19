@@ -195,7 +195,17 @@
     "perMachine": "Per machine",
     "combined": "All together",
     "forMachines": "for {machines}",
-    "totalQty": "{count} total"
+    "totalQty": "{count} total",
+    "adjustPerMachine": "Adjust per machine"
+  },
+  "tourHistory": {
+    "title": "Tour History",
+    "subtitle": "Past refill tours and their details",
+    "machine": "machine",
+    "machines": "machines",
+    "skipped": "Skipped",
+    "noTours": "No refill tours yet",
+    "viewTourHistory": "Tour History"
   },
   "machineDetail": {
     "sales": "Sales",

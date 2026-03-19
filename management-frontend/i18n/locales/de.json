@@ -195,7 +195,17 @@
     "perMachine": "Pro Automat",
     "combined": "Alle zusammen",
     "forMachines": "für {machines}",
-    "totalQty": "{count} gesamt"
+    "totalQty": "{count} gesamt",
+    "adjustPerMachine": "Pro Automat anpassen"
+  },
+  "tourHistory": {
+    "title": "Tour-Verlauf",
+    "subtitle": "Vergangene Befülltouren und Details",
+    "machine": "Automat",
+    "machines": "Automaten",
+    "skipped": "Übersprungen",
+    "noTours": "Noch keine Befülltouren",
+    "viewTourHistory": "Tour-Verlauf"
   },
   "machineDetail": {
     "sales": "Verkäufe",

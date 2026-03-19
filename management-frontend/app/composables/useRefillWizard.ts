@@ -117,6 +117,7 @@ export function useRefillWizard() {
   const loading = ref(false)
   const tourStarting = ref(false)
   const confirmingRefill = ref(false)
+  const tourId = ref('')
 
   // Packing state: machineId → Set<productKey>
   const packedItems = ref(new Map<string, Set<string>>())
@@ -125,6 +126,10 @@ export function useRefillWizard() {
   // Committed quantities during packing: machineId → Map<productKey, qty>
   // Tracks how much warehouse stock is committed per machine per product
   const committedQuantities = ref(new Map<string, Map<string, number>>())
+  // Custom quantities set by user during packing: machineId → Map<productId, qty>
+  // When set, limits the committed quantity for that product+machine.
+  // Unset = use full deficit (default behavior).
+  const customQuantities = ref(new Map<string, Map<string, number>>())
 
   // Refill state: trays for the current machine
   const currentTrays = ref<TrayForRefill[]>([])
@@ -175,6 +180,15 @@ export function useRefillWizard() {
     const current = packedItems.value.get(machineId) ?? new Set<string>()
     if (current.has(key)) {
       current.delete(key)
+      // Clear custom quantity when unchecking
+      if (item.product_id) {
+        const machineCustom = customQuantities.value.get(machineId)
+        if (machineCustom) {
+          machineCustom.delete(item.product_id)
+          if (machineCustom.size === 0) customQuantities.value.delete(machineId)
+          customQuantities.value = new Map(customQuantities.value)
+        }
+      }
     } else {
       current.add(key)
     }
@@ -228,10 +242,14 @@ export function useRefillWizard() {
       if (!checked || checked.size === 0) continue
 
       const machineMap = new Map<string, number>()
+      const machineCustom = customQuantities.value.get(machine.id)
       for (const item of machine.tray_summary) {
         if (!item.product_id || !checked.has(itemKey(item))) continue
         const avail = remaining.get(item.product_id) ?? 0
-        const qty = Math.min(item.deficit, avail)
+        // Use custom quantity if set, otherwise full deficit
+        const customQty = machineCustom?.get(item.product_id)
+        const maxQty = customQty !== undefined ? Math.min(customQty, item.deficit) : item.deficit
+        const qty = Math.min(maxQty, avail)
         if (qty > 0) {
           machineMap.set(item.product_id, qty)
           remaining.set(item.product_id, avail - qty)
@@ -290,6 +308,49 @@ export function useRefillWizard() {
       if (set.size > 0) return true
     }
     return false
+  }
+
+  /** Set a custom packing quantity for a product on a specific machine */
+  function setCustomQuantity(machineId: string, productId: string, qty: number) {
+    // Find the deficit for this product on this machine
+    const machine = machines.value.find(m => m.id === machineId)
+    const item = machine?.tray_summary.find(i => i.product_id === productId)
+    if (!item) return
+
+    const totalStock = warehouseStock.value.get(productId) ?? item.deficit
+    const maxQty = Math.min(item.deficit, totalStock)
+    const clamped = Math.max(1, Math.min(maxQty, qty))
+
+    const machineCustom = customQuantities.value.get(machineId) ?? new Map<string, number>()
+    machineCustom.set(productId, clamped)
+    customQuantities.value.set(machineId, machineCustom)
+    customQuantities.value = new Map(customQuantities.value)
+    recalculateCommittedQuantities()
+  }
+
+  /** Get the custom quantity for a product on a machine, or null if not set */
+  function getCustomQuantity(machineId: string, productId: string): number | null {
+    return customQuantities.value.get(machineId)?.get(productId) ?? null
+  }
+
+  /** Get the max allowed custom quantity for a product on a machine */
+  function getMaxCustomQuantity(machineId: string, item: { product_id: string | null; deficit: number }): number {
+    if (!item.product_id) return item.deficit
+    const totalStock = warehouseStock.value.get(item.product_id) ?? item.deficit
+    return Math.min(item.deficit, totalStock)
+  }
+
+  /**
+   * Get the displayed packing quantity for a checked item.
+   * Returns the custom quantity (user's intent) if set, otherwise the committed quantity (default).
+   * This is what the quantity adjuster shows and operates on.
+   */
+  function getDisplayedPackingQty(machineId: string, item: { product_id: string | null; deficit: number }): number {
+    if (!item.product_id) return effectiveDeficit(item, machineId)
+    const customQty = customQuantities.value.get(machineId)?.get(item.product_id)
+    if (customQty !== undefined) return customQty
+    // No custom qty: return the committed (default) amount
+    return effectiveDeficit(item, machineId)
   }
 
   // ── Init ─────────────────────────────────────────────────────────────────
@@ -474,6 +535,7 @@ export function useRefillWizard() {
   async function startTour() {
     if (!selectedWarehouseId.value) return
     tourStarting.value = true
+    tourId.value = self.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
 
     try {
       const { data: { session } } = await supabase.auth.getSession()
@@ -567,7 +629,7 @@ export function useRefillWizard() {
       for (const t of (data ?? []) as any[]) {
         const isLow = t.min_stock > 0 && t.current_stock <= t.min_stock
         const isEmpty = t.current_stock === 0
-        const hasCritical = (data as any[]).some((tr: any) => tr.min_stock > 0 && tr.current_stock <= tr.min_stock)
+        const hasCritical = (data as any[]).some((tr: any) => tr.current_stock === 0 || (tr.min_stock > 0 && tr.current_stock <= tr.min_stock))
         const isFillBelow = hasCritical && !isLow && !isEmpty && t.fill_when_below > 0 && t.current_stock <= t.fill_when_below
 
         if (!isLow && !isEmpty && !isFillBelow) continue
@@ -685,10 +747,17 @@ export function useRefillWizard() {
           entity_id: machine.id,
           action: 'stock_refill_tour',
           metadata: {
+            tour_id: tourId.value,
             machine_id: machine.id,
             machine_name: machine.name,
+            warehouse_id: selectedWarehouseId.value,
             trays_refilled: traysToRefill.length,
             total_added: totalAdded,
+            products: traysToRefill.map(t => ({
+              product_id: t.product_id,
+              product_name: t.product_name,
+              quantity: t.fill_amount,
+            })),
             _user_email: u?.email ?? null,
             _user_display: userDisplay,
           },
@@ -714,7 +783,7 @@ export function useRefillWizard() {
     }
   }
 
-  function skipMachine() {
+  async function skipMachine() {
     const machine = currentMachine.value
     if (machine) {
       completedMachineIds.value = new Set([...completedMachineIds.value, machine.id])
@@ -725,8 +794,34 @@ export function useRefillWizard() {
         total_added: 0,
         skipped: true,
       })
+
+      // Log skip activity (non-blocking, non-critical)
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        const u = session?.user ?? null
+        const fullName = [u?.user_metadata?.first_name, u?.user_metadata?.last_name]
+          .filter(Boolean).join(' ').trim()
+        const userDisplay = fullName || u?.email || null
+
+        await (supabase as any).from('activity_log').insert({
+          company_id: organization.value?.id,
+          user_id: u?.id ?? null,
+          entity_type: 'stock',
+          entity_id: machine.id,
+          action: 'stock_refill_tour_skip',
+          metadata: {
+            tour_id: tourId.value,
+            machine_id: machine.id,
+            machine_name: machine.name,
+            _user_email: u?.email ?? null,
+            _user_display: userDisplay,
+          },
+        })
+      } catch {
+        // activity log failure is non-critical
+      }
     }
-    advanceToNextMachine()
+    await advanceToNextMachine()
     saveTourState()
   }
 
@@ -837,12 +932,19 @@ export function useRefillWizard() {
       const current = packedItems.value.get(machine.id) ?? new Set<string>()
       if (allPacked) {
         current.delete(productId)
+        // Clear custom quantities when unchecking in combined mode
+        const machineCustom = customQuantities.value.get(machine.id)
+        if (machineCustom) {
+          machineCustom.delete(productId)
+          if (machineCustom.size === 0) customQuantities.value.delete(machine.id)
+        }
       } else {
         current.add(productId)
       }
       packedItems.value.set(machine.id, current)
     }
     packedItems.value = new Map(packedItems.value)
+    customQuantities.value = new Map(customQuantities.value)
     recalculateCommittedQuantities()
   }
 
@@ -987,9 +1089,11 @@ export function useRefillWizard() {
     packedItems.value = new Map()
     packedQuantities.value = new Map()
     committedQuantities.value = new Map()
+    customQuantities.value = new Map()
     completedMachineIds.value = new Set()
     currentTrays.value = []
     tourLog.value = []
+    tourId.value = ''
     pickingMode.value = 'per-machine'
     warehouseProductOrder.value = new Map()
     clearSavedTourState()
@@ -1037,6 +1141,11 @@ export function useRefillWizard() {
     isPackedCombined,
     togglePackedCombined,
     effectiveDeficitCombined,
+    customQuantities,
+    setCustomQuantity,
+    getCustomQuantity,
+    getMaxCustomQuantity,
+    getDisplayedPackingQty,
 
     // Actions
     initTour,

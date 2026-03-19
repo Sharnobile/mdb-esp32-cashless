@@ -115,6 +115,12 @@ function metadataChips(entry: { action: string; metadata: Record<string, unknown
         <h1 class="text-2xl font-bold tracking-tight">{{ t('history.title') }}</h1>
         <p class="text-sm text-muted-foreground">{{ t('history.subtitle') }}</p>
       </div>
+      <NuxtLink
+        to="/tour-history"
+        class="inline-flex h-9 items-center gap-1.5 rounded-md border border-input px-3 text-sm font-medium hover:bg-muted transition-colors"
+      >
+        {{ t('tourHistory.viewTourHistory') }}
+      </NuxtLink>
     </div>
 
     <!-- Filters -->
