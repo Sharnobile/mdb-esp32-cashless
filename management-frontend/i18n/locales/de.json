@@ -121,7 +121,11 @@
     "recentActivity": "Letzte Aktivitäten",
     "noRecentActivity": "Keine aktuellen Aktivitäten",
     "viewAll": "Alle anzeigen →",
-    "noMachinesRegistered": "Keine Automaten registriert"
+    "noMachinesRegistered": "Keine Automaten registriert",
+    "companyInsights": "Flotten-KI-Analyse",
+    "companyInsightsGenerate": "Analysieren",
+    "companyInsightsLoading": "Flottendaten werden analysiert...",
+    "companyInsightsEmpty": "Noch keine Flottenanalyse vorhanden. Klicke unten um eine Analyse über alle Automaten zu erstellen."
   },
   "machines": {
     "title": "Verkaufsautomaten",
@@ -313,7 +317,14 @@
     "aiSummary": "Zusammenfassung",
     "aiGenerated": "Erstellt {time}",
     "aiSlot": "Fach #{number}",
-    "aiError": "Analyse konnte nicht geladen werden. {error}"
+    "aiError": "Analyse konnte nicht geladen werden. {error}",
+    "aiCached": "Zwischengespeichert",
+    "aiRefresh": "Aktualisieren",
+    "aiTrendRevenue": "Umsatz vs vorh. {days}T",
+    "aiTrendUnits": "Stück vs vorh. {days}T",
+    "aiHistory": "Vergangene Analysen",
+    "aiHistoryEmpty": "Noch keine vergangenen Analysen.",
+    "aiHistoryRecs": "Empfehlungen"
   },
   "insights": {
     "productSwap": "Produktwechsel",
@@ -321,6 +332,10 @@
     "removeSlot": "Fach entfernen",
     "refillOptimization": "Befüllungsoptimierung",
     "conversionAlert": "Conversion-Warnung",
+    "pricingStrategy": "Preisstrategie",
+    "crossSelling": "Cross-Selling",
+    "peakHourStrategy": "Spitzenzeiten",
+    "dayPattern": "Tagesmuster",
     "general": "Allgemein"
   },
   "products": {

@@ -4,7 +4,7 @@ definePageMeta({ middleware: 'auth' })
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { VisArea, VisAxis, VisLine, VisXYContainer } from '@unovis/vue'
-import { IconCreditCard, IconCoins, IconSend, IconSparkles, IconLoader2 } from '@tabler/icons-vue'
+import { IconCreditCard, IconCoins, IconSend, IconSparkles, IconLoader2, IconRefresh } from '@tabler/icons-vue'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Badge } from '@/components/ui/badge'
 import { useInsights, sortedRecommendations, priorityVariant, recommendationTypeLabel } from '@/composables/useInsights'
@@ -29,14 +29,26 @@ const { onResume } = useAppResume()
 const isAdmin = computed(() => role.value === 'admin')
 
 // AI Insights
-const { data: insights, loading: insightsLoading, error: insightsError, fetchInsights } = useInsights()
+const { data: insights, loading: insightsLoading, error: insightsError, fetchInsights, history: insightsHistory, historyLoading: insightsHistoryLoading, fetchHistory } = useInsights()
 const insightsOpen = ref(false)
+const historyExpanded = ref<string | null>(null)
 
 function openInsights() {
   insightsOpen.value = true
   if (machine.value?.id) {
     fetchInsights(machine.value.id)
+    fetchHistory(machine.value.id)
   }
+}
+
+function refreshInsights() {
+  if (machine.value?.id) {
+    fetchInsights(machine.value.id, 30, true)
+  }
+}
+
+function toggleHistoryEntry(id: string) {
+  historyExpanded.value = historyExpanded.value === id ? null : id
 }
 
 const machine = ref<any>(null)
@@ -1997,6 +2009,30 @@ function stockColor(tray: any) {
 
             <!-- Results -->
             <template v-else-if="insights">
+              <!-- Trends -->
+              <div v-if="insights.trends && (insights.trends.revenue_change_pct !== null || insights.trends.units_change_pct !== null)" class="flex flex-wrap gap-2">
+                <span
+                  v-if="insights.trends.revenue_change_pct !== null"
+                  class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium"
+                  :class="insights.trends.revenue_change_pct >= 0 ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'"
+                >
+                  <svg v-if="insights.trends.revenue_change_pct >= 0" xmlns="http://www.w3.org/2000/svg" class="size-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
+                  <svg v-else xmlns="http://www.w3.org/2000/svg" class="size-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                  {{ insights.trends.revenue_change_pct >= 0 ? '+' : '' }}{{ insights.trends.revenue_change_pct }}%
+                  {{ t('machineDetail.aiTrendRevenue', { days: insights.period_days }) }}
+                </span>
+                <span
+                  v-if="insights.trends.units_change_pct !== null"
+                  class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium"
+                  :class="insights.trends.units_change_pct >= 0 ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'"
+                >
+                  <svg v-if="insights.trends.units_change_pct >= 0" xmlns="http://www.w3.org/2000/svg" class="size-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
+                  <svg v-else xmlns="http://www.w3.org/2000/svg" class="size-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                  {{ insights.trends.units_change_pct >= 0 ? '+' : '' }}{{ insights.trends.units_change_pct }}%
+                  {{ t('machineDetail.aiTrendUnits', { days: insights.period_days }) }}
+                </span>
+              </div>
+
               <!-- Recommendations -->
               <template v-if="sortedRecommendations(insights.recommendations).length > 0">
                 <div
@@ -2029,11 +2065,68 @@ function stockColor(tray: any) {
                 <p class="text-sm text-muted-foreground leading-relaxed">{{ insights.summary }}</p>
               </div>
 
-              <!-- Generated timestamp -->
-              <p class="text-xs text-muted-foreground text-right">
-                {{ t('machineDetail.aiGenerated', { time: timeAgo(insights.generated_at, t) }) }}
-              </p>
+              <!-- Generated timestamp + cache badge + refresh -->
+              <div class="flex items-center gap-2">
+                <span v-if="insights.cached" class="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                  {{ t('machineDetail.aiCached') }}
+                </span>
+                <p class="flex-1 text-xs text-muted-foreground">
+                  {{ t('machineDetail.aiGenerated', { time: timeAgo(insights.generated_at, t) }) }}
+                </p>
+                <button
+                  class="inline-flex h-7 items-center gap-1.5 rounded-md border px-2.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  :title="t('machineDetail.aiRefresh')"
+                  @click="refreshInsights"
+                >
+                  <IconRefresh class="size-3" />
+                  {{ t('machineDetail.aiRefresh') }}
+                </button>
+              </div>
             </template>
+
+            <!-- Insights History -->
+            <div v-if="!insightsLoading && !insightsError" class="mt-6 border-t pt-4">
+              <h3 class="mb-3 text-sm font-medium">{{ t('machineDetail.aiHistory') }}</h3>
+              <div v-if="insightsHistoryLoading" class="space-y-2">
+                <div v-for="i in 3" :key="i" class="h-12 animate-pulse rounded-lg bg-muted" />
+              </div>
+              <div v-else-if="insightsHistory.length === 0" class="text-sm text-muted-foreground">
+                {{ t('machineDetail.aiHistoryEmpty') }}
+              </div>
+              <div v-else class="space-y-2">
+                <div
+                  v-for="entry in insightsHistory"
+                  :key="entry.id"
+                  class="rounded-lg border"
+                >
+                  <button
+                    class="flex w-full items-center justify-between px-3 py-2.5 text-left text-sm transition-colors hover:bg-muted/50"
+                    @click="toggleHistoryEntry(entry.id)"
+                  >
+                    <span class="text-muted-foreground">{{ new Date(entry.generated_at).toLocaleDateString() }}</span>
+                    <div class="flex items-center gap-2">
+                      <span class="text-xs text-muted-foreground">{{ (entry.recommendations ?? []).length }} {{ t('machineDetail.aiHistoryRecs') }}</span>
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg" class="size-3.5 text-muted-foreground transition-transform"
+                        :class="{ 'rotate-180': historyExpanded === entry.id }"
+                        viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                      ><polyline points="6 9 12 15 18 9"/></svg>
+                    </div>
+                  </button>
+                  <div v-if="historyExpanded === entry.id" class="border-t px-3 py-3 space-y-2">
+                    <p class="text-sm text-muted-foreground leading-relaxed">{{ entry.summary }}</p>
+                    <div
+                      v-for="(rec, idx) in sortedRecommendations(entry.recommendations ?? [])"
+                      :key="idx"
+                      class="flex items-start gap-2 text-xs"
+                    >
+                      <Badge :variant="priorityVariant(rec.priority)" class="mt-0.5 shrink-0 text-[10px]">{{ rec.priority }}</Badge>
+                      <span class="text-muted-foreground">{{ rec.title }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </SheetContent>
       </Sheet>

@@ -43,6 +43,8 @@ Vending machine operators can manage all the telemetry, monitor sales, and optim
 - [x] Refill tour optimizations
   - [x] Phase 06: Custom packing quantities — adjustable amounts per product per machine — Phase 06 complete
   - [x] Phase 07: Tour history — dedicated page showing past refill tours with detail — Phase 07 complete
+- [x] Enhanced AI Insights
+  - [x] Phase 08: DOW/hourly patterns, company-wide insights, history persistence, caching, locale support — Phase 08 complete
 
 ### Planned (Next)
 
@@ -122,4 +124,4 @@ Production system with live ESP32 devices installed in the field. Backward compa
 
 ---
 *PROJECT.md — Updated when requirements or context change*
-*Last updated: 2026-03-19 after Phase 03 (insights-ui) — Milestone v1.1 complete*
+*Last updated: 2026-03-19 after Phase 08 (enhanced-insights) — Milestone v1.4 complete*

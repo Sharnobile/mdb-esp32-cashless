@@ -11,6 +11,15 @@ Run /paul:discuss-milestone or /paul:milestone to define.
 ## Completed Milestones
 
 <details>
+<summary>Enhanced AI Insights (v1.4) — 2026-03-19 (1 phase)</summary>
+
+| Phase | Name | Plans | Completed |
+|-------|------|-------|-----------|
+| 08 | enhanced-insights | 1 | 2026-03-19 |
+
+</details>
+
+<details>
 <summary>AI Insights & Optimization (v1.1) — 2026-03-19 (3 phases)</summary>
 
 | Phase | Name | Plans | Completed |
@@ -43,4 +52,4 @@ Run /paul:discuss-milestone or /paul:milestone to define.
 
 ---
 *Roadmap created: 2026-03-17*
-*Last updated: 2026-03-19 — Milestone v1.3 complete*
+*Last updated: 2026-03-19 — Milestone v1.4 complete*

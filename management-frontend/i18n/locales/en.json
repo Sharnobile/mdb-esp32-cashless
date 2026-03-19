@@ -121,7 +121,11 @@
     "recentActivity": "Recent Activity",
     "noRecentActivity": "No recent activity",
     "viewAll": "View all →",
-    "noMachinesRegistered": "No machines registered"
+    "noMachinesRegistered": "No machines registered",
+    "companyInsights": "Fleet AI Insights",
+    "companyInsightsGenerate": "Analyze",
+    "companyInsightsLoading": "Analyzing fleet data...",
+    "companyInsightsEmpty": "No fleet analysis yet. Click below to generate insights across all your machines."
   },
   "machines": {
     "title": "Vending Machines",
@@ -313,7 +317,14 @@
     "aiSummary": "Summary",
     "aiGenerated": "Generated {time}",
     "aiSlot": "Slot #{number}",
-    "aiError": "Could not load insights. {error}"
+    "aiError": "Could not load insights. {error}",
+    "aiCached": "Cached",
+    "aiRefresh": "Refresh",
+    "aiTrendRevenue": "revenue vs prev. {days}d",
+    "aiTrendUnits": "units vs prev. {days}d",
+    "aiHistory": "Past Insights",
+    "aiHistoryEmpty": "No past insights yet.",
+    "aiHistoryRecs": "recommendations"
   },
   "insights": {
     "productSwap": "Product Swap",
@@ -321,6 +332,10 @@
     "removeSlot": "Remove Slot",
     "refillOptimization": "Refill Optimization",
     "conversionAlert": "Conversion Alert",
+    "pricingStrategy": "Pricing Strategy",
+    "crossSelling": "Cross Selling",
+    "peakHourStrategy": "Peak Hours",
+    "dayPattern": "Day Pattern",
     "general": "General"
   },
   "products": {
