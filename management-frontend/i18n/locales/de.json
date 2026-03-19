@@ -295,7 +295,23 @@
     "creditQueued": "Guthaben eingereiht (Gerät ist {status})",
     "creditCancelled": "Guthaben storniert",
     "setThresholds": "Schwellenwerte festlegen",
-    "createCount": "{count} Fächer erstellen"
+    "createCount": "{count} Fächer erstellen",
+    "aiInsights": "KI-Analyse",
+    "aiInsightsFor": "Empfehlungen für {name}",
+    "aiLoading": "Maschinendaten werden analysiert...",
+    "aiNoRecommendations": "Derzeit keine Empfehlungen. Die Maschine läuft gut.",
+    "aiSummary": "Zusammenfassung",
+    "aiGenerated": "Erstellt {time}",
+    "aiSlot": "Fach #{number}",
+    "aiError": "Analyse konnte nicht geladen werden. {error}"
+  },
+  "insights": {
+    "productSwap": "Produktwechsel",
+    "capacityIncrease": "Kapazitätserhöhung",
+    "removeSlot": "Fach entfernen",
+    "refillOptimization": "Befüllungsoptimierung",
+    "conversionAlert": "Conversion-Warnung",
+    "general": "Allgemein"
   },
   "products": {
     "title": "Produkte",
@@ -693,7 +709,17 @@
     "loadingDiagnostics": "Diagnose wird geladen…",
     "removeDevice": "Gerät entfernen",
     "development": "Entwicklung",
-    "registered": "Registriert {time}"
+    "registered": "Registriert {time}",
+    "aiInsights": "AI Insights",
+    "aiInsightsDescription": "Verbinden Sie Ihren Anthropic API-Schlüssel, um KI-gestützte Maschinenanalysen und Empfehlungen zu aktivieren.",
+    "aiKeyActive": "API-Schlüssel konfiguriert",
+    "aiKeyRequired": "Bitte geben Sie einen API-Schlüssel ein.",
+    "aiKeySaved": "API-Schlüssel erfolgreich gespeichert.",
+    "aiKeyRemoved": "API-Schlüssel entfernt.",
+    "enterApiKey": "Anthropic API-Schlüssel",
+    "replaceApiKey": "API-Schlüssel ersetzen",
+    "saveApiKey": "Schlüssel speichern",
+    "updateApiKey": "Schlüssel aktualisieren"
   },
   "activity": {
     "saleRecorded": "Verkauf erfasst",

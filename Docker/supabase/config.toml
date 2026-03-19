@@ -497,3 +497,9 @@ enabled = true
 verify_jwt = false
 import_map = "./functions/search-product-images/deno.json"
 entrypoint = "./functions/search-product-images/index.ts"
+
+[functions.machine-insights]
+enabled = true
+verify_jwt = false
+import_map = "./functions/machine-insights/deno.json"
+entrypoint = "./functions/machine-insights/index.ts"

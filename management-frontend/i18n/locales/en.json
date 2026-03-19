@@ -295,7 +295,23 @@
     "creditQueued": "Credit queued (device is {status})",
     "creditCancelled": "Credit cancelled",
     "setThresholds": "Set thresholds",
-    "createCount": "Create {count} trays"
+    "createCount": "Create {count} trays",
+    "aiInsights": "AI Insights",
+    "aiInsightsFor": "Recommendations for {name}",
+    "aiLoading": "Analyzing machine data...",
+    "aiNoRecommendations": "No recommendations at this time. The machine is performing well.",
+    "aiSummary": "Summary",
+    "aiGenerated": "Generated {time}",
+    "aiSlot": "Slot #{number}",
+    "aiError": "Could not load insights. {error}"
+  },
+  "insights": {
+    "productSwap": "Product Swap",
+    "capacityIncrease": "Capacity Increase",
+    "removeSlot": "Remove Slot",
+    "refillOptimization": "Refill Optimization",
+    "conversionAlert": "Conversion Alert",
+    "general": "General"
   },
   "products": {
     "title": "Products",
@@ -693,7 +709,17 @@
     "loadingDiagnostics": "Loading diagnostics…",
     "removeDevice": "Remove device",
     "development": "Development",
-    "registered": "Registered {time}"
+    "registered": "Registered {time}",
+    "aiInsights": "AI Insights",
+    "aiInsightsDescription": "Connect your Anthropic API key to enable AI-powered machine insights and recommendations.",
+    "aiKeyActive": "API key configured",
+    "aiKeyRequired": "Please enter an API key.",
+    "aiKeySaved": "API key saved successfully.",
+    "aiKeyRemoved": "API key removed.",
+    "enterApiKey": "Anthropic API Key",
+    "replaceApiKey": "Replace API Key",
+    "saveApiKey": "Save key",
+    "updateApiKey": "Update key"
   },
   "activity": {
     "saleRecorded": "Sale recorded",

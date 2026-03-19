@@ -12,9 +12,9 @@ Vending machine operators can manage all the telemetry, monitor sales, and optim
 
 | Attribute | Value |
 |-----------|-------|
-| Version | Production |
+| Version | v1.2 |
 | Status | Production |
-| Last Updated | 2026-03-18 |
+| Last Updated | 2026-03-19 |
 
 ## Requirements
 
@@ -33,10 +33,10 @@ Vending machine operators can manage all the telemetry, monitor sales, and optim
 
 ### Active (In Progress)
 
-- [ ] AI-powered sales/inventory analysis and recommendations
+- [x] AI-powered sales/inventory analysis and recommendations
   - [x] Phase 01: KPI aggregation RPC (`get_machine_insights_kpis`) — Phase 01 complete
-  - [ ] Phase 02: `machine-insights` edge function + Claude API integration
-  - [ ] Phase 03: Dashboard UI — "AI Insights" button + recommendations modal
+  - [x] Phase 02: `machine-insights` edge function + per-company Anthropic API key — Phase 02 complete
+  - [x] Phase 03: Dashboard UI — "AI Insights" button + recommendations Sheet — Phase 03 complete
 - [x] Warehouse picking optimization (sorted pick lists for refill tours)
   - [x] Phase 04: Warehouse product positions — table + admin UI — Phase 04 complete
   - [x] Phase 05: Sorted pick list — refill wizard integration + per-machine/combined mode — Phase 05 complete
@@ -95,6 +95,8 @@ Production system with live ESP32 devices installed in the field. Backward compa
 | `security definer` + manual `p_company_id` check for AI RPCs | Service role client in edge functions bypasses RLS — manual check is the tenancy gate | 2026-03-18 | Active |
 | Schema FK pattern: `company`, not `company_id` | Existing schema uses `company` as the FK column name in vendingMachine, embeddeds, products | 2026-03-18 | Active |
 | Denormalized `company_id` on warehouse position tables | Matches `warehouse_stock_batches` RLS pattern — simpler policies | 2026-03-18 | Active |
+| Per-company Anthropic API key (not global env var) | Multi-tenant friendly — each company manages their own key in settings | 2026-03-19 | Active |
+| `claude-haiku-4-5` for AI insights | Fast, cheap, well-suited for structured JSON output tasks | 2026-03-19 | Active |
 
 ## Success Metrics
 
@@ -117,4 +119,4 @@ Production system with live ESP32 devices installed in the field. Backward compa
 
 ---
 *PROJECT.md — Updated when requirements or context change*
-*Last updated: 2026-03-18 after Phase 05 (sorted-picklist) — Milestone v1.2 complete*
+*Last updated: 2026-03-19 after Phase 03 (insights-ui) — Milestone v1.1 complete*

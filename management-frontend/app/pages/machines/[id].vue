@@ -4,7 +4,10 @@ definePageMeta({ middleware: 'auth' })
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { VisArea, VisAxis, VisLine, VisXYContainer } from '@unovis/vue'
-import { IconCreditCard, IconCoins, IconSend } from '@tabler/icons-vue'
+import { IconCreditCard, IconCoins, IconSend, IconSparkles, IconLoader2 } from '@tabler/icons-vue'
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { Badge } from '@/components/ui/badge'
+import { useInsights, sortedRecommendations, priorityVariant, recommendationTypeLabel } from '@/composables/useInsights'
 import { timeAgo, formatCurrency, formatDate, formatDateTime } from '@/lib/utils'
 
 const { t, locale } = useI18n()
@@ -24,6 +27,17 @@ const { logs: mdbLogs, loading: mdbLogsLoading, hasMore: mdbHasMore, fetchLogs: 
 const { onResume } = useAppResume()
 
 const isAdmin = computed(() => role.value === 'admin')
+
+// AI Insights
+const { data: insights, loading: insightsLoading, error: insightsError, fetchInsights } = useInsights()
+const insightsOpen = ref(false)
+
+function openInsights() {
+  insightsOpen.value = true
+  if (machine.value?.id) {
+    fetchInsights(machine.value.id)
+  }
+}
 
 const machine = ref<any>(null)
 const sales = ref<any[]>([])
@@ -864,6 +878,13 @@ function stockColor(tray: any) {
                 >
                   {{ machine.embeddeds.status === 'ota_updating' ? t('machineDetail.updating') : machine.embeddeds.status === 'ota_success' ? t('machineDetail.updated') : machine.embeddeds.status === 'ota_failed' ? t('machineDetail.updateFailed') : machine.embeddeds.status === 'online' ? t('machineDetail.online') : machine.embeddeds.status === 'offline' ? t('machineDetail.offline') : machine.embeddeds.status }}
                 </span>
+                <button
+                  class="inline-flex items-center gap-1 rounded-md border px-3 py-1.5 text-xs font-medium text-muted-foreground shadow-sm transition-colors hover:bg-muted hover:text-foreground"
+                  @click="openInsights"
+                >
+                  <IconSparkles class="size-3" />
+                  <span class="hidden sm:inline">{{ t('machineDetail.aiInsights') }}</span>
+                </button>
                 <button
                   v-if="isAdmin"
                   class="inline-flex items-center gap-1 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
@@ -1998,4 +2019,81 @@ function stockColor(tray: any) {
             </div>
           </form>
       </AppModal>
+
+      <!-- AI Insights Sheet -->
+      <Sheet v-model:open="insightsOpen">
+        <SheetContent side="right" class="w-full sm:max-w-lg overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle class="flex items-center gap-2">
+              <IconSparkles class="size-5 text-primary" />
+              {{ t('machineDetail.aiInsights') }}
+            </SheetTitle>
+            <p v-if="machine" class="text-sm text-muted-foreground">
+              {{ t('machineDetail.aiInsightsFor', { name: machine.name }) }}
+            </p>
+          </SheetHeader>
+
+          <div class="mt-6 space-y-4">
+            <!-- Loading -->
+            <template v-if="insightsLoading">
+              <div class="flex items-center gap-2 text-sm text-muted-foreground">
+                <IconLoader2 class="size-4 animate-spin" />
+                {{ t('machineDetail.aiLoading') }}
+              </div>
+              <div class="space-y-3">
+                <div v-for="i in 3" :key="i" class="rounded-lg border p-4 space-y-2">
+                  <div class="h-4 w-24 animate-pulse rounded bg-muted" />
+                  <div class="h-3 w-full animate-pulse rounded bg-muted" />
+                  <div class="h-3 w-3/4 animate-pulse rounded bg-muted" />
+                </div>
+              </div>
+            </template>
+
+            <!-- Error -->
+            <div v-else-if="insightsError" class="rounded-lg border border-destructive/20 bg-destructive/5 p-4">
+              <p class="text-sm text-destructive">{{ t('machineDetail.aiError', { error: insightsError }) }}</p>
+            </div>
+
+            <!-- Results -->
+            <template v-else-if="insights">
+              <!-- Recommendations -->
+              <template v-if="sortedRecommendations(insights.recommendations).length > 0">
+                <div
+                  v-for="(rec, idx) in sortedRecommendations(insights.recommendations)"
+                  :key="idx"
+                  class="rounded-lg border p-4 space-y-2"
+                >
+                  <div class="flex items-center gap-2 flex-wrap">
+                    <Badge :variant="priorityVariant(rec.priority)" class="text-xs">
+                      {{ rec.priority }}
+                    </Badge>
+                    <span class="text-xs text-muted-foreground">{{ t(recommendationTypeLabel(rec.type)) }}</span>
+                    <span v-if="rec.item_number != null" class="text-xs text-muted-foreground">
+                      {{ t('machineDetail.aiSlot', { number: rec.item_number }) }}
+                    </span>
+                  </div>
+                  <p class="text-sm font-medium">{{ rec.title }}</p>
+                  <p class="text-sm text-muted-foreground">{{ rec.detail }}</p>
+                </div>
+              </template>
+
+              <!-- Empty -->
+              <div v-else class="rounded-lg border bg-muted/50 p-4 text-center">
+                <p class="text-sm text-muted-foreground">{{ t('machineDetail.aiNoRecommendations') }}</p>
+              </div>
+
+              <!-- Summary -->
+              <div class="rounded-lg border bg-card p-4 space-y-2">
+                <h3 class="text-sm font-medium">{{ t('machineDetail.aiSummary') }}</h3>
+                <p class="text-sm text-muted-foreground leading-relaxed">{{ insights.summary }}</p>
+              </div>
+
+              <!-- Generated timestamp -->
+              <p class="text-xs text-muted-foreground text-right">
+                {{ t('machineDetail.aiGenerated', { time: timeAgo(insights.generated_at, t) }) }}
+              </p>
+            </template>
+          </div>
+        </SheetContent>
+      </Sheet>
 </template>
