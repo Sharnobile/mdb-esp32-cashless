@@ -378,6 +378,7 @@
     "expiringSoon": "Expiring soon",
     "belowMinStock": "Below min stock",
     "stockValue": "Stock value",
+    "machineStockValue": "Machine stock value",
     "expirationWarnings": "Expiration warnings",
     "addWarehouse": "Add warehouse",
     "createWarehouse": "Create warehouse",

@@ -53,7 +53,7 @@ const selectedWarehouse = computed(() =>
 )
 
 const pullRefreshHandler = async () => {
-  await Promise.all([fetchWarehouses(), fetchProducts()])
+  await Promise.all([fetchWarehouses(), fetchProducts(), fetchMachineStockValue()])
   if (selectedWarehouseId.value) await loadWarehouseData()
 }
 usePullToRefresh(pullRefreshHandler)
@@ -73,7 +73,7 @@ onMounted(async () => {
   const mod = await import('sortablejs')
   _Sortable = mod.default
 
-  await Promise.all([fetchWarehouses(), fetchProducts()])
+  await Promise.all([fetchWarehouses(), fetchProducts(), fetchMachineStockValue()])
   const first = warehouses.value[0]
   if (first) {
     selectedWarehouseId.value = first.id
@@ -116,6 +116,28 @@ const totalValue = computed(() => {
     return sum + ps.total_quantity * (price ?? 0)
   }, 0)
 })
+
+// ── Machine stock value ─────────────────────────────────────────────────────
+const machineTrays = ref<{ product_id: string; current_stock: number; sellprice: number }[]>([])
+
+async function fetchMachineStockValue() {
+  const supabase = useSupabaseClient()
+  const { data } = await supabase
+    .from('machine_trays')
+    .select('product_id, current_stock, products(sellprice)')
+    .not('product_id', 'is', null)
+  if (data) {
+    machineTrays.value = (data as any[]).map(t => ({
+      product_id: t.product_id,
+      current_stock: t.current_stock ?? 0,
+      sellprice: t.products?.sellprice ?? 0,
+    }))
+  }
+}
+
+const machineStockValue = computed(() =>
+  machineTrays.value.reduce((sum, t) => sum + t.current_stock * t.sellprice, 0)
+)
 
 // ── Stock tab state ─────────────────────────────────────────────────────────
 
@@ -940,7 +962,7 @@ async function saveMinStock(productId: string) {
       <TabsContent value="overview">
         <div class="flex flex-col gap-4">
           <!-- KPI cards -->
-          <div class="grid grid-cols-2 gap-3 lg:grid-cols-5">
+          <div class="grid grid-cols-2 gap-3 lg:grid-cols-6">
             <Card>
               <CardHeader class="pb-2">
                 <CardTitle class="text-sm font-medium text-muted-foreground">{{ t('warehouse.productsKpi') }}</CardTitle>
@@ -979,6 +1001,14 @@ async function saveMinStock(productId: string) {
               </CardHeader>
               <CardContent>
                 <div class="text-2xl font-bold">{{ formatCurrency(totalValue, locale) }}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader class="pb-2">
+                <CardTitle class="text-sm font-medium text-muted-foreground">{{ t('warehouse.machineStockValue') }}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div class="text-2xl font-bold">{{ formatCurrency(machineStockValue, locale) }}</div>
               </CardContent>
             </Card>
           </div>

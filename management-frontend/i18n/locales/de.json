@@ -378,6 +378,7 @@
     "expiringSoon": "Bald ablaufend",
     "belowMinStock": "Unter Mindestbestand",
     "stockValue": "Lagerwert",
+    "machineStockValue": "Warenwert Automaten",
     "expirationWarnings": "Ablaufwarnungen",
     "addWarehouse": "Lager hinzufügen",
     "createWarehouse": "Lager erstellen",
