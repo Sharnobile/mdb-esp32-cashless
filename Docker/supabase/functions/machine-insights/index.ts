@@ -1,5 +1,4 @@
 import { createClient } from '@supabase/supabase-js'
-import Anthropic from '@anthropic-ai/sdk'
 
 async function hashKey(key: string): Promise<string> {
   const encoded = new TextEncoder().encode(key)
@@ -155,14 +154,31 @@ Rules:
 - Maximum 6 recommendations. Prioritize high-impact ones.
 - If data is missing or machine has no sales, say so clearly in summary.`
 
-    // ── Call Anthropic API ────────────────────────────────────────────────────
-    const anthropic = new Anthropic({ apiKey: anthropicKey })
-    const message = await anthropic.messages.create({
-      model: 'claude-haiku-4-5',
-      max_tokens: 1024,
-      messages: [{ role: 'user', content: prompt }]
+    // ── Call Anthropic API (direct fetch — no SDK needed) ─────────────────────
+    const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': anthropicKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 1024,
+        messages: [{ role: 'user', content: prompt }],
+      }),
     })
-    const rawText = message.content[0].type === 'text' ? message.content[0].text : ''
+
+    if (!anthropicRes.ok) {
+      const errBody = await anthropicRes.json().catch(() => ({}))
+      const errMsg = errBody?.error?.message ?? `Anthropic API error: ${anthropicRes.status}`
+      return new Response(JSON.stringify({ error: errMsg }), {
+        status: anthropicRes.status, headers: { 'Content-Type': 'application/json' },
+      })
+    }
+
+    const anthropicData = await anthropicRes.json()
+    const rawText = anthropicData.content?.[0]?.type === 'text' ? anthropicData.content[0].text : ''
 
     // ── Parse response ────────────────────────────────────────────────────────
     let parsed: { recommendations: unknown[]; summary: string }
@@ -201,17 +217,8 @@ Rules:
 
   } catch (err) {
     console.error('[machine-insights]', err)
-    // Extract a clean error message from Anthropic SDK errors
-    let errorMsg = 'An unexpected error occurred'
-    if (err?.status && err?.error?.error?.message) {
-      // Anthropic API error shape: { status, error: { error: { type, message } } }
-      errorMsg = err.error.error.message
-    } else if (err?.message) {
-      errorMsg = err.message
-    }
-    const status = err?.status ?? 500
-    return new Response(JSON.stringify({ error: errorMsg }), {
-      status, headers: { 'Content-Type': 'application/json' },
+    return new Response(JSON.stringify({ error: err?.message ?? String(err) }), {
+      status: 500, headers: { 'Content-Type': 'application/json' },
     })
   }
 })
