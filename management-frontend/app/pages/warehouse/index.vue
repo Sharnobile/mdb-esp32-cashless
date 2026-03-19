@@ -1,10 +1,14 @@
+<script lang="ts">
+// Module-scoped: not serialized by Nuxt SSR
+let _Sortable: typeof import('sortablejs').default | null = null
+</script>
+
 <script setup lang="ts">
 definePageMeta({ middleware: 'auth' })
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import Sortable from 'sortablejs'
 import {
   IconPlus, IconBarcode, IconAdjustments, IconTrash,
   IconPackageImport, IconChevronDown, IconChevronRight,
@@ -55,14 +59,20 @@ const pullRefreshHandler = async () => {
 usePullToRefresh(pullRefreshHandler)
 
 // Disable pull-to-refresh on positions tab (conflicts with touch drag-and-drop)
-const pullRefreshState = useState<(() => Promise<void> | void) | null>('pull-refresh-handler')
-watch(activeTab, (tab) => {
-  pullRefreshState.value = tab === 'positions' ? null : pullRefreshHandler
-}, { immediate: true })
+if (import.meta.client) {
+  const pullRefreshState = useState<(() => Promise<void> | void) | null>('pull-refresh-handler')
+  watch(activeTab, (tab) => {
+    pullRefreshState.value = tab === 'positions' ? null : pullRefreshHandler
+  }, { immediate: true })
+}
 
 let unsubscribe: (() => void) | null = null
 
 onMounted(async () => {
+  // Load sortablejs client-side only
+  const mod = await import('sortablejs')
+  _Sortable = mod.default
+
   await Promise.all([fetchWarehouses(), fetchProducts()])
   const first = warehouses.value[0]
   if (first) {
@@ -365,7 +375,7 @@ async function moveSelectedToGroup(groupId: string | null) {
 
 // ── Sortable.js integration ─────────────────────────────────────────────
 
-const sortableInstances = ref<Sortable[]>([])
+const sortableInstances = ref<any[]>([])
 
 function destroySortables() {
   for (const s of sortableInstances.value) s.destroy()
@@ -383,7 +393,8 @@ function initSortables() {
       const groupId = el.getAttribute('data-sortable-group') || null
       const resolvedGroupId = groupId === '__root__' ? null : groupId
 
-      const instance = Sortable.create(el as HTMLElement, {
+      if (!_Sortable) return
+      const instance = _Sortable.create(el as HTMLElement, {
         group: 'products', // allows cross-group dragging
         handle: '.drag-handle',
         animation: 150,
@@ -428,7 +439,8 @@ function initGroupSortable() {
     const container = document.querySelector('[data-sortable-groups]')
     if (!container) return
 
-    const instance = Sortable.create(container as HTMLElement, {
+    if (!_Sortable) return
+    const instance = _Sortable.create(container as HTMLElement, {
       handle: '.group-drag-handle',
       animation: 150,
       ghostClass: 'opacity-30',
