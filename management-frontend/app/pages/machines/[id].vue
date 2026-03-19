@@ -1002,65 +1002,6 @@ function stockColor(tray: any) {
 
             <!-- Trays & Stock tab -->
             <TabsContent value="trays" class="mt-4">
-              <!-- Refill summary banner + packing list -->
-              <div v-if="lowStockCount > 0 || (fillBelowCount > 0 && lowStockCount > 0)" class="mb-4 rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/30">
-                <!-- Header row -->
-                <div class="flex flex-wrap items-center gap-2 sm:gap-3 px-4 py-3">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
-                  <span class="min-w-0 flex-1 text-sm font-medium text-amber-800 dark:text-amber-200">
-                    {{ t('machineDetail.belowMinimum', { count: lowStockCount }, lowStockCount) }}
-                    <template v-if="fillBelowCount > 0">
-                      <span class="text-blue-700 dark:text-blue-300">+ {{ fillBelowCount }} below fill threshold</span>
-                    </template>
-                  </span>
-                  <button
-                    v-if="isAdmin"
-                    :disabled="refillAllLoading"
-                    class="ml-auto inline-flex h-8 items-center gap-1.5 rounded-md bg-amber-600 px-3 text-xs font-medium text-white shadow-sm transition-colors hover:bg-amber-700 disabled:opacity-50 dark:bg-amber-600 dark:hover:bg-amber-500"
-                    @click="handleRefillAll"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
-                    <span v-if="refillAllLoading">{{ t('machineDetail.refilling') }}</span>
-                    <span v-else-if="packedQuantities">{{ t('machineDetail.refillAll') }} ({{ lowStockCount + fillBelowCount }})</span>
-                    <span v-else>{{ t('machineDetail.refillAll') }} ({{ lowStockCount + fillBelowCount }})</span>
-                  </button>
-                </div>
-                <!-- Packing list -->
-                <div v-if="packingList.length > 0" class="flex flex-wrap gap-2 border-t border-amber-200 px-4 py-3 dark:border-amber-800">
-                  <div
-                    v-for="item in packingList"
-                    :key="item.name"
-                    class="inline-flex max-w-full items-center gap-2 rounded-full py-1 pl-1 pr-3 text-sm shadow-sm"
-                    :class="item.packed === 0
-                      ? 'bg-white/40 opacity-50 dark:bg-black/10'
-                      : 'bg-white/70 dark:bg-black/20'"
-                  >
-                    <img
-                      v-if="item.image_url"
-                      :src="item.image_url"
-                      :alt="item.name"
-                      class="h-6 w-6 rounded-full object-cover"
-                    />
-                    <div v-else class="flex h-6 w-6 items-center justify-center rounded-full bg-amber-200 text-[10px] font-bold text-amber-700 dark:bg-amber-800 dark:text-amber-200">
-                      {{ item.name.charAt(0) }}
-                    </div>
-                    <span class="truncate font-medium text-amber-900 dark:text-amber-100">{{ item.name }}</span>
-                    <!-- Packed quantities indicator -->
-                    <template v-if="item.packed !== null">
-                      <span v-if="item.packed === 0" class="rounded-full bg-red-500 px-1.5 py-0.5 text-[11px] font-semibold leading-none text-white">0/{{ item.needed }}</span>
-                      <span v-else-if="item.packed < item.needed" class="rounded-full bg-amber-500 px-1.5 py-0.5 text-[11px] font-semibold leading-none text-white">{{ item.packed }}/{{ item.needed }}</span>
-                      <span v-else class="rounded-full bg-green-600 px-1.5 py-0.5 text-[11px] font-semibold leading-none text-white">{{ item.packed }}</span>
-                    </template>
-                    <!-- Default: no packed quantities -->
-                    <span
-                      v-else
-                      class="rounded-full px-1.5 py-0.5 text-[11px] font-semibold leading-none text-white"
-                      :class="item.critical ? 'bg-amber-600' : 'bg-blue-500'"
-                    >{{ item.needed }}</span>
-                  </div>
-                </div>
-              </div>
-
               <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <h2 class="text-base font-medium">{{ t('machineDetail.trayConfiguration') }}</h2>
                 <div v-if="isAdmin" class="flex items-center gap-2">
