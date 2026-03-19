@@ -823,7 +823,12 @@ export function useWarehouse() {
     const companyId = organization.value?.id
     if (!companyId) throw new Error('No organization')
 
-    const rows = items.map((item) => ({
+    // Deduplicate by product_id (keep last occurrence — the most recent sort_order)
+    const seen = new Map<string, typeof items[0]>()
+    for (const item of items) {
+      seen.set(item.product_id, item)
+    }
+    const rows = Array.from(seen.values()).map((item) => ({
       warehouse_id: warehouseId,
       product_id: item.product_id,
       sort_order: item.sort_order,
