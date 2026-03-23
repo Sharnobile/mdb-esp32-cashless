@@ -33,12 +33,18 @@ onMounted(async () => {
   onUnmounted(unsubscribe)
 })
 
-// ── Sorting ──────────────────────────────────────────────────────────────────
+// ── Search & Sorting ─────────────────────────────────────────────────────────
+import { fuzzyFilter } from '@/lib/fuzzySearch'
+
+const machineSearch = ref('')
 const machineSortKey = ref<'name' | 'todayRevenue' | 'monthRevenue' | 'stockHealth'>('name')
 
 const sortedMachines = computed(() => {
+  const filtered = fuzzyFilter(machines.value, machineSearch.value, [
+    m => m.name,
+  ])
   const key = machineSortKey.value
-  return [...machines.value].sort((a, b) => {
+  return [...filtered].sort((a, b) => {
     if (key === 'name') return (a.name ?? '').localeCompare(b.name ?? '')
     if (key === 'todayRevenue') return (b.today_revenue ?? 0) - (a.today_revenue ?? 0)
     if (key === 'monthRevenue') return (b.this_month_revenue ?? 0) - (a.this_month_revenue ?? 0)
@@ -97,7 +103,9 @@ async function submitCreateMachine() {
         </div>
 
         <div v-else class="flex flex-col gap-4">
-        <div class="flex items-center gap-2">
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <SearchInput v-model="machineSearch" :placeholder="t('common.search') + '...'" class="sm:max-w-xs" />
+          <div class="flex items-center gap-2">
           <IconArrowsExchange class="size-4 text-muted-foreground" />
           <select
             v-model="machineSortKey"
@@ -108,8 +116,10 @@ async function submitCreateMachine() {
             <option value="monthRevenue">{{ t('common.thisMonth') }} ({{ t('common.revenue') }})</option>
             <option value="stockHealth">{{ t('machines.stockHealth') }}</option>
           </select>
+          </div>
         </div>
-        <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div v-if="sortedMachines.length === 0" class="text-sm text-muted-foreground">{{ t('common.noResults') }}</div>
+        <div v-else class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           <NuxtLink
             v-for="machine in sortedMachines"
             :key="machine.id"

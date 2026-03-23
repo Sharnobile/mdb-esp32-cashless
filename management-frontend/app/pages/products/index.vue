@@ -25,11 +25,18 @@ const {
 
 const isAdmin = computed(() => role.value === 'admin')
 
+import { fuzzyFilter } from '@/lib/fuzzySearch'
+
+const productSearch = ref('')
 const { sortKey: prodSortKey, sortDir: prodSortDir, toggleSort: toggleProdSort, sortIcon: prodSortIcon } = useTableSort<'name' | 'category' | 'price'>('name')
 
 const sortedProducts = computed(() => {
+  const filtered = fuzzyFilter(products.value, productSearch.value, [
+    p => p.name,
+    p => p.category_name,
+  ])
   const dir = prodSortDir.value === 'asc' ? 1 : -1
-  return [...products.value].sort((a, b) => {
+  return [...filtered].sort((a, b) => {
     if (prodSortKey.value === 'name') return dir * (a.name ?? '').localeCompare(b.name ?? '')
     if (prodSortKey.value === 'category') return dir * (a.category_name ?? '').localeCompare(b.category_name ?? '')
     return dir * ((a.sellprice ?? 0) - (b.sellprice ?? 0))
@@ -381,7 +388,9 @@ async function runImport() {
               </div>
             </div>
 
-            <div v-if="products.length === 0" class="text-sm text-muted-foreground">{{ t('products.noProducts') }}</div>
+            <SearchInput v-model="productSearch" :placeholder="t('common.search') + '...'" class="max-w-xs" />
+
+            <div v-if="sortedProducts.length === 0" class="text-sm text-muted-foreground">{{ productSearch ? t('common.noResults') : t('products.noProducts') }}</div>
             <div v-else class="overflow-x-auto rounded-md border">
               <table class="w-full text-sm">
                 <thead>

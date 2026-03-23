@@ -165,11 +165,12 @@ function toggleExpand(productId: string) {
   }
 }
 
+import { fuzzyFilter } from '@/lib/fuzzySearch'
+
 const filteredSummaries = computed(() => {
   let items = productSummaries.value
   if (stockSearch.value) {
-    const q = stockSearch.value.toLowerCase()
-    items = items.filter(p => p.product_name.toLowerCase().includes(q))
+    items = fuzzyFilter(items, stockSearch.value, [p => p.product_name])
   }
   if (stockFilter.value === 'warning') {
     items = items.filter(p => p.expiration_status === 'warning' || p.expiration_status === 'critical')

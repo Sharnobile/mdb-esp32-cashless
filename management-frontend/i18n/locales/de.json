@@ -31,6 +31,7 @@
     "lastMonth": "Letzter Monat",
     "revenue": "Umsatz",
     "search": "Suchen",
+    "noResults": "Keine passenden Ergebnisse.",
     "revoke": "Widerrufen",
     "deploy": "Bereitstellen",
     "send": "Senden",

@@ -13,11 +13,21 @@ const { pendingTokens, fetchPendingTokens, deletePendingToken } = useMachines()
 
 const isAdmin = computed(() => role.value === 'admin')
 
+import { fuzzyFilter } from '@/lib/fuzzySearch'
+
+const deviceSearch = ref('')
 const { sortKey: devSortKey, sortDir: devSortDir, toggleSort: toggleDevSort, sortIcon: devSortIcon } = useTableSort<'subdomain' | 'status' | 'machine' | 'lastSeen'>('subdomain', 'desc')
 
 const sortedDevices = computed(() => {
+  const filtered = fuzzyFilter(devices.value, deviceSearch.value, [
+    d => d.mac_address,
+    d => d.machine_name,
+    d => d.status,
+    d => d.firmware_version,
+    d => String(d.subdomain),
+  ])
   const dir = devSortDir.value === 'asc' ? 1 : -1
-  return [...devices.value].sort((a, b) => {
+  return [...filtered].sort((a, b) => {
     if (devSortKey.value === 'subdomain') return dir * (a.subdomain - b.subdomain)
     if (devSortKey.value === 'status') return dir * (a.status ?? '').localeCompare(b.status ?? '')
     if (devSortKey.value === 'machine') return dir * (a.machine_name ?? '').localeCompare(b.machine_name ?? '')
@@ -276,6 +286,11 @@ async function confirmDelete() {
           {{ t('devices.noDevicesYet') }}
         </div>
 
+        <div v-else class="flex flex-col gap-3">
+        <SearchInput v-model="deviceSearch" :placeholder="t('common.search') + '...'" class="max-w-xs" />
+
+        <div v-if="sortedDevices.length === 0" class="text-sm text-muted-foreground">{{ t('common.noResults') }}</div>
+
         <!-- ── Mobile: Card Layout (< lg) ── -->
         <div v-else class="flex flex-col gap-3 lg:hidden">
           <div
@@ -351,7 +366,7 @@ async function confirmDelete() {
         </div>
 
         <!-- ── Desktop: Table Layout (>= lg) ── -->
-        <div v-if="!loading && devices.length > 0" class="hidden lg:block rounded-md border">
+        <div class="hidden lg:block rounded-md border">
           <table class="w-full text-sm">
             <thead>
               <tr class="border-b bg-muted/50 text-left">
@@ -436,6 +451,7 @@ async function confirmDelete() {
               </tr>
             </tbody>
           </table>
+        </div>
         </div>
   </div>
 

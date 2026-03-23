@@ -10,6 +10,9 @@ const { role } = useOrganization()
 
 const isAdmin = computed(() => role.value === 'admin')
 
+import { fuzzyFilter } from '@/lib/fuzzySearch'
+
+const keySearch = ref('')
 const { toggleSort: toggleKeySort, sortIcon: keySortIcon, sortKey: keySortKey, sortDir: keySortDir } = useTableSort<'name' | 'created' | 'lastUsed' | 'status'>('created', 'desc')
 
 interface ApiKey {
@@ -37,8 +40,12 @@ async function fetchKeys() {
 }
 
 const sortedKeys = computed(() => {
+  const filtered = fuzzyFilter(keys.value, keySearch.value, [
+    k => k.name,
+    k => k.key_prefix,
+  ])
   const dir = keySortDir.value === 'asc' ? 1 : -1
-  return [...keys.value].sort((a, b) => {
+  return [...filtered].sort((a, b) => {
     if (keySortKey.value === 'name') return dir * a.name.localeCompare(b.name)
     if (keySortKey.value === 'created') return dir * a.created_at.localeCompare(b.created_at)
     if (keySortKey.value === 'lastUsed') {
@@ -125,6 +132,9 @@ async function revokeKey(id: string) {
 
     <template v-else>
       <div v-if="keys.length === 0" class="text-sm text-muted-foreground">{{ t('apiKeys.noKeysYet') }}</div>
+      <div v-else class="flex flex-col gap-4">
+      <SearchInput v-model="keySearch" :placeholder="t('common.search') + '...'" class="max-w-xs" />
+      <div v-if="sortedKeys.length === 0" class="text-sm text-muted-foreground">{{ t('common.noResults') }}</div>
       <div v-else class="overflow-x-auto rounded-md border">
         <table class="w-full text-sm">
           <thead>
@@ -180,6 +190,7 @@ async function revokeKey(id: string) {
             </tr>
           </tbody>
         </table>
+      </div>
       </div>
 
       <!-- Usage instructions -->

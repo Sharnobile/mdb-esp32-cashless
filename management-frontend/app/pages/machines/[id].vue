@@ -28,11 +28,18 @@ const { onResume } = useAppResume()
 
 const isAdmin = computed(() => role.value === 'admin')
 
+import { fuzzyFilter } from '@/lib/fuzzySearch'
+
+const traySearch = ref('')
 const { toggleSort: toggleTraySort, sortIcon: traySortIcon, sortKey: traySortKey, sortDir: traySortDir } = useTableSort<'slot' | 'product' | 'stock'>('slot')
 
 const sortedTrays = computed(() => {
+  const filtered = fuzzyFilter(trays.value, traySearch.value, [
+    t => t.product_name,
+    t => String(t.item_number),
+  ])
   const dir = traySortDir.value === 'asc' ? 1 : -1
-  return [...trays.value].sort((a, b) => {
+  return [...filtered].sort((a, b) => {
     if (traySortKey.value === 'slot') return dir * ((a.item_number ?? 0) - (b.item_number ?? 0))
     if (traySortKey.value === 'product') {
       const aName = trayProductMap.value?.get(a.item_number)?.name ?? ''
@@ -489,9 +496,7 @@ const productQuery = ref('')
 const highlightedIndex = ref(-1)
 
 const filteredProducts = computed(() => {
-  const q = productQuery.value.toLowerCase().trim()
-  if (!q) return products.value
-  return products.value.filter(p => p.name.toLowerCase().includes(q))
+  return fuzzyFilter(products.value, productQuery.value, [p => p.name])
 })
 
 // Auto-highlight best match as the user types
@@ -1050,6 +1055,8 @@ function stockColor(tray: any) {
               <div v-if="traysLoading" class="text-sm text-muted-foreground">{{ t('machineDetail.loadingTrays') }}</div>
               <div v-else-if="trays.length === 0" class="text-sm text-muted-foreground">{{ t('machineDetail.noTraysConfiguredDetail') }}</div>
               <template v-else>
+                <SearchInput v-model="traySearch" :placeholder="t('common.search') + '...'" class="max-w-xs mb-3" />
+                <div v-if="sortedTrays.length === 0" class="text-sm text-muted-foreground">{{ t('common.noResults') }}</div>
                 <!-- ── Mobile card layout ── -->
                 <div class="space-y-3 md:hidden">
                   <div
@@ -1073,9 +1080,13 @@ function stockColor(tray: any) {
                         class="h-10 w-10 shrink-0 rounded-lg object-cover"
                       />
                       <div v-else class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted text-xs font-semibold text-muted-foreground">
-                        {{ tray.item_number }}
+                        {{ (tray.product_name ?? '?').charAt(0) }}
                       </div>
-                      <!-- Product name + slot -->
+                      <!-- Slot badge -->
+                      <span class="inline-flex h-6 min-w-[1.5rem] shrink-0 items-center justify-center rounded-md bg-foreground/10 px-1 text-[10px] font-bold tabular-nums text-foreground">
+                        #{{ tray.item_number }}
+                      </span>
+                      <!-- Product name -->
                       <div class="min-w-0 flex-1">
                         <template v-if="isAdmin">
                           <div v-if="activeAutocompleteTrayId === tray.id" class="relative">
@@ -1131,11 +1142,8 @@ function stockColor(tray: any) {
                           </button>
                         </template>
                         <span v-else class="block truncate text-sm font-medium">{{ tray.product_name ?? '—' }}</span>
-                        <span class="text-xs text-muted-foreground">
-                          {{ t('machineDetail.slot') }} {{ tray.item_number }}
-                          <template v-if="trayProductMap.get(tray.item_number)?.sellprice">
-                            &middot; {{ formatCurrency(trayProductMap.get(tray.item_number)!.sellprice!, locale) }}
-                          </template>
+                        <span v-if="trayProductMap.get(tray.item_number)?.sellprice" class="text-xs text-muted-foreground">
+                          {{ formatCurrency(trayProductMap.get(tray.item_number)!.sellprice!, locale) }}
                         </span>
                       </div>
                       <!-- Actions: Full only on mobile -->

@@ -17,11 +17,19 @@ const { copy, copied } = useClipboard({ copiedDuring: 2000 })
 
 const isAdmin = computed(() => role.value === 'admin')
 
+import { fuzzyFilter } from '@/lib/fuzzySearch'
+
+const memberSearch = ref('')
 const { toggleSort: toggleMemberSort, sortIcon: memberSortIcon, sortKey: memberSortKey, sortDir: memberSortDir } = useTableSort<'name' | 'role' | 'joined'>('name')
 
 const sortedMembers = computed(() => {
+  const filtered = fuzzyFilter(members.value, memberSearch.value, [
+    m => memberDisplayName(m),
+    m => m.email,
+    m => m.role,
+  ])
   const dir = memberSortDir.value === 'asc' ? 1 : -1
-  return [...members.value].sort((a, b) => {
+  return [...filtered].sort((a, b) => {
     if (memberSortKey.value === 'name') return dir * memberDisplayName(a).localeCompare(memberDisplayName(b))
     if (memberSortKey.value === 'role') return dir * (a.role ?? '').localeCompare(b.role ?? '')
     return dir * (a.created_at ?? '').localeCompare(b.created_at ?? '')
@@ -122,8 +130,12 @@ async function revokeInvitation(invitationId: string) {
         <template v-else>
           <!-- Active members -->
           <div>
-            <h2 class="mb-3 text-base font-medium">{{ t('members.activeMembers') }}</h2>
-            <div class="overflow-x-auto rounded-md border">
+            <div class="flex items-center justify-between mb-3">
+              <h2 class="text-base font-medium">{{ t('members.activeMembers') }}</h2>
+              <SearchInput v-model="memberSearch" :placeholder="t('common.search') + '...'" class="max-w-xs" />
+            </div>
+            <div v-if="sortedMembers.length === 0" class="text-sm text-muted-foreground mb-4">{{ t('common.noResults') }}</div>
+            <div v-else class="overflow-x-auto rounded-md border">
               <table class="w-full text-sm">
                 <thead>
                   <tr class="border-b bg-muted/50 text-left">
