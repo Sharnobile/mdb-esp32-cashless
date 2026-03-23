@@ -17,6 +17,17 @@ const { copy, copied } = useClipboard({ copiedDuring: 2000 })
 
 const isAdmin = computed(() => role.value === 'admin')
 
+const { toggleSort: toggleMemberSort, sortIcon: memberSortIcon, sortKey: memberSortKey, sortDir: memberSortDir } = useTableSort<'name' | 'role' | 'joined'>('name')
+
+const sortedMembers = computed(() => {
+  const dir = memberSortDir.value === 'asc' ? 1 : -1
+  return [...members.value].sort((a, b) => {
+    if (memberSortKey.value === 'name') return dir * memberDisplayName(a).localeCompare(memberDisplayName(b))
+    if (memberSortKey.value === 'role') return dir * (a.role ?? '').localeCompare(b.role ?? '')
+    return dir * (a.created_at ?? '').localeCompare(b.created_at ?? '')
+  })
+})
+
 async function loadData() {
   loading.value = true
   const [membersRes, invitesRes, usersRes] = await Promise.all([
@@ -116,15 +127,21 @@ async function revokeInvitation(invitationId: string) {
               <table class="w-full text-sm">
                 <thead>
                   <tr class="border-b bg-muted/50 text-left">
-                    <th class="px-4 py-3 font-medium">{{ t('members.nameCol') }}</th>
-                    <th class="px-4 py-3 font-medium">{{ t('members.roleCol') }}</th>
-                    <th class="hidden sm:table-cell px-4 py-3 font-medium">{{ t('members.joinedCol') }}</th>
+                    <th class="px-4 py-3 font-medium cursor-pointer select-none hover:text-foreground" @click="toggleMemberSort('name')">
+                      <SortHeader :icon="memberSortIcon('name')">{{ t('members.nameCol') }}</SortHeader>
+                    </th>
+                    <th class="px-4 py-3 font-medium cursor-pointer select-none hover:text-foreground" @click="toggleMemberSort('role')">
+                      <SortHeader :icon="memberSortIcon('role')">{{ t('members.roleCol') }}</SortHeader>
+                    </th>
+                    <th class="hidden sm:table-cell px-4 py-3 font-medium cursor-pointer select-none hover:text-foreground" @click="toggleMemberSort('joined')">
+                      <SortHeader :icon="memberSortIcon('joined')">{{ t('members.joinedCol') }}</SortHeader>
+                    </th>
                     <th v-if="isAdmin" class="px-4 py-3 font-medium">{{ t('common.actions') }}</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr
-                    v-for="member in members"
+                    v-for="member in sortedMembers"
                     :key="member.id"
                     class="border-b last:border-0 hover:bg-muted/30 transition-colors"
                   >

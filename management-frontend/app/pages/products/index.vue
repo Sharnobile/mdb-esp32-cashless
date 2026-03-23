@@ -25,6 +25,17 @@ const {
 
 const isAdmin = computed(() => role.value === 'admin')
 
+const { sortKey: prodSortKey, sortDir: prodSortDir, toggleSort: toggleProdSort, sortIcon: prodSortIcon } = useTableSort<'name' | 'category' | 'price'>('name')
+
+const sortedProducts = computed(() => {
+  const dir = prodSortDir.value === 'asc' ? 1 : -1
+  return [...products.value].sort((a, b) => {
+    if (prodSortKey.value === 'name') return dir * (a.name ?? '').localeCompare(b.name ?? '')
+    if (prodSortKey.value === 'category') return dir * (a.category_name ?? '').localeCompare(b.category_name ?? '')
+    return dir * ((a.sellprice ?? 0) - (b.sellprice ?? 0))
+  })
+})
+
 usePullToRefresh(() => Promise.all([fetchProducts(), fetchBarcodes()]).then(() => {}))
 
 onMounted(async () => {
@@ -376,15 +387,21 @@ async function runImport() {
                 <thead>
                   <tr class="border-b bg-muted/50 text-left">
                     <th class="w-[72px] min-w-[72px] px-4 py-3 font-medium"></th>
-                    <th class="px-4 py-3 font-medium">{{ t('common.name') }}</th>
-                    <th class="hidden sm:table-cell px-4 py-3 font-medium">{{ t('products.category') }}</th>
-                    <th class="px-4 py-3 font-medium">{{ t('products.price') }}</th>
+                    <th class="px-4 py-3 font-medium cursor-pointer select-none hover:text-foreground" @click="toggleProdSort('name')">
+                      <SortHeader :icon="prodSortIcon('name')">{{ t('common.name') }}</SortHeader>
+                    </th>
+                    <th class="hidden sm:table-cell px-4 py-3 font-medium cursor-pointer select-none hover:text-foreground" @click="toggleProdSort('category')">
+                      <SortHeader :icon="prodSortIcon('category')">{{ t('products.category') }}</SortHeader>
+                    </th>
+                    <th class="px-4 py-3 font-medium cursor-pointer select-none hover:text-foreground" @click="toggleProdSort('price')">
+                      <SortHeader :icon="prodSortIcon('price')" align="right">{{ t('products.price') }}</SortHeader>
+                    </th>
                     <th v-if="isAdmin" class="hidden sm:table-cell px-4 py-3 font-medium">{{ t('common.actions') }}</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr
-                    v-for="product in products"
+                    v-for="product in sortedProducts"
                     :key="product.id"
                     class="border-b last:border-0 hover:bg-muted/30 transition-colors"
                   >

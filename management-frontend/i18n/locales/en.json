@@ -29,6 +29,7 @@
     "thisWeek": "This Week",
     "thisMonth": "This Month",
     "lastMonth": "Last month",
+    "revenue": "Revenue",
     "search": "Search",
     "revoke": "Revoke",
     "deploy": "Deploy",
@@ -160,7 +161,8 @@
     "refill": "Refill →",
     "insufficientStock": "Insufficient warehouse stock",
     "deductionFailed": "Deduction failed",
-    "startRefillTour": "Start Refill Tour"
+    "startRefillTour": "Start Refill Tour",
+    "stockHealth": "Stock Health"
   },
   "refill": {
     "title": "Refill Tour",

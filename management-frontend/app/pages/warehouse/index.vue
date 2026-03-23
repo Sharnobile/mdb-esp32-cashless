@@ -16,6 +16,7 @@ import {
   IconGripVertical,
   IconFolder, IconFolderPlus, IconChevronDown as IconChevronDownSmall, IconChevronRight as IconChevronRightSmall,
   IconEdit, IconSquareCheck, IconSquare,
+  IconArrowUp, IconArrowDown, IconArrowsSort,
 } from '@tabler/icons-vue'
 import { timeAgo, formatCurrency, formatDate } from '@/lib/utils'
 import { getProductImageUrl } from '@/composables/useProducts'
@@ -143,7 +144,18 @@ const machineStockValue = computed(() =>
 
 const stockSearch = ref('')
 const stockFilter = ref<'all' | 'warning' | 'critical'>('all')
+const stockSortKey = ref<'name' | 'quantity' | 'expiration' | 'status'>('name')
+const stockSortDir = ref<'asc' | 'desc'>('asc')
 const expandedProducts = ref(new Set<string>())
+
+function toggleSort(key: 'name' | 'quantity' | 'expiration' | 'status') {
+  if (stockSortKey.value === key) {
+    stockSortDir.value = stockSortDir.value === 'asc' ? 'desc' : 'asc'
+  } else {
+    stockSortKey.value = key
+    stockSortDir.value = 'asc'
+  }
+}
 
 function toggleExpand(productId: string) {
   if (expandedProducts.value.has(productId)) {
@@ -164,8 +176,40 @@ const filteredSummaries = computed(() => {
   } else if (stockFilter.value === 'critical') {
     items = items.filter(p => p.expiration_status === 'critical')
   }
-  return items
+  return sortSummaries(items)
 })
+
+const statusOrder: Record<string, number> = { critical: 0, warning: 1, ok: 2 }
+
+function sortSummaries(items: WarehouseProductSummary[]) {
+  const dir = stockSortDir.value === 'asc' ? 1 : -1
+  return [...items].sort((a, b) => {
+    if (stockSortKey.value === 'name') {
+      return dir * a.product_name.localeCompare(b.product_name)
+    }
+    if (stockSortKey.value === 'quantity') {
+      return dir * (a.total_quantity - b.total_quantity)
+    }
+    if (stockSortKey.value === 'expiration') {
+      const aDate = a.earliest_expiration ?? ''
+      const bDate = b.earliest_expiration ?? ''
+      if (!aDate && !bDate) return 0
+      if (!aDate) return dir
+      if (!bDate) return -dir
+      return dir * aDate.localeCompare(bDate)
+    }
+    // status: critical < warning < ok (asc = worst first)
+    const aStatus = statusOrder[a.expiration_status] ?? 2
+    const bStatus = statusOrder[b.expiration_status] ?? 2
+    if (aStatus !== bStatus) return dir * (aStatus - bStatus)
+    // secondary: below min stock
+    const aMin = a.is_below_min ? 0 : 1
+    const bMin = b.is_below_min ? 0 : 1
+    return dir * (aMin - bMin)
+  })
+}
+
+const sortedProductSummaries = computed(() => sortSummaries(productSummaries.value))
 
 function batchesForProduct(productId: string): StockBatch[] {
   return batches.value.filter(b => b.product_id === productId)
@@ -902,7 +946,7 @@ async function saveMinStock(productId: string) {
 </script>
 
 <template>
-  <div class="flex flex-col gap-4 p-4 md:p-6">
+  <div class="flex flex-col gap-4 p-4 md:p-6 overflow-x-hidden">
     <!-- Header -->
     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <h1 class="text-2xl font-bold">{{ t('warehouse.title') }}</h1>
@@ -947,14 +991,16 @@ async function saveMinStock(productId: string) {
 
     <!-- Tabs -->
     <Tabs v-if="warehouses.length > 0" v-model="activeTab">
-      <TabsList>
-        <TabsTrigger value="overview">{{ t('warehouse.overview') }}</TabsTrigger>
-        <TabsTrigger value="stock">{{ t('warehouse.stockTab') }}</TabsTrigger>
-        <TabsTrigger value="incoming">{{ t('warehouse.incoming') }}</TabsTrigger>
-        <TabsTrigger value="history">{{ t('warehouse.historyTab') }}</TabsTrigger>
-        <TabsTrigger v-if="isAdmin" value="positions">{{ t('warehouse.positionsTab') }}</TabsTrigger>
-        <TabsTrigger v-if="isAdmin" value="settings">{{ t('warehouse.settings') }}</TabsTrigger>
-      </TabsList>
+      <div class="overflow-x-auto -mx-4 px-4 scrollbar-none">
+        <TabsList>
+          <TabsTrigger value="overview">{{ t('warehouse.overview') }}</TabsTrigger>
+          <TabsTrigger value="stock">{{ t('warehouse.stockTab') }}</TabsTrigger>
+          <TabsTrigger value="incoming">{{ t('warehouse.incoming') }}</TabsTrigger>
+          <TabsTrigger value="history">{{ t('warehouse.historyTab') }}</TabsTrigger>
+          <TabsTrigger v-if="isAdmin" value="positions">{{ t('warehouse.positionsTab') }}</TabsTrigger>
+          <TabsTrigger v-if="isAdmin" value="settings">{{ t('warehouse.settings') }}</TabsTrigger>
+        </TabsList>
+      </div>
 
       <!-- ═══════════════════════════════════════════════════════════════════ -->
       <!-- OVERVIEW TAB                                                       -->
@@ -1043,22 +1089,42 @@ async function saveMinStock(productId: string) {
             <table class="w-full text-sm">
               <thead>
                 <tr class="border-b bg-muted/50 text-left">
-                  <th class="px-4 py-3 font-medium">{{ t('warehouse.productCol') }}</th>
-                  <th class="px-4 py-3 font-medium text-right">{{ t('warehouse.quantityCol') }}</th>
+                  <th class="px-4 py-3 font-medium cursor-pointer select-none hover:text-foreground" @click="toggleSort('name')">
+                    <div class="flex items-center gap-1">
+                      {{ t('warehouse.productCol') }}
+                      <component :is="stockSortKey === 'name' ? (stockSortDir === 'asc' ? IconArrowUp : IconArrowDown) : IconArrowsSort" class="size-3.5 text-muted-foreground" />
+                    </div>
+                  </th>
+                  <th class="px-4 py-3 font-medium text-right cursor-pointer select-none hover:text-foreground" @click="toggleSort('quantity')">
+                    <div class="flex items-center justify-end gap-1">
+                      {{ t('warehouse.quantityCol') }}
+                      <component :is="stockSortKey === 'quantity' ? (stockSortDir === 'asc' ? IconArrowUp : IconArrowDown) : IconArrowsSort" class="size-3.5 text-muted-foreground" />
+                    </div>
+                  </th>
                   <th class="hidden px-4 py-3 font-medium text-right md:table-cell">{{ t('warehouse.minStockCol') }}</th>
-                  <th class="hidden px-4 py-3 font-medium md:table-cell">{{ t('warehouse.earliestMhd') }}</th>
-                  <th class="px-4 py-3 font-medium">{{ t('warehouse.statusCol') }}</th>
+                  <th class="hidden px-4 py-3 font-medium md:table-cell cursor-pointer select-none hover:text-foreground" @click="toggleSort('expiration')">
+                    <div class="flex items-center gap-1">
+                      {{ t('warehouse.earliestMhd') }}
+                      <component :is="stockSortKey === 'expiration' ? (stockSortDir === 'asc' ? IconArrowUp : IconArrowDown) : IconArrowsSort" class="size-3.5 text-muted-foreground" />
+                    </div>
+                  </th>
+                  <th class="px-4 py-3 font-medium cursor-pointer select-none hover:text-foreground" @click="toggleSort('status')">
+                    <div class="flex items-center gap-1">
+                      {{ t('warehouse.statusCol') }}
+                      <component :is="stockSortKey === 'status' ? (stockSortDir === 'asc' ? IconArrowUp : IconArrowDown) : IconArrowsSort" class="size-3.5 text-muted-foreground" />
+                    </div>
+                  </th>
                 </tr>
               </thead>
               <tbody>
-                <tr v-if="loading && productSummaries.length === 0">
+                <tr v-if="loading && sortedProductSummaries.length === 0">
                   <td colspan="5" class="px-4 py-8 text-center text-muted-foreground">{{ t('common.loading') }}</td>
                 </tr>
-                <tr v-else-if="productSummaries.length === 0">
+                <tr v-else-if="sortedProductSummaries.length === 0">
                   <td colspan="5" class="px-4 py-8 text-center text-muted-foreground">{{ t('warehouse.noStockInWarehouse') }}</td>
                 </tr>
                 <tr
-                  v-for="p in productSummaries"
+                  v-for="p in sortedProductSummaries"
                   :key="p.product_id"
                   class="border-b last:border-0 hover:bg-muted/30 transition-colors"
                 >
@@ -1150,10 +1216,30 @@ async function saveMinStock(productId: string) {
               <thead>
                 <tr class="border-b bg-muted/50 text-left">
                   <th class="w-8 px-2 py-3"></th>
-                  <th class="px-4 py-3 font-medium">{{ t('warehouse.productCol') }}</th>
-                  <th class="px-4 py-3 font-medium text-right">{{ t('warehouse.totalQty') }}</th>
-                  <th class="hidden px-4 py-3 font-medium md:table-cell">{{ t('warehouse.earliestMhd') }}</th>
-                  <th class="px-4 py-3 font-medium">{{ t('warehouse.statusCol') }}</th>
+                  <th class="px-4 py-3 font-medium cursor-pointer select-none hover:text-foreground" @click="toggleSort('name')">
+                    <div class="flex items-center gap-1">
+                      {{ t('warehouse.productCol') }}
+                      <component :is="stockSortKey === 'name' ? (stockSortDir === 'asc' ? IconArrowUp : IconArrowDown) : IconArrowsSort" class="size-3.5 text-muted-foreground" />
+                    </div>
+                  </th>
+                  <th class="px-4 py-3 font-medium text-right cursor-pointer select-none hover:text-foreground" @click="toggleSort('quantity')">
+                    <div class="flex items-center justify-end gap-1">
+                      {{ t('warehouse.totalQty') }}
+                      <component :is="stockSortKey === 'quantity' ? (stockSortDir === 'asc' ? IconArrowUp : IconArrowDown) : IconArrowsSort" class="size-3.5 text-muted-foreground" />
+                    </div>
+                  </th>
+                  <th class="hidden px-4 py-3 font-medium md:table-cell cursor-pointer select-none hover:text-foreground" @click="toggleSort('expiration')">
+                    <div class="flex items-center gap-1">
+                      {{ t('warehouse.earliestMhd') }}
+                      <component :is="stockSortKey === 'expiration' ? (stockSortDir === 'asc' ? IconArrowUp : IconArrowDown) : IconArrowsSort" class="size-3.5 text-muted-foreground" />
+                    </div>
+                  </th>
+                  <th class="px-4 py-3 font-medium cursor-pointer select-none hover:text-foreground" @click="toggleSort('status')">
+                    <div class="flex items-center gap-1">
+                      {{ t('warehouse.statusCol') }}
+                      <component :is="stockSortKey === 'status' ? (stockSortDir === 'asc' ? IconArrowUp : IconArrowDown) : IconArrowsSort" class="size-3.5 text-muted-foreground" />
+                    </div>
+                  </th>
                 </tr>
               </thead>
               <tbody>

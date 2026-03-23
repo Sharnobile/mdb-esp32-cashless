@@ -10,6 +10,8 @@ const { role } = useOrganization()
 
 const isAdmin = computed(() => role.value === 'admin')
 
+const { toggleSort: toggleKeySort, sortIcon: keySortIcon, sortKey: keySortKey, sortDir: keySortDir } = useTableSort<'name' | 'created' | 'lastUsed' | 'status'>('created', 'desc')
+
 interface ApiKey {
   id: string
   name: string
@@ -33,6 +35,26 @@ async function fetchKeys() {
   }
   loading.value = false
 }
+
+const sortedKeys = computed(() => {
+  const dir = keySortDir.value === 'asc' ? 1 : -1
+  return [...keys.value].sort((a, b) => {
+    if (keySortKey.value === 'name') return dir * a.name.localeCompare(b.name)
+    if (keySortKey.value === 'created') return dir * a.created_at.localeCompare(b.created_at)
+    if (keySortKey.value === 'lastUsed') {
+      const aD = a.last_used_at ?? ''
+      const bD = b.last_used_at ?? ''
+      if (!aD && !bD) return 0
+      if (!aD) return dir
+      if (!bD) return -dir
+      return dir * aD.localeCompare(bD)
+    }
+    // status: active (no revoked_at) first or last
+    const aRevoked = a.revoked_at ? 1 : 0
+    const bRevoked = b.revoked_at ? 1 : 0
+    return dir * (aRevoked - bRevoked)
+  })
+})
 
 onMounted(fetchKeys)
 
@@ -107,17 +129,25 @@ async function revokeKey(id: string) {
         <table class="w-full text-sm">
           <thead>
             <tr class="border-b bg-muted/50 text-left">
-              <th class="px-4 py-3 font-medium">{{ t('apiKeys.nameCol') }}</th>
+              <th class="px-4 py-3 font-medium cursor-pointer select-none hover:text-foreground" @click="toggleKeySort('name')">
+                <SortHeader :icon="keySortIcon('name')">{{ t('apiKeys.nameCol') }}</SortHeader>
+              </th>
               <th class="px-4 py-3 font-medium">{{ t('apiKeys.keyCol') }}</th>
-              <th class="hidden sm:table-cell px-4 py-3 font-medium">{{ t('apiKeys.createdCol') }}</th>
-              <th class="hidden sm:table-cell px-4 py-3 font-medium">{{ t('apiKeys.lastUsedCol') }}</th>
-              <th class="px-4 py-3 font-medium">{{ t('apiKeys.statusCol') }}</th>
+              <th class="hidden sm:table-cell px-4 py-3 font-medium cursor-pointer select-none hover:text-foreground" @click="toggleKeySort('created')">
+                <SortHeader :icon="keySortIcon('created')">{{ t('apiKeys.createdCol') }}</SortHeader>
+              </th>
+              <th class="hidden sm:table-cell px-4 py-3 font-medium cursor-pointer select-none hover:text-foreground" @click="toggleKeySort('lastUsed')">
+                <SortHeader :icon="keySortIcon('lastUsed')">{{ t('apiKeys.lastUsedCol') }}</SortHeader>
+              </th>
+              <th class="px-4 py-3 font-medium cursor-pointer select-none hover:text-foreground" @click="toggleKeySort('status')">
+                <SortHeader :icon="keySortIcon('status')">{{ t('apiKeys.statusCol') }}</SortHeader>
+              </th>
               <th v-if="isAdmin" class="px-4 py-3 font-medium">{{ t('common.actions') }}</th>
             </tr>
           </thead>
           <tbody>
             <tr
-              v-for="key in keys"
+              v-for="key in sortedKeys"
               :key="key.id"
               class="border-b last:border-0 transition-colors hover:bg-muted/30"
               :class="key.revoked_at ? 'opacity-50' : ''"

@@ -28,6 +28,21 @@ const { onResume } = useAppResume()
 
 const isAdmin = computed(() => role.value === 'admin')
 
+const { toggleSort: toggleTraySort, sortIcon: traySortIcon, sortKey: traySortKey, sortDir: traySortDir } = useTableSort<'slot' | 'product' | 'stock'>('slot')
+
+const sortedTrays = computed(() => {
+  const dir = traySortDir.value === 'asc' ? 1 : -1
+  return [...trays.value].sort((a, b) => {
+    if (traySortKey.value === 'slot') return dir * ((a.item_number ?? 0) - (b.item_number ?? 0))
+    if (traySortKey.value === 'product') {
+      const aName = trayProductMap.value?.get(a.item_number)?.name ?? ''
+      const bName = trayProductMap.value?.get(b.item_number)?.name ?? ''
+      return dir * aName.localeCompare(bName)
+    }
+    return dir * ((a.current_stock ?? 0) - (b.current_stock ?? 0))
+  })
+})
+
 // AI Insights
 const { data: insights, loading: insightsLoading, error: insightsError, fetchInsights, history: insightsHistory, historyLoading: insightsHistoryLoading, fetchHistory } = useInsights()
 const insightsOpen = ref(false)
@@ -1038,7 +1053,7 @@ function stockColor(tray: any) {
                 <!-- ── Mobile card layout ── -->
                 <div class="space-y-3 md:hidden">
                   <div
-                    v-for="tray in trays"
+                    v-for="tray in sortedTrays"
                     :key="'m-' + tray.id"
                     class="rounded-lg border p-3 transition-colors"
                     :class="[
@@ -1249,9 +1264,15 @@ function stockColor(tray: any) {
                   <table class="w-full text-sm">
                     <thead>
                       <tr class="border-b bg-muted/50 text-left">
-                        <th class="w-20 px-4 py-3 font-medium">{{ t('machineDetail.slot') }}</th>
-                        <th class="px-4 py-3 font-medium">{{ t('machineDetail.product') }}</th>
-                        <th class="w-36 px-4 py-3 font-medium">{{ t('machineDetail.stock') }}</th>
+                        <th class="w-20 px-4 py-3 font-medium cursor-pointer select-none hover:text-foreground" @click="toggleTraySort('slot')">
+                          <SortHeader :icon="traySortIcon('slot')">{{ t('machineDetail.slot') }}</SortHeader>
+                        </th>
+                        <th class="px-4 py-3 font-medium cursor-pointer select-none hover:text-foreground" @click="toggleTraySort('product')">
+                          <SortHeader :icon="traySortIcon('product')">{{ t('machineDetail.product') }}</SortHeader>
+                        </th>
+                        <th class="w-36 px-4 py-3 font-medium cursor-pointer select-none hover:text-foreground" @click="toggleTraySort('stock')">
+                          <SortHeader :icon="traySortIcon('stock')">{{ t('machineDetail.stock') }}</SortHeader>
+                        </th>
                         <th class="w-16 px-4 py-3 font-medium">
                           <TooltipProvider>
                             <Tooltip>
@@ -1288,7 +1309,7 @@ function stockColor(tray: any) {
                     </thead>
                     <tbody>
                       <tr
-                        v-for="tray in trays"
+                        v-for="tray in sortedTrays"
                         :key="tray.id"
                         class="border-b last:border-0 transition-colors"
                         :class="[

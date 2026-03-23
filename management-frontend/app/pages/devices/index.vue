@@ -13,6 +13,19 @@ const { pendingTokens, fetchPendingTokens, deletePendingToken } = useMachines()
 
 const isAdmin = computed(() => role.value === 'admin')
 
+const { sortKey: devSortKey, sortDir: devSortDir, toggleSort: toggleDevSort, sortIcon: devSortIcon } = useTableSort<'subdomain' | 'status' | 'machine' | 'lastSeen'>('subdomain', 'desc')
+
+const sortedDevices = computed(() => {
+  const dir = devSortDir.value === 'asc' ? 1 : -1
+  return [...devices.value].sort((a, b) => {
+    if (devSortKey.value === 'subdomain') return dir * (a.subdomain - b.subdomain)
+    if (devSortKey.value === 'status') return dir * (a.status ?? '').localeCompare(b.status ?? '')
+    if (devSortKey.value === 'machine') return dir * (a.machine_name ?? '').localeCompare(b.machine_name ?? '')
+    // lastSeen
+    return dir * (a.status_at ?? '').localeCompare(b.status_at ?? '')
+  })
+})
+
 // Redirect non-admins
 watch(role, (r) => {
   if (r && r !== 'admin') router.replace('/')
@@ -266,7 +279,7 @@ async function confirmDelete() {
         <!-- ── Mobile: Card Layout (< lg) ── -->
         <div v-else class="flex flex-col gap-3 lg:hidden">
           <div
-            v-for="device in devices"
+            v-for="device in sortedDevices"
             :key="device.id"
             class="rounded-lg border bg-card p-4 transition-colors"
           >
@@ -342,19 +355,27 @@ async function confirmDelete() {
           <table class="w-full text-sm">
             <thead>
               <tr class="border-b bg-muted/50 text-left">
-                <th class="px-4 py-3 font-medium">{{ t('devices.subdomainCol') }}</th>
+                <th class="px-4 py-3 font-medium cursor-pointer select-none hover:text-foreground" @click="toggleDevSort('subdomain')">
+                  <SortHeader :icon="devSortIcon('subdomain')">{{ t('devices.subdomainCol') }}</SortHeader>
+                </th>
                 <th class="px-4 py-3 font-medium">{{ t('devices.macAddressCol') }}</th>
-                <th class="px-4 py-3 font-medium">{{ t('devices.statusCol') }}</th>
+                <th class="px-4 py-3 font-medium cursor-pointer select-none hover:text-foreground" @click="toggleDevSort('status')">
+                  <SortHeader :icon="devSortIcon('status')">{{ t('devices.statusCol') }}</SortHeader>
+                </th>
                 <th class="px-4 py-3 font-medium">{{ t('devices.firmwareCol') }}</th>
-                <th class="px-4 py-3 font-medium">{{ t('devices.assignedMachine') }}</th>
-                <th class="px-4 py-3 font-medium">{{ t('devices.lastSeenCol') }}</th>
+                <th class="px-4 py-3 font-medium cursor-pointer select-none hover:text-foreground" @click="toggleDevSort('machine')">
+                  <SortHeader :icon="devSortIcon('machine')">{{ t('devices.assignedMachine') }}</SortHeader>
+                </th>
+                <th class="px-4 py-3 font-medium cursor-pointer select-none hover:text-foreground" @click="toggleDevSort('lastSeen')">
+                  <SortHeader :icon="devSortIcon('lastSeen')">{{ t('devices.lastSeenCol') }}</SortHeader>
+                </th>
                 <th class="px-4 py-3 font-medium">{{ t('devices.registeredCol') }}</th>
                 <th class="px-4 py-3 font-medium">{{ t('common.actions') }}</th>
               </tr>
             </thead>
             <tbody>
               <tr
-                v-for="device in devices"
+                v-for="device in sortedDevices"
                 :key="device.id"
                 class="border-b last:border-0 hover:bg-muted/30 transition-colors"
               >

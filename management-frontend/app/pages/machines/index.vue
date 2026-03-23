@@ -33,6 +33,21 @@ onMounted(async () => {
   onUnmounted(unsubscribe)
 })
 
+// ── Sorting ──────────────────────────────────────────────────────────────────
+const machineSortKey = ref<'name' | 'todayRevenue' | 'monthRevenue' | 'stockHealth'>('name')
+
+const sortedMachines = computed(() => {
+  const key = machineSortKey.value
+  return [...machines.value].sort((a, b) => {
+    if (key === 'name') return (a.name ?? '').localeCompare(b.name ?? '')
+    if (key === 'todayRevenue') return (b.today_revenue ?? 0) - (a.today_revenue ?? 0)
+    if (key === 'monthRevenue') return (b.this_month_revenue ?? 0) - (a.this_month_revenue ?? 0)
+    // stockHealth: critical > low > ok
+    const healthOrder: Record<string, number> = { critical: 0, low: 1, ok: 2 }
+    return (healthOrder[a.stock_health ?? 'ok'] ?? 2) - (healthOrder[b.stock_health ?? 'ok'] ?? 2)
+  })
+})
+
 // ── Add Machine modal ────────────────────────────────────────────────────────
 const { open: showMachineModal, form: machineForm, loading: creatingMachine, error: machineError, openModal: openMachineModal, closeModal, submit } = useModalForm({ name: '' })
 
@@ -81,9 +96,22 @@ async function submitCreateMachine() {
           {{ t('machines.noMachinesYet') }}
         </div>
 
-        <div v-else class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div v-else class="flex flex-col gap-4">
+        <div class="flex items-center gap-2">
+          <IconArrowsExchange class="size-4 text-muted-foreground" />
+          <select
+            v-model="machineSortKey"
+            class="h-8 rounded-md border border-input bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          >
+            <option value="name">{{ t('common.name') }}</option>
+            <option value="todayRevenue">{{ t('common.today') }} ({{ t('common.revenue') }})</option>
+            <option value="monthRevenue">{{ t('common.thisMonth') }} ({{ t('common.revenue') }})</option>
+            <option value="stockHealth">{{ t('machines.stockHealth') }}</option>
+          </select>
+        </div>
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           <NuxtLink
-            v-for="machine in machines"
+            v-for="machine in sortedMachines"
             :key="machine.id"
             :to="`/machines/${machine.id}`"
             class="block rounded-xl transition-shadow hover:shadow-md"
@@ -243,6 +271,7 @@ async function submitCreateMachine() {
               </CardContent>
             </Card>
           </NuxtLink>
+        </div>
         </div>
   </div>
 

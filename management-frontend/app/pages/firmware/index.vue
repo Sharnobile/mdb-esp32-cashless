@@ -19,6 +19,17 @@ const { machines, fetchMachines } = useMachines()
 
 const isAdmin = computed(() => role.value === 'admin')
 
+const { toggleSort: toggleFwSort, sortIcon: fwSortIcon, sortKey: fwSortKey, sortDir: fwSortDir } = useTableSort<'version' | 'size' | 'uploaded'>('uploaded', 'desc')
+
+const sortedFirmwareVersions = computed(() => {
+  const dir = fwSortDir.value === 'asc' ? 1 : -1
+  return [...firmwareVersions.value].sort((a, b) => {
+    if (fwSortKey.value === 'version') return dir * (a.version_label ?? '').localeCompare(b.version_label ?? '')
+    if (fwSortKey.value === 'size') return dir * ((a.file_size ?? 0) - (b.file_size ?? 0))
+    return dir * (a.created_at ?? '').localeCompare(b.created_at ?? '')
+  })
+})
+
 onMounted(async () => {
   await Promise.all([
     fetchFirmwareVersions(),
@@ -283,17 +294,23 @@ function formatSize(bytes: number | null) {
       <table class="w-full text-sm">
         <thead>
           <tr class="border-b bg-muted/50 text-left">
-            <th class="px-4 py-3 font-medium">{{ t('firmware.versionCol') }}</th>
+            <th class="px-4 py-3 font-medium cursor-pointer select-none hover:text-foreground" @click="toggleFwSort('version')">
+              <SortHeader :icon="fwSortIcon('version')">{{ t('firmware.versionCol') }}</SortHeader>
+            </th>
             <th class="hidden sm:table-cell px-4 py-3 font-medium">{{ t('firmware.sourceCol') }}</th>
-            <th class="hidden sm:table-cell px-4 py-3 font-medium">{{ t('firmware.sizeCol') }}</th>
+            <th class="hidden sm:table-cell px-4 py-3 font-medium cursor-pointer select-none hover:text-foreground" @click="toggleFwSort('size')">
+              <SortHeader :icon="fwSortIcon('size')">{{ t('firmware.sizeCol') }}</SortHeader>
+            </th>
             <th class="hidden md:table-cell px-4 py-3 font-medium">{{ t('firmware.notesCol') }}</th>
-            <th class="px-4 py-3 font-medium">{{ t('firmware.uploadedCol') }}</th>
+            <th class="px-4 py-3 font-medium cursor-pointer select-none hover:text-foreground" @click="toggleFwSort('uploaded')">
+              <SortHeader :icon="fwSortIcon('uploaded')">{{ t('firmware.uploadedCol') }}</SortHeader>
+            </th>
             <th v-if="isAdmin" class="px-4 py-3 font-medium">{{ t('common.actions') }}</th>
           </tr>
         </thead>
         <tbody>
           <tr
-            v-for="fw in firmwareVersions"
+            v-for="fw in sortedFirmwareVersions"
             :key="fw.id"
             class="border-b last:border-0 hover:bg-muted/30 transition-colors"
           >

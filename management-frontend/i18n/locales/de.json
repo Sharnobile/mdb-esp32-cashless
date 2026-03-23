@@ -29,6 +29,7 @@
     "thisWeek": "Diese Woche",
     "thisMonth": "Dieser Monat",
     "lastMonth": "Letzter Monat",
+    "revenue": "Umsatz",
     "search": "Suchen",
     "revoke": "Widerrufen",
     "deploy": "Bereitstellen",
@@ -160,7 +161,8 @@
     "refill": "Auffüllen →",
     "insufficientStock": "Unzureichender Lagerbestand",
     "deductionFailed": "Abzug fehlgeschlagen",
-    "startRefillTour": "Befüllungstour starten"
+    "startRefillTour": "Befüllungstour starten",
+    "stockHealth": "Füllstand"
   },
   "refill": {
     "title": "Befüllungstour",
