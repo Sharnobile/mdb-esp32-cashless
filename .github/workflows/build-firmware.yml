@@ -44,13 +44,21 @@ jobs:
           cp "${{ steps.project.outputs.dir }}/build/${{ steps.project.outputs.name }}.bin" \
              "${{ steps.project.outputs.name }}-${{ steps.project.outputs.version }}.bin"
 
+      - name: Generate changelog
+        id: changelog
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: cliff.toml
+          args: --latest --include-path "${{ steps.project.outputs.dir }}/**" --strip header
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           name: "${{ steps.project.outputs.name }} ${{ steps.project.outputs.version }}"
           body: |
-            Firmware build for `${{ steps.project.outputs.name }}` version `${{ steps.project.outputs.version }}`.
+            ${{ steps.changelog.outputs.content }}
 
+            ---
             Built with ESP-IDF v5.5.1 targeting ESP32-S3.
           files: |
             ${{ steps.project.outputs.name }}-${{ steps.project.outputs.version }}.bin
