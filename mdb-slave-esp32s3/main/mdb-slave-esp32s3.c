@@ -72,9 +72,17 @@
 #define BIT_ADD_SET   	0b011111000
 #define BIT_CMD_SET   	0b000000111
 
-#define WIFI_MAX_RETRY  5
+#define WIFI_SOFTAP_AFTER  5          // start SoftAP after this many failures
+#define WIFI_RECONNECT_INTERVAL_SEC 60 // retry WiFi every 60s while in SoftAP
 
 static int wifi_retry_num = 0;
+static bool softap_active = false;
+static esp_timer_handle_t wifi_reconnect_timer = NULL;
+
+static void wifi_reconnect_timer_cb(void *arg) {
+    ESP_LOGI(TAG, "WiFi reconnect timer: retrying esp_wifi_connect()");
+    esp_wifi_connect();
+}
 
 enum BIT_EVENTS {
     BIT_EVT_INTERNET    = (1 << 0),
@@ -1983,6 +1991,7 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t e
 		        start_softap();
 		        start_dns_server();
 		        start_rest_server();
+		        softap_active = true;
 		    } else {
 		        esp_err_t conn_err = esp_wifi_connect();
 		        ESP_LOGI(TAG, "esp_wifi_connect() → %s", esp_err_to_name(conn_err));
@@ -1991,6 +2000,7 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t e
 		            start_softap();
 		            start_dns_server();
 		            start_rest_server();
+		            softap_active = true;
 		        }
 		    }
 			break;
@@ -2008,22 +2018,38 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t e
 			break;
 		case WIFI_EVENT_STA_DISCONNECTED:
 
-		    if(wifi_retry_num++ < WIFI_MAX_RETRY) {
+		    if (mqtt_started) {
+                esp_mqtt_client_disconnect(mqttClient);
+                mqtt_started = false;
+            }
 
-		        if (mqtt_started) {
-                    esp_mqtt_client_disconnect(mqttClient);
+		    wifi_retry_num++;
 
-                    mqtt_started = false;
-                }
-
+		    if (wifi_retry_num <= WIFI_SOFTAP_AFTER) {
+                // Fast retries first
+                ESP_LOGW(TAG, "WiFi disconnected, retry %d/%d", wifi_retry_num, WIFI_SOFTAP_AFTER);
                 esp_wifi_connect();
-
-		    } else {
-
-		        start_softap();
+		    } else if (!softap_active) {
+                // Start SoftAP for user access, but keep retrying via timer
+                ESP_LOGW(TAG, "WiFi retries exhausted — starting SoftAP + reconnect timer (every %ds)", WIFI_RECONNECT_INTERVAL_SEC);
+                start_softap();
                 start_dns_server();
                 start_rest_server();
-		    }
+                softap_active = true;
+
+                // Start periodic reconnect timer
+                if (wifi_reconnect_timer == NULL) {
+                    const esp_timer_create_args_t timer_args = {
+                        .callback = wifi_reconnect_timer_cb,
+                        .name = "wifi_reconnect"
+                    };
+                    esp_timer_create(&timer_args, &wifi_reconnect_timer);
+                }
+                esp_timer_start_periodic(wifi_reconnect_timer, WIFI_RECONNECT_INTERVAL_SEC * 1000000ULL);
+            } else {
+                // SoftAP already active, timer handles retries — nothing to do
+                ESP_LOGI(TAG, "WiFi disconnected (SoftAP active, timer will retry)");
+            }
 
 			break;
 		}
@@ -2037,8 +2063,14 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t e
 
 		    wifi_retry_num = 0;
 
+            // Stop reconnect timer if running
+            if (wifi_reconnect_timer != NULL) {
+                esp_timer_stop(wifi_reconnect_timer);
+            }
+
             stop_rest_server();
             stop_dns_server();
+            softap_active = false;
 
             // Switch to STA-only mode now that we have a connection
             esp_wifi_set_mode(WIFI_MODE_STA);
