@@ -44,16 +44,24 @@ jobs:
           cp "${{ steps.project.outputs.dir }}/build/${{ steps.project.outputs.name }}.bin" \
              "${{ steps.project.outputs.name }}-${{ steps.project.outputs.version }}.bin"
 
+      - name: Determine cliff config
+        id: cliff
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          if [[ "$TAG" == slave-v* ]]; then
+            echo "config=cliff.toml" >> "$GITHUB_OUTPUT"
+          elif [[ "$TAG" == master-v* ]]; then
+            echo "config=cliff-master.toml" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Generate changelog
         id: changelog
-        if: startsWith(github.ref_name, 'slave-v')
         uses: orhun/git-cliff-action@v4
         with:
-          config: cliff.toml
+          config: ${{ steps.cliff.outputs.config }}
           args: --latest --include-path "${{ steps.project.outputs.dir }}/**" --strip header
 
-      - name: Create GitHub Release (slave with changelog)
-        if: startsWith(github.ref_name, 'slave-v')
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           name: "${{ steps.project.outputs.name }} ${{ steps.project.outputs.version }}"
@@ -61,20 +69,6 @@ jobs:
             ${{ steps.changelog.outputs.content }}
 
             ---
-            Built with ESP-IDF v5.5.1 targeting ESP32-S3.
-          files: |
-            ${{ steps.project.outputs.name }}-${{ steps.project.outputs.version }}.bin
-          draft: false
-          prerelease: false
-
-      - name: Create GitHub Release (master)
-        if: startsWith(github.ref_name, 'master-v')
-        uses: softprops/action-gh-release@v2
-        with:
-          name: "${{ steps.project.outputs.name }} ${{ steps.project.outputs.version }}"
-          body: |
-            Firmware build for `${{ steps.project.outputs.name }}` version `${{ steps.project.outputs.version }}`.
-
             Built with ESP-IDF v5.5.1 targeting ESP32-S3.
           files: |
             ${{ steps.project.outputs.name }}-${{ steps.project.outputs.version }}.bin
