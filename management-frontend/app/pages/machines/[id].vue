@@ -4,8 +4,9 @@ definePageMeta({ middleware: 'auth' })
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { VisArea, VisAxis, VisLine, VisXYContainer } from '@unovis/vue'
-import { IconCreditCard, IconCoins, IconSend, IconSparkles, IconLoader2, IconRefresh } from '@tabler/icons-vue'
+import { IconCreditCard, IconCoins, IconSend, IconSparkles, IconLoader2, IconRefresh, IconDotsVertical, IconTrash, IconPlus } from '@tabler/icons-vue'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Badge } from '@/components/ui/badge'
 import { useInsights, sortedRecommendations, priorityVariant, recommendationTypeLabel } from '@/composables/useInsights'
 import { timeAgo, formatCurrency, formatDate, formatDateTime } from '@/lib/utils'
@@ -109,7 +110,7 @@ onMounted(async () => {
       fetchProducts(),
       supabase
         .from('sales')
-        .select('created_at, item_price, item_number, channel')
+        .select('id, created_at, item_price, item_number, channel')
         .eq('machine_id', id)
         .gte('created_at', thirtyDaysAgo)
         .order('created_at', { ascending: false })
@@ -135,6 +136,21 @@ onMounted(async () => {
         (payload) => {
           const newSale = payload.new as Record<string, any>
           sales.value.unshift(newSale)
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'sales',
+          filter: `machine_id=eq.${id}`,
+        },
+        (payload) => {
+          const deleted = payload.old as Record<string, any>
+          if (deleted?.id) {
+            sales.value = sales.value.filter(s => s.id !== deleted.id)
+          }
         }
       )
       .subscribe()
@@ -864,6 +880,134 @@ function stockColor(tray: any) {
   if (pct > 20) return 'bg-yellow-500'
   return 'bg-red-500'
 }
+
+// ── Manual sale delete / insert ──────────────────────────────────────────────
+
+const showDeleteSaleConfirm = ref(false)
+const deletingSale = ref<any>(null)
+const deletingSaleLoading = ref(false)
+
+const showAddSaleModal = ref(false)
+const addSaleLoading = ref(false)
+const addSaleForm = reactive({
+  item_number: null as number | null,
+  item_price: 0,
+  channel: 'cash',
+  created_at: '',
+})
+
+function resetAddSaleForm() {
+  addSaleForm.item_number = null
+  addSaleForm.item_price = 0
+  addSaleForm.channel = 'cash'
+  addSaleForm.created_at = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+}
+
+function openAddSaleModal() {
+  resetAddSaleForm()
+  showAddSaleModal.value = true
+}
+
+// Auto-fill price when slot changes
+watch(() => addSaleForm.item_number, (num) => {
+  if (num == null) return
+  const info = trayProductMap.value.get(num)
+  if (info?.sellprice) addSaleForm.item_price = info.sellprice
+})
+
+function confirmDeleteSale(sale: any) {
+  deletingSale.value = sale
+  showDeleteSaleConfirm.value = true
+}
+
+async function logSaleActivity(action: string, entityId: string | null, metadata: Record<string, unknown>) {
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    const u = session?.user ?? null
+    const fullName = [u?.user_metadata?.first_name, u?.user_metadata?.last_name].filter(Boolean).join(' ').trim()
+    const userDisplay = fullName || u?.email || null
+    const { organization } = useOrganization()
+    await (supabase as any).from('activity_log').insert({
+      company_id: organization.value?.id,
+      user_id: u?.id ?? null,
+      entity_type: 'sale',
+      entity_id: entityId,
+      action,
+      metadata: { ...metadata, _user_email: u?.email ?? null, _user_display: userDisplay },
+    })
+  } catch (err) {
+    console.warn('activity_log insert failed:', err)
+  }
+}
+
+async function handleDeleteSale() {
+  if (!deletingSale.value?.id || !machine.value) return
+  deletingSaleLoading.value = true
+  try {
+    const { error } = await (supabase as any).rpc('delete_sale_and_restore_stock', { p_sale_id: deletingSale.value.id })
+    if (error) throw error
+    // Optimistically remove from local list
+    sales.value = sales.value.filter(s => s.id !== deletingSale.value.id)
+    // Refresh trays to show updated stock
+    await fetchTrays(machine.value.id, { silent: true })
+    // Log to activity log
+    await logSaleActivity('sale_deleted', deletingSale.value.id, {
+      machine_id: machine.value.id,
+      machine_name: machine.value.name,
+      item_number: deletingSale.value.item_number,
+      item_price: deletingSale.value.item_price,
+      channel: deletingSale.value.channel,
+      sale_created_at: deletingSale.value.created_at,
+    })
+  } catch (err: any) {
+    console.error('Failed to delete sale:', err)
+  } finally {
+    deletingSaleLoading.value = false
+    showDeleteSaleConfirm.value = false
+    deletingSale.value = null
+  }
+}
+
+async function handleAddSale() {
+  if (!machine.value || addSaleForm.item_number == null) return
+  addSaleLoading.value = true
+  try {
+    const { data, error } = await (supabase as any).rpc('insert_manual_sale', {
+      p_machine_id: machine.value.id,
+      p_item_number: addSaleForm.item_number,
+      p_item_price: addSaleForm.item_price,
+      p_channel: addSaleForm.channel,
+      p_created_at: new Date(addSaleForm.created_at).toISOString(),
+    })
+    if (error) throw error
+    // Prepend to local list if returned
+    if (data) {
+      const newSale = typeof data === 'string' ? JSON.parse(data) : data
+      // Check if not already in list (realtime might have added it)
+      if (!sales.value.some(s => s.id === newSale.id)) {
+        sales.value.unshift(newSale)
+        sales.value.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      }
+    }
+    // Refresh trays to show updated stock
+    await fetchTrays(machine.value.id, { silent: true })
+    // Log to activity log
+    await logSaleActivity('sale_inserted', data?.id ?? null, {
+      machine_id: machine.value.id,
+      machine_name: machine.value.name,
+      item_number: addSaleForm.item_number,
+      item_price: addSaleForm.item_price,
+      channel: addSaleForm.channel,
+      sale_created_at: addSaleForm.created_at,
+      source: 'manual',
+    })
+    showAddSaleModal.value = false
+  } catch (err: any) {
+    console.error('Failed to add sale:', err)
+  } finally {
+    addSaleLoading.value = false
+  }
+}
 </script>
 
 <template>
@@ -980,7 +1124,17 @@ function stockColor(tray: any) {
 
               <!-- Sales list -->
               <div>
-                <h2 class="mb-3 text-lg font-medium">{{ t('machineDetail.salesHistory') }}</h2>
+                <div class="mb-3 flex items-center justify-between">
+                  <h2 class="text-lg font-medium">{{ t('machineDetail.salesHistory') }}</h2>
+                  <button
+                    v-if="isAdmin"
+                    class="inline-flex h-8 items-center gap-1.5 rounded-md border border-input px-2.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                    @click="openAddSaleModal"
+                  >
+                    <IconPlus class="size-3.5" />
+                    {{ t('machineDetail.addSale') }}
+                  </button>
+                </div>
                 <div v-if="sales.length === 0" class="text-sm text-muted-foreground">{{ t('machineDetail.noSalesLast30') }}</div>
                 <div v-else class="space-y-2">
                   <div
@@ -1027,6 +1181,20 @@ function stockColor(tray: any) {
                         <span class="text-sm font-medium">{{ formatCurrency(sale.item_price, locale) }}</span>
                         <p class="mt-0.5 text-[11px] text-muted-foreground">{{ formatDateTime(sale.created_at, locale) }}</p>
                       </div>
+                      <!-- Admin delete menu -->
+                      <DropdownMenu v-if="isAdmin">
+                        <DropdownMenuTrigger as-child>
+                          <button class="shrink-0 rounded-md p-1 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-muted focus:opacity-100">
+                            <IconDotsVertical class="size-4 text-muted-foreground" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem class="text-destructive focus:text-destructive" @click="confirmDeleteSale(sale)">
+                            <IconTrash class="mr-2 size-4" />
+                            {{ t('machineDetail.deleteSale') }}
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </div>
                 </div>
@@ -1677,6 +1845,92 @@ function stockColor(tray: any) {
           </Tabs>
         </template>
       </div>
+
+      <!-- Delete sale confirmation modal -->
+      <AppModal v-model:open="showDeleteSaleConfirm" :title="t('machineDetail.deleteSale')" size="sm">
+        <p class="text-sm text-muted-foreground">{{ t('machineDetail.deleteSaleConfirm') }}</p>
+        <div v-if="deletingSale" class="mt-3 rounded-md border bg-muted/30 p-3 text-sm">
+          <div class="flex items-center justify-between">
+            <span class="font-medium">{{ trayProductMap.get(deletingSale.item_number)?.name ?? `${t('machineDetail.item')} #${deletingSale.item_number}` }}</span>
+            <span class="font-medium">{{ formatCurrency(deletingSale.item_price, locale) }}</span>
+          </div>
+          <p class="mt-1 text-xs text-muted-foreground">{{ formatDateTime(deletingSale.created_at, locale) }}</p>
+        </div>
+        <div class="mt-4 flex justify-end gap-2">
+          <button class="h-9 rounded-md border px-4 text-sm hover:bg-muted" @click="showDeleteSaleConfirm = false">{{ t('common.cancel') }}</button>
+          <button
+            class="h-9 rounded-md bg-destructive px-4 text-sm font-medium text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50"
+            :disabled="deletingSaleLoading"
+            @click="handleDeleteSale"
+          >
+            {{ deletingSaleLoading ? t('common.deleting') : t('common.delete') }}
+          </button>
+        </div>
+      </AppModal>
+
+      <!-- Add sale modal -->
+      <AppModal v-model:open="showAddSaleModal" :title="t('machineDetail.addSale')" :description="t('machineDetail.addSaleDescription')" size="sm">
+        <form class="flex flex-col gap-3" @submit.prevent="handleAddSale">
+          <!-- Slot / Tray select -->
+          <div>
+            <label class="mb-1 block text-sm font-medium">{{ t('machineDetail.selectSlot') }} *</label>
+            <select
+              v-model.number="addSaleForm.item_number"
+              class="h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              required
+            >
+              <option :value="null" disabled>{{ t('machineDetail.selectSlot') }}</option>
+              <option v-for="tray in trays" :key="tray.id" :value="tray.item_number">
+                {{ t('machineDetail.slot') }} {{ tray.item_number }} — {{ tray.product_name ?? '—' }}
+              </option>
+            </select>
+          </div>
+          <!-- Price -->
+          <div>
+            <label class="mb-1 block text-sm font-medium">{{ t('machineDetail.price') }} *</label>
+            <input
+              v-model.number="addSaleForm.item_price"
+              type="number"
+              step="0.01"
+              min="0"
+              required
+              class="h-9 w-full rounded-md border border-input bg-background px-3 text-sm tabular-nums focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            />
+          </div>
+          <!-- Channel -->
+          <div>
+            <label class="mb-1 block text-sm font-medium">{{ t('machineDetail.saleChannel') }}</label>
+            <select
+              v-model="addSaleForm.channel"
+              class="h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            >
+              <option value="cash">{{ t('machineDetail.channelCash') }}</option>
+              <option value="cashless">{{ t('machineDetail.channelCashless') }}</option>
+              <option value="card">{{ t('machineDetail.channelCard') }}</option>
+            </select>
+          </div>
+          <!-- Date & time -->
+          <div>
+            <label class="mb-1 block text-sm font-medium">{{ t('machineDetail.saleDate') }}</label>
+            <input
+              v-model="addSaleForm.created_at"
+              type="datetime-local"
+              class="h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            />
+            <p class="mt-1 text-xs text-muted-foreground">{{ t('machineDetail.saleDateHint') }}</p>
+          </div>
+          <div class="flex justify-end gap-2 pt-1">
+            <button type="button" class="h-9 rounded-md border px-4 text-sm hover:bg-muted" @click="showAddSaleModal = false">{{ t('common.cancel') }}</button>
+            <button
+              type="submit"
+              class="h-9 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+              :disabled="addSaleLoading || addSaleForm.item_number == null"
+            >
+              {{ addSaleLoading ? t('common.saving') : t('machineDetail.addSale') }}
+            </button>
+          </div>
+        </form>
+      </AppModal>
 
       <!-- Device info modal -->
       <AppModal v-if="machine?.embeddeds" v-model:open="showDeviceInfoModal" :title="t('machineDetail.deviceDetails')" size="sm">

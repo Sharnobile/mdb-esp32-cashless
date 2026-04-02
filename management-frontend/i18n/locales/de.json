@@ -327,7 +327,18 @@
     "aiTrendUnits": "Stück vs vorh. {days}T",
     "aiHistory": "Vergangene Analysen",
     "aiHistoryEmpty": "Noch keine vergangenen Analysen.",
-    "aiHistoryRecs": "Empfehlungen"
+    "aiHistoryRecs": "Empfehlungen",
+    "addSale": "Verkauf hinzufügen",
+    "addSaleDescription": "Einen Verkauf für diesen Automaten manuell erfassen.",
+    "deleteSale": "Verkauf löschen",
+    "deleteSaleConfirm": "Dieser Verkauf wird unwiderruflich gelöscht. Der Bestand im zugehörigen Fach wird automatisch um 1 Einheit erhöht.",
+    "selectSlot": "Fach wählen",
+    "saleChannel": "Kanal",
+    "channelCash": "Bargeld",
+    "channelCashless": "Bargeldlos",
+    "channelCard": "Karte",
+    "saleDate": "Datum & Uhrzeit",
+    "saleDateHint": "Standard ist jetzt. Kann für fehlende Verkäufe auf ein vergangenes Datum gesetzt werden."
   },
   "insights": {
     "productSwap": "Produktwechsel",

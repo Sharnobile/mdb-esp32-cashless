@@ -327,7 +327,18 @@
     "aiTrendUnits": "units vs prev. {days}d",
     "aiHistory": "Past Insights",
     "aiHistoryEmpty": "No past insights yet.",
-    "aiHistoryRecs": "recommendations"
+    "aiHistoryRecs": "recommendations",
+    "addSale": "Add sale",
+    "addSaleDescription": "Manually record a sale for this machine.",
+    "deleteSale": "Delete sale",
+    "deleteSaleConfirm": "This sale will be permanently deleted and the stock for the corresponding tray will be restored by 1 unit. This action cannot be undone.",
+    "selectSlot": "Select slot",
+    "saleChannel": "Channel",
+    "channelCash": "Cash",
+    "channelCashless": "Cashless",
+    "channelCard": "Card",
+    "saleDate": "Date & time",
+    "saleDateHint": "Defaults to now. Can be set to a past date for missed sales."
   },
   "insights": {
     "productSwap": "Product Swap",
