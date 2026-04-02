@@ -658,8 +658,21 @@ void vTaskMdbEvent(void *pvParameters) {
 
                         if (read_9(NULL) != checksum) { mdb_checksum_errors++; mdb_drain_bus(); continue; }
 
-						machine_state = IDLE_STATE;
 						mdb_last_cmd = "VEND_SUCCESS";
+
+						// Guard: only publish sale if we are in VEND_STATE.
+						// VMC retransmissions or bus noise can deliver duplicate
+						// VEND_SUCCESS commands — without this check each one would
+						// publish a separate sale to MQTT.
+						if (machine_state != VEND_STATE) {
+						    ESP_LOGW(TAG, "VEND_SUCCESS received outside VEND_STATE (state=%d) — skipping sale publish", machine_state);
+						    // Still transition to IDLE in case the VMC expects it,
+						    // but do NOT publish a duplicate sale.
+						    machine_state = IDLE_STATE;
+						    break;
+						}
+
+						machine_state = IDLE_STATE;
 
 						/* PIPE_BLE */
 						uint8_t payload_ble[19];
@@ -677,13 +690,24 @@ void vTaskMdbEvent(void *pvParameters) {
 						mqtt_publish_safe(mqttClient, topic_sale, (char*) &payload_mqtt, sizeof(payload_mqtt), 1, 0);
 
 						ESP_LOGI( TAG, "VEND_SUCCESS price=%u item=%u", itemPrice, itemNumber);
+
+						// Clear vend data to prevent stale values if re-entered
+						itemPrice = 0;
+						itemNumber = 0;
+
 						break;
 					}
 					case VEND_FAILURE: {
                         if (read_9(NULL) != checksum) { mdb_checksum_errors++; mdb_drain_bus(); continue; }
 
-						machine_state = IDLE_STATE;
 						mdb_last_cmd = "VEND_FAILURE";
+
+						if (machine_state != VEND_STATE) {
+						    ESP_LOGW(TAG, "VEND_FAILURE ignored — not in VEND_STATE (state=%d)", machine_state);
+						    break;
+						}
+
+						machine_state = IDLE_STATE;
 
 					    /* PIPE_BLE */
 						uint8_t payload[19];
