@@ -914,6 +914,14 @@ void vTaskMdbEvent(void *pvParameters) {
 						if (read_9(NULL) != checksum_sniff) continue;
 						if (sn != 0xFFFF) sniff_itemNumber = sn;
 
+						// Guard: only publish if we saw a VEND_REQUEST with a valid price.
+						// The sniff path can miss VEND_REQUEST (checksum error, bus busy)
+						// which leaves sniff_itemPrice at 0 — don't publish bogus sales.
+						if (sniff_itemPrice == 0) {
+						    ESP_LOGW(TAG, "SNIFF VEND_SUCCESS ignored — no prior VEND_REQUEST (price=0)");
+						    break;
+						}
+
 						ESP_LOGI(TAG, "SNIFF CARD_SALE price=%u item=%u", sniff_itemPrice, sniff_itemNumber);
 
 						uint8_t payload[19];
@@ -922,6 +930,11 @@ void vTaskMdbEvent(void *pvParameters) {
 						char topic[128];
 						snprintf(topic, sizeof(topic), "/%s/%s/sale", my_company_id, my_device_id);
 						mqtt_publish_safe(mqttClient, topic, (char*) &payload, sizeof(payload), 1, 0);
+
+						// Clear after publish to prevent stale data
+						sniff_itemPrice = 0;
+						sniff_itemNumber = 0;
+
 						break;
 					}
 					default:
