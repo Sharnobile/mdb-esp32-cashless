@@ -536,7 +536,14 @@
     "noSalesData": "Kein Absatz",
     "estimatedRange": "Reichweite",
     "activeProducts": "Aktive Produkte",
-    "discontinuedCol": "Auslaufartikel"
+    "discontinuedCol": "Auslaufartikel",
+    "velocitySettingTitle": "Reichweiten-Berechnung",
+    "velocitySettingDescription": "Zeitraum für die Berechnung des durchschnittlichen Tagesabsatzes und der geschätzten Lagerreichweite.",
+    "velocityDays7": "Letzte 7 Tage",
+    "velocityDays14": "Letzte 14 Tage",
+    "velocityDays30": "Letzte 30 Tage",
+    "velocityDays60": "Letzte 60 Tage",
+    "velocityDays90": "Letzte 90 Tage"
   },
   "devices": {
     "title": "Geräte",

@@ -35,7 +35,7 @@ const {
   fetchWarehouses, createWarehouse, updateWarehouse, deleteWarehouse,
   fetchBarcodes, lookupBarcode, addBarcode, removeBarcode,
   fetchBatches, fetchProductSummaries, bookIncoming, adjustStock,
-  fetchMinStocks, setMinStock, checkLowStockNotifications,
+  fetchMinStocks, setMinStock, setVelocityDays, velocityDays, checkLowStockNotifications,
   positions, groups, fetchPositions, savePositions, removePosition,
   fetchGroups, createGroup, updateGroup, deleteGroup, saveGroupOrder,
   fetchTransactions, fetchMoreTransactions,
@@ -191,7 +191,25 @@ const filteredSummaries = computed(() => {
   return sortSummaries(items)
 })
 
-const statusOrder: Record<string, number> = { critical: 0, warning: 1, ok: 2 }
+/**
+ * Compute a numeric severity score for a product summary.
+ * Lower = more urgent. Used for status column sorting.
+ *
+ *  0 — out of stock (active product, quantity 0)
+ *  1 — below min stock
+ *  2 — MHD critical (< 7 days)
+ *  3 — MHD warning (7–30 days)
+ *  4 — OK (everything fine)
+ *  5 — discontinued (always last)
+ */
+function statusSeverity(p: WarehouseProductSummary): number {
+  if (p.discontinued) return 5
+  if (!p.discontinued && p.total_quantity === 0) return 0
+  if (p.is_below_min) return 1
+  if (p.expiration_status === 'critical') return 2
+  if (p.expiration_status === 'warning') return 3
+  return 4
+}
 
 function sortSummaries(items: WarehouseProductSummary[]) {
   const dir = stockSortDir.value === 'asc' ? 1 : -1
@@ -219,14 +237,12 @@ function sortSummaries(items: WarehouseProductSummary[]) {
       if (!bDate) return -dir
       return dir * aDate.localeCompare(bDate)
     }
-    // status: critical < warning < ok (asc = worst first)
-    const aStatus = statusOrder[a.expiration_status] ?? 2
-    const bStatus = statusOrder[b.expiration_status] ?? 2
-    if (aStatus !== bStatus) return dir * (aStatus - bStatus)
-    // secondary: below min stock
-    const aMin = a.is_below_min ? 0 : 1
-    const bMin = b.is_below_min ? 0 : 1
-    return dir * (aMin - bMin)
+    // status: composite severity (out-of-stock > low-stock > MHD critical > MHD warning > ok > discontinued)
+    const aSev = statusSeverity(a)
+    const bSev = statusSeverity(b)
+    if (aSev !== bSev) return dir * (aSev - bSev)
+    // secondary: sort by name within same severity
+    return a.product_name.localeCompare(b.product_name)
   })
 }
 
@@ -962,6 +978,14 @@ async function saveMinStock(productId: string) {
   await setMinStock({ product_id: productId, warehouse_id: selectedWarehouseId.value, min_quantity: val })
   minStockEdits.value.delete(productId)
   await fetchProductSummaries(selectedWarehouseId.value)
+}
+
+async function onVelocityDaysChange(e: Event) {
+  const val = Number((e.target as HTMLSelectElement).value)
+  setVelocityDays(val)
+  if (selectedWarehouseId.value) {
+    await fetchProductSummaries(selectedWarehouseId.value)
+  }
 }
 
 </script>
@@ -2010,6 +2034,25 @@ async function saveMinStock(productId: string) {
                   </tr>
                 </tbody>
               </table>
+            </div>
+          </div>
+
+          <!-- Velocity calculation period -->
+          <div>
+            <h2 class="mb-3 text-lg font-semibold">{{ t('warehouse.velocitySettingTitle') }}</h2>
+            <p class="mb-3 text-sm text-muted-foreground">{{ t('warehouse.velocitySettingDescription') }}</p>
+            <div class="flex items-center gap-3">
+              <select
+                :value="velocityDays"
+                class="h-9 rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                @change="onVelocityDaysChange"
+              >
+                <option :value="7">{{ t('warehouse.velocityDays7') }}</option>
+                <option :value="14">{{ t('warehouse.velocityDays14') }}</option>
+                <option :value="30">{{ t('warehouse.velocityDays30') }}</option>
+                <option :value="60">{{ t('warehouse.velocityDays60') }}</option>
+                <option :value="90">{{ t('warehouse.velocityDays90') }}</option>
+              </select>
             </div>
           </div>
 

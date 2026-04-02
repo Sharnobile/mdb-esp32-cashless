@@ -137,6 +137,15 @@ export function useWarehouse() {
   const groups = ref<WarehousePositionGroup[]>([])
   const loading = ref(false)
   const transactionLoading = ref(false)
+
+  // Velocity calculation lookback period (days) — persisted in localStorage
+  const velocityDays = useState<number>('warehouse-velocity-days', () => {
+    if (import.meta.client) {
+      const stored = localStorage.getItem('warehouse-velocity-days')
+      if (stored) return parseInt(stored, 10) || 30
+    }
+    return 30
+  })
   const transactionHasMore = ref(false)
   const transactionOffset = ref(0)
 
@@ -278,7 +287,7 @@ export function useWarehouse() {
           .select('product_id, min_quantity')
           .eq('warehouse_id', warehouseId),
         (supabase as any)
-          .rpc('get_product_sales_velocity', { p_company_id: companyId, p_days: 30 }),
+          .rpc('get_product_sales_velocity', { p_company_id: companyId, p_days: velocityDays.value }),
       ])
 
       if (productsRes.error) throw productsRes.error
@@ -970,13 +979,20 @@ export function useWarehouse() {
     }
   }
 
+  function setVelocityDays(days: number) {
+    velocityDays.value = days
+    if (import.meta.client) {
+      localStorage.setItem('warehouse-velocity-days', String(days))
+    }
+  }
+
   return {
     warehouses, batches, transactions, productSummaries, barcodes, minStocks, positions, groups,
-    loading, transactionLoading, transactionHasMore,
+    loading, transactionLoading, transactionHasMore, velocityDays,
     fetchWarehouses, createWarehouse, updateWarehouse, deleteWarehouse,
     fetchBarcodes, lookupBarcode, addBarcode, removeBarcode,
     fetchBatches, fetchProductSummaries, bookIncoming, adjustStock, deductForRefill, getProductStock, fetchWarehouseStockMap,
-    fetchMinStocks, setMinStock,
+    fetchMinStocks, setMinStock, setVelocityDays,
     fetchGroups, createGroup, updateGroup, deleteGroup, saveGroupOrder,
     fetchPositions, savePositions, removePosition, fetchOrderedProductIds,
     fetchTransactions, fetchMoreTransactions,

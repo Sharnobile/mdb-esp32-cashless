@@ -536,7 +536,14 @@
     "noSalesData": "No sales",
     "estimatedRange": "Range",
     "activeProducts": "Active products",
-    "discontinuedCol": "Discontinued"
+    "discontinuedCol": "Discontinued",
+    "velocitySettingTitle": "Stock range calculation",
+    "velocitySettingDescription": "Time period used to calculate average daily sales and estimated stock range.",
+    "velocityDays7": "Last 7 days",
+    "velocityDays14": "Last 14 days",
+    "velocityDays30": "Last 30 days",
+    "velocityDays60": "Last 60 days",
+    "velocityDays90": "Last 90 days"
   },
   "devices": {
     "title": "Devices",
