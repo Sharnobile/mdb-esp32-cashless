@@ -35,7 +35,7 @@ const {
   fetchWarehouses, createWarehouse, updateWarehouse, deleteWarehouse,
   fetchBarcodes, lookupBarcode, addBarcode, removeBarcode,
   fetchBatches, fetchProductSummaries, bookIncoming, adjustStock,
-  fetchMinStocks, setMinStock, setVelocityDays, velocityDays, checkLowStockNotifications,
+  fetchMinStocks, setMinStock, fetchVelocityDays, setVelocityDays, velocityDays, checkLowStockNotifications,
   positions, groups, fetchPositions, savePositions, removePosition,
   fetchGroups, createGroup, updateGroup, deleteGroup, saveGroupOrder,
   fetchTransactions, fetchMoreTransactions,
@@ -74,7 +74,7 @@ onMounted(async () => {
   const mod = await import('sortablejs')
   _Sortable = mod.default
 
-  await Promise.all([fetchWarehouses(), fetchProducts(), fetchMachineStockValue()])
+  await Promise.all([fetchWarehouses(), fetchProducts(), fetchMachineStockValue(), fetchVelocityDays()])
   const first = warehouses.value[0]
   if (first) {
     selectedWarehouseId.value = first.id

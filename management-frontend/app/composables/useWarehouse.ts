@@ -138,14 +138,8 @@ export function useWarehouse() {
   const loading = ref(false)
   const transactionLoading = ref(false)
 
-  // Velocity calculation lookback period (days) — persisted in localStorage
-  const velocityDays = useState<number>('warehouse-velocity-days', () => {
-    if (import.meta.client) {
-      const stored = localStorage.getItem('warehouse-velocity-days')
-      if (stored) return parseInt(stored, 10) || 30
-    }
-    return 30
-  })
+  // Velocity calculation lookback period (days) — stored per company in DB
+  const velocityDays = useState<number>('warehouse-velocity-days', () => 30)
   const transactionHasMore = ref(false)
   const transactionOffset = ref(0)
 
@@ -979,11 +973,27 @@ export function useWarehouse() {
     }
   }
 
-  function setVelocityDays(days: number) {
-    velocityDays.value = days
-    if (import.meta.client) {
-      localStorage.setItem('warehouse-velocity-days', String(days))
+  async function fetchVelocityDays() {
+    const companyId = organization.value?.id
+    if (!companyId) return
+    const { data } = await (supabase as any)
+      .from('companies')
+      .select('velocity_days')
+      .eq('id', companyId)
+      .maybeSingle()
+    if (data?.velocity_days) {
+      velocityDays.value = data.velocity_days
     }
+  }
+
+  async function setVelocityDays(days: number) {
+    const companyId = organization.value?.id
+    if (!companyId) return
+    velocityDays.value = days
+    await (supabase as any)
+      .from('companies')
+      .update({ velocity_days: days })
+      .eq('id', companyId)
   }
 
   return {
@@ -992,7 +1002,7 @@ export function useWarehouse() {
     fetchWarehouses, createWarehouse, updateWarehouse, deleteWarehouse,
     fetchBarcodes, lookupBarcode, addBarcode, removeBarcode,
     fetchBatches, fetchProductSummaries, bookIncoming, adjustStock, deductForRefill, getProductStock, fetchWarehouseStockMap,
-    fetchMinStocks, setMinStock, setVelocityDays,
+    fetchMinStocks, setMinStock, fetchVelocityDays, setVelocityDays,
     fetchGroups, createGroup, updateGroup, deleteGroup, saveGroupOrder,
     fetchPositions, savePositions, removePosition, fetchOrderedProductIds,
     fetchTransactions, fetchMoreTransactions,
