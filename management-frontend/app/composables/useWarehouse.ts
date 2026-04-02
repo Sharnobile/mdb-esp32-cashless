@@ -59,6 +59,9 @@ export interface WarehouseProductSummary {
   earliest_expiration: string | null
   expiration_status: 'ok' | 'warning' | 'critical'
   batch_count: number
+  discontinued: boolean
+  avg_daily_sales: number
+  estimated_days_remaining: number | null
 }
 
 export interface MinStockEntry {
@@ -256,31 +259,46 @@ export function useWarehouse() {
   async function fetchProductSummaries(warehouseId: string) {
     loading.value = true
     try {
-      // Fetch batches + min stocks in parallel
-      const [batchRes, minStockRes] = await Promise.all([
+      const companyId = organization.value?.id
+      if (!companyId) throw new Error('No organization')
+
+      // Fetch all data in parallel: all products, stock batches, min stocks, sales velocity
+      const [productsRes, batchRes, minStockRes, velocityRes] = await Promise.all([
+        (supabase as any)
+          .from('products')
+          .select('id, name, image_path, discontinued, sellprice')
+          .order('name'),
         (supabase as any)
           .from('warehouse_stock_batches')
-          .select('product_id, quantity, expiration_date, products(name, image_path)')
+          .select('product_id, quantity, expiration_date')
           .eq('warehouse_id', warehouseId)
           .gt('quantity', 0),
         (supabase as any)
           .from('product_min_stock')
           .select('product_id, min_quantity')
           .eq('warehouse_id', warehouseId),
+        (supabase as any)
+          .rpc('get_product_sales_velocity', { p_company_id: companyId, p_days: 30 }),
       ])
 
+      if (productsRes.error) throw productsRes.error
       if (batchRes.error) throw batchRes.error
       if (minStockRes.error) throw minStockRes.error
+      // Velocity RPC may fail if no sales exist — treat as empty
+      const velocityData = velocityRes.error ? [] : (velocityRes.data ?? []) as any[]
 
       const minStockMap = new Map<string, number>()
       for (const ms of (minStockRes.data ?? []) as any[]) {
         minStockMap.set(ms.product_id, ms.min_quantity)
       }
 
-      // Aggregate by product
-      const grouped = new Map<string, {
-        product_name: string
-        product_image_path: string | null
+      const velocityMap = new Map<string, number>()
+      for (const v of velocityData) {
+        velocityMap.set(v.product_id, parseFloat(v.avg_daily_units) || 0)
+      }
+
+      // Aggregate batches by product
+      const stockMap = new Map<string, {
         total_quantity: number
         earliest_expiration: string | null
         batch_count: number
@@ -288,7 +306,7 @@ export function useWarehouse() {
 
       for (const b of (batchRes.data ?? []) as any[]) {
         const pid = b.product_id as string
-        const existing = grouped.get(pid)
+        const existing = stockMap.get(pid)
         if (existing) {
           existing.total_quantity += b.quantity
           existing.batch_count += 1
@@ -296,9 +314,7 @@ export function useWarehouse() {
             existing.earliest_expiration = b.expiration_date
           }
         } else {
-          grouped.set(pid, {
-            product_name: b.products?.name ?? 'Unknown',
-            product_image_path: b.products?.image_path ?? null,
+          stockMap.set(pid, {
             total_quantity: b.quantity,
             earliest_expiration: b.expiration_date,
             batch_count: 1,
@@ -306,19 +322,28 @@ export function useWarehouse() {
         }
       }
 
-      productSummaries.value = Array.from(grouped.entries()).map(([productId, data]) => {
-        const minStock = minStockMap.get(productId) ?? 0
-        const expStatus = data.earliest_expiration ? expirationStatus(data.earliest_expiration) : 'ok'
+      // Merge: every product gets a summary (even with 0 stock)
+      productSummaries.value = ((productsRes.data ?? []) as any[]).map((p: any) => {
+        const stock = stockMap.get(p.id)
+        const totalQty = stock?.total_quantity ?? 0
+        const minStock = minStockMap.get(p.id) ?? 0
+        const avgDaily = velocityMap.get(p.id) ?? 0
+        const expStatus = stock?.earliest_expiration ? expirationStatus(stock.earliest_expiration) : 'ok'
+        const discontinued = p.discontinued ?? false
+
         return {
-          product_id: productId,
-          product_name: data.product_name,
-          product_image_path: data.product_image_path,
-          total_quantity: data.total_quantity,
+          product_id: p.id,
+          product_name: p.name ?? 'Unknown',
+          product_image_path: p.image_path ?? null,
+          total_quantity: totalQty,
           min_stock: minStock,
-          is_below_min: minStock > 0 && data.total_quantity <= minStock,
-          earliest_expiration: data.earliest_expiration,
+          is_below_min: !discontinued && minStock > 0 && totalQty <= minStock,
+          earliest_expiration: stock?.earliest_expiration ?? null,
           expiration_status: expStatus,
-          batch_count: data.batch_count,
+          batch_count: stock?.batch_count ?? 0,
+          discontinued,
+          avg_daily_sales: avgDaily,
+          estimated_days_remaining: avgDaily > 0 ? Math.round(totalQty / avgDaily) : null,
         }
       }).sort((a, b) => a.product_name.localeCompare(b.product_name))
     } finally {
@@ -922,6 +947,29 @@ export function useWarehouse() {
     return result
   }
 
+  /**
+   * Trigger processing of queued low-stock notifications.
+   * Calls the check-low-stock edge function which reads unsent entries
+   * from low_stock_notifications and sends push notifications.
+   */
+  async function checkLowStockNotifications() {
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return
+      const config = useRuntimeConfig()
+      const supabaseUrl = config.public.supabase?.url || 'http://127.0.0.1:54321'
+      await fetch(`${supabaseUrl}/functions/v1/check-low-stock`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+      })
+    } catch {
+      // Silently ignore — notifications are best-effort
+    }
+  }
+
   return {
     warehouses, batches, transactions, productSummaries, barcodes, minStocks, positions, groups,
     loading, transactionLoading, transactionHasMore,
@@ -932,7 +980,7 @@ export function useWarehouse() {
     fetchGroups, createGroup, updateGroup, deleteGroup, saveGroupOrder,
     fetchPositions, savePositions, removePosition, fetchOrderedProductIds,
     fetchTransactions, fetchMoreTransactions,
-    subscribeToStockUpdates,
+    subscribeToStockUpdates, checkLowStockNotifications,
     transactionTypeLabel, transactionTypeBadgeClass,
   }
 }

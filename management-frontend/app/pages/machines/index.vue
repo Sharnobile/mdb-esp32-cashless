@@ -223,6 +223,7 @@ async function submitCreateMachine() {
                         <span :class="item.severity === 'critical' ? 'text-red-500' : item.severity === 'low' ? 'text-amber-500' : 'text-blue-600 dark:text-blue-400'">
                           {{ item.product_name }} <span class="text-muted-foreground">(-{{ item.deficit }})</span>
                         </span>
+                        <span v-if="item.discontinued" class="shrink-0 rounded bg-gray-200 px-1 py-px text-[9px] font-medium text-gray-500 dark:bg-gray-700 dark:text-gray-400">{{ t('warehouse.discontinuedBadge') }}</span>
                       </div>
                       <span class="shrink-0 text-green-500 text-[10px]">{{ t('machines.inStock') }}</span>
                     </div>
@@ -243,6 +244,7 @@ async function submitCreateMachine() {
                           <IconArrowsExchange class="inline h-3 w-3 mr-0.5 -mt-0.5 shrink-0" />
                           {{ item.product_name }} <span class="text-muted-foreground">(-{{ item.deficit }})</span>
                         </span>
+                        <span v-if="item.discontinued" class="shrink-0 rounded bg-gray-200 px-1 py-px text-[9px] font-medium text-gray-500 dark:bg-gray-700 dark:text-gray-400">{{ t('warehouse.discontinuedBadge') }}</span>
                       </div>
                       <span class="shrink-0 text-orange-400 text-[10px]">{{ t('machines.swap') }}</span>
                     </div>
@@ -257,6 +259,7 @@ async function submitCreateMachine() {
                         <span>
                           {{ item.product_name }} <span class="text-muted-foreground">(-{{ item.deficit }})</span>
                         </span>
+                        <span v-if="item.discontinued" class="shrink-0 rounded bg-gray-200 px-1 py-px text-[9px] font-medium text-gray-500 dark:bg-gray-700 dark:text-gray-400">{{ t('warehouse.discontinuedBadge') }}</span>
                       </div>
                       <span class="shrink-0 text-muted-foreground text-[10px]">{{ t('machines.noStock') }}</span>
                     </div>

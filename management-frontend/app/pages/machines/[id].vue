@@ -208,7 +208,7 @@ type ChartPoint = { date: Date; total: number }
 
 // Map item_number → product info from trays
 const trayProductMap = computed(() => {
-  const map = new Map<number, { name: string; image_url: string | null; sellprice: number | null }>()
+  const map = new Map<number, { name: string; image_url: string | null; sellprice: number | null; discontinued: boolean }>()
   for (const t of trays.value) {
     if (t.product_name) {
       const product = products.value.find(p => p.id === t.product_id)
@@ -216,6 +216,7 @@ const trayProductMap = computed(() => {
         name: t.product_name,
         image_url: product?.image_url ?? null,
         sellprice: product?.sellprice ?? null,
+        discontinued: t.product_discontinued ?? false,
       })
     }
   }
@@ -1142,9 +1143,12 @@ function stockColor(tray: any) {
                           </button>
                         </template>
                         <span v-else class="block truncate text-sm font-medium">{{ tray.product_name ?? '—' }}</span>
-                        <span v-if="trayProductMap.get(tray.item_number)?.sellprice" class="text-xs text-muted-foreground">
-                          {{ formatCurrency(trayProductMap.get(tray.item_number)!.sellprice!, locale) }}
-                        </span>
+                        <div class="flex items-center gap-1.5">
+                          <span v-if="trayProductMap.get(tray.item_number)?.sellprice" class="text-xs text-muted-foreground">
+                            {{ formatCurrency(trayProductMap.get(tray.item_number)!.sellprice!, locale) }}
+                          </span>
+                          <span v-if="tray.product_discontinued" class="rounded bg-gray-200 px-1 py-px text-[9px] font-medium text-gray-500 dark:bg-gray-700 dark:text-gray-400">{{ t('warehouse.discontinuedBadge') }}</span>
+                        </div>
                       </div>
                       <!-- Actions: Full only on mobile -->
                       <button
@@ -1392,6 +1396,7 @@ function stockColor(tray: any) {
                             </button>
                           </template>
                           <span v-else>{{ tray.product_name ?? '—' }}</span>
+                          <span v-if="tray.product_discontinued" class="ml-1.5 inline-flex items-center rounded bg-gray-200 px-1 py-px text-[9px] font-medium text-gray-500 dark:bg-gray-700 dark:text-gray-400">{{ t('warehouse.discontinuedBadge') }}</span>
                         </td>
 
                         <!-- Stock (inline editable for admins) -->

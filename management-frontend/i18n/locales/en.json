@@ -524,7 +524,19 @@
     "moveToGroup": "Move to group",
     "nSelected": "{count} selected",
     "deselectAll": "Deselect all",
-    "rootLevel": "Root level"
+    "rootLevel": "Root level",
+    "discontinued": "Discontinued",
+    "discontinuedBadge": "Discontinued",
+    "hideDiscontinued": "Hide discontinued",
+    "showDiscontinued": "Show discontinued",
+    "outOfStock": "Out of stock",
+    "outOfStockCount": "Out of stock",
+    "reorderNeeded": "Reorder needed",
+    "daysRemaining": "~{days} d",
+    "noSalesData": "No sales",
+    "estimatedRange": "Range",
+    "activeProducts": "Active products",
+    "discontinuedCol": "Discontinued"
   },
   "devices": {
     "title": "Devices",

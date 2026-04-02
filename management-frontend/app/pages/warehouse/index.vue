@@ -28,14 +28,14 @@ import {
 
 const { t, locale } = useI18n()
 const { organization, role } = useOrganization()
-const { products, categories, fetchProducts, createProduct, uploadProductImage } = useProducts()
+const { products, categories, fetchProducts, createProduct, uploadProductImage, toggleDiscontinued } = useProducts()
 const {
   warehouses, batches, transactions, productSummaries, barcodes, minStocks,
   loading, transactionLoading, transactionHasMore,
   fetchWarehouses, createWarehouse, updateWarehouse, deleteWarehouse,
   fetchBarcodes, lookupBarcode, addBarcode, removeBarcode,
   fetchBatches, fetchProductSummaries, bookIncoming, adjustStock,
-  fetchMinStocks, setMinStock,
+  fetchMinStocks, setMinStock, checkLowStockNotifications,
   positions, groups, fetchPositions, savePositions, removePosition,
   fetchGroups, createGroup, updateGroup, deleteGroup, saveGroupOrder,
   fetchTransactions, fetchMoreTransactions,
@@ -102,14 +102,25 @@ async function loadWarehouseData() {
     fetchBatches(id),
     fetchMinStocks(id),
   ])
+  // Trigger processing of any queued low-stock notifications (best-effort)
+  checkLowStockNotifications()
 }
 
 // ── KPIs ────────────────────────────────────────────────────────────────────
 
-const totalProducts = computed(() => productSummaries.value.length)
-const totalUnits = computed(() => productSummaries.value.reduce((s, p) => s + p.total_quantity, 0))
-const expiringSoonCount = computed(() => productSummaries.value.filter(p => p.expiration_status !== 'ok').length)
+const showDiscontinued = ref(true)
+
+const activeProductSummaries = computed(() =>
+  showDiscontinued.value
+    ? productSummaries.value
+    : productSummaries.value.filter(p => !p.discontinued)
+)
+
+const totalProducts = computed(() => productSummaries.value.filter(p => !p.discontinued).length)
+const totalUnits = computed(() => productSummaries.value.filter(p => !p.discontinued).reduce((s, p) => s + p.total_quantity, 0))
+const expiringSoonCount = computed(() => productSummaries.value.filter(p => !p.discontinued && p.expiration_status !== 'ok').length)
 const belowMinCount = computed(() => productSummaries.value.filter(p => p.is_below_min).length)
+const outOfStockCount = computed(() => productSummaries.value.filter(p => !p.discontinued && p.total_quantity === 0).length)
 const totalValue = computed(() => {
   const productMap = new Map(products.value.map(p => [p.id, p.sellprice]))
   return productSummaries.value.reduce((sum, ps) => {
@@ -168,7 +179,7 @@ function toggleExpand(productId: string) {
 import { fuzzyFilter } from '@/lib/fuzzySearch'
 
 const filteredSummaries = computed(() => {
-  let items = productSummaries.value
+  let items = activeProductSummaries.value
   if (stockSearch.value) {
     items = fuzzyFilter(items, stockSearch.value, [p => p.product_name])
   }
@@ -210,7 +221,7 @@ function sortSummaries(items: WarehouseProductSummary[]) {
   })
 }
 
-const sortedProductSummaries = computed(() => sortSummaries(productSummaries.value))
+const sortedProductSummaries = computed(() => sortSummaries(activeProductSummaries.value))
 
 function batchesForProduct(productId: string): StockBatch[] {
   return batches.value.filter(b => b.product_id === productId)
@@ -1009,10 +1020,10 @@ async function saveMinStock(productId: string) {
       <TabsContent value="overview">
         <div class="flex flex-col gap-4">
           <!-- KPI cards -->
-          <div class="grid grid-cols-2 gap-3 lg:grid-cols-6">
+          <div class="grid grid-cols-2 gap-3 lg:grid-cols-4 xl:grid-cols-7">
             <Card>
               <CardHeader class="pb-2">
-                <CardTitle class="text-sm font-medium text-muted-foreground">{{ t('warehouse.productsKpi') }}</CardTitle>
+                <CardTitle class="text-sm font-medium text-muted-foreground">{{ t('warehouse.activeProducts') }}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div class="text-2xl font-bold">{{ totalProducts }}</div>
@@ -1028,10 +1039,10 @@ async function saveMinStock(productId: string) {
             </Card>
             <Card>
               <CardHeader class="pb-2">
-                <CardTitle class="text-sm font-medium text-muted-foreground">{{ t('warehouse.expiringSoon') }}</CardTitle>
+                <CardTitle class="text-sm font-medium text-muted-foreground">{{ t('warehouse.outOfStockCount') }}</CardTitle>
               </CardHeader>
               <CardContent>
-                <div class="text-2xl font-bold" :class="expiringSoonCount > 0 ? 'text-amber-600 dark:text-amber-400' : ''">{{ expiringSoonCount }}</div>
+                <div class="text-2xl font-bold" :class="outOfStockCount > 0 ? 'text-red-600 dark:text-red-400' : ''">{{ outOfStockCount }}</div>
               </CardContent>
             </Card>
             <Card>
@@ -1040,6 +1051,14 @@ async function saveMinStock(productId: string) {
               </CardHeader>
               <CardContent>
                 <div class="text-2xl font-bold" :class="belowMinCount > 0 ? 'text-red-600 dark:text-red-400' : ''">{{ belowMinCount }}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader class="pb-2">
+                <CardTitle class="text-sm font-medium text-muted-foreground">{{ t('warehouse.expiringSoon') }}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div class="text-2xl font-bold" :class="expiringSoonCount > 0 ? 'text-amber-600 dark:text-amber-400' : ''">{{ expiringSoonCount }}</div>
               </CardContent>
             </Card>
             <Card>
@@ -1061,14 +1080,14 @@ async function saveMinStock(productId: string) {
           </div>
 
           <!-- MHD warnings -->
-          <div v-if="productSummaries.some(p => p.expiration_status !== 'ok')" class="rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-700 dark:bg-amber-950/20">
+          <div v-if="productSummaries.some(p => !p.discontinued && p.expiration_status !== 'ok')" class="rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-700 dark:bg-amber-950/20">
             <div class="flex items-center gap-2 font-medium text-amber-800 dark:text-amber-300">
               <IconAlertTriangle class="size-5" />
               {{ t('warehouse.expirationWarnings') }}
             </div>
             <div class="mt-3 space-y-2">
               <div
-                v-for="p in productSummaries.filter(p => p.expiration_status !== 'ok')"
+                v-for="p in productSummaries.filter(p => !p.discontinued && p.expiration_status !== 'ok')"
                 :key="p.product_id"
                 class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between rounded-md bg-white/60 px-3 py-2 dark:bg-white/5"
               >
@@ -1083,6 +1102,14 @@ async function saveMinStock(productId: string) {
                 <span class="text-sm text-muted-foreground">{{ t('warehouse.mhd', { date: formatDate(p.earliest_expiration, locale.value) }) }}</span>
               </div>
             </div>
+          </div>
+
+          <!-- Discontinued filter toggle -->
+          <div class="flex items-center justify-end">
+            <label class="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
+              <input type="checkbox" v-model="showDiscontinued" class="rounded border-input" />
+              {{ t('warehouse.showDiscontinued') }}
+            </label>
           </div>
 
           <!-- Product summary table -->
@@ -1103,6 +1130,7 @@ async function saveMinStock(productId: string) {
                     </div>
                   </th>
                   <th class="hidden px-4 py-3 font-medium text-right md:table-cell">{{ t('warehouse.minStockCol') }}</th>
+                  <th class="hidden px-4 py-3 font-medium text-right md:table-cell">{{ t('warehouse.estimatedRange') }}</th>
                   <th class="hidden px-4 py-3 font-medium md:table-cell cursor-pointer select-none hover:text-foreground" @click="toggleSort('expiration')">
                     <div class="flex items-center gap-1">
                       {{ t('warehouse.earliestMhd') }}
@@ -1119,15 +1147,16 @@ async function saveMinStock(productId: string) {
               </thead>
               <tbody>
                 <tr v-if="loading && sortedProductSummaries.length === 0">
-                  <td colspan="5" class="px-4 py-8 text-center text-muted-foreground">{{ t('common.loading') }}</td>
+                  <td colspan="6" class="px-4 py-8 text-center text-muted-foreground">{{ t('common.loading') }}</td>
                 </tr>
                 <tr v-else-if="sortedProductSummaries.length === 0">
-                  <td colspan="5" class="px-4 py-8 text-center text-muted-foreground">{{ t('warehouse.noStockInWarehouse') }}</td>
+                  <td colspan="6" class="px-4 py-8 text-center text-muted-foreground">{{ t('warehouse.noStockInWarehouse') }}</td>
                 </tr>
                 <tr
                   v-for="p in sortedProductSummaries"
                   :key="p.product_id"
                   class="border-b last:border-0 hover:bg-muted/30 transition-colors"
+                  :class="{ 'opacity-50': p.discontinued }"
                 >
                   <td class="px-4 py-3">
                     <div class="flex items-center gap-2">
@@ -1140,14 +1169,32 @@ async function saveMinStock(productId: string) {
                       <div v-else class="flex size-8 items-center justify-center rounded bg-muted text-xs font-medium text-muted-foreground">
                         {{ p.product_name.charAt(0) }}
                       </div>
-                      <span class="font-medium">{{ p.product_name }}</span>
+                      <span class="font-medium" :class="{ 'line-through': p.discontinued }">{{ p.product_name }}</span>
+                      <span
+                        v-if="p.discontinued"
+                        class="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400"
+                      >
+                        {{ t('warehouse.discontinuedBadge') }}
+                      </span>
                     </div>
                   </td>
                   <td class="px-4 py-3 text-right tabular-nums">{{ p.total_quantity }}</td>
                   <td class="hidden px-4 py-3 text-right tabular-nums md:table-cell">{{ p.min_stock || '—' }}</td>
+                  <td class="hidden px-4 py-3 text-right tabular-nums md:table-cell">
+                    <span v-if="p.estimated_days_remaining !== null" :class="p.estimated_days_remaining <= 7 ? 'text-red-600 dark:text-red-400 font-medium' : p.estimated_days_remaining <= 14 ? 'text-amber-600 dark:text-amber-400' : ''">
+                      {{ t('warehouse.daysRemaining', { days: p.estimated_days_remaining }) }}
+                    </span>
+                    <span v-else class="text-muted-foreground">{{ p.total_quantity > 0 ? t('warehouse.noSalesData') : '—' }}</span>
+                  </td>
                   <td class="hidden px-4 py-3 md:table-cell">{{ formatDate(p.earliest_expiration, locale.value) }}</td>
                   <td class="px-4 py-3">
-                    <div class="flex gap-1.5">
+                    <div class="flex flex-wrap gap-1.5">
+                      <span
+                        v-if="p.total_quantity === 0 && !p.discontinued"
+                        class="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700 dark:bg-red-950/40 dark:text-red-400"
+                      >
+                        {{ t('warehouse.outOfStock') }}
+                      </span>
                       <span
                         v-if="p.expiration_status !== 'ok'"
                         :class="[expirationBadgeClass(p.expiration_status), 'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium']"
@@ -1161,7 +1208,7 @@ async function saveMinStock(productId: string) {
                         {{ t('warehouse.lowStock') }}
                       </span>
                       <span
-                        v-if="p.expiration_status === 'ok' && !p.is_below_min"
+                        v-if="p.total_quantity > 0 && p.expiration_status === 'ok' && !p.is_below_min && !p.discontinued"
                         class="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-950/40 dark:text-green-400"
                       >
                         {{ t('warehouse.ok') }}
@@ -1182,7 +1229,7 @@ async function saveMinStock(productId: string) {
         <div class="flex flex-col gap-4">
           <!-- Filters -->
           <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2 flex-wrap">
               <div class="relative">
                 <IconSearch class="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                 <input
@@ -1200,6 +1247,10 @@ async function saveMinStock(productId: string) {
                 <option value="warning">{{ t('warehouse.expiringSoonFilter') }}</option>
                 <option value="critical">{{ t('warehouse.criticalFilter') }}</option>
               </select>
+              <label class="flex items-center gap-1.5 text-sm text-muted-foreground cursor-pointer select-none">
+                <input type="checkbox" v-model="showDiscontinued" class="rounded border-input" />
+                {{ t('warehouse.showDiscontinued') }}
+              </label>
             </div>
             <button
               v-if="isAdmin"
@@ -1229,6 +1280,7 @@ async function saveMinStock(productId: string) {
                       <component :is="stockSortKey === 'quantity' ? (stockSortDir === 'asc' ? IconArrowUp : IconArrowDown) : IconArrowsSort" class="size-3.5 text-muted-foreground" />
                     </div>
                   </th>
+                  <th class="hidden px-4 py-3 font-medium text-right md:table-cell">{{ t('warehouse.estimatedRange') }}</th>
                   <th class="hidden px-4 py-3 font-medium md:table-cell cursor-pointer select-none hover:text-foreground" @click="toggleSort('expiration')">
                     <div class="flex items-center gap-1">
                       {{ t('warehouse.earliestMhd') }}
@@ -1245,7 +1297,7 @@ async function saveMinStock(productId: string) {
               </thead>
               <tbody>
                 <tr v-if="filteredSummaries.length === 0">
-                  <td colspan="5" class="px-4 py-8 text-center text-muted-foreground">
+                  <td colspan="6" class="px-4 py-8 text-center text-muted-foreground">
                     {{ stockSearch || stockFilter !== 'all' ? t('warehouse.noMatchingProducts') : t('warehouse.noStock') }}
                   </td>
                 </tr>
@@ -1253,10 +1305,12 @@ async function saveMinStock(productId: string) {
                   <!-- Product row -->
                   <tr
                     class="border-b cursor-pointer hover:bg-muted/30 transition-colors"
-                    @click="toggleExpand(p.product_id)"
+                    :class="{ 'opacity-50': p.discontinued }"
+                    @click="p.batch_count > 0 ? toggleExpand(p.product_id) : undefined"
                   >
                     <td class="px-2 py-3 text-center">
                       <component
+                        v-if="p.batch_count > 0"
                         :is="expandedProducts.has(p.product_id) ? IconChevronDown : IconChevronRight"
                         class="size-4 text-muted-foreground"
                       />
@@ -1272,20 +1326,50 @@ async function saveMinStock(productId: string) {
                         <div v-else class="flex size-8 items-center justify-center rounded bg-muted text-xs font-medium text-muted-foreground">
                           {{ p.product_name.charAt(0) }}
                         </div>
-                        <div>
-                          <span class="font-medium">{{ p.product_name }}</span>
-                          <span class="ml-2 text-xs text-muted-foreground">{{ t('warehouse.batchCount', { count: p.batch_count }, p.batch_count) }}</span>
+                        <div class="flex items-center gap-2">
+                          <span class="font-medium" :class="{ 'line-through': p.discontinued }">{{ p.product_name }}</span>
+                          <span v-if="p.discontinued" class="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400">
+                            {{ t('warehouse.discontinuedBadge') }}
+                          </span>
+                          <span v-if="p.batch_count > 0" class="text-xs text-muted-foreground">{{ t('warehouse.batchCount', { count: p.batch_count }, p.batch_count) }}</span>
                         </div>
                       </div>
                     </td>
                     <td class="px-4 py-3 text-right tabular-nums font-medium">{{ p.total_quantity }}</td>
+                    <td class="hidden px-4 py-3 text-right tabular-nums md:table-cell">
+                      <span v-if="p.estimated_days_remaining !== null" :class="p.estimated_days_remaining <= 7 ? 'text-red-600 dark:text-red-400 font-medium' : p.estimated_days_remaining <= 14 ? 'text-amber-600 dark:text-amber-400' : ''">
+                        {{ t('warehouse.daysRemaining', { days: p.estimated_days_remaining }) }}
+                      </span>
+                      <span v-else class="text-muted-foreground">{{ p.total_quantity > 0 ? t('warehouse.noSalesData') : '—' }}</span>
+                    </td>
                     <td class="hidden px-4 py-3 md:table-cell">{{ formatDate(p.earliest_expiration, locale.value) }}</td>
                     <td class="px-4 py-3">
-                      <span
-                        :class="[expirationBadgeClass(p.expiration_status), 'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium']"
-                      >
-                        {{ expirationLabel(p.expiration_status) }}
-                      </span>
+                      <div class="flex flex-wrap gap-1.5">
+                        <span
+                          v-if="p.total_quantity === 0 && !p.discontinued"
+                          class="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700 dark:bg-red-950/40 dark:text-red-400"
+                        >
+                          {{ t('warehouse.outOfStock') }}
+                        </span>
+                        <span
+                          v-if="p.expiration_status !== 'ok'"
+                          :class="[expirationBadgeClass(p.expiration_status), 'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium']"
+                        >
+                          {{ expirationLabel(p.expiration_status) }}
+                        </span>
+                        <span
+                          v-if="p.is_below_min"
+                          class="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700 dark:bg-red-950/40 dark:text-red-400"
+                        >
+                          {{ t('warehouse.lowStock') }}
+                        </span>
+                        <span
+                          v-if="p.total_quantity > 0 && p.expiration_status === 'ok' && !p.is_below_min && !p.discontinued"
+                          class="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-950/40 dark:text-green-400"
+                        >
+                          {{ t('warehouse.ok') }}
+                        </span>
+                      </div>
                     </td>
                   </tr>
                   <!-- Expanded batch rows -->
@@ -1300,6 +1384,7 @@ async function saveMinStock(productId: string) {
                       <span class="text-muted-foreground">{{ batch.batch_number || t('warehouse.noBatchNumber') }}</span>
                     </td>
                     <td class="px-4 py-2 text-right tabular-nums">{{ batch.quantity }}</td>
+                    <td class="hidden md:table-cell"></td>
                     <td class="hidden px-4 py-2 md:table-cell">
                       <span
                         :class="[expirationBadgeClass(expirationStatus(batch.expiration_date)), 'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium']"
@@ -1915,23 +2000,25 @@ async function saveMinStock(productId: string) {
                     <th class="px-4 py-3 font-medium">{{ t('warehouse.productCol') }}</th>
                     <th class="px-4 py-3 font-medium">{{ t('warehouse.currentStockCol') }}</th>
                     <th class="px-4 py-3 font-medium">{{ t('warehouse.minStockCol') }}</th>
+                    <th class="px-4 py-3 font-medium text-center">{{ t('warehouse.discontinuedCol') }}</th>
                     <th class="px-4 py-3 font-medium text-right">{{ t('common.actions') }}</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr v-if="products.length === 0">
-                    <td colspan="4" class="px-4 py-6 text-center text-muted-foreground">{{ t('warehouse.noProducts') }}</td>
+                    <td colspan="5" class="px-4 py-6 text-center text-muted-foreground">{{ t('warehouse.noProducts') }}</td>
                   </tr>
                   <tr
                     v-for="p in products"
                     :key="p.id"
                     class="border-b last:border-0 hover:bg-muted/30 transition-colors"
+                    :class="{ 'opacity-50': p.discontinued }"
                   >
                     <td class="px-4 py-3">
                       <div class="flex items-center gap-2">
                         <img v-if="p.image_path" :src="getProductImageUrl(p.image_path)" class="size-6 rounded object-cover" alt="" />
                         <div v-else class="flex size-6 items-center justify-center rounded bg-muted text-[10px] font-medium text-muted-foreground">{{ p.name.charAt(0) }}</div>
-                        <span class="font-medium">{{ p.name }}</span>
+                        <span class="font-medium" :class="{ 'line-through': p.discontinued }">{{ p.name }}</span>
                       </div>
                     </td>
                     <td class="px-4 py-3 tabular-nums">
@@ -1942,9 +2029,24 @@ async function saveMinStock(productId: string) {
                         type="number"
                         min="0"
                         :value="getMinStockValue(p.id)"
-                        class="h-8 w-20 rounded-md border border-input bg-background px-2 text-sm tabular-nums focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                        :disabled="p.discontinued"
+                        class="h-8 w-20 rounded-md border border-input bg-background px-2 text-sm tabular-nums focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50 disabled:cursor-not-allowed"
                         @input="minStockEdits.set(p.id, Number(($event.target as HTMLInputElement).value))"
                       />
+                    </td>
+                    <td class="px-4 py-3 text-center">
+                      <button
+                        class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                        :class="p.discontinued ? 'bg-gray-400 dark:bg-gray-600' : 'bg-muted'"
+                        role="switch"
+                        :aria-checked="p.discontinued"
+                        @click="toggleDiscontinued(p.id, !p.discontinued).then(() => { if (selectedWarehouseId) fetchProductSummaries(selectedWarehouseId) })"
+                      >
+                        <span
+                          class="pointer-events-none block size-4 rounded-full bg-background shadow-lg ring-0 transition-transform"
+                          :class="p.discontinued ? 'translate-x-4' : 'translate-x-0'"
+                        />
+                      </button>
                     </td>
                     <td class="px-4 py-3 text-right">
                       <button

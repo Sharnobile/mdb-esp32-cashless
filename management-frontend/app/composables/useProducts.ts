@@ -14,6 +14,7 @@ interface Product {
   category_name?: string | null
   image_path: string | null
   image_url: string | null
+  discontinued: boolean
 }
 
 export function getProductImageUrl(path: string): string {
@@ -34,7 +35,7 @@ export function useProducts() {
       const [productsRes, categoriesRes] = await Promise.all([
         supabase
           .from('products')
-          .select('id, name, sellprice, description, category, image_path, product_category(name)')
+          .select('id, name, sellprice, description, category, image_path, discontinued, product_category(name)')
           .order('name'),
         supabase
           .from('product_category')
@@ -54,6 +55,7 @@ export function useProducts() {
         category_name: p.product_category?.name ?? null,
         image_path: p.image_path ?? null,
         image_url: p.image_path ? getProductImageUrl(p.image_path) : null,
+        discontinued: p.discontinued ?? false,
       }))
 
       categories.value = (categoriesRes.data ?? []) as ProductCategory[]
@@ -136,5 +138,12 @@ export function useProducts() {
     await fetchProducts()
   }
 
-  return { products, categories, loading, fetchProducts, createProduct, updateProduct, deleteProduct, uploadProductImage, deleteProductImage, createCategory, deleteCategory }
+  async function toggleDiscontinued(productId: string, discontinued: boolean) {
+    const supabase = useSupabaseClient()
+    const { error } = await supabase.from('products').update({ discontinued }).eq('id', productId)
+    if (error) throw error
+    await fetchProducts()
+  }
+
+  return { products, categories, loading, fetchProducts, createProduct, updateProduct, deleteProduct, uploadProductImage, deleteProductImage, createCategory, deleteCategory, toggleDiscontinued }
 }

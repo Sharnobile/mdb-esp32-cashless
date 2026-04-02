@@ -524,7 +524,19 @@
     "moveToGroup": "In Gruppe verschieben",
     "nSelected": "{count} ausgewählt",
     "deselectAll": "Alle abwählen",
-    "rootLevel": "Stammebene"
+    "rootLevel": "Stammebene",
+    "discontinued": "Auslaufartikel",
+    "discontinuedBadge": "Auslaufartikel",
+    "hideDiscontinued": "Auslaufartikel ausblenden",
+    "showDiscontinued": "Auslaufartikel anzeigen",
+    "outOfStock": "Nicht vorrätig",
+    "outOfStockCount": "Nicht vorrätig",
+    "reorderNeeded": "Nachbestellung nötig",
+    "daysRemaining": "~{days} T.",
+    "noSalesData": "Kein Absatz",
+    "estimatedRange": "Reichweite",
+    "activeProducts": "Aktive Produkte",
+    "discontinuedCol": "Auslaufartikel"
   },
   "devices": {
     "title": "Geräte",

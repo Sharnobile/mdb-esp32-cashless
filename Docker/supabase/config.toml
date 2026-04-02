@@ -503,3 +503,9 @@ enabled = true
 verify_jwt = false
 import_map = "./functions/machine-insights/deno.json"
 entrypoint = "./functions/machine-insights/index.ts"
+
+[functions.check-low-stock]
+enabled = true
+verify_jwt = false
+import_map = "./functions/check-low-stock/deno.json"
+entrypoint = "./functions/check-low-stock/index.ts"
