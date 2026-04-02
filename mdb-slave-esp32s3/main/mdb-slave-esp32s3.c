@@ -379,6 +379,11 @@ void vTaskMdbEvent(void *pvParameters) {
 	uint8_t mdb_payload[36];
 	uint8_t available_tx = 0;
 
+	// Retransmit buffer: stores the last transmitted response so that
+	// RET/NAK requests from the VMC can be served without rebuilding.
+	uint8_t last_tx_payload[36];
+	uint8_t last_tx_len = 0;
+
 #ifdef CONFIG_MDB_SNIFF_OTHER_CASHLESS
 	// State for passively sniffed Cashless Device #2 (e.g. Nayax credit card terminal)
 	uint16_t sniff_itemPrice = 0;
@@ -396,11 +401,22 @@ void vTaskMdbEvent(void *pvParameters) {
 		if (coming_read & BIT_MODE_SET) {
 
 			if ((uint8_t) coming_read == ACK) {
-				// ACK
+				// VMC confirmed receipt — clear retransmit buffer
+				last_tx_len = 0;
 			} else if ((uint8_t) coming_read == RET) {
-				// RET
+				// VMC requests retransmit of last response
+				if (last_tx_len > 0) {
+					ets_delay_us(200);
+					write_payload_9(last_tx_payload, last_tx_len);
+					ESP_LOGW(TAG, "MDB RET: retransmitted %d bytes", last_tx_len);
+				}
 			} else if ((uint8_t) coming_read == NAK) {
-				// NAK
+				// VMC received response with checksum error — retransmit
+				if (last_tx_len > 0) {
+					ets_delay_us(200);
+					write_payload_9(last_tx_payload, last_tx_len);
+					ESP_LOGW(TAG, "MDB NAK: retransmitted %d bytes", last_tx_len);
+				}
 			} else if ((coming_read & BIT_ADD_SET) == cashless_device_address) {
 
 				// Reset transmission availability
@@ -869,6 +885,12 @@ void vTaskMdbEvent(void *pvParameters) {
 
 				// Transmit the prepared payload via bit-banging
 				write_payload_9((uint8_t*) &mdb_payload, available_tx);
+
+				// Store transmitted payload for RET/NAK retransmission
+				if (available_tx > 0) {
+					memcpy(last_tx_payload, mdb_payload, available_tx);
+					last_tx_len = available_tx;
+				}
 
 			}
 #ifdef CONFIG_MDB_SNIFF_OTHER_CASHLESS
