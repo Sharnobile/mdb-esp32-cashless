@@ -230,6 +230,9 @@ export function useNotifications() {
   }
 
   // ── Check current subscription state ────────────────────────────────────
+  // If permission is granted but the browser lost the push subscription
+  // (e.g. iOS evicted the service worker, push service revoked the endpoint),
+  // automatically re-subscribe so the user doesn't have to toggle manually.
   async function checkSubscription() {
     if (!isSupported.value) return
     try {
@@ -250,8 +253,45 @@ export function useNotifications() {
       }
       if (!reg.active) { isSubscribed.value = false; return }
       const subscription = await reg.pushManager.getSubscription()
-      isSubscribed.value = !!subscription
-    } catch {
+
+      if (subscription) {
+        isSubscribed.value = true
+        return
+      }
+
+      // No local subscription — check if the user previously had one
+      // (permission granted + DB records exist) and silently re-subscribe
+      if (Notification.permission === 'granted' && vapidPublicKey.value) {
+        const { count } = await supabase
+          .from('push_subscriptions')
+          .select('*', { count: 'exact', head: true })
+
+        if (count && count > 0) {
+          console.info('[Push] Subscription lost but permission granted — re-subscribing…')
+          const newSub = await reg.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(vapidPublicKey.value),
+          })
+          const subJson = newSub.toJSON()
+          await supabase.functions.invoke('register-push', {
+            method: 'POST',
+            body: {
+              endpoint: subJson.endpoint,
+              keys: {
+                p256dh: subJson.keys?.p256dh,
+                auth: subJson.keys?.auth,
+              },
+            },
+          })
+          console.info('[Push] Re-subscription successful')
+          isSubscribed.value = true
+          return
+        }
+      }
+
+      isSubscribed.value = false
+    } catch (err) {
+      console.warn('[Push] checkSubscription failed:', err)
       isSubscribed.value = false
     }
   }
