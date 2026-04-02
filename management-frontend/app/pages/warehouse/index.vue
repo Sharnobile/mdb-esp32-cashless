@@ -155,11 +155,11 @@ const machineStockValue = computed(() =>
 
 const stockSearch = ref('')
 const stockFilter = ref<'all' | 'warning' | 'critical'>('all')
-const stockSortKey = ref<'name' | 'quantity' | 'expiration' | 'status'>('name')
+const stockSortKey = ref<'name' | 'quantity' | 'min_stock' | 'range' | 'expiration' | 'status'>('name')
 const stockSortDir = ref<'asc' | 'desc'>('asc')
 const expandedProducts = ref(new Set<string>())
 
-function toggleSort(key: 'name' | 'quantity' | 'expiration' | 'status') {
+function toggleSort(key: 'name' | 'quantity' | 'min_stock' | 'range' | 'expiration' | 'status') {
   if (stockSortKey.value === key) {
     stockSortDir.value = stockSortDir.value === 'asc' ? 'desc' : 'asc'
   } else {
@@ -201,6 +201,15 @@ function sortSummaries(items: WarehouseProductSummary[]) {
     }
     if (stockSortKey.value === 'quantity') {
       return dir * (a.total_quantity - b.total_quantity)
+    }
+    if (stockSortKey.value === 'min_stock') {
+      return dir * (a.min_stock - b.min_stock)
+    }
+    if (stockSortKey.value === 'range') {
+      const aRange = a.estimated_days_remaining ?? Infinity
+      const bRange = b.estimated_days_remaining ?? Infinity
+      if (aRange === bRange) return 0
+      return dir * (aRange - bRange)
     }
     if (stockSortKey.value === 'expiration') {
       const aDate = a.earliest_expiration ?? ''
@@ -1129,8 +1138,18 @@ async function saveMinStock(productId: string) {
                       <component :is="stockSortKey === 'quantity' ? (stockSortDir === 'asc' ? IconArrowUp : IconArrowDown) : IconArrowsSort" class="size-3.5 text-muted-foreground" />
                     </div>
                   </th>
-                  <th class="hidden px-4 py-3 font-medium text-right md:table-cell">{{ t('warehouse.minStockCol') }}</th>
-                  <th class="hidden px-4 py-3 font-medium text-right md:table-cell">{{ t('warehouse.estimatedRange') }}</th>
+                  <th class="hidden px-4 py-3 font-medium text-right md:table-cell cursor-pointer select-none hover:text-foreground" @click="toggleSort('min_stock')">
+                    <div class="flex items-center justify-end gap-1">
+                      {{ t('warehouse.minStockCol') }}
+                      <component :is="stockSortKey === 'min_stock' ? (stockSortDir === 'asc' ? IconArrowUp : IconArrowDown) : IconArrowsSort" class="size-3.5 text-muted-foreground" />
+                    </div>
+                  </th>
+                  <th class="hidden px-4 py-3 font-medium text-right md:table-cell cursor-pointer select-none hover:text-foreground" @click="toggleSort('range')">
+                    <div class="flex items-center justify-end gap-1">
+                      {{ t('warehouse.estimatedRange') }}
+                      <component :is="stockSortKey === 'range' ? (stockSortDir === 'asc' ? IconArrowUp : IconArrowDown) : IconArrowsSort" class="size-3.5 text-muted-foreground" />
+                    </div>
+                  </th>
                   <th class="hidden px-4 py-3 font-medium md:table-cell cursor-pointer select-none hover:text-foreground" @click="toggleSort('expiration')">
                     <div class="flex items-center gap-1">
                       {{ t('warehouse.earliestMhd') }}
@@ -1280,7 +1299,12 @@ async function saveMinStock(productId: string) {
                       <component :is="stockSortKey === 'quantity' ? (stockSortDir === 'asc' ? IconArrowUp : IconArrowDown) : IconArrowsSort" class="size-3.5 text-muted-foreground" />
                     </div>
                   </th>
-                  <th class="hidden px-4 py-3 font-medium text-right md:table-cell">{{ t('warehouse.estimatedRange') }}</th>
+                  <th class="hidden px-4 py-3 font-medium text-right md:table-cell cursor-pointer select-none hover:text-foreground" @click="toggleSort('range')">
+                    <div class="flex items-center justify-end gap-1">
+                      {{ t('warehouse.estimatedRange') }}
+                      <component :is="stockSortKey === 'range' ? (stockSortDir === 'asc' ? IconArrowUp : IconArrowDown) : IconArrowsSort" class="size-3.5 text-muted-foreground" />
+                    </div>
+                  </th>
                   <th class="hidden px-4 py-3 font-medium md:table-cell cursor-pointer select-none hover:text-foreground" @click="toggleSort('expiration')">
                     <div class="flex items-center gap-1">
                       {{ t('warehouse.earliestMhd') }}
