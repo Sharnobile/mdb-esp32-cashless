@@ -99,6 +99,12 @@ EventGroupHandle_t xLedEventGroup;
 static bool mqtt_started = false;
 static bool sntp_started = false;
 static bool ota_in_progress = false;
+static SemaphoreHandle_t mqtt_publish_mutex = NULL;
+static esp_timer_handle_t mqtt_watchdog_timer = NULL;
+static TickType_t mqtt_last_connected_tick = 0;
+#define MQTT_WATCHDOG_INTERVAL_SEC  120    // check every 2min
+#define MQTT_WATCHDOG_TIMEOUT_SEC   300    // restart MQTT client after 5min offline
+#define MQTT_HARD_REBOOT_SEC        600    // hard reboot after 10min offline
 
 char my_company_id[40];   // UUID from Supabase companies table
 char my_device_id[40];    // UUID from Supabase embeddeds table
@@ -173,6 +179,20 @@ static const char *mdb_last_cmd = "none";
 static machine_state_t mdb_prev_state = INACTIVE_STATE;
 static void publish_mdb_diag(void); // forward declaration
 
+// Thread-safe MQTT publish wrapper — protects esp_mqtt_client_publish()
+// which is called from multiple FreeRTOS tasks (MDB, BLE, timers).
+static int mqtt_publish_safe(esp_mqtt_client_handle_t client, const char *topic,
+                             const char *data, int len, int qos, int retain) {
+    int msg_id = -1;
+    if (mqtt_publish_mutex && xSemaphoreTake(mqtt_publish_mutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
+        msg_id = esp_mqtt_client_publish(client, topic, data, len, qos, retain);
+        xSemaphoreGive(mqtt_publish_mutex);
+    } else {
+        ESP_LOGW("MQTT", "publish mutex timeout — skipping publish to %s", topic);
+    }
+    return msg_id;
+}
+
 static uint8_t vmc_feature_level = 1; // VMC feature level from SETUP (default Level 1)
 
 // Spinlock for MDB bit-banging critical sections.
@@ -198,6 +218,29 @@ esp_mqtt_client_handle_t mqttClient = NULL;
 
 // Message queues for communication
 static QueueHandle_t mdbSessionQueue = NULL;
+
+// MQTT watchdog: restarts the client if disconnected for too long.
+// mqtt_started is only set to true by MQTT_EVENT_CONNECTED, so this
+// detects both "never connected" and "lost connection" states.
+// As a last resort, hard-reboots the device after extended offline.
+static void mqtt_watchdog_cb(void *arg) {
+    if (!mqtt_started && mqtt_last_connected_tick > 0) {
+        TickType_t offline_ticks = xTaskGetTickCount() - mqtt_last_connected_tick;
+        uint32_t offline_sec = (offline_ticks * portTICK_PERIOD_MS) / 1000;
+
+        if (offline_sec >= MQTT_HARD_REBOOT_SEC) {
+            // Last resort: full reboot to recover from any corrupted state
+            ESP_LOGE(TAG, "MQTT watchdog: offline for %lus — HARD REBOOT", (unsigned long)offline_sec);
+            vTaskDelay(pdMS_TO_TICKS(100));
+            esp_restart();
+        } else if (offline_sec >= MQTT_WATCHDOG_TIMEOUT_SEC) {
+            ESP_LOGW(TAG, "MQTT watchdog: offline for %lus — restarting MQTT client", (unsigned long)offline_sec);
+            esp_mqtt_client_stop(mqttClient);
+            esp_mqtt_client_start(mqttClient);
+            mqtt_last_connected_tick = xTaskGetTickCount();
+        }
+    }
+}
 
 uint16_t read_9(uint8_t *checksum) {
 
@@ -631,7 +674,7 @@ void vTaskMdbEvent(void *pvParameters) {
 						char topic_sale[128];
 						snprintf(topic_sale, sizeof(topic_sale), "/%s/%s/sale", my_company_id, my_device_id);
 
-						esp_mqtt_client_publish(mqttClient, topic_sale, (char*) &payload_mqtt, sizeof(payload_mqtt), 1, 0);
+						mqtt_publish_safe(mqttClient, topic_sale, (char*) &payload_mqtt, sizeof(payload_mqtt), 1, 0);
 
 						ESP_LOGI( TAG, "VEND_SUCCESS price=%u item=%u", itemPrice, itemNumber);
 						break;
@@ -679,7 +722,7 @@ void vTaskMdbEvent(void *pvParameters) {
                         char topic[128];
                         snprintf(topic, sizeof(topic), "/%s/%s/sale", my_company_id, my_device_id);
 
-                        esp_mqtt_client_publish(mqttClient, topic, (char*) &payload, sizeof(payload), 1, 0);
+                        mqtt_publish_safe(mqttClient, topic, (char*) &payload, sizeof(payload), 1, 0);
 
                         ESP_LOGI( TAG, "CASH_SALE");
 						break;
@@ -832,7 +875,7 @@ void vTaskMdbEvent(void *pvParameters) {
 
 						char topic[128];
 						snprintf(topic, sizeof(topic), "/%s/%s/sale", my_company_id, my_device_id);
-						esp_mqtt_client_publish(mqttClient, topic, (char*) &payload, sizeof(payload), 1, 0);
+						mqtt_publish_safe(mqttClient, topic, (char*) &payload, sizeof(payload), 1, 0);
 						break;
 					}
 					default:
@@ -1381,7 +1424,7 @@ void requestTelemetryData(void *arg) {
   	char topic[128];
 	snprintf(topic, sizeof(topic), "/%s/%s/dex", my_company_id, my_device_id);
 
-    esp_mqtt_client_publish(mqttClient, topic, (char*) dex, dex_size, 0, 0);
+    mqtt_publish_safe(mqttClient, topic, (char*) dex, dex_size, 0, 0);
     printf("%.*s", dex_size, (char*) dex);
 
     vRingbufferReturnItem(dexRingbuf, (void*) dex);
@@ -1422,7 +1465,7 @@ void ble_pax_event_handler(uint16_t devices_count){
     char topic[128];
     snprintf(topic, sizeof(topic), "/%s/%s/paxcounter", my_company_id, my_device_id);
 
-    esp_mqtt_client_publish(mqttClient, topic, (char*) &payload, sizeof(payload), 1, 0);
+    mqtt_publish_safe(mqttClient, topic, (char*) &payload, sizeof(payload), 1, 0);
 }
 
 void ble_event_handler(char *ble_payload) {
@@ -1533,7 +1576,7 @@ static void ota_update_task(void *arg) {
     /* Publish OTA-in-progress status */
     char topic[128];
     snprintf(topic, sizeof(topic), "/%s/%s/status", my_company_id, my_device_id);
-    esp_mqtt_client_publish(mqttClient, topic, "ota_updating", 0, 1, 0);
+    mqtt_publish_safe(mqttClient, topic, "ota_updating", 0, 1, 0);
 
     bool use_tls = (strncmp(url, "https://", 8) == 0);
 
@@ -1553,14 +1596,14 @@ static void ota_update_task(void *arg) {
 
     if (ret == ESP_OK) {
         ESP_LOGW(TAG, "OTA: firmware update successful — restarting");
-        esp_mqtt_client_publish(mqttClient, topic, "ota_success", 0, 1, 0);
+        mqtt_publish_safe(mqttClient, topic, "ota_success", 0, 1, 0);
         vTaskDelay(pdMS_TO_TICKS(1000));
         free(url);
         esp_restart();
         /* not reached */
     } else {
         ESP_LOGE(TAG, "OTA: firmware update failed: %s", esp_err_to_name(ret));
-        esp_mqtt_client_publish(mqttClient, topic, "ota_failed", 0, 1, 0);
+        mqtt_publish_safe(mqttClient, topic, "ota_failed", 0, 1, 0);
     }
 
     ota_in_progress = false;
@@ -1586,7 +1629,7 @@ static void publish_mdb_diag(void) {
         mdb_last_cmd,
         vmc_feature_level);
 
-    esp_mqtt_client_publish(mqttClient, topic, msg, 0, 0, 0);
+    mqtt_publish_safe(mqttClient, topic, msg, 0, 0, 0);
 }
 
 // esp_timer callback wrapper
@@ -1602,6 +1645,8 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 	switch ((esp_mqtt_event_id_t) event_id) {
 	case MQTT_EVENT_CONNECTED:
 		ESP_LOGW(TAG, "MQTT: connected to broker");
+        mqtt_started = true;
+        mqtt_last_connected_tick = xTaskGetTickCount();
 
     	char topic[128];
     	snprintf(topic, sizeof(topic), "/%s/%s/credit", my_company_id, my_device_id);
@@ -1647,6 +1692,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 		break;
 	case MQTT_EVENT_DISCONNECTED:
 		ESP_LOGW(TAG, "MQTT: disconnected from broker");
+        mqtt_started = false;
         xEventGroupClearBits(xLedEventGroup, BIT_EVT_INTERNET);
         xEventGroupSetBits(xLedEventGroup, BIT_EVT_TRIGGER);
 
@@ -1965,8 +2011,12 @@ static void provision_claim_task(void *arg) {
         ESP_LOGE(TAG, "PROV: HTTP error: %s", esp_err_to_name(http_err));
     }
 
+    // Claim failed — retry after delay by rebooting.
+    // Without this, MQTT never starts and the device stays offline forever.
+    ESP_LOGW(TAG, "PROV: claim failed — restarting in 10s to retry");
     esp_http_client_cleanup(client);
-    vTaskDelete(NULL);
+    vTaskDelay(pdMS_TO_TICKS(10000));
+    esp_restart();
 }
 
 static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data) {
@@ -2018,10 +2068,10 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t e
 			break;
 		case WIFI_EVENT_STA_DISCONNECTED:
 
-		    if (mqtt_started) {
-                esp_mqtt_client_disconnect(mqttClient);
-                mqtt_started = false;
-            }
+		    // Don't explicitly disconnect MQTT here — the MQTT client
+		    // detects the TCP loss itself and fires MQTT_EVENT_DISCONNECTED,
+		    // which resets mqtt_started. Calling esp_mqtt_client_disconnect()
+		    // on a dead socket can block or cause errors.
 
 		    wifi_retry_num++;
 
@@ -2093,20 +2143,32 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t e
                 }
             }
 
-		    if (!mqtt_started) {
-		        ESP_LOGW(TAG, "MQTT: starting client (company='%s' device='%s', client=%p)", my_company_id, my_device_id, mqttClient);
-                esp_mqtt_client_start(mqttClient);
-                mqtt_started = true;
-            } else {
-                ESP_LOGW(TAG, "MQTT: already started, skipping");
-            }
-
             if (!sntp_started) {
                 esp_sntp_setoperatingmode(ESP_SNTP_OPMODE_POLL);
                 esp_sntp_setservername(0, "pool.ntp.org");
                 esp_sntp_init();
-
                 sntp_started = true;
+            }
+
+            // Start MQTT — the client handles connection asynchronously.
+            // mqtt_started is only set to true on MQTT_EVENT_CONNECTED.
+            if (!mqtt_started) {
+                ESP_LOGW(TAG, "MQTT: starting client (company='%s' device='%s', client=%p)", my_company_id, my_device_id, mqttClient);
+                esp_mqtt_client_start(mqttClient);
+                mqtt_last_connected_tick = xTaskGetTickCount();
+            }
+
+            // Start MQTT watchdog timer (checks periodically if MQTT is still alive)
+            if (mqtt_watchdog_timer == NULL) {
+                const esp_timer_create_args_t wdt_args = {
+                    .callback = mqtt_watchdog_cb,
+                    .name = "mqtt_watchdog"
+                };
+                if (esp_timer_create(&wdt_args, &mqtt_watchdog_timer) == ESP_OK) {
+                    esp_timer_start_periodic(mqtt_watchdog_timer, MQTT_WATCHDOG_INTERVAL_SEC * 1000000ULL);
+                    ESP_LOGI(TAG, "MQTT watchdog timer started (every %ds, timeout %ds)",
+                             MQTT_WATCHDOG_INTERVAL_SEC, MQTT_WATCHDOG_TIMEOUT_SEC);
+                }
             }
 
 			break;
@@ -2383,6 +2445,7 @@ void app_main(void) {
 		.session.last_will.retain = 1,
 	};
 
+	mqtt_publish_mutex = xSemaphoreCreateMutex();
 	mqttClient = esp_mqtt_client_init(&mqttCfg);
 	esp_mqtt_client_register_event(mqttClient, ESP_EVENT_ANY_ID, mqtt_event_handler, NULL);
 
