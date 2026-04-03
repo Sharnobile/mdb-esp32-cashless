@@ -403,21 +403,28 @@ void vTaskMdbEvent(void *pvParameters) {
 			if ((uint8_t) coming_read == ACK) {
 				// VMC confirmed receipt — clear retransmit buffer
 				last_tx_len = 0;
-			} else if ((uint8_t) coming_read == RET) {
-				// VMC requests retransmit of last response
-				if (last_tx_len > 0) {
-					ets_delay_us(200);
-					write_payload_9(last_tx_payload, last_tx_len);
-					ESP_LOGW(TAG, "MDB RET: retransmitted %d bytes", last_tx_len);
-				}
-			} else if ((uint8_t) coming_read == NAK) {
-				// VMC received response with checksum error — retransmit
-				if (last_tx_len > 0) {
-					ets_delay_us(200);
-					write_payload_9(last_tx_payload, last_tx_len);
-					ESP_LOGW(TAG, "MDB NAK: retransmitted %d bytes", last_tx_len);
-				}
-			} else if ((coming_read & BIT_ADD_SET) == cashless_device_address) {
+			} else if ((uint8_t) coming_read == RET && last_tx_len > 0) {
+				// VMC requests retransmit of last response.
+				// Only act if we actually sent something recently (last_tx_len > 0).
+				// This prevents spurious retransmits triggered by other peripherals'
+				// checksum bytes that happen to equal 0xAA on the shared bus.
+				ets_delay_us(200);
+				write_payload_9(last_tx_payload, last_tx_len);
+				ESP_LOGW(TAG, "MDB RET: retransmitted %d bytes", last_tx_len);
+			} else if ((uint8_t) coming_read == NAK && last_tx_len > 0) {
+				// VMC received response with checksum error — retransmit.
+				ets_delay_us(200);
+				write_payload_9(last_tx_payload, last_tx_len);
+				ESP_LOGW(TAG, "MDB NAK: retransmitted %d bytes", last_tx_len);
+			} else {
+				// Any other byte with mode-bit set is an address byte for
+				// some device on the bus. This means the VMC has moved on
+				// from our last exchange — clear the retransmit buffer so
+				// that subsequent peripheral checksum bytes (which also have
+				// the mode bit set) can never trigger a spurious retransmit.
+				last_tx_len = 0;
+
+				if ((coming_read & BIT_ADD_SET) == cashless_device_address) {
 
 				// Reset transmission availability
 				available_tx = 0;
@@ -688,6 +695,15 @@ void vTaskMdbEvent(void *pvParameters) {
 						    break;
 						}
 
+						// Guard: reject if itemPrice is 0 (should never happen in
+						// normal operation since VEND_REQUEST sets it, but protects
+						// against unexpected state).
+						if (itemPrice == 0) {
+						    ESP_LOGW(TAG, "VEND_SUCCESS ignored — itemPrice is 0");
+						    machine_state = IDLE_STATE;
+						    break;
+						}
+
 						machine_state = IDLE_STATE;
 
 						/* PIPE_BLE */
@@ -949,6 +965,7 @@ void vTaskMdbEvent(void *pvParameters) {
 #endif
 			else {
 				// Not the intended address...
+			}
 			}
 		}
 	}
