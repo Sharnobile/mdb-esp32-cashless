@@ -213,7 +213,7 @@ Deno.serve(async (req) => {
         (payload[3] << 16) |
         (payload[4] << 8) |
         payload[5];
-      const itemNumber = (payload[6] << 8) | payload[7];
+      const itemNumber = ((payload[6] << 8) | payload[7]) & 0xFFFF;
 
       // 0x21 = CASH_SALE (coin/bill), 0x23 = CARD_SALE (credit card / cashless device #2), 0x24 = CASHLESS_SALE
       const channel = cmd === 0x23 ? 'card' : cmd === 0x24 ? 'cashless' : 'cash';
