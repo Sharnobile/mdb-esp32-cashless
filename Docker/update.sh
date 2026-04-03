@@ -285,6 +285,13 @@ fi
 info "Restarting: ${RESTART_SERVICES}..."
 docker compose up -d --no-deps --force-recreate $RESTART_SERVICES
 
+# Kong caches upstream DNS — if functions was recreated (new container IP),
+# Kong must be restarted to re-resolve the DNS, otherwise it returns 502.
+if echo "$RESTART_SERVICES" | grep -q "functions"; then
+    info "Restarting kong (API gateway) to pick up new functions container..."
+    docker compose restart kong
+fi
+
 success "Services restarted"
 
 # ═══════════════════════════════════════════════════════════════════════════════
