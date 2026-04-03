@@ -4,9 +4,8 @@ definePageMeta({ middleware: 'auth' })
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { VisArea, VisAxis, VisLine, VisXYContainer } from '@unovis/vue'
-import { IconCreditCard, IconCoins, IconSend, IconSparkles, IconLoader2, IconRefresh, IconDotsVertical, IconTrash, IconPlus } from '@tabler/icons-vue'
+import { IconCreditCard, IconCoins, IconSend, IconSparkles, IconLoader2, IconRefresh, IconTrash, IconPlus } from '@tabler/icons-vue'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Badge } from '@/components/ui/badge'
 import { useInsights, sortedRecommendations, priorityVariant, recommendationTypeLabel } from '@/composables/useInsights'
 import { timeAgo, formatCurrency, formatDate, formatDateTime } from '@/lib/utils'
@@ -1136,67 +1135,63 @@ async function handleAddSale() {
                   </button>
                 </div>
                 <div v-if="sales.length === 0" class="text-sm text-muted-foreground">{{ t('machineDetail.noSalesLast30') }}</div>
-                <div v-else class="space-y-2">
-                  <div
+                <div v-else class="rounded-xl border bg-card divide-y">
+                  <SwipeToDelete
                     v-for="sale in sales"
                     :key="sale.id"
-                    class="group rounded-lg border bg-card p-4 transition-colors hover:bg-muted/40"
+                    :disabled="!isAdmin"
+                    @delete="confirmDeleteSale(sale)"
                   >
-                    <div class="flex items-center gap-3">
+                    <div class="group/sale flex items-start gap-3 px-4 py-3">
                       <!-- Product image or amount badge -->
                       <img
                         v-if="trayProductMap.get(sale.item_number)?.image_url"
                         :src="trayProductMap.get(sale.item_number)!.image_url!"
                         :alt="trayProductMap.get(sale.item_number)!.name"
-                        class="h-11 w-11 shrink-0 rounded-full object-cover"
+                        class="h-9 w-9 shrink-0 rounded-full object-cover mt-0.5"
                       />
-                      <div v-else class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
+                      <div v-else class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary mt-0.5">
                         {{ formatCurrency(sale.item_price, locale) }}
                       </div>
                       <!-- Main info -->
                       <div class="flex-1 min-w-0">
-                        <p class="font-medium break-words">
-                          {{ trayProductMap.get(sale.item_number)?.name ?? `${t('machineDetail.item')} #${sale.item_number}` }}
-                        </p>
-                        <div class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-                          <span>{{ t('machineDetail.slot') }} {{ sale.item_number }}</span>
-                          <span class="text-muted-foreground/40">·</span>
-                          <span
-                            class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide"
-                            :class="sale.channel === 'card'
-                              ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400'
-                              : sale.channel === 'cashless'
-                                ? 'bg-violet-500/10 text-violet-600 dark:text-violet-400'
-                                : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'"
-                          >
-                            <IconCreditCard v-if="sale.channel === 'card'" class="size-3.5" />
-                            <IconDeviceMobile v-else-if="sale.channel === 'cashless'" class="size-3.5" />
-                            <IconCoins v-else class="size-3.5" />
-                            {{ sale.channel }}
-                          </span>
+                        <div class="flex items-start justify-between gap-2">
+                          <p class="text-sm font-medium break-words">
+                            {{ trayProductMap.get(sale.item_number)?.name ?? `${t('machineDetail.item')} #${sale.item_number}` }}
+                            <!-- Desktop delete button (inline after title) -->
+                            <button
+                              v-if="isAdmin"
+                              class="hidden sm:inline-flex ml-1 align-middle rounded-md p-0.5 text-muted-foreground/0 transition-colors group-hover/sale:text-muted-foreground hover:!text-destructive"
+                              @click="confirmDeleteSale(sale)"
+                            >
+                              <IconTrash class="size-3.5" />
+                            </button>
+                          </p>
+                          <span class="shrink-0 text-sm font-semibold tabular-nums">{{ formatCurrency(sale.item_price, locale) }}</span>
+                        </div>
+                        <div class="mt-0.5 flex items-center justify-between">
+                          <div class="flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <span class="whitespace-nowrap">{{ t('machineDetail.slot') }} {{ sale.item_number }}</span>
+                            <span class="text-muted-foreground/40">·</span>
+                            <span
+                              class="inline-flex items-center gap-0.5 text-[10px] font-medium uppercase tracking-wide"
+                              :class="sale.channel === 'card'
+                                ? 'text-blue-600 dark:text-blue-400'
+                                : sale.channel === 'cashless'
+                                  ? 'text-violet-600 dark:text-violet-400'
+                                  : 'text-emerald-600 dark:text-emerald-400'"
+                            >
+                              <IconCreditCard v-if="sale.channel === 'card'" class="size-3" />
+                              <IconDeviceMobile v-else-if="sale.channel === 'cashless'" class="size-3" />
+                              <IconCoins v-else class="size-3" />
+                              {{ sale.channel }}
+                            </span>
+                          </div>
+                          <span class="shrink-0 text-[11px] text-muted-foreground tabular-nums">{{ formatDateTime(sale.created_at, locale) }}</span>
                         </div>
                       </div>
-                      <!-- Price + Timestamp -->
-                      <div class="shrink-0 text-right">
-                        <span class="text-sm font-medium">{{ formatCurrency(sale.item_price, locale) }}</span>
-                        <p class="mt-0.5 text-[11px] text-muted-foreground">{{ formatDateTime(sale.created_at, locale) }}</p>
-                      </div>
-                      <!-- Admin delete menu -->
-                      <DropdownMenu v-if="isAdmin">
-                        <DropdownMenuTrigger as-child>
-                          <button class="shrink-0 rounded-md p-1 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-muted focus:opacity-100">
-                            <IconDotsVertical class="size-4 text-muted-foreground" />
-                          </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem class="text-destructive focus:text-destructive" @click="confirmDeleteSale(sale)">
-                            <IconTrash class="mr-2 size-4" />
-                            {{ t('machineDetail.deleteSale') }}
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
                     </div>
-                  </div>
+                  </SwipeToDelete>
                 </div>
               </div>
             </TabsContent>
