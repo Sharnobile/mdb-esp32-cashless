@@ -54,5 +54,6 @@ export function formatDateTime(dt: string | null | undefined, locale?: string): 
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
+    second: '2-digit',
   })
 }
