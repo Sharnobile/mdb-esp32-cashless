@@ -587,6 +587,26 @@ watch(activeTab, (tab) => {
 
 const incomingProductId = ref('')
 const incomingQuantity = ref<number | null>(null)
+const incomingQuantityRaw = ref('')
+
+function evaluateQuantityFormula(raw: string): number | null {
+  const expr = raw.replace(/\s/g, '')
+  if (!expr) return null
+  if (!/^[\d+\-*/.()]+$/.test(expr)) return null
+  try {
+    const result = Function(`"use strict"; return (${expr})`)()
+    if (typeof result !== 'number' || !isFinite(result) || result <= 0) return null
+    return Math.round(result)
+  } catch { return null }
+}
+
+function onQuantityBlur() {
+  const result = evaluateQuantityFormula(incomingQuantityRaw.value)
+  incomingQuantity.value = result
+  if (result !== null) {
+    incomingQuantityRaw.value = String(result)
+  }
+}
 const incomingExpiration = ref('')
 const incomingBatch = ref('')
 const incomingLoading = ref(false)
@@ -763,6 +783,7 @@ async function submitIncoming() {
     // Reset form for next scan
     incomingProductId.value = ''
     incomingQuantity.value = null
+    incomingQuantityRaw.value = ''
     incomingExpiration.value = ''
     incomingBatch.value = ''
     scannedBarcode.value = ''
@@ -1529,11 +1550,12 @@ async function onVelocityDaysChange(e: Event) {
           <div>
             <label class="mb-1 block text-sm font-medium">{{ t('warehouse.quantity') }} *</label>
             <input
-              v-model.number="incomingQuantity"
-              type="number"
-              min="1"
+              v-model="incomingQuantityRaw"
+              type="text"
+              inputmode="numeric"
               :placeholder="t('warehouse.quantityPlaceholder')"
               class="h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              @blur="onQuantityBlur"
             />
           </div>
 
