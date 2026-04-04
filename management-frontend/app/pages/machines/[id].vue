@@ -4,7 +4,7 @@ definePageMeta({ middleware: 'auth' })
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { VisArea, VisAxis, VisLine, VisXYContainer } from '@unovis/vue'
-import { IconCreditCard, IconCoins, IconSend, IconSparkles, IconLoader2, IconRefresh, IconTrash, IconPlus } from '@tabler/icons-vue'
+import { IconCreditCard, IconCoins, IconSend, IconSparkles, IconLoader2, IconRefresh, IconTrash, IconPlus, IconHistory } from '@tabler/icons-vue'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Badge } from '@/components/ui/badge'
 import { useInsights, sortedRecommendations, priorityVariant, recommendationTypeLabel } from '@/composables/useInsights'
@@ -24,6 +24,7 @@ const { products, categories, fetchProducts } = useProducts()
 const { trays, loading: traysLoading, fetchTrays, upsertTray, updateTray, batchCreateTrays, refillToFull, refillAll, adjustStock: adjustStockDebounced, deleteTray, subscribeToTrayUpdates } = useMachineTrays()
 const { fetchUnassignedEmbeddeds, swapDevice } = useMachines()
 const { logs: mdbLogs, loading: mdbLogsLoading, hasMore: mdbHasMore, fetchLogs: fetchMdbLogs, fetchMore: fetchMoreMdbLogs, subscribe: subscribeMdbLog, stateLabel, stateVariant } = useMdbLog()
+const { entries: stockHistoryEntries, loading: stockHistoryLoading, fetchHistory: fetchStockHistory, reset: resetStockHistory } = useStockHistory()
 const { onResume } = useAppResume()
 
 const isAdmin = computed(() => role.value === 'admin')
@@ -50,6 +51,40 @@ const sortedTrays = computed(() => {
   })
 })
 
+// Group sales by day for the sales history list
+const salesByDay = computed(() => {
+  const groups: { date: string; label: string; sales: typeof sales.value }[] = []
+  let currentKey = ''
+  let currentGroup: typeof groups[0] | null = null
+
+  const today = new Date()
+  const yesterday = new Date(today)
+  yesterday.setDate(yesterday.getDate() - 1)
+  const todayKey = today.toLocaleDateString(locale.value, { year: 'numeric', month: '2-digit', day: '2-digit' })
+  const yesterdayKey = yesterday.toLocaleDateString(locale.value, { year: 'numeric', month: '2-digit', day: '2-digit' })
+
+  for (const sale of sales.value) {
+    const d = new Date(sale.created_at)
+    const key = d.toLocaleDateString(locale.value, { year: 'numeric', month: '2-digit', day: '2-digit' })
+
+    if (key !== currentKey) {
+      let label: string
+      if (key === todayKey) {
+        label = t('machineDetail.today')
+      } else if (key === yesterdayKey) {
+        label = t('machineDetail.yesterday')
+      } else {
+        label = d.toLocaleDateString(locale.value, { weekday: 'long', day: 'numeric', month: 'long' })
+      }
+      currentKey = key
+      currentGroup = { date: key, label, sales: [] }
+      groups.push(currentGroup)
+    }
+    currentGroup!.sales.push(sale)
+  }
+  return groups
+})
+
 // AI Insights
 const { data: insights, loading: insightsLoading, error: insightsError, fetchInsights, history: insightsHistory, historyLoading: insightsHistoryLoading, fetchHistory } = useInsights()
 const insightsOpen = ref(false)
@@ -67,6 +102,23 @@ function refreshInsights() {
   if (machine.value?.id) {
     fetchInsights(machine.value.id, 30, true)
   }
+}
+
+// Stock History Sheet
+const stockHistoryOpen = ref(false)
+const stockHistoryTray = ref<{ id: string; item_number: number; product_name: string | null } | null>(null)
+
+function openStockHistory(tray: { id: string; item_number: number; product_name: string | null }) {
+  stockHistoryTray.value = tray
+  stockHistoryOpen.value = true
+  const embeddedId = machine.value?.embeddeds?.id ?? null
+  fetchStockHistory(machine.value.id, tray.item_number, embeddedId)
+}
+
+function closeStockHistory() {
+  stockHistoryOpen.value = false
+  stockHistoryTray.value = null
+  resetStockHistory()
 }
 
 function toggleHistoryEntry(id: string) {
@@ -1135,63 +1187,72 @@ async function handleAddSale() {
                   </button>
                 </div>
                 <div v-if="sales.length === 0" class="text-sm text-muted-foreground">{{ t('machineDetail.noSalesLast30') }}</div>
-                <div v-else class="rounded-xl border bg-card divide-y">
-                  <SwipeToDelete
-                    v-for="sale in sales"
-                    :key="sale.id"
-                    :disabled="!isAdmin"
-                    @delete="confirmDeleteSale(sale)"
-                  >
-                    <div class="group/sale flex items-start gap-3 px-4 py-3">
-                      <!-- Product image or amount badge -->
-                      <img
-                        v-if="trayProductMap.get(sale.item_number)?.image_url"
-                        :src="trayProductMap.get(sale.item_number)!.image_url!"
-                        :alt="trayProductMap.get(sale.item_number)!.name"
-                        class="h-9 w-9 shrink-0 rounded-full object-cover mt-0.5"
-                      />
-                      <div v-else class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary mt-0.5">
-                        {{ formatCurrency(sale.item_price, locale) }}
-                      </div>
-                      <!-- Main info -->
-                      <div class="flex-1 min-w-0">
-                        <div class="flex items-start justify-between gap-2">
-                          <p class="text-sm font-medium break-words">
-                            {{ trayProductMap.get(sale.item_number)?.name ?? `${t('machineDetail.item')} #${sale.item_number}` }}
-                            <!-- Desktop delete button (inline after title) -->
-                            <button
-                              v-if="isAdmin"
-                              class="hidden sm:inline-flex ml-1 align-middle rounded-md p-0.5 text-muted-foreground/0 transition-colors group-hover/sale:text-muted-foreground hover:!text-destructive"
-                              @click="confirmDeleteSale(sale)"
-                            >
-                              <IconTrash class="size-3.5" />
-                            </button>
-                          </p>
-                          <span class="shrink-0 text-sm font-semibold tabular-nums">{{ formatCurrency(sale.item_price, locale) }}</span>
-                        </div>
-                        <div class="mt-0.5 flex items-center justify-between">
-                          <div class="flex items-center gap-1.5 text-xs text-muted-foreground">
-                            <span class="whitespace-nowrap">{{ t('machineDetail.slot') }} {{ sale.item_number }}</span>
-                            <span class="text-muted-foreground/40">·</span>
-                            <span
-                              class="inline-flex items-center gap-0.5 text-[10px] font-medium uppercase tracking-wide"
-                              :class="sale.channel === 'card'
-                                ? 'text-blue-600 dark:text-blue-400'
-                                : sale.channel === 'cashless'
-                                  ? 'text-violet-600 dark:text-violet-400'
-                                  : 'text-emerald-600 dark:text-emerald-400'"
-                            >
-                              <IconCreditCard v-if="sale.channel === 'card'" class="size-3" />
-                              <IconDeviceMobile v-else-if="sale.channel === 'cashless'" class="size-3" />
-                              <IconCoins v-else class="size-3" />
-                              {{ sale.channel }}
-                            </span>
-                          </div>
-                          <span class="shrink-0 text-[11px] text-muted-foreground tabular-nums">{{ formatDateTime(sale.created_at, locale) }}</span>
-                        </div>
-                      </div>
+                <div v-else class="space-y-4">
+                  <div v-for="group in salesByDay" :key="group.date">
+                    <div class="sticky top-0 z-10 mb-2 flex items-center gap-3">
+                      <span class="text-xs font-medium text-muted-foreground">{{ group.label }}</span>
+                      <span class="text-[10px] tabular-nums text-muted-foreground/60">{{ t('machineDetail.saleCount', { count: group.sales.length }, group.sales.length) }}</span>
+                      <div class="h-px flex-1 bg-border" />
                     </div>
-                  </SwipeToDelete>
+                    <div class="rounded-xl border bg-card divide-y">
+                      <SwipeToDelete
+                        v-for="sale in group.sales"
+                        :key="sale.id"
+                        :disabled="!isAdmin"
+                        @delete="confirmDeleteSale(sale)"
+                      >
+                        <div class="group/sale flex items-start gap-3 px-4 py-3">
+                          <!-- Product image or amount badge -->
+                          <img
+                            v-if="trayProductMap.get(sale.item_number)?.image_url"
+                            :src="trayProductMap.get(sale.item_number)!.image_url!"
+                            :alt="trayProductMap.get(sale.item_number)!.name"
+                            class="h-9 w-9 shrink-0 rounded-full object-cover mt-0.5"
+                          />
+                          <div v-else class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary mt-0.5">
+                            {{ formatCurrency(sale.item_price, locale) }}
+                          </div>
+                          <!-- Main info -->
+                          <div class="flex-1 min-w-0">
+                            <div class="flex items-start justify-between gap-2">
+                              <p class="text-sm font-medium break-words">
+                                {{ trayProductMap.get(sale.item_number)?.name ?? `${t('machineDetail.item')} #${sale.item_number}` }}
+                                <!-- Desktop delete button (inline after title) -->
+                                <button
+                                  v-if="isAdmin"
+                                  class="hidden sm:inline-flex ml-1 align-middle rounded-md p-0.5 text-muted-foreground/0 transition-colors group-hover/sale:text-muted-foreground hover:!text-destructive"
+                                  @click="confirmDeleteSale(sale)"
+                                >
+                                  <IconTrash class="size-3.5" />
+                                </button>
+                              </p>
+                              <span class="shrink-0 text-sm font-semibold tabular-nums">{{ formatCurrency(sale.item_price, locale) }}</span>
+                            </div>
+                            <div class="mt-0.5 flex items-center justify-between">
+                              <div class="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                <span class="whitespace-nowrap">{{ t('machineDetail.slot') }} {{ sale.item_number }}</span>
+                                <span class="text-muted-foreground/40">·</span>
+                                <span
+                                  class="inline-flex items-center gap-0.5 text-[10px] font-medium uppercase tracking-wide"
+                                  :class="sale.channel === 'card'
+                                    ? 'text-blue-600 dark:text-blue-400'
+                                    : sale.channel === 'cashless'
+                                      ? 'text-violet-600 dark:text-violet-400'
+                                      : 'text-emerald-600 dark:text-emerald-400'"
+                                >
+                                  <IconCreditCard v-if="sale.channel === 'card'" class="size-3" />
+                                  <IconDeviceMobile v-else-if="sale.channel === 'cashless'" class="size-3" />
+                                  <IconCoins v-else class="size-3" />
+                                  {{ sale.channel }}
+                                </span>
+                              </div>
+                              <span class="shrink-0 text-[11px] text-muted-foreground tabular-nums">{{ new Date(sale.created_at).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', second: '2-digit' }) }}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </SwipeToDelete>
+                    </div>
+                  </div>
                 </div>
               </div>
             </TabsContent>
@@ -1223,9 +1284,16 @@ async function handleAddSale() {
                 <div v-if="sortedTrays.length === 0" class="text-sm text-muted-foreground">{{ t('common.noResults') }}</div>
                 <!-- ── Mobile card layout ── -->
                 <div class="space-y-3 md:hidden">
-                  <div
+                  <SwipeRight
                     v-for="tray in sortedTrays"
                     :key="'m-' + tray.id"
+                    :label="t('machineDetail.stockHistory')"
+                    @action="openStockHistory(tray)"
+                  >
+                    <template #icon>
+                      <IconHistory class="size-5" />
+                    </template>
+                  <div
                     class="rounded-lg border p-3 transition-colors"
                     :class="[
                       isLowStock(tray) ? 'border-amber-300 bg-amber-50/60 dark:border-amber-700 dark:bg-amber-950/20'
@@ -1313,7 +1381,7 @@ async function handleAddSale() {
                           <span v-if="tray.product_discontinued" class="rounded bg-gray-200 px-1 py-px text-[9px] font-medium text-gray-500 dark:bg-gray-700 dark:text-gray-400">{{ t('warehouse.discontinuedBadge') }}</span>
                         </div>
                       </div>
-                      <!-- Actions: Full only on mobile -->
+                      <!-- Actions: Full on mobile (History via swipe right) -->
                       <button
                         v-if="isAdmin"
                         class="inline-flex h-8 shrink-0 items-center rounded-md px-3 text-xs font-medium transition-colors"
@@ -1432,6 +1500,7 @@ async function handleAddSale() {
                       </label>
                     </div>
                   </div>
+                  </SwipeRight>
                 </div>
 
                 <!-- ── Desktop table layout ── -->
@@ -1676,7 +1745,7 @@ async function handleAddSale() {
                           </div>
                         </td>
 
-                        <!-- Actions (Full + Remove) -->
+                        <!-- Actions (Full + History + Remove) -->
                         <td v-if="isAdmin" class="px-4 py-2">
                           <div class="flex items-center gap-2">
                             <button
@@ -1688,6 +1757,13 @@ async function handleAddSale() {
                               @click="handleRefillFull(tray.id)"
                             >
                               {{ t('machineDetail.full') }}
+                            </button>
+                            <button
+                              class="inline-flex h-7 items-center gap-1 rounded px-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                              @click="openStockHistory(tray)"
+                            >
+                              <IconHistory class="h-3.5 w-3.5" />
+                              {{ t('machineDetail.stockHistory') }}
                             </button>
                             <button
                               class="text-xs text-destructive hover:underline"
@@ -2410,6 +2486,105 @@ async function handleAddSale() {
                 </div>
               </div>
             </div>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      <!-- Stock History Sheet -->
+      <Sheet v-model:open="stockHistoryOpen" @update:open="(v: boolean) => { if (!v) closeStockHistory() }">
+        <SheetContent side="right" class="w-full sm:max-w-lg overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle class="flex items-center gap-2">
+              <IconHistory class="h-5 w-5" />
+              {{ t('machineDetail.stockHistory') }}
+            </SheetTitle>
+            <p v-if="stockHistoryTray" class="text-sm text-muted-foreground">
+              {{ t('machineDetail.slot') }} #{{ stockHistoryTray.item_number }}
+              <span v-if="stockHistoryTray.product_name"> &middot; {{ stockHistoryTray.product_name }}</span>
+            </p>
+          </SheetHeader>
+
+          <div class="mt-4 space-y-2">
+            <div v-if="stockHistoryLoading" class="py-8 text-center text-sm text-muted-foreground">
+              <IconLoader2 class="mx-auto h-5 w-5 animate-spin" />
+              <p class="mt-2">{{ t('common.loading') }}</p>
+            </div>
+
+            <div v-else-if="stockHistoryEntries.length === 0" class="py-8 text-center text-sm text-muted-foreground">
+              {{ t('machineDetail.noStockHistory') }}
+            </div>
+
+            <template v-else>
+              <div
+                v-for="entry in stockHistoryEntries"
+                :key="entry.id"
+                class="flex items-start gap-3 rounded-lg border px-3 py-2.5"
+                :class="{
+                  'border-red-200 bg-red-50/50 dark:border-red-800 dark:bg-red-950/20': entry.type === 'decrement_failed',
+                }"
+              >
+                <!-- Icon -->
+                <div class="mt-0.5 shrink-0">
+                  <span
+                    v-if="entry.type === 'sale'"
+                    class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                  >
+                    <IconCoins class="h-3.5 w-3.5" />
+                  </span>
+                  <span
+                    v-else-if="entry.type === 'manual_change'"
+                    class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                  >
+                    <IconRefresh class="h-3.5 w-3.5" />
+                  </span>
+                  <span
+                    v-else-if="entry.type === 'decrement_failed'"
+                    class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                  >
+                    <IconTrash class="h-3.5 w-3.5" />
+                  </span>
+                </div>
+
+                <!-- Content -->
+                <div class="min-w-0 flex-1">
+                  <!-- Sale -->
+                  <template v-if="entry.type === 'sale'">
+                    <p class="text-sm font-medium">{{ t('machineDetail.stockHistorySale') }}</p>
+                    <p class="text-xs text-muted-foreground">
+                      {{ formatCurrency(entry.item_price ?? 0, locale) }}
+                      &middot; {{ entry.channel === 'cash' ? t('machineDetail.channelCash') : entry.channel === 'card' ? t('machineDetail.channelCard') : t('machineDetail.channelCashless') }}
+                    </p>
+                  </template>
+
+                  <!-- Manual change -->
+                  <template v-else-if="entry.type === 'manual_change'">
+                    <p class="text-sm font-medium">
+                      {{ entry.action === 'stock_refill_all' ? t('machineDetail.stockHistoryRefillAll') : t('machineDetail.stockHistoryManual') }}
+                    </p>
+                    <p class="text-xs text-muted-foreground">
+                      <span v-if="entry.old_stock != null && entry.new_stock != null">
+                        {{ entry.old_stock }} &rarr; {{ entry.new_stock }}
+                      </span>
+                      <span v-if="entry.user_display"> &middot; {{ entry.user_display }}</span>
+                    </p>
+                  </template>
+
+                  <!-- Decrement failed -->
+                  <template v-else-if="entry.type === 'decrement_failed'">
+                    <p class="text-sm font-medium text-red-600 dark:text-red-400">{{ t('machineDetail.stockHistoryDecrementFailed') }}</p>
+                    <p class="text-xs text-muted-foreground">
+                      {{ entry.reason === 'no_machine_for_device' ? t('machineDetail.stockHistoryNoMachine') : t('machineDetail.stockHistoryNoTray') }}
+                      <span v-if="entry.item_price"> &middot; {{ formatCurrency(entry.item_price, locale) }}</span>
+                    </p>
+                  </template>
+                </div>
+
+                <!-- Timestamp -->
+                <span class="shrink-0 text-xs text-muted-foreground">
+                  {{ timeAgo(entry.created_at, t) }}
+                </span>
+              </div>
+            </template>
           </div>
         </SheetContent>
       </Sheet>
