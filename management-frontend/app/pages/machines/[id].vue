@@ -51,6 +51,40 @@ const sortedTrays = computed(() => {
   })
 })
 
+// Group sales by day for the sales history list
+const salesByDay = computed(() => {
+  const groups: { date: string; label: string; sales: typeof sales.value }[] = []
+  let currentKey = ''
+  let currentGroup: typeof groups[0] | null = null
+
+  const today = new Date()
+  const yesterday = new Date(today)
+  yesterday.setDate(yesterday.getDate() - 1)
+  const todayKey = today.toLocaleDateString(locale.value, { year: 'numeric', month: '2-digit', day: '2-digit' })
+  const yesterdayKey = yesterday.toLocaleDateString(locale.value, { year: 'numeric', month: '2-digit', day: '2-digit' })
+
+  for (const sale of sales.value) {
+    const d = new Date(sale.created_at)
+    const key = d.toLocaleDateString(locale.value, { year: 'numeric', month: '2-digit', day: '2-digit' })
+
+    if (key !== currentKey) {
+      let label: string
+      if (key === todayKey) {
+        label = t('machineDetail.today')
+      } else if (key === yesterdayKey) {
+        label = t('machineDetail.yesterday')
+      } else {
+        label = d.toLocaleDateString(locale.value, { weekday: 'long', day: 'numeric', month: 'long' })
+      }
+      currentKey = key
+      currentGroup = { date: key, label, sales: [] }
+      groups.push(currentGroup)
+    }
+    currentGroup!.sales.push(sale)
+  }
+  return groups
+})
+
 // AI Insights
 const { data: insights, loading: insightsLoading, error: insightsError, fetchInsights, history: insightsHistory, historyLoading: insightsHistoryLoading, fetchHistory } = useInsights()
 const insightsOpen = ref(false)
@@ -1153,63 +1187,72 @@ async function handleAddSale() {
                   </button>
                 </div>
                 <div v-if="sales.length === 0" class="text-sm text-muted-foreground">{{ t('machineDetail.noSalesLast30') }}</div>
-                <div v-else class="rounded-xl border bg-card divide-y">
-                  <SwipeToDelete
-                    v-for="sale in sales"
-                    :key="sale.id"
-                    :disabled="!isAdmin"
-                    @delete="confirmDeleteSale(sale)"
-                  >
-                    <div class="group/sale flex items-start gap-3 px-4 py-3">
-                      <!-- Product image or amount badge -->
-                      <img
-                        v-if="trayProductMap.get(sale.item_number)?.image_url"
-                        :src="trayProductMap.get(sale.item_number)!.image_url!"
-                        :alt="trayProductMap.get(sale.item_number)!.name"
-                        class="h-9 w-9 shrink-0 rounded-full object-cover mt-0.5"
-                      />
-                      <div v-else class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary mt-0.5">
-                        {{ formatCurrency(sale.item_price, locale) }}
-                      </div>
-                      <!-- Main info -->
-                      <div class="flex-1 min-w-0">
-                        <div class="flex items-start justify-between gap-2">
-                          <p class="text-sm font-medium break-words">
-                            {{ trayProductMap.get(sale.item_number)?.name ?? `${t('machineDetail.item')} #${sale.item_number}` }}
-                            <!-- Desktop delete button (inline after title) -->
-                            <button
-                              v-if="isAdmin"
-                              class="hidden sm:inline-flex ml-1 align-middle rounded-md p-0.5 text-muted-foreground/0 transition-colors group-hover/sale:text-muted-foreground hover:!text-destructive"
-                              @click="confirmDeleteSale(sale)"
-                            >
-                              <IconTrash class="size-3.5" />
-                            </button>
-                          </p>
-                          <span class="shrink-0 text-sm font-semibold tabular-nums">{{ formatCurrency(sale.item_price, locale) }}</span>
-                        </div>
-                        <div class="mt-0.5 flex items-center justify-between">
-                          <div class="flex items-center gap-1.5 text-xs text-muted-foreground">
-                            <span class="whitespace-nowrap">{{ t('machineDetail.slot') }} {{ sale.item_number }}</span>
-                            <span class="text-muted-foreground/40">·</span>
-                            <span
-                              class="inline-flex items-center gap-0.5 text-[10px] font-medium uppercase tracking-wide"
-                              :class="sale.channel === 'card'
-                                ? 'text-blue-600 dark:text-blue-400'
-                                : sale.channel === 'cashless'
-                                  ? 'text-violet-600 dark:text-violet-400'
-                                  : 'text-emerald-600 dark:text-emerald-400'"
-                            >
-                              <IconCreditCard v-if="sale.channel === 'card'" class="size-3" />
-                              <IconDeviceMobile v-else-if="sale.channel === 'cashless'" class="size-3" />
-                              <IconCoins v-else class="size-3" />
-                              {{ sale.channel }}
-                            </span>
-                          </div>
-                          <span class="shrink-0 text-[11px] text-muted-foreground tabular-nums">{{ formatDateTime(sale.created_at, locale) }}</span>
-                        </div>
-                      </div>
+                <div v-else class="space-y-4">
+                  <div v-for="group in salesByDay" :key="group.date">
+                    <div class="sticky top-0 z-10 mb-2 flex items-center gap-3">
+                      <span class="text-xs font-medium text-muted-foreground">{{ group.label }}</span>
+                      <span class="text-[10px] tabular-nums text-muted-foreground/60">{{ t('machineDetail.saleCount', { count: group.sales.length }, group.sales.length) }}</span>
+                      <div class="h-px flex-1 bg-border" />
                     </div>
-                  </SwipeToDelete>
+                    <div class="rounded-xl border bg-card divide-y">
+                      <SwipeToDelete
+                        v-for="sale in group.sales"
+                        :key="sale.id"
+                        :disabled="!isAdmin"
+                        @delete="confirmDeleteSale(sale)"
+                      >
+                        <div class="group/sale flex items-start gap-3 px-4 py-3">
+                          <!-- Product image or amount badge -->
+                          <img
+                            v-if="trayProductMap.get(sale.item_number)?.image_url"
+                            :src="trayProductMap.get(sale.item_number)!.image_url!"
+                            :alt="trayProductMap.get(sale.item_number)!.name"
+                            class="h-9 w-9 shrink-0 rounded-full object-cover mt-0.5"
+                          />
+                          <div v-else class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary mt-0.5">
+                            {{ formatCurrency(sale.item_price, locale) }}
+                          </div>
+                          <!-- Main info -->
+                          <div class="flex-1 min-w-0">
+                            <div class="flex items-start justify-between gap-2">
+                              <p class="text-sm font-medium break-words">
+                                {{ trayProductMap.get(sale.item_number)?.name ?? `${t('machineDetail.item')} #${sale.item_number}` }}
+                                <!-- Desktop delete button (inline after title) -->
+                                <button
+                                  v-if="isAdmin"
+                                  class="hidden sm:inline-flex ml-1 align-middle rounded-md p-0.5 text-muted-foreground/0 transition-colors group-hover/sale:text-muted-foreground hover:!text-destructive"
+                                  @click="confirmDeleteSale(sale)"
+                                >
+                                  <IconTrash class="size-3.5" />
+                                </button>
+                              </p>
+                              <span class="shrink-0 text-sm font-semibold tabular-nums">{{ formatCurrency(sale.item_price, locale) }}</span>
+                            </div>
+                            <div class="mt-0.5 flex items-center justify-between">
+                              <div class="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                <span class="whitespace-nowrap">{{ t('machineDetail.slot') }} {{ sale.item_number }}</span>
+                                <span class="text-muted-foreground/40">·</span>
+                                <span
+                                  class="inline-flex items-center gap-0.5 text-[10px] font-medium uppercase tracking-wide"
+                                  :class="sale.channel === 'card'
+                                    ? 'text-blue-600 dark:text-blue-400'
+                                    : sale.channel === 'cashless'
+                                      ? 'text-violet-600 dark:text-violet-400'
+                                      : 'text-emerald-600 dark:text-emerald-400'"
+                                >
+                                  <IconCreditCard v-if="sale.channel === 'card'" class="size-3" />
+                                  <IconDeviceMobile v-else-if="sale.channel === 'cashless'" class="size-3" />
+                                  <IconCoins v-else class="size-3" />
+                                  {{ sale.channel }}
+                                </span>
+                              </div>
+                              <span class="shrink-0 text-[11px] text-muted-foreground tabular-nums">{{ new Date(sale.created_at).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' }) }}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </SwipeToDelete>
+                    </div>
+                  </div>
                 </div>
               </div>
             </TabsContent>
