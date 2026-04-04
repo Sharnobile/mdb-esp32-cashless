@@ -165,7 +165,7 @@ onResume(async () => {
   const id = route.params.id as string
   const [machineRes] = await Promise.all([
     supabase.from('vendingMachine')
-      .select('id, name, location_lat, location_lon, embedded, embeddeds(id, status, status_at, subdomain, mac_address, firmware_version, firmware_build_date, mdb_address, mdb_diagnostics, last_restart_reason, last_restart_at)')
+      .select('id, name, location_lat, location_lon, embedded, embeddeds(id, status, status_at, subdomain, mac_address, firmware_version, firmware_build_date, mdb_address, mdb_diagnostics, last_restart_reason, last_restart_at, online_since)')
       .eq('id', id).single(),
     fetchTrays(id),
   ])
@@ -177,7 +177,7 @@ onMounted(async () => {
   try {
     const { data: machineData, error: machineError } = await supabase
       .from('vendingMachine')
-      .select('id, name, location_lat, location_lon, embedded, embeddeds(id, status, status_at, subdomain, mac_address, firmware_version, firmware_build_date, mdb_address, mdb_diagnostics, last_restart_reason, last_restart_at)')
+      .select('id, name, location_lat, location_lon, embedded, embeddeds(id, status, status_at, subdomain, mac_address, firmware_version, firmware_build_date, mdb_address, mdb_diagnostics, last_restart_reason, last_restart_at, online_since)')
       .eq('id', id)
       .single()
 
@@ -397,7 +397,7 @@ async function submitDeviceSwap() {
     // Re-fetch machine to get updated embeddeds join
     const { data } = await supabase
       .from('vendingMachine')
-      .select('id, name, location_lat, location_lon, embedded, embeddeds(id, status, status_at, subdomain, mac_address, firmware_version, firmware_build_date, mdb_address, mdb_diagnostics, last_restart_reason, last_restart_at)')
+      .select('id, name, location_lat, location_lon, embedded, embeddeds(id, status, status_at, subdomain, mac_address, firmware_version, firmware_build_date, mdb_address, mdb_diagnostics, last_restart_reason, last_restart_at, online_since)')
       .eq('id', machine.value.id)
       .single()
     if (data) machine.value = data
@@ -415,7 +415,7 @@ async function detachDevice() {
     await swapDevice(machine.value.id, null)
     const { data } = await supabase
       .from('vendingMachine')
-      .select('id, name, location_lat, location_lon, embedded, embeddeds(id, status, status_at, subdomain, mac_address, firmware_version, firmware_build_date, mdb_address, mdb_diagnostics, last_restart_reason, last_restart_at)')
+      .select('id, name, location_lat, location_lon, embedded, embeddeds(id, status, status_at, subdomain, mac_address, firmware_version, firmware_build_date, mdb_address, mdb_diagnostics, last_restart_reason, last_restart_at, online_since)')
       .eq('id', machine.value.id)
       .single()
     if (data) machine.value = data
@@ -1959,8 +1959,8 @@ async function handleAddSale() {
                     class="inline-block h-3 w-3 rounded-full"
                     :class="machine.embeddeds.status === 'online' ? 'bg-green-500' : 'bg-red-500'"
                   />
-                  <span v-if="machine.embeddeds.status === 'online' && machine.embeddeds.status_at" class="text-2xl font-semibold tabular-nums">
-                    {{ formatUptime(Math.floor((Date.now() - new Date(machine.embeddeds.status_at).getTime()) / 1000)) }}
+                  <span v-if="machine.embeddeds.status === 'online' && (machine.embeddeds.online_since || machine.embeddeds.status_at)" class="text-2xl font-semibold tabular-nums">
+                    {{ formatUptime(Math.floor((Date.now() - new Date(machine.embeddeds.online_since ?? machine.embeddeds.status_at).getTime()) / 1000)) }}
                   </span>
                   <span v-else class="text-2xl font-semibold text-muted-foreground">{{ t('machineDetail.offline') }}</span>
                 </div>

@@ -65,6 +65,12 @@ Deno.serve(async (req) => {
         status_at: new Date().toISOString(),
       };
 
+      // Track when device came online (for uptime calculation).
+      // Only set on 'online' — not on offline/ota states which would reset it.
+      if (status === 'online') {
+        updatePayload.online_since = new Date().toISOString();
+      }
+
       // Only update firmware fields when present (don't clear on offline/ota states)
       if (firmwareVersion) {
         updatePayload.firmware_version = firmwareVersion;
@@ -106,10 +112,10 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Read current diagnostics to detect state change
+      // Read current diagnostics to detect state change + check if device is marked online
       const { data: deviceRow, error: fetchErr } = await adminClient
         .from('embeddeds')
-        .select('mdb_diagnostics, company')
+        .select('mdb_diagnostics, company, status')
         .eq('id', deviceId)
         .single();
 
@@ -127,12 +133,20 @@ Deno.serve(async (req) => {
       // Always update latest diagnostics snapshot
       const diagPayload = { ...diag, updated_at: new Date().toISOString() };
 
+      // If device is sending mdb-log, it's clearly online — fix status if
+      // the forwarder missed the initial 'online' message (e.g. after server restart)
+      const updateFields: Record<string, any> = {
+        mdb_diagnostics: diagPayload,
+        status_at: new Date().toISOString(),
+      };
+      if (deviceRow.status !== 'online') {
+        updateFields.status = 'online';
+        updateFields.online_since = new Date().toISOString();
+      }
+
       const { error: updateErr } = await adminClient
         .from('embeddeds')
-        .update({
-          mdb_diagnostics: diagPayload,
-          status_at: new Date().toISOString(),
-        })
+        .update(updateFields)
         .eq('id', deviceId);
 
       if (updateErr) throw updateErr;
