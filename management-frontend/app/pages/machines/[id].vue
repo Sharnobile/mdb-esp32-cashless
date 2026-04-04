@@ -1246,7 +1246,7 @@ async function handleAddSale() {
                                   {{ sale.channel }}
                                 </span>
                               </div>
-                              <span class="shrink-0 text-[11px] text-muted-foreground tabular-nums">{{ new Date(sale.created_at).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' }) }}</span>
+                              <span class="shrink-0 text-[11px] text-muted-foreground tabular-nums">{{ new Date(sale.created_at).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', second: '2-digit' }) }}</span>
                             </div>
                           </div>
                         </div>
