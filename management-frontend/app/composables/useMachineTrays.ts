@@ -130,10 +130,11 @@ export function useMachineTrays() {
       old_stock: oldStock,
       new_stock: newStock,
       capacity: tray?.capacity ?? null,
+      source: 'refill_full',
     })
   }
 
-  async function updateTray(trayId: string, machineId: string, updates: { item_number?: number; product_id?: string | null; capacity?: number; current_stock?: number; min_stock?: number; fill_when_below?: number }) {
+  async function updateTray(trayId: string, machineId: string, updates: { item_number?: number; product_id?: string | null; capacity?: number; current_stock?: number; min_stock?: number; fill_when_below?: number }, source?: string) {
     const tray = trays.value.find(t => t.id === trayId)
     const { error } = await (supabase as any)
       .from('machine_trays')
@@ -143,8 +144,12 @@ export function useMachineTrays() {
     if (error) throw error
     await fetchTrays(machineId, { silent: true })
 
-    // Only log if a stock-related field changed
-    if (updates.current_stock !== undefined || updates.min_stock !== undefined || updates.capacity !== undefined || updates.fill_when_below !== undefined) {
+    // Only log if a stock-related field actually changed value
+    const stockChanged = updates.current_stock !== undefined && updates.current_stock !== (tray?.current_stock ?? null)
+    const minStockChanged = updates.min_stock !== undefined && updates.min_stock !== (tray?.min_stock ?? null)
+    const capacityChanged = updates.capacity !== undefined && updates.capacity !== (tray?.capacity ?? null)
+    const fillBelowChanged = updates.fill_when_below !== undefined && updates.fill_when_below !== (tray?.fill_when_below ?? null)
+    if (stockChanged || minStockChanged || capacityChanged || fillBelowChanged) {
       const machineName = await getMachineName(machineId)
       await logActivity('stock_updated', trayId, {
         machine_id: machineId,
@@ -159,6 +164,7 @@ export function useMachineTrays() {
         new_capacity: updates.capacity,
         old_fill_when_below: updates.fill_when_below !== undefined ? tray?.fill_when_below ?? null : undefined,
         new_fill_when_below: updates.fill_when_below,
+        source: source ?? 'manual',
       })
     }
   }

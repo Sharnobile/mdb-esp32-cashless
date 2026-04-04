@@ -49,42 +49,60 @@ function entityTypeLabel(type: string) {
   return found?.label ?? type
 }
 
-function metadataChips(entry: { action: string; metadata: Record<string, unknown> | null }): { label: string; value: string }[] {
+type ChipVariant = 'default' | 'increase' | 'decrease' | 'neutral'
+
+function stockChangeChip(label: string, oldVal: number, newVal: number): { label: string; value: string; variant: ChipVariant } {
+  const delta = newVal - oldVal
+  const arrow = delta > 0 ? '\u2191' : delta < 0 ? '\u2193' : ''
+  const sign = delta > 0 ? '+' : ''
+  const variant: ChipVariant = delta > 0 ? 'increase' : delta < 0 ? 'decrease' : 'neutral'
+  return { label, value: `${oldVal} ${arrow} ${newVal} (${sign}${delta})`, variant }
+}
+
+function metadataChips(entry: { action: string; metadata: Record<string, unknown> | null }): { label: string; value: string; variant?: ChipVariant }[] {
   const m = entry.metadata
   if (!m) return []
-  const chips: { label: string; value: string }[] = []
+  const chips: { label: string; value: string; variant?: ChipVariant }[] = []
 
   if (entry.action === 'sale_recorded') {
     if (m.item_number != null) chips.push({ label: 'Item', value: `#${m.item_number}` })
-    if (m.price != null) chips.push({ label: 'Price', value: `€${Number(m.price).toFixed(2)}` })
+    if (m.price != null) chips.push({ label: 'Price', value: `\u20AC${Number(m.price).toFixed(2)}` })
     if (m.channel) chips.push({ label: 'Channel', value: String(m.channel) })
-    if (m.device_id) chips.push({ label: 'Device', value: String(m.device_id).slice(0, 8) + '…' })
+    if (m.device_id) chips.push({ label: 'Device', value: String(m.device_id).slice(0, 8) + '\u2026' })
   }
 
   if (entry.action === 'credit_sent') {
-    if (m.amount != null) chips.push({ label: 'Amount', value: `€${Number(m.amount).toFixed(2)}` })
-    if (m.device_id) chips.push({ label: 'Device', value: String(m.device_id).slice(0, 8) + '…' })
+    if (m.amount != null) chips.push({ label: 'Amount', value: `\u20AC${Number(m.amount).toFixed(2)}` })
+    if (m.device_id) chips.push({ label: 'Device', value: String(m.device_id).slice(0, 8) + '\u2026' })
   }
 
   if (entry.action === 'stock_updated') {
     if (m.machine_name) chips.push({ label: 'Machine', value: String(m.machine_name) })
     if (m.product_name) chips.push({ label: 'Product', value: String(m.product_name) })
     if (m.item_number != null) chips.push({ label: 'Slot', value: `#${m.item_number}` })
-    // Stock change
+    // Source label (manual, refill, etc.)
+    if (m.source === 'refill_wizard') {
+      chips.push({ label: t('history.source'), value: t('history.sourceRefill'), variant: 'increase' })
+    } else if (m.source === 'manual') {
+      chips.push({ label: t('history.source'), value: t('history.sourceManual'), variant: 'neutral' })
+    } else if (m.source === 'refill_full') {
+      chips.push({ label: t('history.source'), value: t('history.sourceRefillFull'), variant: 'increase' })
+    }
+    // Stock change with colored arrow + delta
     if (m.old_stock != null && m.new_stock != null) {
-      chips.push({ label: 'Stock', value: `${m.old_stock} → ${m.new_stock}` })
+      chips.push(stockChangeChip(t('history.stockLabel'), Number(m.old_stock), Number(m.new_stock)))
     } else if (m.new_stock != null) {
-      chips.push({ label: 'Stock', value: String(m.new_stock) })
+      chips.push({ label: t('history.stockLabel'), value: String(m.new_stock) })
     }
     // Min stock change
     if (m.old_min_stock != null && m.new_min_stock != null) {
-      chips.push({ label: 'Min stock', value: `${m.old_min_stock} → ${m.new_min_stock}` })
+      chips.push(stockChangeChip('Min stock', Number(m.old_min_stock), Number(m.new_min_stock)))
     } else if (m.new_min_stock != null) {
       chips.push({ label: 'Min stock', value: String(m.new_min_stock) })
     }
     // Capacity change
     if (m.old_capacity != null && m.new_capacity != null) {
-      chips.push({ label: 'Capacity', value: `${m.old_capacity} → ${m.new_capacity}` })
+      chips.push(stockChangeChip('Capacity', Number(m.old_capacity), Number(m.new_capacity)))
     } else if (m.new_capacity != null) {
       chips.push({ label: 'Capacity', value: String(m.new_capacity) })
     }
@@ -94,11 +112,10 @@ function metadataChips(entry: { action: string; metadata: Record<string, unknown
     if (m.machine_name) chips.push({ label: 'Machine', value: String(m.machine_name) })
     const trays = m.trays_refilled as any[]
     if (trays?.length) {
-      chips.push({ label: 'Trays', value: `${trays.length} refilled` })
-      // Show each tray inline
-      for (const t of trays) {
-        const name = t.product_name ? `${t.product_name}` : `Slot #${t.item_number}`
-        chips.push({ label: name, value: `${t.old_stock} → ${t.new_stock}` })
+      chips.push({ label: 'Trays', value: `${trays.length} ${t('history.refilled')}` })
+      for (const tr of trays) {
+        const name = tr.product_name ? `${tr.product_name}` : `Slot #${tr.item_number}`
+        chips.push(stockChangeChip(name, Number(tr.old_stock), Number(tr.new_stock)))
       }
     }
   }
@@ -212,9 +229,19 @@ function metadataChips(entry: { action: string; metadata: Record<string, unknown
                   v-for="chip in metadataChips(entry)"
                   :key="chip.label"
                   class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs"
+                  :class="{
+                    'border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950': chip.variant === 'increase',
+                    'border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950': chip.variant === 'decrease',
+                  }"
                 >
                   <span class="text-muted-foreground">{{ chip.label }}</span>
-                  <span class="font-medium">{{ chip.value }}</span>
+                  <span
+                    class="font-medium"
+                    :class="{
+                      'text-emerald-700 dark:text-emerald-400': chip.variant === 'increase',
+                      'text-red-700 dark:text-red-400': chip.variant === 'decrease',
+                    }"
+                  >{{ chip.value }}</span>
                 </span>
                 <span v-if="metadataChips(entry).length === 0" class="text-muted-foreground">—</span>
               </div>

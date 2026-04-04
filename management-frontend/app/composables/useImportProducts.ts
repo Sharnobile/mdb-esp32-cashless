@@ -1,5 +1,4 @@
 import { useSupabaseClient } from '#imports'
-import * as XLSX from 'xlsx'
 
 export interface ImportProduct {
   name: string
@@ -31,6 +30,7 @@ export function useImportProducts() {
     importResult.value = null
 
     try {
+      const XLSX = await import('xlsx')
       const buffer = await file.arrayBuffer()
       const workbook = XLSX.read(buffer, { type: 'array' })
       const sheetName = workbook.SheetNames[0]
