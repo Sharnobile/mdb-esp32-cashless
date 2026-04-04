@@ -4,7 +4,7 @@ definePageMeta({ middleware: 'auth' })
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { VisArea, VisAxis, VisLine, VisXYContainer } from '@unovis/vue'
-import { IconCreditCard, IconCoins, IconSend, IconSparkles, IconLoader2, IconRefresh, IconTrash, IconPlus } from '@tabler/icons-vue'
+import { IconCreditCard, IconCoins, IconSend, IconSparkles, IconLoader2, IconRefresh, IconTrash, IconPlus, IconHistory } from '@tabler/icons-vue'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Badge } from '@/components/ui/badge'
 import { useInsights, sortedRecommendations, priorityVariant, recommendationTypeLabel } from '@/composables/useInsights'
@@ -24,6 +24,7 @@ const { products, categories, fetchProducts } = useProducts()
 const { trays, loading: traysLoading, fetchTrays, upsertTray, updateTray, batchCreateTrays, refillToFull, refillAll, adjustStock: adjustStockDebounced, deleteTray, subscribeToTrayUpdates } = useMachineTrays()
 const { fetchUnassignedEmbeddeds, swapDevice } = useMachines()
 const { logs: mdbLogs, loading: mdbLogsLoading, hasMore: mdbHasMore, fetchLogs: fetchMdbLogs, fetchMore: fetchMoreMdbLogs, subscribe: subscribeMdbLog, stateLabel, stateVariant } = useMdbLog()
+const { entries: stockHistoryEntries, loading: stockHistoryLoading, fetchHistory: fetchStockHistory, reset: resetStockHistory } = useStockHistory()
 const { onResume } = useAppResume()
 
 const isAdmin = computed(() => role.value === 'admin')
@@ -67,6 +68,23 @@ function refreshInsights() {
   if (machine.value?.id) {
     fetchInsights(machine.value.id, 30, true)
   }
+}
+
+// Stock History Sheet
+const stockHistoryOpen = ref(false)
+const stockHistoryTray = ref<{ id: string; item_number: number; product_name: string | null } | null>(null)
+
+function openStockHistory(tray: { id: string; item_number: number; product_name: string | null }) {
+  stockHistoryTray.value = tray
+  stockHistoryOpen.value = true
+  const embeddedId = machine.value?.embeddeds?.id ?? null
+  fetchStockHistory(machine.value.id, tray.item_number, embeddedId)
+}
+
+function closeStockHistory() {
+  stockHistoryOpen.value = false
+  stockHistoryTray.value = null
+  resetStockHistory()
 }
 
 function toggleHistoryEntry(id: string) {
@@ -1313,18 +1331,25 @@ async function handleAddSale() {
                           <span v-if="tray.product_discontinued" class="rounded bg-gray-200 px-1 py-px text-[9px] font-medium text-gray-500 dark:bg-gray-700 dark:text-gray-400">{{ t('warehouse.discontinuedBadge') }}</span>
                         </div>
                       </div>
-                      <!-- Actions: Full only on mobile -->
-                      <button
-                        v-if="isAdmin"
-                        class="inline-flex h-8 shrink-0 items-center rounded-md px-3 text-xs font-medium transition-colors"
-                        :class="tray.current_stock < tray.capacity
-                          ? 'bg-primary/10 text-primary hover:bg-primary/20'
-                          : 'text-muted-foreground cursor-default opacity-50'"
-                        :disabled="tray.current_stock >= tray.capacity"
-                        @click="handleRefillFull(tray.id)"
-                      >
-                        {{ t('machineDetail.full') }}
-                      </button>
+                      <!-- Actions: Full + History on mobile -->
+                      <div v-if="isAdmin" class="flex items-center gap-1 shrink-0">
+                        <button
+                          class="inline-flex h-8 shrink-0 items-center rounded-md px-3 text-xs font-medium transition-colors"
+                          :class="tray.current_stock < tray.capacity
+                            ? 'bg-primary/10 text-primary hover:bg-primary/20'
+                            : 'text-muted-foreground cursor-default opacity-50'"
+                          :disabled="tray.current_stock >= tray.capacity"
+                          @click="handleRefillFull(tray.id)"
+                        >
+                          {{ t('machineDetail.full') }}
+                        </button>
+                        <button
+                          class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                          @click="openStockHistory(tray)"
+                        >
+                          <IconHistory class="h-4 w-4" />
+                        </button>
+                      </div>
                     </div>
                     <!-- Row 2: level bar -->
                     <div class="relative mt-2 h-2 w-full rounded-full bg-muted">
@@ -1676,7 +1701,7 @@ async function handleAddSale() {
                           </div>
                         </td>
 
-                        <!-- Actions (Full + Remove) -->
+                        <!-- Actions (Full + History + Remove) -->
                         <td v-if="isAdmin" class="px-4 py-2">
                           <div class="flex items-center gap-2">
                             <button
@@ -1688,6 +1713,13 @@ async function handleAddSale() {
                               @click="handleRefillFull(tray.id)"
                             >
                               {{ t('machineDetail.full') }}
+                            </button>
+                            <button
+                              class="inline-flex h-7 items-center gap-1 rounded px-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                              @click="openStockHistory(tray)"
+                            >
+                              <IconHistory class="h-3.5 w-3.5" />
+                              {{ t('machineDetail.stockHistory') }}
                             </button>
                             <button
                               class="text-xs text-destructive hover:underline"
@@ -2410,6 +2442,105 @@ async function handleAddSale() {
                 </div>
               </div>
             </div>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      <!-- Stock History Sheet -->
+      <Sheet v-model:open="stockHistoryOpen" @update:open="(v: boolean) => { if (!v) closeStockHistory() }">
+        <SheetContent side="right" class="w-full sm:max-w-lg overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle class="flex items-center gap-2">
+              <IconHistory class="h-5 w-5" />
+              {{ t('machineDetail.stockHistory') }}
+            </SheetTitle>
+            <p v-if="stockHistoryTray" class="text-sm text-muted-foreground">
+              {{ t('machineDetail.slot') }} #{{ stockHistoryTray.item_number }}
+              <span v-if="stockHistoryTray.product_name"> &middot; {{ stockHistoryTray.product_name }}</span>
+            </p>
+          </SheetHeader>
+
+          <div class="mt-4 space-y-2">
+            <div v-if="stockHistoryLoading" class="py-8 text-center text-sm text-muted-foreground">
+              <IconLoader2 class="mx-auto h-5 w-5 animate-spin" />
+              <p class="mt-2">{{ t('common.loading') }}</p>
+            </div>
+
+            <div v-else-if="stockHistoryEntries.length === 0" class="py-8 text-center text-sm text-muted-foreground">
+              {{ t('machineDetail.noStockHistory') }}
+            </div>
+
+            <template v-else>
+              <div
+                v-for="entry in stockHistoryEntries"
+                :key="entry.id"
+                class="flex items-start gap-3 rounded-lg border px-3 py-2.5"
+                :class="{
+                  'border-red-200 bg-red-50/50 dark:border-red-800 dark:bg-red-950/20': entry.type === 'decrement_failed',
+                }"
+              >
+                <!-- Icon -->
+                <div class="mt-0.5 shrink-0">
+                  <span
+                    v-if="entry.type === 'sale'"
+                    class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                  >
+                    <IconCoins class="h-3.5 w-3.5" />
+                  </span>
+                  <span
+                    v-else-if="entry.type === 'manual_change'"
+                    class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                  >
+                    <IconRefresh class="h-3.5 w-3.5" />
+                  </span>
+                  <span
+                    v-else-if="entry.type === 'decrement_failed'"
+                    class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                  >
+                    <IconTrash class="h-3.5 w-3.5" />
+                  </span>
+                </div>
+
+                <!-- Content -->
+                <div class="min-w-0 flex-1">
+                  <!-- Sale -->
+                  <template v-if="entry.type === 'sale'">
+                    <p class="text-sm font-medium">{{ t('machineDetail.stockHistorySale') }}</p>
+                    <p class="text-xs text-muted-foreground">
+                      {{ formatCurrency(entry.item_price ?? 0, locale) }}
+                      &middot; {{ entry.channel === 'cash' ? t('machineDetail.channelCash') : entry.channel === 'card' ? t('machineDetail.channelCard') : t('machineDetail.channelCashless') }}
+                    </p>
+                  </template>
+
+                  <!-- Manual change -->
+                  <template v-else-if="entry.type === 'manual_change'">
+                    <p class="text-sm font-medium">
+                      {{ entry.action === 'stock_refill_all' ? t('machineDetail.stockHistoryRefillAll') : t('machineDetail.stockHistoryManual') }}
+                    </p>
+                    <p class="text-xs text-muted-foreground">
+                      <span v-if="entry.old_stock != null && entry.new_stock != null">
+                        {{ entry.old_stock }} &rarr; {{ entry.new_stock }}
+                      </span>
+                      <span v-if="entry.user_display"> &middot; {{ entry.user_display }}</span>
+                    </p>
+                  </template>
+
+                  <!-- Decrement failed -->
+                  <template v-else-if="entry.type === 'decrement_failed'">
+                    <p class="text-sm font-medium text-red-600 dark:text-red-400">{{ t('machineDetail.stockHistoryDecrementFailed') }}</p>
+                    <p class="text-xs text-muted-foreground">
+                      {{ entry.reason === 'no_machine_for_device' ? t('machineDetail.stockHistoryNoMachine') : t('machineDetail.stockHistoryNoTray') }}
+                      <span v-if="entry.item_price"> &middot; {{ formatCurrency(entry.item_price, locale) }}</span>
+                    </p>
+                  </template>
+                </div>
+
+                <!-- Timestamp -->
+                <span class="shrink-0 text-xs text-muted-foreground">
+                  {{ timeAgo(entry.created_at, t) }}
+                </span>
+              </div>
+            </template>
           </div>
         </SheetContent>
       </Sheet>

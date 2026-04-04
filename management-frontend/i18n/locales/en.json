@@ -338,7 +338,15 @@
     "channelCashless": "Cashless",
     "channelCard": "Card",
     "saleDate": "Date & time",
-    "saleDateHint": "Defaults to now. Can be set to a past date for missed sales."
+    "saleDateHint": "Defaults to now. Can be set to a past date for missed sales.",
+    "stockHistory": "History",
+    "noStockHistory": "No stock history for this tray yet.",
+    "stockHistorySale": "Sale (stock -1)",
+    "stockHistoryManual": "Manual stock change",
+    "stockHistoryRefillAll": "Bulk refill",
+    "stockHistoryDecrementFailed": "Stock decrement failed",
+    "stockHistoryNoMachine": "Device not assigned to any machine",
+    "stockHistoryNoTray": "No matching tray configured for this slot"
   },
   "insights": {
     "productSwap": "Product Swap",

@@ -338,7 +338,15 @@
     "channelCashless": "Bargeldlos",
     "channelCard": "Karte",
     "saleDate": "Datum & Uhrzeit",
-    "saleDateHint": "Standard ist jetzt. Kann für fehlende Verkäufe auf ein vergangenes Datum gesetzt werden."
+    "saleDateHint": "Standard ist jetzt. Kann für fehlende Verkäufe auf ein vergangenes Datum gesetzt werden.",
+    "stockHistory": "Verlauf",
+    "noStockHistory": "Noch kein Bestandsverlauf für dieses Fach.",
+    "stockHistorySale": "Verkauf (Bestand -1)",
+    "stockHistoryManual": "Manuelle Bestandsänderung",
+    "stockHistoryRefillAll": "Alle aufgefüllt",
+    "stockHistoryDecrementFailed": "Bestandsreduzierung fehlgeschlagen",
+    "stockHistoryNoMachine": "Gerät keinem Automaten zugeordnet",
+    "stockHistoryNoTray": "Kein passendes Fach für diesen Slot konfiguriert"
   },
   "insights": {
     "productSwap": "Produktwechsel",
