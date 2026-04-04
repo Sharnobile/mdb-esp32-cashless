@@ -34,6 +34,7 @@
 #include "nimble.h"
 #include "webui_server.h"
 
+#include "esp_system.h"
 #include "esp_http_client.h"
 #include "esp_crt_bundle.h"
 #include "esp_https_ota.h"
@@ -172,6 +173,43 @@ bool vend_denied_todo = false;
 bool cashless_reset_todo = true;
 bool out_of_sequence_todo = false;
 
+// Restart tracking: saved to NVS before esp_restart(), read at boot and published via MQTT
+static const char *pending_restart_reason = NULL;  // set at boot if NVS contains a reason
+static uint32_t pending_restart_uptime = 0;
+static const char *pending_restart_hw = NULL;
+static bool restart_info_published = false;
+
+// Save restart reason + current uptime to NVS, then call esp_restart().
+// reason must be a string literal (not freed).
+static void tracked_restart(const char *reason) {
+    nvs_handle_t h;
+    if (nvs_open("vmflow", NVS_READWRITE, &h) == ESP_OK) {
+        nvs_set_str(h, "restart_reason", reason);
+        uint32_t uptime_sec = (uint32_t)(esp_timer_get_time() / 1000000ULL);
+        nvs_set_u32(h, "last_uptime", uptime_sec);
+        nvs_commit(h);
+        nvs_close(h);
+    }
+    ESP_LOGW(TAG, "Tracked restart: reason=%s", reason);
+    vTaskDelay(pdMS_TO_TICKS(100));
+    esp_restart();
+}
+
+static const char *reset_reason_str(esp_reset_reason_t r) {
+    switch (r) {
+        case ESP_RST_POWERON:   return "POWERON";
+        case ESP_RST_SW:        return "SW_RESET";
+        case ESP_RST_PANIC:     return "PANIC";
+        case ESP_RST_INT_WDT:   return "INT_WDT";
+        case ESP_RST_TASK_WDT:  return "TASK_WDT";
+        case ESP_RST_WDT:       return "WDT";
+        case ESP_RST_DEEPSLEEP: return "DEEPSLEEP";
+        case ESP_RST_BROWNOUT:  return "BROWNOUT";
+        case ESP_RST_SDIO:      return "SDIO";
+        default:                return "UNKNOWN";
+    }
+}
+
 // MDB diagnostics
 static uint32_t mdb_poll_count = 0;
 static uint32_t mdb_checksum_errors = 0;
@@ -231,8 +269,7 @@ static void mqtt_watchdog_cb(void *arg) {
         if (offline_sec >= MQTT_HARD_REBOOT_SEC) {
             // Last resort: full reboot to recover from any corrupted state
             ESP_LOGE(TAG, "MQTT watchdog: offline for %lus — HARD REBOOT", (unsigned long)offline_sec);
-            vTaskDelay(pdMS_TO_TICKS(100));
-            esp_restart();
+            tracked_restart("mqtt_watchdog");
         } else if (offline_sec >= MQTT_WATCHDOG_TIMEOUT_SEC) {
             ESP_LOGW(TAG, "MQTT watchdog: offline for %lus — restarting MQTT client", (unsigned long)offline_sec);
             esp_mqtt_client_stop(mqttClient);
@@ -1675,7 +1712,7 @@ static void ota_update_task(void *arg) {
         mqtt_publish_safe(mqttClient, topic, "ota_success", 0, 1, 0);
         vTaskDelay(pdMS_TO_TICKS(1000));
         free(url);
-        esp_restart();
+        tracked_restart("ota");
         /* not reached */
     } else {
         ESP_LOGE(TAG, "OTA: firmware update failed: %s", esp_err_to_name(ret));
@@ -1747,6 +1784,26 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 		snprintf(status_msg, sizeof(status_msg), "online|v:%s|b:%s %s %s", app_desc->version, app_desc->date, app_desc->time, BUILD_TIMEZONE);
 		ESP_LOGI(TAG, "MQTT: publishing '%s' to '%s'", status_msg, topic_);
 		esp_mqtt_client_publish(mqttClient, topic_, status_msg, 0, 1, 1);
+
+        // Publish restart info once after first connect (if we have a reason to report)
+        if (!restart_info_published && pending_restart_reason) {
+            char restart_topic[128];
+            snprintf(restart_topic, sizeof(restart_topic), "/%s/%s/restart", my_company_id, my_device_id);
+
+            char restart_json[256];
+            snprintf(restart_json, sizeof(restart_json),
+                     "{\"reason\":\"%s\",\"uptime\":%lu,\"fw\":\"%s\",\"hw_reason\":\"%s\"}",
+                     pending_restart_reason,
+                     (unsigned long)pending_restart_uptime,
+                     app_desc->version,
+                     pending_restart_hw ? pending_restart_hw : "UNKNOWN");
+
+            ESP_LOGI(TAG, "MQTT: publishing restart info '%s' to '%s'", restart_json, restart_topic);
+            int msg_id = esp_mqtt_client_publish(mqttClient, restart_topic, restart_json, 0, 1, 0);
+            if (msg_id >= 0) {
+                restart_info_published = true;
+            }
+        }
 
         xEventGroupSetBits(xLedEventGroup, BIT_EVT_INTERNET | BIT_EVT_TRIGGER);
 
@@ -1942,8 +1999,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 
 		    if (needs_restart) {
 		        ESP_LOGW(TAG, "CONFIG: restarting...");
-		        vTaskDelay(pdMS_TO_TICKS(500));
-		        esp_restart();
+		        tracked_restart("config");
 		    }
 		}
 
@@ -2076,8 +2132,7 @@ static void provision_claim_task(void *arg) {
                              j_company->valuestring, j_device->valuestring);
                     cJSON_Delete(root);
                     esp_http_client_cleanup(client);
-                    vTaskDelay(pdMS_TO_TICKS(500));
-                    esp_restart();
+                    tracked_restart("provision");
                     /* not reached */
                 }
                 cJSON_Delete(root);
@@ -2092,7 +2147,7 @@ static void provision_claim_task(void *arg) {
     ESP_LOGW(TAG, "PROV: claim failed — restarting in 10s to retry");
     esp_http_client_cleanup(client);
     vTaskDelay(pdMS_TO_TICKS(10000));
-    esp_restart();
+    tracked_restart("provision");
 }
 
 static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data) {
@@ -2452,6 +2507,43 @@ void app_main(void) {
 	{
 	    const esp_app_desc_t *app_desc = esp_app_get_description();
 	    ESP_LOGW(TAG, "Firmware version: %s (compiled %s %s)", app_desc->version, app_desc->date, app_desc->time);
+	}
+
+	/* Read restart reason from NVS (set by tracked_restart() before last reboot) */
+	{
+	    esp_reset_reason_t hw_reason = esp_reset_reason();
+	    pending_restart_hw = reset_reason_str(hw_reason);
+	    ESP_LOGI(TAG, "HW reset reason: %s", pending_restart_hw);
+
+	    nvs_handle_t rh;
+	    if (nvs_open("vmflow", NVS_READWRITE, &rh) == ESP_OK) {
+	        static char nvs_reason[32] = {0};
+	        size_t rlen = sizeof(nvs_reason);
+	        if (nvs_get_str(rh, "restart_reason", nvs_reason, &rlen) == ESP_OK && strlen(nvs_reason) > 0) {
+	            pending_restart_reason = nvs_reason;
+	            nvs_get_u32(rh, "last_uptime", &pending_restart_uptime);
+	            // Erase so we don't re-report on next boot
+	            nvs_erase_key(rh, "restart_reason");
+	            nvs_erase_key(rh, "last_uptime");
+	            nvs_commit(rh);
+	            ESP_LOGI(TAG, "Restart reason: %s (uptime=%lus)", pending_restart_reason, (unsigned long)pending_restart_uptime);
+	        } else {
+	            // No software reason — derive from hardware reason
+	            switch (hw_reason) {
+	                case ESP_RST_POWERON:  pending_restart_reason = "power_on"; break;
+	                case ESP_RST_PANIC:    pending_restart_reason = "panic"; break;
+	                case ESP_RST_INT_WDT:
+	                case ESP_RST_TASK_WDT:
+	                case ESP_RST_WDT:      pending_restart_reason = "watchdog"; break;
+	                case ESP_RST_BROWNOUT: pending_restart_reason = "brownout"; break;
+	                default:               pending_restart_reason = NULL; break;  // SW_RESET without NVS reason = factory reset or unknown, don't report
+	            }
+	            if (pending_restart_reason) {
+	                ESP_LOGI(TAG, "Restart reason (hw-derived): %s", pending_restart_reason);
+	            }
+	        }
+	        nvs_close(rh);
+	    }
 	}
 
     //-------------------------- MQTT --------------------------//

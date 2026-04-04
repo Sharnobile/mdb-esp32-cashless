@@ -19,7 +19,7 @@ Deno.serve(async (req) => {
     const { topic, payload: payloadB64 } = body;
 
     // Parse topic: /{company_id}/{device_id}/{event_type}
-    const match = topic.match(/^\/([^/]+)\/([^/]+)\/(sale|status|paxcounter|mdb-log)$/);
+    const match = topic.match(/^\/([^/]+)\/([^/]+)\/(sale|status|paxcounter|mdb-log|restart)$/);
     if (!match) {
       return new Response(JSON.stringify({ error: 'invalid topic' }), { status: 400 });
     }
@@ -157,6 +157,61 @@ Deno.serve(async (req) => {
       }
 
       return new Response(JSON.stringify({ ok: true, state_changed: stateChanged }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Device restart event: plain JSON, no encryption
+    // Payload: {"reason":"mqtt_watchdog","uptime":598,"fw":"1.0.0","hw_reason":"SW_CPU_RESET"}
+    if (eventType === 'restart') {
+      const restartBytes = decodeBase64(payloadB64);
+      const rawJson = new TextDecoder().decode(restartBytes);
+
+      let data: Record<string, unknown>;
+      try {
+        data = JSON.parse(rawJson);
+      } catch {
+        return new Response(JSON.stringify({ error: 'invalid JSON in restart payload' }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
+      const reason = data.reason as string | undefined;
+      if (!reason) {
+        return new Response(JSON.stringify({ error: 'missing reason field in restart' }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Insert restart log entry
+      const { error: insertErr } = await adminClient
+        .from('device_restarts')
+        .insert({
+          embedded_id: deviceId,
+          reason,
+          uptime_sec: (data.uptime as number) ?? null,
+          firmware_version: (data.fw as string) ?? null,
+          hw_reason: (data.hw_reason as string) ?? null,
+          raw: data,
+        });
+
+      if (insertErr) throw insertErr;
+
+      // Update embeddeds with latest restart info
+      const { error: updateErr } = await adminClient
+        .from('embeddeds')
+        .update({
+          last_restart_reason: reason,
+          last_restart_at: new Date().toISOString(),
+        })
+        .eq('id', deviceId);
+
+      if (updateErr) throw updateErr;
+
+      return new Response(JSON.stringify({ ok: true }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       });

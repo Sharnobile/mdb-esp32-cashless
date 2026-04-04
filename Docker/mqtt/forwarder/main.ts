@@ -9,7 +9,7 @@ const WEBHOOK_SECRET = Deno.env.get("MQTT_WEBHOOK_SECRET") ?? "";
 
 // Topics: /{company_id}/{device_id}/{event}
 // Leading / creates empty first level, so pattern is /+/+/{event}
-const topics = ["/+/+/sale", "/+/+/status", "/+/+/paxcounter", "/+/+/mdb-log"];
+const topics = ["/+/+/sale", "/+/+/status", "/+/+/paxcounter", "/+/+/mdb-log", "/+/+/restart"];
 
 const client = mqtt.connect(`mqtt://${MQTT_HOST}:1883`, {
   clientId: "vmflow-forwarder",

@@ -57,7 +57,10 @@
     "getHelp": "Get Help",
     "account": "Account",
     "logout": "Log out",
-    "defaultOrg": "MDB Dashboard"
+    "defaultOrg": "MDB Dashboard",
+    "groupOperations": "Operations",
+    "groupTeam": "Team",
+    "groupTechnical": "Technical"
   },
   "auth": {
     "signIn": "Sign in",
@@ -349,7 +352,17 @@
     "stockHistoryRefillAll": "Bulk refill",
     "stockHistoryDecrementFailed": "Stock decrement failed",
     "stockHistoryNoMachine": "Device not assigned to any machine",
-    "stockHistoryNoTray": "No matching tray configured for this slot"
+    "stockHistoryNoTray": "No matching tray configured for this slot",
+    "deviceHealth": "Device Health",
+    "restartHistory": "Restart History",
+    "restartReason": "Reason",
+    "uptimeBefore": "Uptime before restart",
+    "noRestarts": "No restarts recorded yet.",
+    "stable": "Stable",
+    "unstable": "Unstable",
+    "critical": "Critical",
+    "restartsLast24h": "{count} restart in 24h | {count} restarts in 24h",
+    "uptime": "Uptime"
   },
   "insights": {
     "productSwap": "Product Swap",

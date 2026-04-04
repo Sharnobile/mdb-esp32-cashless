@@ -2,7 +2,9 @@
 definePageMeta({ middleware: 'auth' })
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { IconTruck, IconPlayerPlay, IconArrowsExchange } from '@tabler/icons-vue'
+import { IconTruck, IconPlayerPlay, IconArrowsExchange, IconRefresh } from '@tabler/icons-vue'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { reasonLabel } from '@/composables/useDeviceRestarts'
 import { formatCurrency } from '@/lib/utils'
 import { getProductImageUrl } from '@/composables/useProducts'
 import { hasSavedTour, clearSavedTourState } from '@/composables/useRefillWizard'
@@ -56,6 +58,15 @@ const sortedMachines = computed(() => {
 
 // ── Add Machine modal ────────────────────────────────────────────────────────
 const { open: showMachineModal, form: machineForm, loading: creatingMachine, error: machineError, openModal: openMachineModal, closeModal, submit } = useModalForm({ name: '' })
+
+// Restart within last 24h = show indicator
+function isRecentRestart(restartAt: string): boolean {
+  return Date.now() - new Date(restartAt).getTime() < 24 * 60 * 60 * 1000
+}
+// Restart within last hour = red (very recent)
+function isVeryRecentRestart(restartAt: string): boolean {
+  return Date.now() - new Date(restartAt).getTime() < 60 * 60 * 1000
+}
 
 async function submitCreateMachine() {
   if (!machineForm.value.name.trim()) {
@@ -131,15 +142,31 @@ async function submitCreateMachine() {
                 <CardTitle class="text-base font-semibold truncate">
                   {{ machine.name ?? t('machines.unnamedMachine') }}
                 </CardTitle>
-                <!-- Stock health dot -->
-                <span
-                  class="ml-2 inline-block h-3 w-3 shrink-0 rounded-full"
-                  :class="{
-                    'bg-red-500': (machine.stock_health ?? 'ok') === 'critical',
-                    'bg-amber-500': (machine.stock_health ?? 'ok') === 'low',
-                    'bg-green-500': (machine.stock_health ?? 'ok') === 'ok',
-                  }"
-                />
+                <div class="ml-2 flex items-center gap-1.5 shrink-0">
+                  <!-- Recent restart indicator -->
+                  <TooltipProvider v-if="machine.embeddeds?.last_restart_at && isRecentRestart(machine.embeddeds.last_restart_at)">
+                    <Tooltip>
+                      <TooltipTrigger as-child>
+                        <IconRefresh
+                          class="h-3.5 w-3.5"
+                          :class="isVeryRecentRestart(machine.embeddeds.last_restart_at) ? 'text-red-500' : 'text-amber-500'"
+                        />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p class="text-xs">{{ reasonLabel(machine.embeddeds.last_restart_reason ?? 'unknown') }}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                  <!-- Stock health dot -->
+                  <span
+                    class="inline-block h-3 w-3 rounded-full"
+                    :class="{
+                      'bg-red-500': (machine.stock_health ?? 'ok') === 'critical',
+                      'bg-amber-500': (machine.stock_health ?? 'ok') === 'low',
+                      'bg-green-500': (machine.stock_health ?? 'ok') === 'ok',
+                    }"
+                  />
+                </div>
               </CardHeader>
 
               <CardContent class="space-y-3">

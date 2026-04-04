@@ -9,7 +9,7 @@ An open-source MDB (Multi-Drop Bus) cashless payment implementation for vending 
 - **mdb-slave-esp32s3** – ESP32-S3 firmware acting as an MDB cashless device (peripheral)
 - **mdb-master-esp32s3** – ESP32-S3 firmware simulating a VMC (vending machine controller) for testing
 - **Docker** – Self-hosted backend: Supabase (PostgreSQL + auth + edge functions), MQTT broker, Deno MQTT forwarder
-- **management-frontend** – Nuxt 4 management dashboard (TypeScript, shadcn-nuxt, TailwindCSS 4)
+- **management-frontend** – Nuxt 4 management dashboard (TypeScript, shadcn-nuxt, TailwindCSS 4, PWA, i18n)
 
 ---
 
@@ -84,11 +84,18 @@ docker compose down -v --remove-orphans
 | Service | Purpose |
 |---------|---------|
 | `kong` (port 8000) | API gateway |
-| `db` | PostgreSQL |
+| `db` | PostgreSQL 15.8 |
 | `auth` | Supabase GoTrue |
+| `rest` | PostgREST API |
+| `realtime` | Supabase Realtime |
+| `storage` | Supabase Storage |
+| `imgproxy` | Image transformation proxy |
+| `meta` | Postgres Meta |
 | `functions` | Deno edge runtime |
+| `studio` (port 54323) | Supabase Studio dashboard |
 | `broker` (port 1883) | Eclipse Mosquitto MQTT |
 | `forwarder` | Deno MQTT→Supabase webhook bridge |
+| `frontend` (port 3000) | Nuxt 4 management app |
 
 ### MQTT Forwarder
 
@@ -107,25 +114,35 @@ supabase db reset # re-runs all migrations + seed
 Multi-tenancy model: users belong to `companies` via `organization_members`. All RLS policies use the helper functions `my_company_id()` and `i_am_admin()` which read from `organization_members` for the current JWT user.
 
 Tables:
-- `companies` – organisations
+- `companies` – organisations; has `anthropic_api_key` (nullable) for AI insights, `velocity_days` (default 30) for sales velocity calculation
 - `organization_members` – `(company_id, user_id, role)` where role ∈ `{admin, viewer}`
 - `invitations` – email-scoped invite tokens with expiry
-- `embeddeds` – registered devices: `subdomain` (bigint, auto-increment), `mac_address`, `passkey`, `status`
-- `sales` – vend events: `embedded_id`, `item_price`, `item_number`, `channel`, `lat`, `lng`
+- `embeddeds` – registered devices: `subdomain` (bigint, auto-increment), `mac_address`, `passkey`, `status`, `mdb_diagnostics` (jsonb), `vmc_level` (int)
+- `sales` – vend events: `embedded_id`, `item_price` (**EUR, not cents**), `item_number`, `channel`, `lat`, `lng`, `machine_id`; has `REPLICA IDENTITY FULL` for realtime delete events
 - `paxcounter` – foot traffic: `embedded_id`, `count`
 - `device_provisioning` – one-time provisioning codes: `short_code`, `expires_at`, `used_at`, `embedded_id`
 - `vendingMachine` – physical machine records linked to embedded devices
-- `products`, `product_category` – product catalogue per company; `products.image_path` stores the storage object path
-- `machine_trays` – per-machine tray/slot configuration: `machine_id`, `item_number` (unique per machine), `product_id`, `capacity`, `current_stock`; stock auto-decremented on sales via `decrement_tray_stock` trigger
+- `products`, `product_category` – product catalogue per company; `products.image_path` stores the storage object path; `products.discontinued` (boolean) flag
+- `machine_trays` – per-machine tray/slot configuration: `machine_id`, `item_number` (unique per machine), `product_id`, `capacity`, `current_stock`, `fill_when_below` (refill threshold); stock auto-decremented on sales via `stamp_machine_and_decrement_stock` trigger
 - `api_keys` – API keys for external integrations: `company_id`, `key_hash`, `key_prefix`, `name`
 - `warehouses` – warehouse locations per company
 - `product_barcodes` – barcode-to-product mapping for scanning
 - `warehouse_stock_batches` – FIFO stock batches with expiry tracking
 - `warehouse_transactions` – stock movement log (intake, refill, adjustment, waste)
 - `product_min_stock` – per-warehouse minimum stock levels for alerts
+- `warehouse_product_positions` – physical layout ordering: `warehouse_id`, `product_id`, `sort_order`, `location_label`
+- `low_stock_notifications` – queue table for push alerts when stock drops below minimum; auto-enqueued via trigger
+- `stock_decrement_log` – audit log for stock decrements
 - `mdb_log` – MDB state-change diagnostics history per device
 - `push_subscriptions` – browser push notification registrations (endpoint, keys, user_agent)
 - `history` – activity log for audit trail
+
+Key RPC functions:
+- `get_machine_insights_kpis(machine_id, company_id, days)` – per-tray KPIs, paxcounter conversion, refill history for AI insights
+- `get_product_sales_velocity(company_id, days)` – avg daily units sold per product
+- `delete_sale_and_restore_stock(sale_id)` – manual sale deletion with stock restoration
+- `insert_manual_sale(machine_id, item_number, price, channel, created_at)` – manual sale insertion
+- `deduct_warehouse_stock_fifo(...)` – FIFO warehouse stock deduction for refills
 
 ### Supabase Storage
 
@@ -156,6 +173,10 @@ All functions use `verify_jwt = false` in `config.toml` (workaround for ES256 `C
 | `test-push` | yes | Send test push notification |
 | `send-device-config` | admin | Send device configuration update via MQTT |
 | `create-api-key` | admin | Generate API key for external integrations |
+| `check-low-stock` | internal | Reads unsent low-stock notifications, groups by company, sends push alerts, marks as sent |
+| `import-github-release` | admin | Import firmware binary from GitHub release tag into storage + firmware_versions |
+| `machine-insights` | yes | AI-powered analytics (Claude API): per-machine/company KPIs, recommendations, multi-language, 6h cache |
+| `search-product-images` | yes | DuckDuckGo image search for product catalog enrichment |
 
 ### Adding New Environment Variables
 
@@ -182,7 +203,7 @@ When adding a new env var that the frontend or edge functions need in production
 
 ## management-frontend
 
-Nuxt 4 (`app/` directory convention), TypeScript, `@nuxtjs/supabase`, shadcn-nuxt, TailwindCSS 4, `@vueuse/core`.
+Nuxt 4 (`app/` directory convention), TypeScript, `@nuxtjs/supabase`, shadcn-nuxt, TailwindCSS 4, `@vueuse/core`, `@nuxtjs/i18n` (en/de), PWA (custom service worker).
 
 ```bash
 cd management-frontend
@@ -208,6 +229,7 @@ Public routes (no auth check): `/auth/login`, `/auth/register`, `/onboarding/*`
 
 ### Key Composables
 
+**Core data:**
 - `useOrganization()` – wraps `get-my-organization`, exposes `organization`, `role`, `fetchOrganization()`
 - `useMachines()` – fetches `vendingMachine` joined with `embeddeds`, batch-fetches per-machine stats (today/yesterday revenue, sales count, paxcounter, last sale) via `Promise.all`; `subscribeToStatusUpdates()` opens Supabase realtime channels on `embeddeds`, `vendingMachine`, and `sales` tables (live-updates today's stats on new sales)
 - `useProducts()` – CRUD for products + categories; `uploadProductImage(productId, file)` uploads to `product-images/{id}.{ext}` with upsert; `deleteProductImage()` removes from storage + nulls `image_path`; `deleteProduct()` cleans up storage; `getProductImageUrl(path)` builds public URL; `createProduct()` returns the new product ID
@@ -218,28 +240,53 @@ Public routes (no auth check): `/auth/login`, `/auth/register`, `/onboarding/*`
 - `useWarehouse()` – CRUD for warehouses, stock batches (FIFO), transactions, barcode lookups, min-stock alerts; `deductStock()` calls `deduct_warehouse_stock_fifo` DB function for refill operations
 - `useMdbLog()` – fetches MDB diagnostics history from `mdb_log` table with realtime subscription
 - `useActivityLog()` – activity/audit log composable
-- `useAppResume()` – app lifecycle/resume event handling
+
+**Refill & insights:**
+- `useRefillWizard()` – multi-step refill tour state: packing → refill → summary; combined/per-machine picking modes, warehouse stock tracking, persistent state for resume
+- `useTourHistory()` – fetches activity log entries grouped by `tour_id` (with 10-min fallback grouping), enriches user display names
+- `useStockHistory()` – merges stock events from sales, activity log, and `stock_decrement_log` into unified tray timeline
+- `useInsights()` – manages AI-powered machine/company insights, history, loading states via `machine-insights` edge function
+- `useProductImageSearch()` – wraps `search-product-images` edge function with debounce and caching
+
+**UI utilities:**
 - `useTheme()` – wraps `useDark` from `@vueuse/core`; theme persisted to `localStorage` as `color-scheme`
+- `useAppResume()` – app lifecycle/resume event handling
+- `useAppUpdate()` – detects new service worker versions, provides `applyUpdate()` to reload
+- `useInstallPrompt()` – PWA install prompt handling with iOS detection and dismissal tracking
+- `usePullToRefresh()` – registers page-level pull-to-refresh handler via shared `useState`
+- `useModalForm()` – generic reusable modal form state (open/close, form data, loading, error, submit)
+- `useTableSort()` – generic table sorting with key + direction toggle
+
+### Plugins
+
+- `supabase-url.client.ts` – rewrites Supabase URL to browser hostname (client-only, required for LAN access)
+- `register-sw.client.ts` – custom service worker registration (PWA uses custom SW in `public/sw.js`, not Workbox)
 
 ### Shared Utilities (`app/lib/utils.ts`)
 
 - `cn()` – Tailwind class merging via clsx + tailwind-merge
-- `timeAgo(dt)` – formats a date string as relative time (e.g. "5m ago", "2d ago")
+- `timeAgo(dt)` – i18n-aware relative time formatting (e.g. "5m ago", "2d ago")
 - `formatCurrency(amount)` – formats a number as EUR currency
+- `formatDate(dt)` – date formatting
+- `formatTime(dt)` – time formatting
+- `formatDateTime(dt)` – combined date+time formatting
 
 ### Pages
 
-- `/` – Dashboard: KPI cards (today/week sales, machine counts) + 30-day sales chart
+- `/` – Dashboard: KPI cards (today/week sales, machine counts) + 30-day sales chart + activity feed + machine list + recent sales
 - `/machines` – Responsive card grid (1/2/3 cols) of vending machines showing status badge, today/yesterday revenue, sales count, last sale time-ago, and paxcounter traffic; cards link to `/machines/[id]`
-- `/machines/[id]` – Per-machine detail: 30-day chart + sales history (with product image thumbnails from trays); Trays & Stock tab with tray table, batch add (sequential slots), single add/edit (editable slot numbers), refill, and delete
-- `/products` – Products tab (table with image thumbnails, add/edit modal with image upload zone, category selector) + Categories tab + Import from Nayax Excel
-- `/warehouse` – Warehouse inventory management: stock intake with barcode scanning (`BarcodeScanner` component), FIFO batch tracking, transaction history, min-stock alerts
+- `/machines/[id]` – Per-machine detail: 30-day chart + sales history (with product image thumbnails from trays, manual sale add/delete); Trays & Stock tab with tray table, batch add (sequential slots), single add/edit (editable slot numbers), refill, and delete; AI insights tab
+- `/products` – Products tab (table with image thumbnails, add/edit modal with image upload zone + image search, category selector, discontinued flag) + Categories tab + Import from Nayax Excel
+- `/warehouse` – Warehouse inventory management: stock intake with barcode scanning (`BarcodeScanner` component), FIFO batch tracking, transaction history, min-stock alerts, product position management
+- `/refill` – Multi-step guided refill wizard: select warehouse → pack items (combined/per-machine mode) → refill trays → summary with tour stats
+- `/tour-history` – Expandable list of completed refill tours with per-machine details, user names, timestamps
 - `/history` – Activity/audit log
 - `/devices` – Admin device management: registered embedded devices table, register new device with provisioning code + QR, pending tokens, delete device
-- `/firmware` – Firmware version management: upload .bin files, deploy OTA to devices, delete versions
+- `/firmware` – Firmware version management: upload .bin files + import from GitHub releases, deploy OTA to devices, delete versions
 - `/api-keys` – API key management: create/revoke keys for external integrations
 - `/members` – Active members table + pending invitations (admin only); invite modal calls `invite-member`
-- `/settings` – Application settings
+- `/settings` – Application settings (incl. Anthropic API key for AI insights, velocity days config)
+- `/server-loading` – Full-screen loading page with auto-retry for server availability
 - `/onboarding/create-organization` – Calls `create-organization` edge function
 - `/onboarding/accept-invitation` – Reads `?token=` from URL, calls `accept-invitation`
 
@@ -253,6 +300,7 @@ Public routes (no auth check): `/auth/login`, `/auth/register`, `/onboarding/*`
 - `KONG_HTTP_PORT` – API gateway port (default 8000)
 - `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` – Web Push notification keys
 - `MQTT_WEBHOOK_SECRET` – shared secret between MQTT forwarder and `mqtt-webhook` edge function
+- `GITHUB_TOKEN` – GitHub personal access token for firmware import from private repos
 
 ---
 

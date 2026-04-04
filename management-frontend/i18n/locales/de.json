@@ -57,7 +57,10 @@
     "getHelp": "Hilfe",
     "account": "Konto",
     "logout": "Abmelden",
-    "defaultOrg": "MDB Dashboard"
+    "defaultOrg": "MDB Dashboard",
+    "groupOperations": "Betrieb",
+    "groupTeam": "Team",
+    "groupTechnical": "Technik"
   },
   "auth": {
     "signIn": "Anmelden",
@@ -349,7 +352,17 @@
     "stockHistoryRefillAll": "Alle aufgefüllt",
     "stockHistoryDecrementFailed": "Bestandsreduzierung fehlgeschlagen",
     "stockHistoryNoMachine": "Gerät keinem Automaten zugeordnet",
-    "stockHistoryNoTray": "Kein passendes Fach für diesen Slot konfiguriert"
+    "stockHistoryNoTray": "Kein passendes Fach für diesen Slot konfiguriert",
+    "deviceHealth": "Gerätezustand",
+    "restartHistory": "Neustart-Verlauf",
+    "restartReason": "Grund",
+    "uptimeBefore": "Laufzeit vor Neustart",
+    "noRestarts": "Noch keine Neustarts aufgezeichnet.",
+    "stable": "Stabil",
+    "unstable": "Instabil",
+    "critical": "Kritisch",
+    "restartsLast24h": "{count} Neustart in 24h | {count} Neustarts in 24h",
+    "uptime": "Laufzeit"
   },
   "insights": {
     "productSwap": "Produktwechsel",

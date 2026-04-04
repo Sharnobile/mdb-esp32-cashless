@@ -8,6 +8,7 @@ import { IconCreditCard, IconCoins, IconSend, IconSparkles, IconLoader2, IconRef
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Badge } from '@/components/ui/badge'
 import { useInsights, sortedRecommendations, priorityVariant, recommendationTypeLabel } from '@/composables/useInsights'
+import { useDeviceRestarts, reasonLabel, reasonVariant, formatUptime } from '@/composables/useDeviceRestarts'
 import { timeAgo, formatCurrency, formatDate, formatTime, formatDateTime } from '@/lib/utils'
 
 const { t, locale } = useI18n()
@@ -16,6 +17,7 @@ const defaultTab = computed(() => {
   const tab = route.query.tab as string
   if (tab === 'stock') return 'trays'
   if (tab === 'mdb') return 'mdb'
+  if (tab === 'health') return 'health'
   return 'sales'
 })
 const supabase = useSupabaseClient()
@@ -25,6 +27,7 @@ const { trays, loading: traysLoading, fetchTrays, upsertTray, updateTray, batchC
 const { fetchUnassignedEmbeddeds, swapDevice } = useMachines()
 const { logs: mdbLogs, loading: mdbLogsLoading, hasMore: mdbHasMore, fetchLogs: fetchMdbLogs, fetchMore: fetchMoreMdbLogs, subscribe: subscribeMdbLog, stateLabel, stateVariant } = useMdbLog()
 const { entries: stockHistoryEntries, loading: stockHistoryLoading, fetchHistory: fetchStockHistory, reset: resetStockHistory } = useStockHistory()
+const { restarts, loading: restartsLoading, hasMore: restartsHasMore, fetchRestarts, fetchMore: fetchMoreRestarts, subscribe: subscribeRestarts } = useDeviceRestarts()
 const { onResume } = useAppResume()
 
 const isAdmin = computed(() => role.value === 'admin')
@@ -162,7 +165,7 @@ onResume(async () => {
   const id = route.params.id as string
   const [machineRes] = await Promise.all([
     supabase.from('vendingMachine')
-      .select('id, name, location_lat, location_lon, embedded, embeddeds(id, status, status_at, subdomain, mac_address, firmware_version, firmware_build_date, mdb_address, mdb_diagnostics)')
+      .select('id, name, location_lat, location_lon, embedded, embeddeds(id, status, status_at, subdomain, mac_address, firmware_version, firmware_build_date, mdb_address, mdb_diagnostics, last_restart_reason, last_restart_at)')
       .eq('id', id).single(),
     fetchTrays(id),
   ])
@@ -174,7 +177,7 @@ onMounted(async () => {
   try {
     const { data: machineData, error: machineError } = await supabase
       .from('vendingMachine')
-      .select('id, name, location_lat, location_lon, embedded, embeddeds(id, status, status_at, subdomain, mac_address, firmware_version, firmware_build_date, mdb_address, mdb_diagnostics)')
+      .select('id, name, location_lat, location_lon, embedded, embeddeds(id, status, status_at, subdomain, mac_address, firmware_version, firmware_build_date, mdb_address, mdb_diagnostics, last_restart_reason, last_restart_at)')
       .eq('id', id)
       .single()
 
@@ -274,6 +277,11 @@ onMounted(async () => {
       fetchMdbLogs(machineData.embeddeds.id)
       const unsubMdbLog = subscribeMdbLog(machineData.embeddeds.id)
       onUnmounted(unsubMdbLog)
+
+      // Fetch device restart history + subscribe to live updates
+      fetchRestarts(machineData.embeddeds.id)
+      const unsubRestarts = subscribeRestarts(machineData.embeddeds.id)
+      onUnmounted(unsubRestarts)
     }
 
     // Subscribe to tray realtime updates
@@ -389,7 +397,7 @@ async function submitDeviceSwap() {
     // Re-fetch machine to get updated embeddeds join
     const { data } = await supabase
       .from('vendingMachine')
-      .select('id, name, location_lat, location_lon, embedded, embeddeds(id, status, status_at, subdomain, mac_address, firmware_version, firmware_build_date, mdb_address, mdb_diagnostics)')
+      .select('id, name, location_lat, location_lon, embedded, embeddeds(id, status, status_at, subdomain, mac_address, firmware_version, firmware_build_date, mdb_address, mdb_diagnostics, last_restart_reason, last_restart_at)')
       .eq('id', machine.value.id)
       .single()
     if (data) machine.value = data
@@ -407,7 +415,7 @@ async function detachDevice() {
     await swapDevice(machine.value.id, null)
     const { data } = await supabase
       .from('vendingMachine')
-      .select('id, name, location_lat, location_lon, embedded, embeddeds(id, status, status_at, subdomain, mac_address, firmware_version, firmware_build_date, mdb_address, mdb_diagnostics)')
+      .select('id, name, location_lat, location_lon, embedded, embeddeds(id, status, status_at, subdomain, mac_address, firmware_version, firmware_build_date, mdb_address, mdb_diagnostics, last_restart_reason, last_restart_at)')
       .eq('id', machine.value.id)
       .single()
     if (data) machine.value = data
@@ -1177,6 +1185,7 @@ async function handleAddSale() {
               <TabsTrigger value="sales">{{ t('machineDetail.sales') }}</TabsTrigger>
               <TabsTrigger v-if="isAdmin" value="mdb">{{ t('machineDetail.mdb') }}</TabsTrigger>
               <TabsTrigger value="trays">{{ t('machineDetail.traysAndStock') }}</TabsTrigger>
+              <TabsTrigger v-if="machine?.embeddeds" value="health">{{ t('machineDetail.deviceHealth') }}</TabsTrigger>
             </TabsList>
 
             <!-- Sales tab -->
@@ -1940,6 +1949,68 @@ async function handleAddSale() {
 
             </TabsContent>
 
+            <!-- Device Health tab -->
+            <TabsContent v-if="machine?.embeddeds" value="health" class="mt-4 space-y-6">
+              <!-- Current uptime -->
+              <div class="rounded-xl border bg-card p-4 sm:p-6">
+                <h2 class="mb-3 text-sm font-medium">{{ t('machineDetail.uptime') }}</h2>
+                <div class="flex items-center gap-3">
+                  <span
+                    class="inline-block h-3 w-3 rounded-full"
+                    :class="machine.embeddeds.status === 'online' ? 'bg-green-500' : 'bg-red-500'"
+                  />
+                  <span v-if="machine.embeddeds.status === 'online' && machine.embeddeds.status_at" class="text-2xl font-semibold tabular-nums">
+                    {{ formatUptime(Math.floor((Date.now() - new Date(machine.embeddeds.status_at).getTime()) / 1000)) }}
+                  </span>
+                  <span v-else class="text-2xl font-semibold text-muted-foreground">{{ t('machineDetail.offline') }}</span>
+                </div>
+                <p v-if="machine.embeddeds.last_restart_at" class="mt-2 text-xs text-muted-foreground">
+                  {{ t('machineDetail.restartReason') }}: {{ reasonLabel(machine.embeddeds.last_restart_reason ?? 'unknown') }}
+                  &middot; {{ timeAgo(machine.embeddeds.last_restart_at) }}
+                </p>
+              </div>
+
+              <!-- Restart history table -->
+              <div class="rounded-xl border bg-card p-4 sm:p-6">
+                <h2 class="mb-3 text-sm font-medium">{{ t('machineDetail.restartHistory') }}</h2>
+
+                <div v-if="restartsLoading && restarts.length === 0" class="text-sm text-muted-foreground">{{ t('common.loading') }}</div>
+                <div v-else-if="restarts.length === 0" class="text-sm text-muted-foreground">{{ t('machineDetail.noRestarts') }}</div>
+                <div v-else class="overflow-x-auto">
+                  <table class="w-full text-sm">
+                    <thead>
+                      <tr class="border-b text-left text-xs text-muted-foreground">
+                        <th class="pb-2 pr-4 font-medium">{{ t('machineDetail.time') }}</th>
+                        <th class="pb-2 pr-4 font-medium">{{ t('machineDetail.restartReason') }}</th>
+                        <th class="pb-2 pr-4 font-medium">{{ t('machineDetail.uptimeBefore') }}</th>
+                        <th class="pb-2 font-medium">{{ t('machineDetail.firmwareLabel') }}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="r in restarts" :key="r.id" class="border-b last:border-0">
+                        <td class="py-2 pr-4 text-xs text-muted-foreground whitespace-nowrap">{{ formatDateTime(r.created_at, locale) }}</td>
+                        <td class="py-2 pr-4">
+                          <Badge :variant="reasonVariant(r.reason)">{{ reasonLabel(r.reason) }}</Badge>
+                        </td>
+                        <td class="py-2 pr-4 tabular-nums">{{ formatUptime(r.uptime_sec) }}</td>
+                        <td class="py-2 text-xs text-muted-foreground">{{ r.firmware_version ?? '—' }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <div v-if="restartsHasMore" class="mt-3 flex justify-center">
+                  <button
+                    class="rounded-md border px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted transition-colors"
+                    :disabled="restartsLoading"
+                    @click="fetchMoreRestarts(machine!.embeddeds!.id)"
+                  >
+                    {{ restartsLoading ? t('common.loading') : t('history.loadMore') }}
+                  </button>
+                </div>
+              </div>
+            </TabsContent>
+
           </Tabs>
         </template>
       </div>
@@ -2531,7 +2602,7 @@ async function handleAddSale() {
             </p>
           </SheetHeader>
 
-          <div class="mt-4 space-y-2">
+          <div class="mt-4 space-y-3 px-4">
             <div v-if="stockHistoryLoading" class="py-8 text-center text-sm text-muted-foreground">
               <IconLoader2 class="mx-auto h-5 w-5 animate-spin" />
               <p class="mt-2">{{ t('common.loading') }}</p>

@@ -268,13 +268,17 @@ mdb-esp32-cashless/
 │   │   ├── config/            # Mosquitto config + ACL + passwd
 │   │   └── forwarder/         # Deno MQTT-to-webhook bridge
 │   └── volumes/               # Docker volume data (db init scripts, storage)
-├── management-frontend/       # Nuxt 4 dashboard
+├── management-frontend/       # Nuxt 4 dashboard (PWA, i18n en/de)
 │   ├── Dockerfile             # Production Docker image
 │   ├── app/                   # Nuxt 4 app directory
-│   │   ├── pages/             # Route pages
-│   │   ├── components/        # Vue components
-│   │   ├── composables/       # Reusable logic (useOrganization, useMachines, etc.)
-│   │   └── middleware/        # Auth middleware
+│   │   ├── pages/             # Route pages (18 routes)
+│   │   ├── components/        # Vue components (21 custom + shadcn-ui)
+│   │   ├── composables/       # Reusable logic (23 composables)
+│   │   ├── middleware/        # Auth middleware
+│   │   ├── plugins/           # Supabase URL rewrite, SW registration
+│   │   ├── i18n/              # Translations (en, de)
+│   │   ├── service-worker/    # Custom service worker
+│   │   └── lib/               # Utilities (cn, timeAgo, formatCurrency, etc.)
 │   ├── nuxt.config.ts
 │   └── package.json
 ├── mdb-slave-esp32s3/         # ESP32 MDB peripheral firmware
@@ -301,6 +305,15 @@ Edge functions live in `Docker/supabase/functions/`. This is the single source o
 | `get-my-organization` | JWT | Returns user's org and role |
 | `create-provisioning-token` | Admin | Generates an 8-char one-time device code |
 | `trigger-ota` | Admin | Sends OTA firmware update URL to a device via MQTT |
+| `import-products` | Admin | Bulk import products from Nayax Excel export |
+| `register-push` | JWT | Register browser push notification subscription |
+| `test-push` | JWT | Send test push notification |
+| `send-device-config` | Admin | Send device configuration update via MQTT |
+| `create-api-key` | Admin | Generate API key for external integrations |
+| `check-low-stock` | Internal | Reads unsent low-stock notifications, sends push alerts |
+| `import-github-release` | Admin | Import firmware binary from GitHub release into storage |
+| `machine-insights` | JWT | AI-powered analytics (Claude API) with per-machine/company KPIs |
+| `search-product-images` | JWT | DuckDuckGo image search for product catalog enrichment |
 
 ### Testing edge functions locally
 

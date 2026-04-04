@@ -10,6 +10,8 @@ interface Embedded {
   firmware_version?: string
   firmware_build_date?: string
   mdb_diagnostics?: Record<string, unknown> | null
+  last_restart_reason?: string | null
+  last_restart_at?: string | null
 }
 
 interface VendingMachine {
@@ -64,7 +66,7 @@ export function useMachines() {
         .from('vendingMachine')
         .select(`
           id, name, location_lat, location_lon, embedded,
-          embeddeds(id, status, status_at, subdomain, mac_address, firmware_version, firmware_build_date, mdb_diagnostics)
+          embeddeds(id, status, status_at, subdomain, mac_address, firmware_version, firmware_build_date, mdb_diagnostics, last_restart_reason, last_restart_at)
         `)
 
       if (error) throw error
@@ -432,6 +434,12 @@ export function useMachines() {
             }
             if (updated.mdb_diagnostics !== undefined) {
               machine.embeddeds.mdb_diagnostics = updated.mdb_diagnostics
+            }
+            if (updated.last_restart_reason !== undefined) {
+              machine.embeddeds.last_restart_reason = updated.last_restart_reason
+            }
+            if (updated.last_restart_at !== undefined) {
+              machine.embeddeds.last_restart_at = updated.last_restart_at
             }
           }
         }
