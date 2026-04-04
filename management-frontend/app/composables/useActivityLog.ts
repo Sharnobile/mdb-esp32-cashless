@@ -25,6 +25,7 @@ export function useActivityLog() {
     const entityTypeFilter = ref<string>('')
     const dateFrom = ref<string>('')
     const dateTo = ref<string>('')
+    const searchQuery = ref<string>('')
 
     const PAGE_SIZE = 50
 
@@ -166,13 +167,31 @@ export function useActivityLog() {
         return map[type] ?? 'outline'
     }
 
+    // ── Client-side search across metadata fields ─────────────────────────
+    const filteredLogs = computed(() => {
+        const q = searchQuery.value.trim().toLowerCase()
+        if (!q) return logs.value
+        return logs.value.filter(entry => {
+            const m = entry.metadata
+            if (!m) return false
+            // Search across common metadata string fields
+            const searchable = [
+                m.machine_name, m.product_name, m.channel,
+                m.device_id, entry.user_display,
+            ].filter(Boolean).map(v => String(v).toLowerCase())
+            return searchable.some(s => s.includes(q))
+        })
+    })
+
     return {
-        logs,
+        logs: filteredLogs,
+        rawLogs: logs,
         loading,
         hasMore,
         entityTypeFilter,
         dateFrom,
         dateTo,
+        searchQuery,
         fetchLogs,
         fetchMore,
         subscribe,

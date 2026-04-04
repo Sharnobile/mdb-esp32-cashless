@@ -12,6 +12,7 @@ export interface StockHistoryEntry {
   new_stock?: number
   action?: string
   user_display?: string
+  source?: string
   // decrement_failed fields
   reason?: string
 }
@@ -93,6 +94,7 @@ export function useStockHistory() {
           old_stock: meta.old_stock,
           new_stock: meta.new_stock,
           user_display: meta._user_display ?? meta._user_email ?? null,
+          source: meta.source ?? undefined,
         })
       }
 

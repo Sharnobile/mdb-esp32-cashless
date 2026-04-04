@@ -717,7 +717,10 @@
     "detailsCol": "Details",
     "userCol": "User",
     "noActivity": "No activity yet",
-    "eventsWillAppear": "Events will appear here as they happen."
+    "eventsWillAppear": "Events will appear here as they happen.",
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "searchPlaceholder": "Search machine, product…"
   },
   "settings": {
     "title": "Account Settings",

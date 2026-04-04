@@ -717,7 +717,10 @@
     "detailsCol": "Details",
     "userCol": "Benutzer",
     "noActivity": "Noch keine Aktivitäten",
-    "eventsWillAppear": "Ereignisse erscheinen hier, sobald sie auftreten."
+    "eventsWillAppear": "Ereignisse erscheinen hier, sobald sie auftreten.",
+    "today": "Heute",
+    "yesterday": "Gestern",
+    "searchPlaceholder": "Automat, Produkt suchen…"
   },
   "settings": {
     "title": "Kontoeinstellungen",

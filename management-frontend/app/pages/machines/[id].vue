@@ -4,11 +4,11 @@ definePageMeta({ middleware: 'auth' })
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { VisArea, VisAxis, VisLine, VisXYContainer } from '@unovis/vue'
-import { IconCreditCard, IconCoins, IconSend, IconSparkles, IconLoader2, IconRefresh, IconTrash, IconPlus, IconHistory } from '@tabler/icons-vue'
+import { IconCreditCard, IconCoins, IconSend, IconSparkles, IconLoader2, IconRefresh, IconTrash, IconPlus, IconHistory, IconArrowUp, IconArrowDown } from '@tabler/icons-vue'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Badge } from '@/components/ui/badge'
 import { useInsights, sortedRecommendations, priorityVariant, recommendationTypeLabel } from '@/composables/useInsights'
-import { timeAgo, formatCurrency, formatDate, formatDateTime } from '@/lib/utils'
+import { timeAgo, formatCurrency, formatDate, formatTime, formatDateTime } from '@/lib/utils'
 
 const { t, locale } = useI18n()
 const route = useRoute()
@@ -120,6 +120,33 @@ function closeStockHistory() {
   stockHistoryTray.value = null
   resetStockHistory()
 }
+
+// Group stock history entries by date
+const groupedStockHistory = computed(() => {
+  const groups: { date: string; label: string; entries: typeof stockHistoryEntries.value }[] = []
+  let currentDate = ''
+  for (const entry of stockHistoryEntries.value) {
+    const day = new Date(entry.created_at).toISOString().slice(0, 10)
+    if (day !== currentDate) {
+      currentDate = day
+      const d = new Date(entry.created_at)
+      const today = new Date()
+      const yesterday = new Date()
+      yesterday.setDate(yesterday.getDate() - 1)
+      let label: string
+      if (d.toDateString() === today.toDateString()) {
+        label = t('history.today')
+      } else if (d.toDateString() === yesterday.toDateString()) {
+        label = t('history.yesterday')
+      } else {
+        label = formatDate(entry.created_at, locale)
+      }
+      groups.push({ date: day, label, entries: [] })
+    }
+    groups[groups.length - 1].entries.push(entry)
+  }
+  return groups
+})
 
 function toggleHistoryEntry(id: string) {
   historyExpanded.value = historyExpanded.value === id ? null : id
@@ -2515,74 +2542,110 @@ async function handleAddSale() {
             </div>
 
             <template v-else>
-              <div
-                v-for="entry in stockHistoryEntries"
-                :key="entry.id"
-                class="flex items-start gap-3 rounded-lg border px-3 py-2.5"
-                :class="{
-                  'border-red-200 bg-red-50/50 dark:border-red-800 dark:bg-red-950/20': entry.type === 'decrement_failed',
-                }"
-              >
-                <!-- Icon -->
-                <div class="mt-0.5 shrink-0">
-                  <span
-                    v-if="entry.type === 'sale'"
-                    class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                  >
-                    <IconCoins class="h-3.5 w-3.5" />
-                  </span>
-                  <span
-                    v-else-if="entry.type === 'manual_change'"
-                    class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
-                  >
-                    <IconRefresh class="h-3.5 w-3.5" />
-                  </span>
-                  <span
-                    v-else-if="entry.type === 'decrement_failed'"
-                    class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
-                  >
-                    <IconTrash class="h-3.5 w-3.5" />
+              <div v-for="group in groupedStockHistory" :key="group.date" class="space-y-2">
+                <!-- Date header -->
+                <h4 class="sticky top-0 z-10 text-xs font-semibold uppercase tracking-wider text-muted-foreground bg-background py-1">
+                  {{ group.label }}
+                </h4>
+                <div
+                  v-for="entry in group.entries"
+                  :key="entry.id"
+                  class="flex items-start gap-3 rounded-lg border px-3 py-2.5"
+                  :class="{
+                    'border-red-200 bg-red-50/50 dark:border-red-800 dark:bg-red-950/20': entry.type === 'decrement_failed',
+                  }"
+                >
+                  <!-- Icon -->
+                  <div class="mt-0.5 shrink-0">
+                    <span
+                      v-if="entry.type === 'sale'"
+                      class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                    >
+                      <IconCoins class="h-3.5 w-3.5" />
+                    </span>
+                    <span
+                      v-else-if="entry.type === 'manual_change' && entry.new_stock != null && entry.old_stock != null && entry.new_stock > entry.old_stock"
+                      class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+                    >
+                      <IconArrowUp class="h-3.5 w-3.5" />
+                    </span>
+                    <span
+                      v-else-if="entry.type === 'manual_change' && entry.new_stock != null && entry.old_stock != null && entry.new_stock < entry.old_stock"
+                      class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                    >
+                      <IconArrowDown class="h-3.5 w-3.5" />
+                    </span>
+                    <span
+                      v-else-if="entry.type === 'manual_change'"
+                      class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                    >
+                      <IconRefresh class="h-3.5 w-3.5" />
+                    </span>
+                    <span
+                      v-else-if="entry.type === 'decrement_failed'"
+                      class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                    >
+                      <IconTrash class="h-3.5 w-3.5" />
+                    </span>
+                  </div>
+
+                  <!-- Content -->
+                  <div class="min-w-0 flex-1">
+                    <!-- Sale -->
+                    <template v-if="entry.type === 'sale'">
+                      <p class="text-sm font-medium">{{ t('machineDetail.stockHistorySale') }}</p>
+                      <p class="text-xs text-muted-foreground">
+                        {{ formatCurrency(entry.item_price ?? 0, locale) }}
+                        &middot; {{ entry.channel === 'cash' ? t('machineDetail.channelCash') : entry.channel === 'card' ? t('machineDetail.channelCard') : t('machineDetail.channelCashless') }}
+                      </p>
+                    </template>
+
+                    <!-- Manual change -->
+                    <template v-else-if="entry.type === 'manual_change'">
+                      <p class="text-sm font-medium">
+                        <template v-if="entry.action === 'stock_refill_all'">{{ t('machineDetail.stockHistoryRefillAll') }}</template>
+                        <template v-else-if="entry.source === 'refill_wizard'">{{ t('activity.sourceRefill') }}</template>
+                        <template v-else-if="entry.source === 'refill_full'">{{ t('activity.sourceRefillFull') }}</template>
+                        <template v-else>{{ t('machineDetail.stockHistoryManual') }}</template>
+                      </p>
+                      <p v-if="entry.old_stock != null && entry.new_stock != null" class="text-xs">
+                        <span
+                          class="inline-flex items-center gap-0.5 font-medium"
+                          :class="{
+                            'text-emerald-700 dark:text-emerald-400': entry.new_stock > entry.old_stock,
+                            'text-red-700 dark:text-red-400': entry.new_stock < entry.old_stock,
+                            'text-muted-foreground': entry.new_stock === entry.old_stock,
+                          }"
+                        >
+                          {{ entry.old_stock }}
+                          <span v-if="entry.new_stock > entry.old_stock">&uarr;</span>
+                          <span v-else-if="entry.new_stock < entry.old_stock">&darr;</span>
+                          <span v-else>&rarr;</span>
+                          {{ entry.new_stock }}
+                          <span class="ml-0.5 text-[10px] opacity-75">({{ entry.new_stock > entry.old_stock ? '+' : '' }}{{ entry.new_stock - entry.old_stock }})</span>
+                        </span>
+                        <span v-if="entry.user_display" class="text-muted-foreground"> &middot; {{ entry.user_display }}</span>
+                      </p>
+                      <p v-else-if="entry.user_display" class="text-xs text-muted-foreground">
+                        {{ entry.user_display }}
+                      </p>
+                    </template>
+
+                    <!-- Decrement failed -->
+                    <template v-else-if="entry.type === 'decrement_failed'">
+                      <p class="text-sm font-medium text-red-600 dark:text-red-400">{{ t('machineDetail.stockHistoryDecrementFailed') }}</p>
+                      <p class="text-xs text-muted-foreground">
+                        {{ entry.reason === 'no_machine_for_device' ? t('machineDetail.stockHistoryNoMachine') : t('machineDetail.stockHistoryNoTray') }}
+                        <span v-if="entry.item_price"> &middot; {{ formatCurrency(entry.item_price, locale) }}</span>
+                      </p>
+                    </template>
+                  </div>
+
+                  <!-- Timestamp (time with seconds) -->
+                  <span class="shrink-0 text-xs tabular-nums text-muted-foreground">
+                    {{ formatTime(entry.created_at, locale) }}
                   </span>
                 </div>
-
-                <!-- Content -->
-                <div class="min-w-0 flex-1">
-                  <!-- Sale -->
-                  <template v-if="entry.type === 'sale'">
-                    <p class="text-sm font-medium">{{ t('machineDetail.stockHistorySale') }}</p>
-                    <p class="text-xs text-muted-foreground">
-                      {{ formatCurrency(entry.item_price ?? 0, locale) }}
-                      &middot; {{ entry.channel === 'cash' ? t('machineDetail.channelCash') : entry.channel === 'card' ? t('machineDetail.channelCard') : t('machineDetail.channelCashless') }}
-                    </p>
-                  </template>
-
-                  <!-- Manual change -->
-                  <template v-else-if="entry.type === 'manual_change'">
-                    <p class="text-sm font-medium">
-                      {{ entry.action === 'stock_refill_all' ? t('machineDetail.stockHistoryRefillAll') : t('machineDetail.stockHistoryManual') }}
-                    </p>
-                    <p class="text-xs text-muted-foreground">
-                      <span v-if="entry.old_stock != null && entry.new_stock != null">
-                        {{ entry.old_stock }} &rarr; {{ entry.new_stock }}
-                      </span>
-                      <span v-if="entry.user_display"> &middot; {{ entry.user_display }}</span>
-                    </p>
-                  </template>
-
-                  <!-- Decrement failed -->
-                  <template v-else-if="entry.type === 'decrement_failed'">
-                    <p class="text-sm font-medium text-red-600 dark:text-red-400">{{ t('machineDetail.stockHistoryDecrementFailed') }}</p>
-                    <p class="text-xs text-muted-foreground">
-                      {{ entry.reason === 'no_machine_for_device' ? t('machineDetail.stockHistoryNoMachine') : t('machineDetail.stockHistoryNoTray') }}
-                      <span v-if="entry.item_price"> &middot; {{ formatCurrency(entry.item_price, locale) }}</span>
-                    </p>
-                  </template>
-                </div>
-
-                <!-- Timestamp -->
-                <span class="shrink-0 text-xs text-muted-foreground">
-                  {{ timeAgo(entry.created_at, t) }}
-                </span>
               </div>
             </template>
           </div>

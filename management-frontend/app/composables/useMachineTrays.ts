@@ -29,6 +29,7 @@ export function useMachineTrays() {
   // fetchTrays/realtime overwriting optimistic values during rapid clicks.
   const pendingStockTimers = new Map<string, ReturnType<typeof setTimeout>>()
   const pendingStockTrays = reactive(new Set<string>())
+  const pendingStockOriginal = new Map<string, number>() // original stock before first click in debounce sequence
 
   async function getMachineName(machineId: string): Promise<string | null> {
     if (machineNameCache.has(machineId)) return machineNameCache.get(machineId) ?? null
@@ -181,6 +182,11 @@ export function useMachineTrays() {
     const newVal = Math.max(0, Math.min(tray.capacity, tray.current_stock + delta))
     if (newVal === tray.current_stock) return
 
+    // Capture the original stock before the first click in a debounce sequence
+    if (!pendingStockOriginal.has(trayId)) {
+      pendingStockOriginal.set(trayId, tray.current_stock)
+    }
+
     tray.current_stock = newVal // optimistic
     pendingStockTrays.add(trayId)
 
@@ -191,10 +197,37 @@ export function useMachineTrays() {
     // Debounce: wait 400ms of inactivity before sending to DB
     const timer = setTimeout(async () => {
       pendingStockTimers.delete(trayId)
+      const oldStock = pendingStockOriginal.get(trayId) ?? tray.current_stock
+      pendingStockOriginal.delete(trayId)
+      const finalStock = tray.current_stock
+
+      // Skip if debounce sequence ended at the same value it started
+      if (finalStock === oldStock) {
+        pendingStockTrays.delete(trayId)
+        return
+      }
+
       try {
-        await updateTray(trayId, machineId, { current_stock: tray.current_stock })
+        const { error } = await (supabase as any)
+          .from('machine_trays')
+          .update({ current_stock: finalStock })
+          .eq('id', trayId)
+        if (error) throw error
+        await fetchTrays(machineId, { silent: true })
+
+        const machineName = await getMachineName(machineId)
+        await logActivity('stock_updated', trayId, {
+          machine_id: machineId,
+          machine_name: machineName,
+          item_number: tray.item_number ?? null,
+          product_name: tray.product_name ?? null,
+          old_stock: oldStock,
+          new_stock: finalStock,
+          capacity: tray.capacity ?? null,
+          source: 'manual',
+        })
       } catch {
-        // fetchTrays inside updateTray will correct the value
+        await fetchTrays(machineId, { silent: true })
       } finally {
         pendingStockTrays.delete(trayId)
       }

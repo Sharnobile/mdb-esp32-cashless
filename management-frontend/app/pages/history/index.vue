@@ -1,11 +1,11 @@
 <script setup lang="ts">
 definePageMeta({ middleware: 'auth' })
 
-import { timeAgo, formatDateTime } from '@/lib/utils'
+import { timeAgo, formatDate, formatTime, formatDateTime } from '@/lib/utils'
 import { useActivityLog } from '@/composables/useActivityLog'
 import { Badge } from '@/components/ui/badge'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 const {
   logs,
@@ -14,6 +14,7 @@ const {
   entityTypeFilter,
   dateFrom,
   dateTo,
+  searchQuery,
   fetchLogs,
   fetchMore,
   subscribe,
@@ -49,6 +50,33 @@ function entityTypeLabel(type: string) {
   return found?.label ?? type
 }
 
+// Group logs by date for section headers
+const groupedLogs = computed(() => {
+  const groups: { date: string; label: string; entries: typeof logs.value }[] = []
+  let currentDate = ''
+  for (const entry of logs.value) {
+    const day = new Date(entry.created_at).toISOString().slice(0, 10)
+    if (day !== currentDate) {
+      currentDate = day
+      const d = new Date(entry.created_at)
+      const today = new Date()
+      const yesterday = new Date()
+      yesterday.setDate(yesterday.getDate() - 1)
+      let label: string
+      if (d.toDateString() === today.toDateString()) {
+        label = t('history.today')
+      } else if (d.toDateString() === yesterday.toDateString()) {
+        label = t('history.yesterday')
+      } else {
+        label = formatDate(entry.created_at, locale.value)
+      }
+      groups.push({ date: day, label, entries: [] })
+    }
+    groups[groups.length - 1].entries.push(entry)
+  }
+  return groups
+})
+
 type ChipVariant = 'default' | 'increase' | 'decrease' | 'neutral'
 
 function stockChangeChip(label: string, oldVal: number, newVal: number): { label: string; value: string; variant: ChipVariant } {
@@ -82,17 +110,17 @@ function metadataChips(entry: { action: string; metadata: Record<string, unknown
     if (m.item_number != null) chips.push({ label: 'Slot', value: `#${m.item_number}` })
     // Source label (manual, refill, etc.)
     if (m.source === 'refill_wizard') {
-      chips.push({ label: t('history.source'), value: t('history.sourceRefill'), variant: 'increase' })
+      chips.push({ label: t('activity.source'), value: t('activity.sourceRefill'), variant: 'increase' })
     } else if (m.source === 'manual') {
-      chips.push({ label: t('history.source'), value: t('history.sourceManual'), variant: 'neutral' })
+      chips.push({ label: t('activity.source'), value: t('activity.sourceManual'), variant: 'neutral' })
     } else if (m.source === 'refill_full') {
-      chips.push({ label: t('history.source'), value: t('history.sourceRefillFull'), variant: 'increase' })
+      chips.push({ label: t('activity.source'), value: t('activity.sourceRefillFull'), variant: 'increase' })
     }
     // Stock change with colored arrow + delta
     if (m.old_stock != null && m.new_stock != null) {
-      chips.push(stockChangeChip(t('history.stockLabel'), Number(m.old_stock), Number(m.new_stock)))
+      chips.push(stockChangeChip(t('activity.stockLabel'), Number(m.old_stock), Number(m.new_stock)))
     } else if (m.new_stock != null) {
-      chips.push({ label: t('history.stockLabel'), value: String(m.new_stock) })
+      chips.push({ label: t('activity.stockLabel'), value: String(m.new_stock) })
     }
     // Min stock change
     if (m.old_min_stock != null && m.new_min_stock != null) {
@@ -112,7 +140,7 @@ function metadataChips(entry: { action: string; metadata: Record<string, unknown
     if (m.machine_name) chips.push({ label: 'Machine', value: String(m.machine_name) })
     const trays = m.trays_refilled as any[]
     if (trays?.length) {
-      chips.push({ label: 'Trays', value: `${trays.length} ${t('history.refilled')}` })
+      chips.push({ label: 'Trays', value: `${trays.length} ${t('activity.refilled')}` })
       for (const tr of trays) {
         const name = tr.product_name ? `${tr.product_name}` : `Slot #${tr.item_number}`
         chips.push(stockChangeChip(name, Number(tr.old_stock), Number(tr.new_stock)))
@@ -142,6 +170,12 @@ function metadataChips(entry: { action: string; metadata: Record<string, unknown
 
     <!-- Filters -->
     <div class="flex flex-wrap gap-3">
+      <input
+        v-model="searchQuery"
+        type="text"
+        :placeholder="t('history.searchPlaceholder')"
+        class="h-9 w-full sm:w-56 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+      />
       <select
         v-model="entityTypeFilter"
         class="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
@@ -165,9 +199,9 @@ function metadataChips(entry: { action: string; metadata: Record<string, unknown
       />
 
       <button
-        v-if="entityTypeFilter || dateFrom || dateTo"
+        v-if="entityTypeFilter || dateFrom || dateTo || searchQuery"
         class="h-9 rounded-md border border-input px-3 py-1 text-sm text-muted-foreground hover:bg-muted"
-        @click="entityTypeFilter = ''; dateFrom = ''; dateTo = ''"
+        @click="entityTypeFilter = ''; dateFrom = ''; dateTo = ''; searchQuery = ''"
       >
         {{ t('history.clearFilters') }}
       </button>
@@ -192,39 +226,32 @@ function metadataChips(entry: { action: string; metadata: Record<string, unknown
       <p class="text-sm">{{ t('history.eventsWillAppear') }}</p>
     </div>
 
-    <!-- Log table -->
-    <div v-else class="overflow-x-auto rounded-lg border">
-      <table class="w-full text-sm">
-        <thead>
-          <tr class="border-b bg-muted/50">
-            <th class="px-4 py-3 text-left font-medium text-muted-foreground">{{ t('history.timeCol') }}</th>
-            <th class="px-4 py-3 text-left font-medium text-muted-foreground">{{ t('history.typeCol') }}</th>
-            <th class="px-4 py-3 text-left font-medium text-muted-foreground">{{ t('history.actionCol') }}</th>
-            <th class="hidden sm:table-cell px-4 py-3 text-left font-medium text-muted-foreground">{{ t('history.detailsCol') }}</th>
-            <th class="hidden sm:table-cell px-4 py-3 text-left font-medium text-muted-foreground">{{ t('history.userCol') }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr
-            v-for="entry in logs"
-            :key="entry.id"
-            class="border-b transition-colors last:border-0 hover:bg-muted/30"
-          >
-            <td class="whitespace-nowrap px-4 py-3 text-muted-foreground">
-              <span :title="formatDateTime(entry.created_at)">
-                {{ timeAgo(entry.created_at, t) }}
-              </span>
-            </td>
-            <td class="px-4 py-3">
-              <Badge :variant="entityTypeVariant(entry.entity_type)" class="capitalize">
-                {{ entry.entity_type }}
-              </Badge>
-            </td>
-            <td class="px-4 py-3 font-medium">
-              {{ actionLabel(entry.action) }}
-            </td>
-            <td class="hidden sm:table-cell px-4 py-3">
-              <div class="flex flex-wrap gap-1.5">
+    <!-- Log list (mobile: cards, desktop: table) -->
+    <template v-else>
+      <!-- ── Mobile card list (grouped by date) ── -->
+      <div class="flex flex-col gap-4 sm:hidden">
+        <div v-for="group in groupedLogs" :key="group.date">
+          <h3 class="sticky top-0 z-10 mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground bg-background py-1">
+            {{ group.label }}
+          </h3>
+          <div class="flex flex-col gap-2">
+            <div
+              v-for="entry in group.entries"
+              :key="entry.id"
+              class="rounded-lg border bg-card p-3 space-y-2"
+            >
+              <!-- Row 1: badge + action + time -->
+              <div class="flex items-center gap-2">
+                <Badge :variant="entityTypeVariant(entry.entity_type)" class="capitalize shrink-0">
+                  {{ entry.entity_type }}
+                </Badge>
+                <span class="font-medium text-sm truncate">{{ actionLabel(entry.action) }}</span>
+                <span class="ml-auto shrink-0 text-xs tabular-nums text-muted-foreground" :title="formatDateTime(entry.created_at, locale)">
+                  {{ formatTime(entry.created_at, locale) }}
+                </span>
+              </div>
+              <!-- Row 2: chips -->
+              <div v-if="metadataChips(entry).length > 0" class="flex flex-wrap gap-1.5">
                 <span
                   v-for="chip in metadataChips(entry)"
                   :key="chip.label"
@@ -243,21 +270,89 @@ function metadataChips(entry: { action: string; metadata: Record<string, unknown
                     }"
                   >{{ chip.value }}</span>
                 </span>
-                <span v-if="metadataChips(entry).length === 0" class="text-muted-foreground">—</span>
               </div>
-            </td>
-            <td class="hidden sm:table-cell px-4 py-3">
-              <span
-                :class="entry.user_id ? 'text-foreground' : 'italic text-muted-foreground'"
-                class="text-sm"
-              >
+              <!-- Row 3: user -->
+              <div v-if="entry.user_display" class="text-xs text-muted-foreground">
                 {{ entry.user_display }}
-              </span>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Desktop table (grouped by date) ── -->
+      <div class="hidden sm:block overflow-x-auto rounded-lg border">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="border-b bg-muted/50">
+              <th class="px-4 py-3 text-left font-medium text-muted-foreground">{{ t('history.timeCol') }}</th>
+              <th class="px-4 py-3 text-left font-medium text-muted-foreground">{{ t('history.typeCol') }}</th>
+              <th class="px-4 py-3 text-left font-medium text-muted-foreground">{{ t('history.actionCol') }}</th>
+              <th class="px-4 py-3 text-left font-medium text-muted-foreground">{{ t('history.detailsCol') }}</th>
+              <th class="px-4 py-3 text-left font-medium text-muted-foreground">{{ t('history.userCol') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <template v-for="group in groupedLogs" :key="group.date">
+              <!-- Date group header -->
+              <tr class="bg-muted/30">
+                <td colspan="5" class="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  {{ group.label }}
+                </td>
+              </tr>
+              <tr
+                v-for="entry in group.entries"
+                :key="entry.id"
+                class="border-b transition-colors last:border-0 hover:bg-muted/30"
+              >
+                <td class="whitespace-nowrap px-4 py-3 tabular-nums text-muted-foreground">
+                  {{ formatTime(entry.created_at, locale) }}
+                </td>
+                <td class="px-4 py-3">
+                  <Badge :variant="entityTypeVariant(entry.entity_type)" class="capitalize">
+                    {{ entry.entity_type }}
+                  </Badge>
+                </td>
+                <td class="px-4 py-3 font-medium">
+                  {{ actionLabel(entry.action) }}
+                </td>
+                <td class="px-4 py-3">
+                  <div class="flex flex-wrap gap-1.5">
+                    <span
+                      v-for="chip in metadataChips(entry)"
+                      :key="chip.label"
+                      class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs"
+                      :class="{
+                        'border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950': chip.variant === 'increase',
+                        'border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950': chip.variant === 'decrease',
+                      }"
+                    >
+                      <span class="text-muted-foreground">{{ chip.label }}</span>
+                      <span
+                        class="font-medium"
+                        :class="{
+                          'text-emerald-700 dark:text-emerald-400': chip.variant === 'increase',
+                          'text-red-700 dark:text-red-400': chip.variant === 'decrease',
+                        }"
+                      >{{ chip.value }}</span>
+                    </span>
+                    <span v-if="metadataChips(entry).length === 0" class="text-muted-foreground">—</span>
+                  </div>
+                </td>
+                <td class="px-4 py-3">
+                  <span
+                    :class="entry.user_id ? 'text-foreground' : 'italic text-muted-foreground'"
+                    class="text-sm"
+                  >
+                    {{ entry.user_display }}
+                  </span>
+                </td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+    </template>
 
     <!-- Load more -->
     <div v-if="hasMore && logs.length > 0" class="flex justify-center">

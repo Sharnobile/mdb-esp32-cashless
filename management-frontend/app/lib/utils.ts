@@ -46,6 +46,15 @@ export function formatDate(dt: string | null | undefined, locale?: string): stri
   })
 }
 
+export function formatTime(dt: string | null | undefined, locale?: string): string {
+  if (!dt) return '\u2014'
+  return new Date(dt).toLocaleTimeString(locale, {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  })
+}
+
 export function formatDateTime(dt: string | null | undefined, locale?: string): string {
   if (!dt) return '\u2014'
   return new Date(dt).toLocaleString(locale, {
