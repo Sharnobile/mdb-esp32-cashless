@@ -1241,9 +1241,16 @@ async function handleAddSale() {
                 <div v-if="sortedTrays.length === 0" class="text-sm text-muted-foreground">{{ t('common.noResults') }}</div>
                 <!-- ── Mobile card layout ── -->
                 <div class="space-y-3 md:hidden">
-                  <div
+                  <SwipeRight
                     v-for="tray in sortedTrays"
                     :key="'m-' + tray.id"
+                    :label="t('machineDetail.stockHistory')"
+                    @action="openStockHistory(tray)"
+                  >
+                    <template #icon>
+                      <IconHistory class="size-5" />
+                    </template>
+                  <div
                     class="rounded-lg border p-3 transition-colors"
                     :class="[
                       isLowStock(tray) ? 'border-amber-300 bg-amber-50/60 dark:border-amber-700 dark:bg-amber-950/20'
@@ -1331,25 +1338,18 @@ async function handleAddSale() {
                           <span v-if="tray.product_discontinued" class="rounded bg-gray-200 px-1 py-px text-[9px] font-medium text-gray-500 dark:bg-gray-700 dark:text-gray-400">{{ t('warehouse.discontinuedBadge') }}</span>
                         </div>
                       </div>
-                      <!-- Actions: Full + History on mobile -->
-                      <div v-if="isAdmin" class="flex items-center gap-1 shrink-0">
-                        <button
-                          class="inline-flex h-8 shrink-0 items-center rounded-md px-3 text-xs font-medium transition-colors"
-                          :class="tray.current_stock < tray.capacity
-                            ? 'bg-primary/10 text-primary hover:bg-primary/20'
-                            : 'text-muted-foreground cursor-default opacity-50'"
-                          :disabled="tray.current_stock >= tray.capacity"
-                          @click="handleRefillFull(tray.id)"
-                        >
-                          {{ t('machineDetail.full') }}
-                        </button>
-                        <button
-                          class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                          @click="openStockHistory(tray)"
-                        >
-                          <IconHistory class="h-4 w-4" />
-                        </button>
-                      </div>
+                      <!-- Actions: Full on mobile (History via swipe right) -->
+                      <button
+                        v-if="isAdmin"
+                        class="inline-flex h-8 shrink-0 items-center rounded-md px-3 text-xs font-medium transition-colors"
+                        :class="tray.current_stock < tray.capacity
+                          ? 'bg-primary/10 text-primary hover:bg-primary/20'
+                          : 'text-muted-foreground cursor-default opacity-50'"
+                        :disabled="tray.current_stock >= tray.capacity"
+                        @click="handleRefillFull(tray.id)"
+                      >
+                        {{ t('machineDetail.full') }}
+                      </button>
                     </div>
                     <!-- Row 2: level bar -->
                     <div class="relative mt-2 h-2 w-full rounded-full bg-muted">
@@ -1457,6 +1457,7 @@ async function handleAddSale() {
                       </label>
                     </div>
                   </div>
+                  </SwipeRight>
                 </div>
 
                 <!-- ── Desktop table layout ── -->
