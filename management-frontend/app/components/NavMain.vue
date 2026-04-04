@@ -4,6 +4,7 @@ import type { Component } from "vue"
 import {
   SidebarGroup,
   SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -16,8 +17,13 @@ interface NavItem {
   icon?: Component
 }
 
-defineProps<{
+export interface NavGroup {
+  label?: string
   items: NavItem[]
+}
+
+defineProps<{
+  groups: NavGroup[]
 }>()
 
 const { isMobile, setOpenMobile } = useSidebar()
@@ -30,10 +36,11 @@ function handleNavClick() {
 </script>
 
 <template>
-  <SidebarGroup>
-    <SidebarGroupContent class="flex flex-col gap-2">
+  <SidebarGroup v-for="(group, index) in groups" :key="index">
+    <SidebarGroupLabel v-if="group.label">{{ group.label }}</SidebarGroupLabel>
+    <SidebarGroupContent>
       <SidebarMenu>
-        <SidebarMenuItem v-for="item in items" :key="item.title">
+        <SidebarMenuItem v-for="item in group.items" :key="item.title">
           <SidebarMenuButton as-child :tooltip="item.title">
             <NuxtLink :to="item.url" @click="handleNavClick">
               <component :is="item.icon" v-if="item.icon" />

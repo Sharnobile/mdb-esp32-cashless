@@ -29,61 +29,78 @@ import {
 const { t } = useI18n()
 const { organization, role } = useOrganization()
 
-const navMain = computed(() => {
-  const items = [
+const navGroups = computed(() => {
+  const groups = [
     {
-      title: t('nav.dashboard'),
-      url: "/",
-      icon: IconDashboard,
+      items: [
+        {
+          title: t('nav.dashboard'),
+          url: "/",
+          icon: IconDashboard,
+        },
+      ],
     },
     {
-      title: t('nav.machines'),
-      url: "/machines",
-      icon: IconDevices,
+      label: t('nav.groupOperations'),
+      items: [
+        {
+          title: t('nav.machines'),
+          url: "/machines",
+          icon: IconDevices,
+        },
+        {
+          title: t('nav.products'),
+          url: "/products",
+          icon: IconPackage,
+        },
+        {
+          title: t('nav.warehouse'),
+          url: "/warehouse",
+          icon: IconBuildingWarehouse,
+        },
+      ],
     },
     {
-      title: t('nav.products'),
-      url: "/products",
-      icon: IconPackage,
-    },
-    {
-      title: t('nav.warehouse'),
-      url: "/warehouse",
-      icon: IconBuildingWarehouse,
-    },
-    {
-      title: t('nav.members'),
-      url: "/members",
-      icon: IconUsers,
-    },
-    {
-      title: t('nav.history'),
-      url: "/history",
-      icon: IconHistory,
+      label: t('nav.groupTeam'),
+      items: [
+        {
+          title: t('nav.members'),
+          url: "/members",
+          icon: IconUsers,
+        },
+        {
+          title: t('nav.history'),
+          url: "/history",
+          icon: IconHistory,
+        },
+      ],
     },
   ]
 
   if (role.value === 'admin') {
-    items.push(
-      {
-        title: t('nav.devices'),
-        url: "/devices",
-        icon: IconCpu,
-      },
-      {
-        title: t('nav.apiKeys'),
-        url: "/api-keys",
-        icon: IconKey,
-      },
-      {
-        title: t('nav.firmware'),
-        url: "/firmware",
-        icon: IconCloudUpload,
-      },
-    )
+    groups.push({
+      label: t('nav.groupTechnical'),
+      items: [
+        {
+          title: t('nav.devices'),
+          url: "/devices",
+          icon: IconCpu,
+        },
+        {
+          title: t('nav.firmware'),
+          url: "/firmware",
+          icon: IconCloudUpload,
+        },
+        {
+          title: t('nav.apiKeys'),
+          url: "/api-keys",
+          icon: IconKey,
+        },
+      ],
+    })
   }
 
-  return items
+  return groups
 })
 
 const navSecondary = computed(() => [
@@ -113,7 +130,7 @@ const navSecondary = computed(() => [
       </SidebarMenu>
     </SidebarHeader>
     <SidebarContent>
-      <NavMain :items="navMain" />
+      <NavMain :groups="navGroups" />
       <NavSecondary :items="navSecondary" class="mt-auto" />
     </SidebarContent>
     <SidebarFooter>
