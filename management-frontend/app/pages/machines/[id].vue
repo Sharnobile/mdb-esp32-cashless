@@ -3,7 +3,7 @@ definePageMeta({ middleware: 'auth' })
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { VisArea, VisAxis, VisLine, VisXYContainer } from '@unovis/vue'
+import { VisAxis, VisStackedBar, VisXYContainer } from '@unovis/vue'
 import { IconCreditCard, IconCoins, IconSend, IconSparkles, IconLoader2, IconRefresh, IconTrash, IconPlus, IconHistory, IconArrowUp, IconArrowDown } from '@tabler/icons-vue'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Badge } from '@/components/ui/badge'
@@ -216,7 +216,9 @@ onMounted(async () => {
         },
         (payload) => {
           const newSale = payload.new as Record<string, any>
-          sales.value.unshift(newSale)
+          if (sales.value.some(s => s.id === newSale.id)) return
+          sales.value.push(newSale)
+          sales.value.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
         }
       )
       .on(
@@ -1194,8 +1196,7 @@ async function handleAddSale() {
               <div v-if="salesChartData.length > 0" class="rounded-xl border bg-card p-4 sm:p-6">
                 <h2 class="mb-4 text-sm font-medium">{{ t('machineDetail.dailyRevenue') }}</h2>
                 <VisXYContainer :data="salesChartData" class="h-48 w-full">
-                  <VisArea :x="(d: ChartPoint) => d.date" :y="(d: ChartPoint) => d.total" color="var(--primary)" :opacity="0.3" />
-                  <VisLine :x="(d: ChartPoint) => d.date" :y="(d: ChartPoint) => d.total" color="var(--primary)" :line-width="2" />
+                  <VisStackedBar :x="(d: ChartPoint) => d.date" :y="[(d: ChartPoint) => d.total]" color="var(--primary)" :bar-padding="0.2" :rounded-corners="4" />
                   <VisAxis
                     type="x"
                     :x="(d: ChartPoint) => d.date"
