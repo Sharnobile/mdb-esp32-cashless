@@ -130,7 +130,12 @@
     "companyInsights": "Flotten-KI-Analyse",
     "companyInsightsGenerate": "Analysieren",
     "companyInsightsLoading": "Flottendaten werden analysiert...",
-    "companyInsightsEmpty": "Noch keine Flottenanalyse vorhanden. Klicke unten um eine Analyse über alle Automaten zu erstellen."
+    "companyInsightsEmpty": "Noch keine Flottenanalyse vorhanden. Klicke unten um eine Analyse über alle Automaten zu erstellen.",
+    "salesLast7Days": "Verkäufe letzte 7 Tage",
+    "dailyRevenueOverview": "Tägliche Umsatzübersicht",
+    "topProducts": "Top-Produkte (30 Tage)",
+    "topProductsDesc": "Meistverkaufte Artikel",
+    "nSales": "{count} Verkauf | {count} Verkäufe"
   },
   "machines": {
     "title": "Verkaufsautomaten",
@@ -564,6 +569,8 @@
     "discontinuedBadge": "Auslaufartikel",
     "hideDiscontinued": "Auslaufartikel ausblenden",
     "showDiscontinued": "Auslaufartikel anzeigen",
+    "notAssignedBadge": "Nicht zugewiesen",
+    "showUnassigned": "Nicht zugewiesene anzeigen",
     "outOfStock": "Nicht vorrätig",
     "outOfStockCount": "Nicht vorrätig",
     "reorderNeeded": "Nachbestellung nötig",

@@ -130,7 +130,12 @@
     "companyInsights": "Fleet AI Insights",
     "companyInsightsGenerate": "Analyze",
     "companyInsightsLoading": "Analyzing fleet data...",
-    "companyInsightsEmpty": "No fleet analysis yet. Click below to generate insights across all your machines."
+    "companyInsightsEmpty": "No fleet analysis yet. Click below to generate insights across all your machines.",
+    "salesLast7Days": "Sales Last 7 Days",
+    "dailyRevenueOverview": "Daily revenue overview",
+    "topProducts": "Top Products (30 Days)",
+    "topProductsDesc": "Best-selling products",
+    "nSales": "{count} sale | {count} sales"
   },
   "machines": {
     "title": "Vending Machines",
@@ -564,6 +569,8 @@
     "discontinuedBadge": "Discontinued",
     "hideDiscontinued": "Hide discontinued",
     "showDiscontinued": "Show discontinued",
+    "notAssignedBadge": "Not assigned",
+    "showUnassigned": "Show unassigned",
     "outOfStock": "Out of stock",
     "outOfStockCount": "Out of stock",
     "reorderNeeded": "Reorder needed",

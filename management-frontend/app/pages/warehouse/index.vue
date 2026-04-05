@@ -109,12 +109,14 @@ async function loadWarehouseData() {
 // ── KPIs ────────────────────────────────────────────────────────────────────
 
 const showDiscontinued = ref(true)
+const showUnassigned = ref(true)
 
-const activeProductSummaries = computed(() =>
-  showDiscontinued.value
-    ? productSummaries.value
-    : productSummaries.value.filter(p => !p.discontinued)
-)
+const activeProductSummaries = computed(() => {
+  let items = productSummaries.value
+  if (!showDiscontinued.value) items = items.filter(p => !p.discontinued)
+  if (!showUnassigned.value) items = items.filter(p => assignedProductIds.value.has(p.product_id))
+  return items
+})
 
 const totalProducts = computed(() => productSummaries.value.filter(p => !p.discontinued).length)
 const totalUnits = computed(() => productSummaries.value.filter(p => !p.discontinued).reduce((s, p) => s + p.total_quantity, 0))
@@ -150,6 +152,12 @@ async function fetchMachineStockValue() {
 const machineStockValue = computed(() =>
   machineTrays.value.reduce((sum, t) => sum + t.current_stock * t.sellprice, 0)
 )
+
+const assignedProductIds = computed(() => new Set(machineTrays.value.map(t => t.product_id)))
+
+function isAssignedToMachine(productId: string): boolean {
+  return assignedProductIds.value.has(productId)
+}
 
 // ── Stock tab state ─────────────────────────────────────────────────────────
 
@@ -195,12 +203,13 @@ const filteredSummaries = computed(() => {
  * Compute a numeric severity score for a product summary.
  * Lower = more urgent. Used for status column sorting.
  *
- *  0 — out of stock (active product, quantity 0)
- *  1 — below min stock
- *  2 — MHD critical (< 7 days)
- *  3 — MHD warning (7–30 days)
- *  4 — OK (everything fine)
- *  5 — discontinued (always last)
+ *  0   — out of stock (active product, quantity 0)
+ *  1   — below min stock
+ *  2   — MHD critical (< 7 days)
+ *  3   — MHD warning (7–30 days)
+ *  4   — OK (everything fine)
+ *  4.5 — not assigned to any machine (active but irrelevant)
+ *  5   — discontinued (always last)
  */
 function statusSeverity(p: WarehouseProductSummary): number {
   if (p.discontinued) return 5
@@ -208,6 +217,7 @@ function statusSeverity(p: WarehouseProductSummary): number {
   if (p.is_below_min) return 1
   if (p.expiration_status === 'critical') return 2
   if (p.expiration_status === 'warning') return 3
+  if (!isAssignedToMachine(p.product_id)) return 4.5
   return 4
 }
 
@@ -1159,7 +1169,11 @@ async function onVelocityDaysChange(e: Event) {
           </div>
 
           <!-- Discontinued filter toggle -->
-          <div class="flex items-center justify-end">
+          <div class="flex items-center justify-end gap-4">
+            <label class="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
+              <input type="checkbox" v-model="showUnassigned" class="rounded border-input" />
+              {{ t('warehouse.showUnassigned') }}
+            </label>
             <label class="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
               <input type="checkbox" v-model="showDiscontinued" class="rounded border-input" />
               {{ t('warehouse.showDiscontinued') }}
@@ -1220,7 +1234,7 @@ async function onVelocityDaysChange(e: Event) {
                   v-for="p in sortedProductSummaries"
                   :key="p.product_id"
                   class="border-b last:border-0 hover:bg-muted/30 transition-colors"
-                  :class="{ 'opacity-50': p.discontinued }"
+                  :class="{ 'opacity-50': p.discontinued, 'opacity-70': !p.discontinued && !isAssignedToMachine(p.product_id) }"
                 >
                   <td class="px-4 py-3">
                     <div class="flex items-center gap-2">
@@ -1239,6 +1253,12 @@ async function onVelocityDaysChange(e: Event) {
                         class="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400"
                       >
                         {{ t('warehouse.discontinuedBadge') }}
+                      </span>
+                      <span
+                        v-if="!p.discontinued && !isAssignedToMachine(p.product_id)"
+                        class="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-600 dark:bg-blue-950/30 dark:text-blue-400"
+                      >
+                        {{ t('warehouse.notAssignedBadge') }}
                       </span>
                     </div>
                   </td>
@@ -1312,6 +1332,10 @@ async function onVelocityDaysChange(e: Event) {
                 <option value="critical">{{ t('warehouse.criticalFilter') }}</option>
               </select>
               <label class="flex items-center gap-1.5 text-sm text-muted-foreground cursor-pointer select-none">
+                <input type="checkbox" v-model="showUnassigned" class="rounded border-input" />
+                {{ t('warehouse.showUnassigned') }}
+              </label>
+              <label class="flex items-center gap-1.5 text-sm text-muted-foreground cursor-pointer select-none">
                 <input type="checkbox" v-model="showDiscontinued" class="rounded border-input" />
                 {{ t('warehouse.showDiscontinued') }}
               </label>
@@ -1374,7 +1398,7 @@ async function onVelocityDaysChange(e: Event) {
                   <!-- Product row -->
                   <tr
                     class="border-b cursor-pointer hover:bg-muted/30 transition-colors"
-                    :class="{ 'opacity-50': p.discontinued }"
+                    :class="{ 'opacity-50': p.discontinued, 'opacity-70': !p.discontinued && !isAssignedToMachine(p.product_id) }"
                     @click="p.batch_count > 0 ? toggleExpand(p.product_id) : undefined"
                   >
                     <td class="px-2 py-3 text-center">
@@ -1399,6 +1423,12 @@ async function onVelocityDaysChange(e: Event) {
                           <span class="font-medium" :class="{ 'line-through': p.discontinued }">{{ p.product_name }}</span>
                           <span v-if="p.discontinued" class="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400">
                             {{ t('warehouse.discontinuedBadge') }}
+                          </span>
+                          <span
+                            v-if="!p.discontinued && !isAssignedToMachine(p.product_id)"
+                            class="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-600 dark:bg-blue-950/30 dark:text-blue-400"
+                          >
+                            {{ t('warehouse.notAssignedBadge') }}
                           </span>
                           <span v-if="p.batch_count > 0" class="text-xs text-muted-foreground">{{ t('warehouse.batchCount', { count: p.batch_count }, p.batch_count) }}</span>
                         </div>
