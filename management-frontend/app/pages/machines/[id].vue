@@ -23,6 +23,8 @@ const defaultTab = computed(() => {
 const supabase = useSupabaseClient()
 const { role } = useOrganization()
 const { products, categories, fetchProducts } = useProducts()
+const { companyCountry, fetchCompanyCountry } = useTaxSettings()
+const { COUNTRY_OPTIONS } = await import('~/composables/useTaxSettings')
 const { trays, loading: traysLoading, fetchTrays, upsertTray, updateTray, batchCreateTrays, refillToFull, refillAll, adjustStock: adjustStockDebounced, deleteTray, subscribeToTrayUpdates } = useMachineTrays()
 const { fetchUnassignedEmbeddeds, swapDevice } = useMachines()
 const { logs: mdbLogs, loading: mdbLogsLoading, hasMore: mdbHasMore, fetchLogs: fetchMdbLogs, fetchMore: fetchMoreMdbLogs, subscribe: subscribeMdbLog, stateLabel, stateVariant } = useMdbLog()
@@ -165,7 +167,7 @@ onResume(async () => {
   const id = route.params.id as string
   const [machineRes] = await Promise.all([
     supabase.from('vendingMachine')
-      .select('id, name, location_lat, location_lon, embedded, embeddeds(id, status, status_at, subdomain, mac_address, firmware_version, firmware_build_date, mdb_address, mdb_diagnostics, last_restart_reason, last_restart_at, online_since)')
+      .select('id, name, location_lat, location_lon, embedded, country_code, embeddeds(id, status, status_at, subdomain, mac_address, firmware_version, firmware_build_date, mdb_address, mdb_diagnostics, last_restart_reason, last_restart_at, online_since)')
       .eq('id', id).single(),
     fetchTrays(id),
   ])
@@ -177,7 +179,7 @@ onMounted(async () => {
   try {
     const { data: machineData, error: machineError } = await supabase
       .from('vendingMachine')
-      .select('id, name, location_lat, location_lon, embedded, embeddeds(id, status, status_at, subdomain, mac_address, firmware_version, firmware_build_date, mdb_address, mdb_diagnostics, last_restart_reason, last_restart_at, online_since)')
+      .select('id, name, location_lat, location_lon, embedded, country_code, embeddeds(id, status, status_at, subdomain, mac_address, firmware_version, firmware_build_date, mdb_address, mdb_diagnostics, last_restart_reason, last_restart_at, online_since)')
       .eq('id', id)
       .single()
 
@@ -399,7 +401,7 @@ async function submitDeviceSwap() {
     // Re-fetch machine to get updated embeddeds join
     const { data } = await supabase
       .from('vendingMachine')
-      .select('id, name, location_lat, location_lon, embedded, embeddeds(id, status, status_at, subdomain, mac_address, firmware_version, firmware_build_date, mdb_address, mdb_diagnostics, last_restart_reason, last_restart_at, online_since)')
+      .select('id, name, location_lat, location_lon, embedded, country_code, embeddeds(id, status, status_at, subdomain, mac_address, firmware_version, firmware_build_date, mdb_address, mdb_diagnostics, last_restart_reason, last_restart_at, online_since)')
       .eq('id', machine.value.id)
       .single()
     if (data) machine.value = data
@@ -411,13 +413,26 @@ async function submitDeviceSwap() {
   }
 }
 
+async function updateMachineCountry(code: string) {
+  try {
+    const { error } = await supabase
+      .from('vendingMachine')
+      .update({ country_code: code || null } as any)
+      .eq('id', machine.value.id)
+    if (error) throw error
+    machine.value.country_code = code || null
+  } catch {
+    // silent
+  }
+}
+
 async function detachDevice() {
   deviceSwapLoading.value = true
   try {
     await swapDevice(machine.value.id, null)
     const { data } = await supabase
       .from('vendingMachine')
-      .select('id, name, location_lat, location_lon, embedded, embeddeds(id, status, status_at, subdomain, mac_address, firmware_version, firmware_build_date, mdb_address, mdb_diagnostics, last_restart_reason, last_restart_at, online_since)')
+      .select('id, name, location_lat, location_lon, embedded, country_code, embeddeds(id, status, status_at, subdomain, mac_address, firmware_version, firmware_build_date, mdb_address, mdb_diagnostics, last_restart_reason, last_restart_at, online_since)')
       .eq('id', machine.value.id)
       .single()
     if (data) machine.value = data
@@ -1128,6 +1143,17 @@ async function handleAddSale() {
               <p v-if="machine.location_lat && machine.location_lon" class="mt-1 text-sm text-muted-foreground">
                 {{ machine.location_lat.toFixed(5) }}, {{ machine.location_lon.toFixed(5) }}
               </p>
+              <div class="mt-1.5 flex items-center gap-2">
+                <label class="text-xs text-muted-foreground">{{ t('machines.country') }}:</label>
+                <select
+                  :value="machine.country_code ?? ''"
+                  class="h-7 rounded-md border border-input bg-background px-2 text-xs shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  @change="updateMachineCountry(($event.target as HTMLSelectElement).value)"
+                >
+                  <option value="">{{ t('machines.countryInherited', { country: companyCountry || 'DE' }) }}</option>
+                  <option v-for="c in COUNTRY_OPTIONS" :key="c.code" :value="c.code">{{ c.code }} — {{ c.label }}</option>
+                </select>
+              </div>
             </div>
             <!-- Device: compact header row -->
             <div class="flex items-center gap-2 shrink-0">

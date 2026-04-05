@@ -21,6 +21,7 @@ interface VendingMachine {
   location_lat: number | null
   location_lon: number | null
   embedded: string | null
+  country_code: string | null
   embeddeds: Embedded | null
   last_sale_at?: string | null
   last_sale_amount?: number | null
@@ -66,7 +67,7 @@ export function useMachines() {
       const { data, error } = await supabase
         .from('vendingMachine')
         .select(`
-          id, name, location_lat, location_lon, embedded,
+          id, name, location_lat, location_lon, embedded, country_code,
           embeddeds(id, status, status_at, subdomain, mac_address, firmware_version, firmware_build_date, mdb_diagnostics, last_restart_reason, last_restart_at, online_since)
         `)
 

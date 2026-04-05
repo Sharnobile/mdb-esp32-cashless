@@ -46,6 +46,13 @@ Vending machine operators can manage all the telemetry, monitor sales, and optim
 - [x] Enhanced AI Insights
   - [x] Phase 08: DOW/hourly patterns, company-wide insights, history persistence, caching, locale support — Phase 08 complete
 
+### Active (In Progress)
+
+- [ ] Tax-compliant sales recording and export (Steuer-Berichte v1.5)
+  - [x] Phase 09: Tax infrastructure — tax_classes, tax_rates, country_code, sales stamp trigger, UI — Phase 09 complete
+  - [ ] Phase 10: Backfill + validation — historical sales backfill, export blocker
+  - [ ] Phase 11: Tax reports export — report page, DATEV CSV, simple CSV
+
 ### Planned (Next)
 
 - [ ] SonarQube code quality integration (configured via /paul:flows)

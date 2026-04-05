@@ -3,6 +3,7 @@ import { useSupabaseClient } from '#imports'
 interface ProductCategory {
   id: string
   name: string
+  tax_class_id: string | null
 }
 
 interface Product {
@@ -39,7 +40,7 @@ export function useProducts() {
           .order('name'),
         supabase
           .from('product_category')
-          .select('id, name')
+          .select('id, name, tax_class_id')
           .order('name'),
       ])
 
@@ -124,9 +125,16 @@ export function useProducts() {
     await fetchProducts()
   }
 
-  async function createCategory(category: { name: string; company: string }) {
+  async function createCategory(category: { name: string; company: string; tax_class_id?: string | null }) {
     const supabase = useSupabaseClient()
     const { error } = await supabase.from('product_category').insert(category)
+    if (error) throw error
+    await fetchProducts()
+  }
+
+  async function updateCategory(id: string, updates: { name?: string; tax_class_id?: string | null }) {
+    const supabase = useSupabaseClient()
+    const { error } = await supabase.from('product_category').update(updates).eq('id', id)
     if (error) throw error
     await fetchProducts()
   }
@@ -145,5 +153,5 @@ export function useProducts() {
     await fetchProducts()
   }
 
-  return { products, categories, loading, fetchProducts, createProduct, updateProduct, deleteProduct, uploadProductImage, deleteProductImage, createCategory, deleteCategory, toggleDiscontinued }
+  return { products, categories, loading, fetchProducts, createProduct, updateProduct, deleteProduct, uploadProductImage, deleteProductImage, createCategory, updateCategory, deleteCategory, toggleDiscontinued }
 }

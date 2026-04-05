@@ -6,7 +6,8 @@ import { formatCurrency } from '@/lib/utils'
 
 const { t, locale } = useI18n()
 const { organization, role } = useOrganization()
-const { products, categories, loading, fetchProducts, createProduct, updateProduct, deleteProduct, uploadProductImage, deleteProductImage, createCategory, deleteCategory } = useProducts()
+const { products, categories, loading, fetchProducts, createProduct, updateProduct, deleteProduct, uploadProductImage, deleteProductImage, createCategory, updateCategory, deleteCategory } = useProducts()
+const { taxClasses, fetchTaxClasses, formatTaxClassLabel } = useTaxSettings()
 const { barcodes: allBarcodes, fetchBarcodes, addBarcode, removeBarcode } = useWarehouse()
 const { images: suggestedImages, searching: searchingImages, searchDebounced, downloadImage: downloadSuggestedImage, clear: clearImageSearch } = useProductImageSearch()
 const {
@@ -46,7 +47,7 @@ const sortedProducts = computed(() => {
 usePullToRefresh(() => Promise.all([fetchProducts(), fetchBarcodes()]).then(() => {}))
 
 onMounted(async () => {
-  await Promise.all([fetchProducts(), fetchBarcodes()])
+  await Promise.all([fetchProducts(), fetchBarcodes(), fetchTaxClasses()])
 })
 
 // ── Barcode management (per-product in modal) ──────────────────────────────
@@ -265,15 +266,28 @@ const {
   error: categoryError,
   openModal: openCategoryModal,
   submit: submitCategoryForm,
-} = useModalForm({ name: '' })
+} = useModalForm({ name: '', tax_class_id: '' })
 
 const categoryName = computed({
   get: () => categoryForm.value.name,
   set: (v: string) => { categoryForm.value.name = v },
 })
 
+const categoryTaxClassId = computed({
+  get: () => categoryForm.value.tax_class_id,
+  set: (v: string) => { categoryForm.value.tax_class_id = v },
+})
+
+const editingCategory = ref<{ id: string } | null>(null)
+
 function openAddCategory() {
-  openCategoryModal({ name: '' })
+  editingCategory.value = null
+  openCategoryModal({ name: '', tax_class_id: '' })
+}
+
+function openEditCategory(cat: { id: string; name: string; tax_class_id: string | null }) {
+  editingCategory.value = { id: cat.id }
+  openCategoryModal({ name: cat.name, tax_class_id: cat.tax_class_id ?? '' })
 }
 
 async function submitCategory() {
@@ -282,10 +296,18 @@ async function submitCategory() {
     return
   }
   await submitCategoryForm(async () => {
-    await createCategory({
-      name: categoryForm.value.name.trim(),
-      company: organization.value!.id,
-    })
+    if (editingCategory.value) {
+      await updateCategory(editingCategory.value.id, {
+        name: categoryForm.value.name.trim(),
+        tax_class_id: categoryForm.value.tax_class_id || null,
+      })
+    } else {
+      await createCategory({
+        name: categoryForm.value.name.trim(),
+        company: organization.value!.id,
+        tax_class_id: categoryForm.value.tax_class_id || null,
+      })
+    }
   })
 }
 
@@ -488,6 +510,7 @@ async function runImport() {
                 <thead>
                   <tr class="border-b bg-muted/50 text-left">
                     <th class="px-4 py-3 font-medium">{{ t('common.name') }}</th>
+                    <th class="px-4 py-3 font-medium">{{ t('products.taxClass') }}</th>
                     <th v-if="isAdmin" class="px-4 py-3 font-medium">{{ t('common.actions') }}</th>
                   </tr>
                 </thead>
@@ -498,13 +521,29 @@ async function runImport() {
                     class="border-b last:border-0 hover:bg-muted/30 transition-colors"
                   >
                     <td class="px-4 py-3 font-medium">{{ cat.name }}</td>
+                    <td class="px-4 py-3">
+                      <span v-if="cat.tax_class_id" class="text-sm">
+                        {{ taxClasses.find(tc => tc.id === cat.tax_class_id) ? formatTaxClassLabel(taxClasses.find(tc => tc.id === cat.tax_class_id)!) : '—' }}
+                      </span>
+                      <span v-else class="text-xs text-amber-600 dark:text-amber-400">
+                        {{ t('products.noTaxClassWarning') }}
+                      </span>
+                    </td>
                     <td v-if="isAdmin" class="px-4 py-3">
-                      <button
-                        class="text-xs text-destructive hover:underline"
-                        @click="handleDeleteCategory(cat.id)"
-                      >
-                        {{ t('common.delete') }}
-                      </button>
+                      <div class="flex items-center gap-2">
+                        <button
+                          class="text-xs text-primary hover:underline"
+                          @click="openEditCategory(cat)"
+                        >
+                          {{ t('common.edit') }}
+                        </button>
+                        <button
+                          class="text-xs text-destructive hover:underline"
+                          @click="handleDeleteCategory(cat.id)"
+                        >
+                          {{ t('common.delete') }}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 </tbody>
@@ -732,7 +771,7 @@ async function runImport() {
       <!-- Category modal -->
       <AppModal
         v-model:open="showCategoryModal"
-        :title="t('products.addCategory')"
+        :title="editingCategory ? t('common.edit') + ' ' + t('products.category') : t('products.addCategory')"
         size="sm"
       >
           <form class="space-y-4" @submit.prevent="submitCategory">
@@ -746,6 +785,19 @@ async function runImport() {
                 :placeholder="t('products.categoryName')"
                 class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               />
+            </div>
+            <div class="space-y-1">
+              <label class="text-sm font-medium" for="category-tax-class">{{ t('products.taxClass') }}</label>
+              <select
+                id="category-tax-class"
+                v-model="categoryTaxClassId"
+                class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              >
+                <option value="">— {{ t('products.taxClass') }} —</option>
+                <option v-for="tc in taxClasses" :key="tc.id" :value="tc.id">
+                  {{ formatTaxClassLabel(tc) }}
+                </option>
+              </select>
             </div>
             <FormError :message="categoryError" />
             <div class="flex gap-2">
@@ -761,8 +813,8 @@ async function runImport() {
                 :disabled="categoryLoading"
                 class="inline-flex h-9 flex-1 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90 disabled:opacity-50"
               >
-                <span v-if="categoryLoading">{{ t('common.creating') }}</span>
-                <span v-else>{{ t('common.create') }}</span>
+                <span v-if="categoryLoading">{{ t('common.saving') }}</span>
+                <span v-else>{{ t('common.save') }}</span>
               </button>
             </div>
           </form>

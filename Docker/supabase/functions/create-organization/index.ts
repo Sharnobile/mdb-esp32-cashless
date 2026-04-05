@@ -67,6 +67,41 @@ Deno.serve(async (req) => {
 
     if (userUpdateError) throw userUpdateError
 
+    // Seed default tax classes and rates for DE
+    const { data: standardClass } = await adminClient
+      .from('tax_classes')
+      .insert({ name: 'standard', company_id: company.id, sort_order: 0 })
+      .select('id')
+      .single()
+
+    const { data: reducedClass } = await adminClient
+      .from('tax_classes')
+      .insert({ name: 'reduced', company_id: company.id, sort_order: 1 })
+      .select('id')
+      .single()
+
+    if (standardClass) {
+      await adminClient.from('tax_rates').insert({
+        tax_class_id: standardClass.id,
+        company_id: company.id,
+        country_code: 'DE',
+        rate: 0.19,
+        name: 'MwSt. 19%',
+        valid_from: '2007-01-01',
+      })
+    }
+
+    if (reducedClass) {
+      await adminClient.from('tax_rates').insert({
+        tax_class_id: reducedClass.id,
+        company_id: company.id,
+        country_code: 'DE',
+        rate: 0.07,
+        name: 'MwSt. 7%',
+        valid_from: '2007-01-01',
+      })
+    }
+
     return new Response(JSON.stringify({ organization: company }), {
       status: 201,
       headers: { 'Content-Type': 'application/json' },

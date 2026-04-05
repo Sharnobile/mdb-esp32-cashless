@@ -2,11 +2,34 @@
 
 ## Overview
 
-Extend the existing production vending machine telemetry system with AI-powered analytics and optimized warehouse picking workflows.
+Extend the existing production vending machine telemetry system with AI-powered analytics, optimized warehouse picking workflows, and tax-compliant sales reporting.
 
-## Next Milestone
+## Current Milestone
 
-Run /paul:discuss-milestone or /paul:milestone to define.
+**Steuer-Berichte (v1.5)**
+Status: In Progress
+Phases: 1 of 3 complete
+
+| Phase | Name | Plans | Status | Completed |
+|-------|------|-------|--------|-----------|
+| 09 | tax-infrastructure | 2 | Complete | 2026-04-05 |
+| 10 | tax-backfill-validation | TBD | Not started | - |
+| 11 | tax-reports-export | TBD | Not started | - |
+
+### Phase 09: tax-infrastructure
+
+Focus: DB + Backend — `tax_classes`, `tax_rates`, `system_tax_rates` Tabellen + RLS; `tax_class_id` auf Kategorie/Produkt; `country_code` auf Company/Machine; Sales-Stamp-Trigger; DE/AT Rates seeden; UI für Steuerklassen/Sätze pflegen + Kategorie-Zuweisung + Land-Auswahl
+Plans: TBD (defined during /paul:plan)
+
+### Phase 10: tax-backfill-validation
+
+Focus: Datenbereinigung — Backfill historischer Sales (nachträglich stempeln); Export-Seite Validierung (Blocker wenn Steuerklassen fehlen); Hinweis-Banner
+Plans: TBD (defined during /paul:plan)
+
+### Phase 11: tax-reports-export
+
+Focus: Export-Funktionalität — Report-Seite mit Zeitraum-Auswahl; DATEV Buchungsstapel CSV-Export; Einfacher CSV-Export; Vorschau-Tabelle
+Plans: TBD (defined during /paul:plan)
 
 ## Completed Milestones
 
@@ -52,4 +75,4 @@ Run /paul:discuss-milestone or /paul:milestone to define.
 
 ---
 *Roadmap created: 2026-03-17*
-*Last updated: 2026-03-19 — Milestone v1.4 complete*
+*Last updated: 2026-04-05 — Milestone v1.5 Steuer-Berichte created*

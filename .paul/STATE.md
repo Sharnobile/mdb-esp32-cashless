@@ -2,44 +2,44 @@
 
 ## Project Reference
 
-See: .paul/PROJECT.md (updated 2026-03-19)
+See: .paul/PROJECT.md (updated 2026-04-05)
 
 **Core value:** Vending machine operators can manage all the telemetry, monitor sales, and optimize inventory from a single dashboard
-**Current focus:** All milestones complete — ready for next
+**Current focus:** Steuer-Berichte — tax backfill and export validation
 
 ## Current Position
 
-Milestone: Awaiting next milestone
-Phase: None active
-Plan: None
-Status: Milestones v1.1 + v1.2 + v1.3 + v1.4 complete — ready for next
-Last activity: 2026-03-19 — Milestone v1.4 completed
+Milestone: Steuer-Berichte (v1.5)
+Phase: 10 of 11 (tax-backfill-validation) — Ready to plan
+Plan: Not started
+Status: Phase 09 complete, ready to plan Phase 10
+Last activity: 2026-04-05 — Phase 09 complete, transitioned to Phase 10
 
 Progress:
-- AI Insights v1.1: [██████████] 100% ✓
-- Warehouse v1.2: [██████████] 100% ✓
-- Refill Tour v1.3: [██████████] 100% ✓
-- Enhanced AI v1.4: [██████████] 100% ✓
+- Steuer-Berichte v1.5: [███░░░░░░░] 33%
+- Phase 09: [██████████] 100%
+- Phase 10: [░░░░░░░░░░] 0%
 
 ## Loop Position
 
 Current loop state:
 ```
 PLAN ──▶ APPLY ──▶ UNIFY
-  ✓        ✓        ✓     [Milestone complete - ready for next]
+  ○        ○        ○     [Ready for first PLAN]
 ```
 
 ## Accumulated Context
 
 ### Decisions
-- Per-company Anthropic API key (not global env var)
-- `claude-haiku-4-5` model for structured JSON output
-- Current machine stock NOT flagged as critical (transient snapshot)
-- Server-side cache with 6h TTL, locale-aware, force_refresh option
-- V2 RPC keeps V1 for backward compatibility
-- Company cache uses machine_id=company_id convention
-- Load insights from history on mount, not API (no cost on page load)
-- Fleet insights card collapsed by default
+- Tax classes + tax rates table (not simple field on category) — future-proof for multi-country
+- System-wide reference rates auto-seeded, manually overridable
+- Country on company (default) + machine (override, nullable)
+- Sales stamped with tax_rate_snapshot + tax_amount + price_net at INSERT time
+- Inclusive pricing: item_price is gross, price_net = item_price / (1 + rate)
+- DATEV Buchungsstapel is primary export format (Lexware has no direct import)
+- TSE not required for vending machines (KassenSichV exemption)
+- getCurrentRate sorts by valid_from DESC to pick newest valid rate
+- Tax rate modal includes optional valid_to for temporal rate changes
 
 ### Git State
 Branch: main
@@ -54,10 +54,10 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-19
-Stopped at: Milestone v1.4 complete
-Next action: /paul:discuss-milestone or /paul:milestone
-Resume file: .paul/MILESTONES.md
+Last session: 2026-04-05
+Stopped at: Phase 09 complete, ready to plan Phase 10
+Next action: /paul:plan for Phase 10 (tax-backfill-validation)
+Resume file: .paul/ROADMAP.md
 
 ---
 *STATE.md — Updated after every significant action*
