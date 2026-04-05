@@ -60,7 +60,8 @@
     "defaultOrg": "MDB Dashboard",
     "groupOperations": "Operations",
     "groupTeam": "Team",
-    "groupTechnical": "Technical"
+    "groupTechnical": "Technical",
+    "reports": "Reports"
   },
   "auth": {
     "signIn": "Sign in",
@@ -135,6 +136,8 @@
     "dailyRevenueOverview": "Daily revenue overview",
     "topProducts": "Top Products (30 Days)",
     "topProductsDesc": "Best-selling products",
+    "topByRevenue": "Revenue",
+    "topByUnits": "Units sold",
     "nSales": "{count} sale | {count} sales"
   },
   "machines": {
@@ -864,6 +867,40 @@
     "trayCreated": "Tray added",
     "trayUpdated": "Tray updated",
     "warehouseIntake": "Stock intake"
+  },
+  "reports": {
+    "title": "Reports",
+    "dateFrom": "From",
+    "dateTo": "To",
+    "loadData": "Load data",
+    "exportCsv": "Export CSV",
+    "exportDatev": "Export DATEV",
+    "thisMonth": "This month",
+    "lastMonth": "Last month",
+    "thisQuarter": "This quarter",
+    "thisYear": "This year",
+    "noData": "Select a date range and click \"Load data\" to preview sales.",
+    "taxNotReady": "Tax configuration incomplete",
+    "taxNotReadyDescription": "{count} categories have no tax class assigned. Exports are disabled until all categories are configured.",
+    "taxNotReadyLink": "Configure tax classes",
+    "salesCount": "Sales",
+    "totalGross": "Total gross",
+    "totalTax": "Total tax",
+    "totalNet": "Total net",
+    "date": "Date",
+    "time": "Time",
+    "machine": "Machine",
+    "tray": "Tray",
+    "product": "Product",
+    "category": "Category",
+    "gross": "Gross",
+    "taxRate": "Tax %",
+    "taxAmount": "Tax",
+    "net": "Net",
+    "payment": "Payment",
+    "cashless": "Cashless",
+    "cash": "Cash",
+    "card": "Card"
   },
   "time": {
     "justNow": "just now",

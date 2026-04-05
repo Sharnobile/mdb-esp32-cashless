@@ -60,7 +60,8 @@
     "defaultOrg": "MDB Dashboard",
     "groupOperations": "Betrieb",
     "groupTeam": "Team",
-    "groupTechnical": "Technik"
+    "groupTechnical": "Technik",
+    "reports": "Berichte"
   },
   "auth": {
     "signIn": "Anmelden",
@@ -135,6 +136,8 @@
     "dailyRevenueOverview": "Tägliche Umsatzübersicht",
     "topProducts": "Top-Produkte (30 Tage)",
     "topProductsDesc": "Meistverkaufte Artikel",
+    "topByRevenue": "Umsatz",
+    "topByUnits": "Meistverkauft",
     "nSales": "{count} Verkauf | {count} Verkäufe"
   },
   "machines": {
@@ -864,6 +867,40 @@
     "trayCreated": "Fach hinzugefügt",
     "trayUpdated": "Fach aktualisiert",
     "warehouseIntake": "Wareneingang"
+  },
+  "reports": {
+    "title": "Berichte",
+    "dateFrom": "Von",
+    "dateTo": "Bis",
+    "loadData": "Daten laden",
+    "exportCsv": "CSV exportieren",
+    "exportDatev": "DATEV exportieren",
+    "thisMonth": "Dieser Monat",
+    "lastMonth": "Letzter Monat",
+    "thisQuarter": "Dieses Quartal",
+    "thisYear": "Dieses Jahr",
+    "noData": "Wählen Sie einen Zeitraum und klicken Sie auf \"Daten laden\" für eine Vorschau.",
+    "taxNotReady": "Steuer-Konfiguration unvollständig",
+    "taxNotReadyDescription": "{count} Kategorien haben keine Steuerklasse zugewiesen. Exporte sind deaktiviert bis alle Kategorien konfiguriert sind.",
+    "taxNotReadyLink": "Steuerklassen konfigurieren",
+    "salesCount": "Verkäufe",
+    "totalGross": "Brutto gesamt",
+    "totalTax": "MwSt. gesamt",
+    "totalNet": "Netto gesamt",
+    "date": "Datum",
+    "time": "Uhrzeit",
+    "machine": "Automat",
+    "tray": "Tray",
+    "product": "Produkt",
+    "category": "Kategorie",
+    "gross": "Brutto",
+    "taxRate": "MwSt. %",
+    "taxAmount": "MwSt.",
+    "net": "Netto",
+    "payment": "Bezahlart",
+    "cashless": "Bargeldlos",
+    "cash": "Bar",
+    "card": "Karte"
   },
   "time": {
     "justNow": "gerade eben",
