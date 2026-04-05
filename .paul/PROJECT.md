@@ -50,7 +50,7 @@ Vending machine operators can manage all the telemetry, monitor sales, and optim
 
 - [ ] Tax-compliant sales recording and export (Steuer-Berichte v1.5)
   - [x] Phase 09: Tax infrastructure — tax_classes, tax_rates, country_code, sales stamp trigger, UI — Phase 09 complete
-  - [ ] Phase 10: Backfill + validation — historical sales backfill, export blocker
+  - [x] Phase 10: Backfill + validation — historical sales backfill, export blocker — Phase 10 complete
   - [ ] Phase 11: Tax reports export — report page, DATEV CSV, simple CSV
 
 ### Planned (Next)

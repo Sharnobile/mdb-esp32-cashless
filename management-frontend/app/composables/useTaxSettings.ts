@@ -251,6 +251,32 @@ export function useTaxSettings() {
     return matching[0]?.rate ?? null
   }
 
+  /** Backfill historical sales with tax data */
+  async function backfillSales(): Promise<number> {
+    const supabase = useSupabaseClient()
+    const { organization } = useOrganization()
+    const { data, error } = await supabase.rpc('backfill_sales_tax', {
+      p_company_id: organization.value!.id,
+    })
+    if (error) throw error
+    return (data as number) ?? 0
+  }
+
+  /** Count categories without tax class assigned */
+  const categoriesWithoutTax = computed(() => {
+    const { categories } = useProducts()
+    return categories.value.filter(c => !c.tax_class_id).length
+  })
+
+  /** Tax readiness check for exports */
+  const taxReadiness = computed(() => {
+    const missing = categoriesWithoutTax.value
+    return {
+      categoriesWithoutTax: missing,
+      isReady: missing === 0 && taxClasses.value.length > 0,
+    }
+  })
+
   /** Format tax class for display: "Standard (19%)" */
   function formatTaxClassLabel(tc: TaxClass): string {
     const rate = getCurrentRate(tc.id)
@@ -281,5 +307,8 @@ export function useTaxSettings() {
     seedFromSystem,
     getCurrentRate,
     formatTaxClassLabel,
+    backfillSales,
+    categoriesWithoutTax,
+    taxReadiness,
   }
 }

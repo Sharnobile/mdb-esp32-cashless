@@ -412,6 +412,7 @@
     "taxClass": "Tax class",
     "taxClassRequired": "Tax class is required for new categories.",
     "noTaxClassWarning": "No tax class assigned",
+    "taxClassWarningBanner": "{count} categories have no tax class assigned. Assign tax classes in the Categories tab for accurate tax exports.",
     "importProducts": "Import Products",
     "importDescription": "Upload a Nayax product export (.xlsx). Products, categories, and images will be imported automatically.",
     "dropFile": "Drop .xlsx file here or click to browse",
@@ -837,7 +838,11 @@
     "noTaxRates": "No tax rates configured for this class.",
     "deleteTaxClassConfirm": "Delete this tax class? All associated rates will be removed.",
     "ratePercent": "{rate}%",
-    "inclusive": "Tax inclusive"
+    "inclusive": "Tax inclusive",
+    "backfillSales": "Backfill historical sales",
+    "backfillDescription": "Updates older sales records with tax data based on current configuration.",
+    "backfillSuccess": "{count} sales updated with tax data.",
+    "backfillNoChanges": "All sales already have tax data — nothing to update."
   },
   "activity": {
     "saleRecorded": "Sale recorded",

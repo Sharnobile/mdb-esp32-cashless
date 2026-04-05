@@ -412,6 +412,7 @@
     "taxClass": "Steuerklasse",
     "taxClassRequired": "Steuerklasse ist für neue Kategorien erforderlich.",
     "noTaxClassWarning": "Keine Steuerklasse zugewiesen",
+    "taxClassWarningBanner": "{count} Kategorien haben keine Steuerklasse zugewiesen. Weisen Sie Steuerklassen im Kategorien-Tab zu für korrekte Steuerexporte.",
     "importProducts": "Produkte importieren",
     "importDescription": "Laden Sie einen Nayax-Produktexport (.xlsx) hoch. Produkte, Kategorien und Bilder werden automatisch importiert.",
     "dropFile": ".xlsx-Datei hierher ziehen oder klicken zum Durchsuchen",
@@ -837,7 +838,11 @@
     "noTaxRates": "Keine Steuersätze für diese Klasse konfiguriert.",
     "deleteTaxClassConfirm": "Diese Steuerklasse löschen? Alle zugehörigen Sätze werden entfernt.",
     "ratePercent": "{rate}%",
-    "inclusive": "Steuer inklusive"
+    "inclusive": "Steuer inklusive",
+    "backfillSales": "Historische Verkäufe nachberechnen",
+    "backfillDescription": "Aktualisiert ältere Verkaufsdaten mit Steuerinformationen basierend auf der aktuellen Konfiguration.",
+    "backfillSuccess": "{count} Verkäufe mit Steuerdaten aktualisiert.",
+    "backfillNoChanges": "Alle Verkäufe haben bereits Steuerdaten — nichts zu aktualisieren."
   },
   "activity": {
     "saleRecorded": "Verkauf erfasst",

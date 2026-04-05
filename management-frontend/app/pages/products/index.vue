@@ -7,7 +7,7 @@ import { formatCurrency } from '@/lib/utils'
 const { t, locale } = useI18n()
 const { organization, role } = useOrganization()
 const { products, categories, loading, fetchProducts, createProduct, updateProduct, deleteProduct, uploadProductImage, deleteProductImage, createCategory, updateCategory, deleteCategory } = useProducts()
-const { taxClasses, fetchTaxClasses, formatTaxClassLabel } = useTaxSettings()
+const { taxClasses, fetchTaxClasses, formatTaxClassLabel, categoriesWithoutTax } = useTaxSettings()
 const { barcodes: allBarcodes, fetchBarcodes, addBarcode, removeBarcode } = useWarehouse()
 const { images: suggestedImages, searching: searchingImages, searchDebounced, downloadImage: downloadSuggestedImage, clear: clearImageSearch } = useProductImageSearch()
 const {
@@ -384,7 +384,15 @@ async function runImport() {
 
         <div v-if="loading" class="text-muted-foreground">{{ t('common.loading') }}</div>
 
-        <Tabs v-else default-value="products">
+        <!-- Tax class warning banner -->
+        <div
+          v-if="!loading && categoriesWithoutTax > 0"
+          class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200"
+        >
+          {{ t('products.taxClassWarningBanner', { count: categoriesWithoutTax }) }}
+        </div>
+
+        <Tabs v-if="!loading" default-value="products">
           <TabsList>
             <TabsTrigger value="products">{{ t('products.productsTab') }}</TabsTrigger>
             <TabsTrigger value="categories">{{ t('products.categoriesTab') }}</TabsTrigger>

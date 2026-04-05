@@ -307,6 +307,7 @@ const {
   seedFromSystem,
   formatTaxClassLabel,
   getCurrentRate,
+  backfillSales,
 } = useTaxSettings()
 const { COUNTRY_OPTIONS } = await import('~/composables/useTaxSettings')
 
@@ -321,8 +322,10 @@ const showTaxRateModal = ref(false)
 const taxRateForm = ref({ taxClassId: '', rate: '', name: '', validFrom: '', validTo: '' })
 const taxRateLoading = ref(false)
 
-// Seed loading
+// Seed + backfill loading
 const seedLoading = ref(false)
+const backfillLoading = ref(false)
+const backfillResult = ref('')
 
 function openAddTaxClass() {
   editingTaxClass.value = null
@@ -417,6 +420,22 @@ async function handleSeedDefaults() {
     taxError.value = err instanceof Error ? err.message : 'Failed'
   } finally {
     seedLoading.value = false
+  }
+}
+
+async function handleBackfill() {
+  backfillLoading.value = true
+  backfillResult.value = ''
+  taxError.value = ''
+  try {
+    const count = await backfillSales()
+    backfillResult.value = count > 0
+      ? t('settings.backfillSuccess', { count })
+      : t('settings.backfillNoChanges')
+  } catch (err: unknown) {
+    taxError.value = err instanceof Error ? err.message : 'Failed'
+  } finally {
+    backfillLoading.value = false
   }
 }
 
@@ -770,10 +789,20 @@ async function changeEmail() {
                 <span v-if="seedLoading">{{ t('common.loading') }}</span>
                 <span v-else>{{ t('settings.seedFromDefaults', { country: countryLabel }) }}</span>
               </button>
+              <button
+                :disabled="backfillLoading"
+                class="inline-flex h-9 items-center justify-center rounded-md border px-4 text-sm font-medium shadow-sm transition-colors hover:bg-muted disabled:opacity-50"
+                @click="handleBackfill"
+              >
+                <span v-if="backfillLoading">{{ t('common.loading') }}</span>
+                <span v-else>{{ t('settings.backfillSales') }}</span>
+              </button>
             </div>
+            <p class="mb-2 text-xs text-muted-foreground">{{ t('settings.backfillDescription') }}</p>
 
             <p v-if="taxError" class="mb-4 text-sm text-destructive">{{ taxError }}</p>
             <p v-if="taxSuccess" class="mb-4 text-sm text-green-600">{{ taxSuccess }}</p>
+            <p v-if="backfillResult" class="mb-4 text-sm text-green-600">{{ backfillResult }}</p>
 
             <!-- Tax classes list -->
             <div class="space-y-4">
