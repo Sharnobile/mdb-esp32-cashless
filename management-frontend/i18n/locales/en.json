@@ -900,7 +900,12 @@
     "payment": "Payment",
     "cashless": "Cashless",
     "cash": "Cash",
-    "card": "Card"
+    "card": "Card",
+    "mqtt": "Cashless",
+    "avgPerSale": "Avg. per sale",
+    "vatBreakdown": "VAT Breakdown",
+    "vatBreakdownDescription": "Revenue overview by tax rate.",
+    "total": "Total"
   },
   "time": {
     "justNow": "just now",

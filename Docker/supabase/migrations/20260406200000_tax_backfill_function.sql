@@ -23,8 +23,8 @@ BEGIN
   UPDATE public.sales s
   SET
     tax_rate_snapshot = sub.rate,
-    price_net = ROUND(s.item_price / (1 + sub.rate), 4),
-    tax_amount = ROUND(s.item_price - ROUND(s.item_price / (1 + sub.rate), 4), 4)
+    price_net = ROUND(s.item_price::numeric / (1 + sub.rate), 4),
+    tax_amount = ROUND(s.item_price::numeric - ROUND(s.item_price::numeric / (1 + sub.rate), 4), 4)
   FROM (
     SELECT DISTINCT ON (s2.id)
       s2.id AS sale_id,

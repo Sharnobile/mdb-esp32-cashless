@@ -900,7 +900,12 @@
     "payment": "Bezahlart",
     "cashless": "Bargeldlos",
     "cash": "Bar",
-    "card": "Karte"
+    "card": "Karte",
+    "mqtt": "Bargeldlos",
+    "avgPerSale": "Durchschnitt pro Verkauf",
+    "vatBreakdown": "MwSt.-Aufschlüsselung",
+    "vatBreakdownDescription": "Umsatzsteuerübersicht nach Steuersätzen.",
+    "total": "Gesamt"
   },
   "time": {
     "justNow": "gerade eben",

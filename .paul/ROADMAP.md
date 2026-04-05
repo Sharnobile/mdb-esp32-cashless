@@ -7,14 +7,14 @@ Extend the existing production vending machine telemetry system with AI-powered 
 ## Current Milestone
 
 **Steuer-Berichte (v1.5)**
-Status: In Progress
-Phases: 2 of 3 complete
+Status: Complete
+Phases: 3 of 3 complete
 
 | Phase | Name | Plans | Status | Completed |
 |-------|------|-------|--------|-----------|
 | 09 | tax-infrastructure | 2 | Complete | 2026-04-05 |
 | 10 | tax-backfill-validation | 1 | Complete | 2026-04-05 |
-| 11 | tax-reports-export | TBD | Not started | - |
+| 11 | tax-reports-export | 1 | Complete | 2026-04-05 |
 
 ### Phase 09: tax-infrastructure
 

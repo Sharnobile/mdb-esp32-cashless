@@ -235,10 +235,10 @@ BEGIN
 
     -- 3d. Calculate and stamp if rate found
     IF v_tax_rate IS NOT NULL THEN
-      v_price_net := ROUND(NEW.item_price / (1 + v_tax_rate), 4);
+      v_price_net := ROUND(NEW.item_price::numeric / (1 + v_tax_rate), 4);
       NEW.tax_rate_snapshot := v_tax_rate;
       NEW.price_net := v_price_net;
-      NEW.tax_amount := ROUND(NEW.item_price - v_price_net, 4);
+      NEW.tax_amount := ROUND(NEW.item_price::numeric - v_price_net, 4);
     END IF;
     -- If no rate found, all three columns remain NULL (graceful fallback)
   END IF;
