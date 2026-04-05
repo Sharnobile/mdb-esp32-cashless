@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { VisArea, VisAxis, VisLine, VisXYContainer } from "@unovis/vue"
+import { VisAxis, VisStackedBar, VisXYContainer } from "@unovis/vue"
 import {
   Card,
   CardContent,
@@ -15,9 +15,14 @@ interface SalesByDay {
   total: number
 }
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   data: SalesByDay[]
-}>()
+  title?: string
+  description?: string
+}>(), {
+  title: undefined,
+  description: undefined,
+})
 
 type Data = SalesByDay
 </script>
@@ -26,9 +31,9 @@ type Data = SalesByDay
   <Card class="pt-0">
     <CardHeader class="flex items-center gap-2 space-y-0 border-b py-5 sm:flex-row">
       <div class="grid flex-1 gap-1">
-        <CardTitle>{{ t('dashboard.dailySales') }}</CardTitle>
+        <CardTitle>{{ title ?? t('dashboard.dailySales') }}</CardTitle>
         <CardDescription>
-          {{ t('dashboard.revenuePerDay') }}
+          {{ description ?? t('dashboard.revenuePerDay') }}
         </CardDescription>
       </div>
     </CardHeader>
@@ -37,17 +42,12 @@ type Data = SalesByDay
         {{ t('dashboard.noSalesData') }}
       </div>
       <VisXYContainer v-else :data="data" class="h-[250px] w-full">
-        <VisArea
+        <VisStackedBar
           :x="(d: Data) => d.date"
-          :y="(d: Data) => d.total"
+          :y="[(d: Data) => d.total]"
           color="var(--primary)"
-          :opacity="0.3"
-        />
-        <VisLine
-          :x="(d: Data) => d.date"
-          :y="(d: Data) => d.total"
-          color="var(--primary)"
-          :line-width="2"
+          :bar-padding="0.2"
+          :rounded-corners="4"
         />
         <VisAxis
           type="x"

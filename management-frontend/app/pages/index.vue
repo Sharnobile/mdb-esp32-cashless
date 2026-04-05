@@ -2,12 +2,15 @@
 definePageMeta({ middleware: 'auth' })
 
 import SectionCards from "@/components/SectionCards.vue"
+import ChartAreaInteractive from "@/components/ChartAreaInteractive.vue"
+import DashboardTopProducts from "@/components/DashboardTopProducts.vue"
 import DashboardMachineList from "@/components/DashboardMachineList.vue"
 import DashboardRecentSales from "@/components/DashboardRecentSales.vue"
 import DashboardActivityFeed from "@/components/DashboardActivityFeed.vue"
 import type { DashboardMachine } from "@/components/DashboardMachineList.vue"
 import type { RecentSale } from "@/components/DashboardRecentSales.vue"
 import type { ActivityEntry } from "@/components/DashboardActivityFeed.vue"
+import type { TopProduct } from "@/components/DashboardTopProducts.vue"
 import { IconAlertTriangle, IconSparkles, IconRefresh, IconLoader2 } from '@tabler/icons-vue'
 import { useInsights, sortedRecommendations, priorityVariant, recommendationTypeLabel } from '@/composables/useInsights'
 import { expirationStatus } from '@/composables/useWarehouse'
@@ -24,10 +27,15 @@ const { onResume } = useAppResume()
 const todaySales = ref(0)
 const todaySalesCount = ref(0)
 const yesterdayRevenue = ref(0)
+const yesterdaySalesCount = ref(0)
 const weekSales = ref(0)
+const weekSalesCount = ref(0)
 const lastWeekSales = ref(0)
+const lastWeekSalesCount = ref(0)
 const monthSales = ref(0)
+const monthSalesCount = ref(0)
 const lastMonthSales = ref(0)
+const lastMonthSalesCount = ref(0)
 const machinesOnline = ref(0)
 const totalMachines = ref(0)
 const stockCritical = ref(0)
@@ -74,6 +82,8 @@ function toggleCompanyHistoryEntry(id: string) {
 }
 
 // ── Chart + sections ──────────────────────────────────────────────────────────
+const dailySalesChart = ref<{ date: Date; total: number }[]>([])
+const topProducts = ref<TopProduct[]>([])
 const dashboardMachines = ref<DashboardMachine[]>([])
 const recentSales = ref<RecentSale[]>([])
 const recentActivity = ref<ActivityEntry[]>([])
@@ -112,8 +122,8 @@ onMounted(async () => {
           todaySales.value += price
           todaySalesCount.value += 1
         }
-        if (saleDate >= weekStart) weekSales.value += price
-        if (saleDate >= monthStart) monthSales.value += price
+        if (saleDate >= weekStart) { weekSales.value += price; weekSalesCount.value += 1 }
+        if (saleDate >= monthStart) { monthSales.value += price; monthSalesCount.value += 1 }
 
         // Update machine revenue in list
         if (sale.machine_id) {
@@ -226,9 +236,9 @@ async function loadDashboard() {
   ] = await Promise.all([
     supabase.from('sales').select('item_price').gte('created_at', todayStart),
     supabase.from('sales').select('item_price').gte('created_at', yesterdayStart).lt('created_at', todayStart),
-    supabase.from('sales').select('item_price').gte('created_at', weekStart),
+    supabase.from('sales').select('item_price, created_at').gte('created_at', weekStart),
     supabase.from('sales').select('item_price').gte('created_at', lastWeekStart).lt('created_at', weekStart),
-    supabase.from('sales').select('item_price').gte('created_at', thisMonthStart),
+    supabase.from('sales').select('item_price, machine_id, item_number').gte('created_at', thisMonthStart),
     supabase.from('sales').select('item_price').gte('created_at', lastMonthStart).lt('created_at', thisMonthStart),
     supabase.from('vendingMachine').select('id, name, embedded, embeddeds(id, status)'),
     supabase.from('sales').select('id, created_at, item_price, item_number, channel, machine_id').order('created_at', { ascending: false }).limit(10),
@@ -241,10 +251,79 @@ async function loadDashboard() {
   todaySales.value = sumPrices(todaySalesRes.data)
   todaySalesCount.value = (todaySalesRes.data ?? []).length
   yesterdayRevenue.value = sumPrices(yesterdaySalesRes.data)
+  yesterdaySalesCount.value = (yesterdaySalesRes.data ?? []).length
   weekSales.value = sumPrices(weekSalesRes.data)
+  weekSalesCount.value = (weekSalesRes.data ?? []).length
   lastWeekSales.value = sumPrices(lastWeekSalesRes.data)
+  lastWeekSalesCount.value = (lastWeekSalesRes.data ?? []).length
   monthSales.value = sumPrices(monthSalesRes.data)
+  monthSalesCount.value = (monthSalesRes.data ?? []).length
   lastMonthSales.value = sumPrices(lastMonthSalesRes.data)
+  lastMonthSalesCount.value = (lastMonthSalesRes.data ?? []).length
+
+  // ── 7-day sales chart ──────────────────────────────────────────────────────
+  {
+    const dailyMap = new Map<string, number>()
+    for (const s of (weekSalesRes.data ?? []) as { item_price: number; created_at: string }[]) {
+      const day = new Date(s.created_at).toISOString().slice(0, 10)
+      dailyMap.set(day, (dailyMap.get(day) ?? 0) + (s.item_price ?? 0))
+    }
+    // Fill all 7 days (including zero days)
+    const chartData: { date: Date; total: number }[] = []
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i)
+      const key = d.toISOString().slice(0, 10)
+      chartData.push({ date: d, total: dailyMap.get(key) ?? 0 })
+    }
+    dailySalesChart.value = chartData
+  }
+
+  // ── Top products (30 days) ─────────────────────────────────────────────────
+  {
+    const monthSalesData = (monthSalesRes.data ?? []) as { item_price: number; machine_id: string | null; item_number: number }[]
+    // Collect unique machine_id + item_number pairs
+    const pairSet = new Set<string>()
+    for (const s of monthSalesData) {
+      if (s.machine_id) pairSet.add(`${s.machine_id}:${s.item_number}`)
+    }
+    const machineIdsForProducts = [...new Set(monthSalesData.filter(s => s.machine_id).map(s => s.machine_id!))]
+
+    let productLookup = new Map<string, { product_id: string; name: string }>()
+    if (machineIdsForProducts.length > 0) {
+      const { data: trays } = await supabase
+        .from('machine_trays')
+        .select('machine_id, item_number, product_id, products(name)')
+        .in('machine_id', machineIdsForProducts)
+      for (const t of (trays ?? []) as { machine_id: string; item_number: number; product_id: string; products: { name: string } | null }[]) {
+        if (t.products && t.product_id) {
+          productLookup.set(`${t.machine_id}:${t.item_number}`, { product_id: t.product_id, name: t.products.name })
+        }
+      }
+    }
+
+    // Aggregate by product
+    const productAgg = new Map<string, { name: string; units: number; revenue: number }>()
+    for (const s of monthSalesData) {
+      if (!s.machine_id) continue
+      const product = productLookup.get(`${s.machine_id}:${s.item_number}`)
+      if (!product) continue
+      const existing = productAgg.get(product.product_id) ?? { name: product.name, units: 0, revenue: 0 }
+      existing.units += 1
+      existing.revenue += s.item_price ?? 0
+      productAgg.set(product.product_id, existing)
+    }
+
+    // Sort by revenue desc, take top 5
+    topProducts.value = [...productAgg.entries()]
+      .sort((a, b) => b[1].revenue - a[1].revenue)
+      .slice(0, 5)
+      .map(([id, data]) => ({
+        product_id: id,
+        name: data.name,
+        units_sold: data.units,
+        total_revenue: data.revenue,
+      }))
+  }
 
   // ── Machines ────────────────────────────────────────────────────────────────
   const machines = (machinesRes.data ?? []) as {
@@ -428,15 +507,30 @@ async function loadDashboard() {
           :today-sales="todaySales"
           :today-sales-count="todaySalesCount"
           :yesterday-revenue="yesterdayRevenue"
+          :yesterday-sales-count="yesterdaySalesCount"
           :week-sales="weekSales"
+          :week-sales-count="weekSalesCount"
           :last-week-sales="lastWeekSales"
+          :last-week-sales-count="lastWeekSalesCount"
           :month-sales="monthSales"
+          :month-sales-count="monthSalesCount"
           :last-month-sales="lastMonthSales"
+          :last-month-sales-count="lastMonthSalesCount"
           :stock-critical="stockCritical"
           :stock-low="stockLow"
           :warehouse-below-min="warehouseBelowMin"
           :warehouse-expiring-soon="warehouseExpiringSoon"
         />
+
+        <!-- Sales Chart + Top Products -->
+        <div class="grid grid-cols-1 gap-4 px-4 lg:grid-cols-2 lg:px-6">
+          <ChartAreaInteractive
+            :data="dailySalesChart"
+            :title="t('dashboard.salesLast7Days')"
+            :description="t('dashboard.dailyRevenueOverview')"
+          />
+          <DashboardTopProducts :products="topProducts" />
+        </div>
 
         <!-- Company Insights -->
         <div class="px-4 lg:px-6">

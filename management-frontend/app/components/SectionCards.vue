@@ -18,10 +18,15 @@ const props = defineProps<{
   todaySales: number
   todaySalesCount: number
   yesterdayRevenue: number
+  yesterdaySalesCount: number
   weekSales: number
+  weekSalesCount: number
   lastWeekSales: number
+  lastWeekSalesCount: number
   monthSales: number
+  monthSalesCount: number
   lastMonthSales: number
+  lastMonthSalesCount: number
   stockCritical: number
   stockLow: number
   warehouseBelowMin: number
@@ -59,7 +64,7 @@ function sparklinePath(values: number[], width: number, height: number): { line:
 </script>
 
 <template>
-  <div class="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card grid grid-cols-1 gap-4 px-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs lg:px-6 @xl/main:grid-cols-2 @5xl/main:grid-cols-3">
+  <div class="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card grid grid-cols-1 gap-3 px-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs lg:px-6 @xl/main:grid-cols-2 @5xl/main:grid-cols-3">
     <!-- Today's Revenue -->
     <Card class="@container/card relative overflow-hidden">
       <svg v-if="todaySparkline?.length >= 2" class="pointer-events-none absolute inset-0 h-full w-full" preserveAspectRatio="none" viewBox="0 0 200 100">
@@ -84,7 +89,7 @@ function sparklinePath(values: number[], width: number, height: number): { line:
       </svg>
       <CardHeader class="relative">
         <CardDescription>{{ t('dashboard.todaysRevenue') }}</CardDescription>
-        <CardTitle class="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
+        <CardTitle class="text-xl font-semibold tabular-nums @[250px]/card:text-2xl">
           {{ formatCurrency(todaySales) }}
         </CardTitle>
         <CardAction>
@@ -95,8 +100,8 @@ function sparklinePath(values: number[], width: number, height: number): { line:
           <Badge v-else variant="outline">{{ t('common.today') }}</Badge>
         </CardAction>
       </CardHeader>
-      <CardFooter class="relative flex-col items-start gap-1.5 text-sm">
-        <div class="text-muted-foreground">{{ t('dashboard.salesCount', todaySalesCount) }} &middot; {{ t('common.yesterday') }}: {{ formatCurrency(yesterdayRevenue) }}</div>
+      <CardFooter class="relative flex-col items-start gap-1 text-xs">
+        <div class="text-muted-foreground">{{ t('dashboard.salesCount', todaySalesCount) }} &middot; {{ t('common.yesterday') }}: {{ formatCurrency(yesterdayRevenue) }} ({{ yesterdaySalesCount }})</div>
       </CardFooter>
     </Card>
 
@@ -124,7 +129,7 @@ function sparklinePath(values: number[], width: number, height: number): { line:
       </svg>
       <CardHeader class="relative">
         <CardDescription>{{ t('common.thisWeek') }}</CardDescription>
-        <CardTitle class="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
+        <CardTitle class="text-xl font-semibold tabular-nums @[250px]/card:text-2xl">
           {{ formatCurrency(weekSales) }}
         </CardTitle>
         <CardAction>
@@ -135,8 +140,8 @@ function sparklinePath(values: number[], width: number, height: number): { line:
           <Badge v-else variant="outline">{{ t('dashboard.sevenDays') }}</Badge>
         </CardAction>
       </CardHeader>
-      <CardFooter class="relative flex-col items-start gap-1.5 text-sm">
-        <div class="text-muted-foreground">{{ t('dashboard.vsLastWeek', { amount: formatCurrency(lastWeekSales) }) }}</div>
+      <CardFooter class="relative flex-col items-start gap-1 text-xs">
+        <div class="text-muted-foreground">{{ t('dashboard.salesCount', weekSalesCount) }} &middot; {{ t('dashboard.vsLastWeek', { amount: formatCurrency(lastWeekSales) }) }} ({{ lastWeekSalesCount }})</div>
       </CardFooter>
     </Card>
 
@@ -164,7 +169,7 @@ function sparklinePath(values: number[], width: number, height: number): { line:
       </svg>
       <CardHeader class="relative">
         <CardDescription>{{ t('common.thisMonth') }}</CardDescription>
-        <CardTitle class="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
+        <CardTitle class="text-xl font-semibold tabular-nums @[250px]/card:text-2xl">
           {{ formatCurrency(monthSales) }}
         </CardTitle>
         <CardAction>
@@ -175,8 +180,8 @@ function sparklinePath(values: number[], width: number, height: number): { line:
           <Badge v-else variant="outline">{{ t('dashboard.month') }}</Badge>
         </CardAction>
       </CardHeader>
-      <CardFooter class="relative flex-col items-start gap-1.5 text-sm">
-        <div class="text-muted-foreground">{{ t('dashboard.vsLastMonth', { amount: formatCurrency(lastMonthSales) }) }}</div>
+      <CardFooter class="relative flex-col items-start gap-1 text-xs">
+        <div class="text-muted-foreground">{{ t('dashboard.salesCount', monthSalesCount) }} &middot; {{ t('dashboard.vsLastMonth', { amount: formatCurrency(lastMonthSales) }) }} ({{ lastMonthSalesCount }})</div>
       </CardFooter>
     </Card>
 
@@ -184,7 +189,7 @@ function sparklinePath(values: number[], width: number, height: number): { line:
     <Card v-if="stockTotal > 0" class="@container/card">
       <CardHeader>
         <CardDescription>{{ t('dashboard.stockAlerts') }}</CardDescription>
-        <CardTitle class="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
+        <CardTitle class="text-xl font-semibold tabular-nums @[250px]/card:text-2xl">
           {{ stockTotal }}
         </CardTitle>
         <CardAction>
@@ -194,7 +199,7 @@ function sparklinePath(values: number[], width: number, height: number): { line:
           </Badge>
         </CardAction>
       </CardHeader>
-      <CardFooter class="flex-col items-start gap-1.5 text-sm">
+      <CardFooter class="flex-col items-start gap-1 text-xs">
         <div class="text-muted-foreground">
           <span v-if="stockCritical > 0" class="text-red-600 dark:text-red-400">{{ t('dashboard.critical', { count: stockCritical }) }}</span>
           <span v-if="stockCritical > 0 && stockLow > 0"> &middot; </span>
@@ -207,7 +212,7 @@ function sparklinePath(values: number[], width: number, height: number): { line:
     <Card v-if="warehouseBelowMin > 0 || warehouseExpiringSoon > 0" class="@container/card">
       <CardHeader>
         <CardDescription>{{ t('nav.warehouse') }}</CardDescription>
-        <CardTitle class="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
+        <CardTitle class="text-xl font-semibold tabular-nums @[250px]/card:text-2xl">
           {{ warehouseBelowMin + warehouseExpiringSoon }}
         </CardTitle>
         <CardAction>
@@ -217,7 +222,7 @@ function sparklinePath(values: number[], width: number, height: number): { line:
           </Badge>
         </CardAction>
       </CardHeader>
-      <CardFooter class="flex-col items-start gap-1.5 text-sm">
+      <CardFooter class="flex-col items-start gap-1 text-xs">
         <div class="text-muted-foreground">
           <span v-if="warehouseBelowMin > 0">{{ t('dashboard.belowMin', { count: warehouseBelowMin }) }}</span>
           <span v-if="warehouseBelowMin > 0 && warehouseExpiringSoon > 0"> &middot; </span>
