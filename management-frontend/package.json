@@ -23,6 +23,8 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "dnd-kit-vue": "^0.0.2",
+    "jspdf": "^2.5.2",
+    "jspdf-autotable": "^3.8.4",
     "lucide-vue-next": "^0.562.0",
     "nuxt": "^4.2.2",
     "qrcode": "^1.5.4",

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {
   IconBuildingWarehouse,
+  IconCash,
   IconCpu,
   IconDashboard,
   IconFileSpreadsheet,
@@ -63,6 +64,11 @@ const navGroups = computed(() => {
           title: t('nav.reports'),
           url: "/reports",
           icon: IconFileSpreadsheet,
+        },
+        {
+          title: t('nav.cashBook'),
+          url: "/cash-book",
+          icon: IconCash,
         },
       ],
     },

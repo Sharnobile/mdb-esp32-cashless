@@ -1,0 +1,397 @@
+// ── Interfaces ──────────────────────────────────────────────────────────────
+
+export interface CashBook {
+  id: string
+  created_at: string
+  company_id: string
+  name: string
+  initial_balance: number
+  activated_at: string
+  created_by: string
+  is_active: boolean
+}
+
+export interface CashBookEntry {
+  id: string
+  created_at: string
+  cash_book_id: string
+  company_id: string
+  entry_number: number
+  type: 'initial' | 'withdrawal' | 'correction' | 'payout' | 'reversal'
+  amount: number
+  balance_after: number
+  description: string | null
+  machine_id: string | null
+  counted_amount: number | null
+  expected_amount: number | null
+  corrects_entry_id: string | null
+  is_reversed: boolean
+  created_by: string
+  hash: string
+  // Enriched client-side
+  user_display?: string
+}
+
+export interface TheoreticalCash {
+  theoretical_balance: number
+  last_entry_balance: number
+  cash_sales_since: number
+  last_entry_at: string
+  entry_count: number
+  machines: { machine_id: string; machine_name: string; cash_sales: number }[]
+}
+
+export interface VendingMachineBasic {
+  id: string
+  name: string | null
+  cash_book_id: string | null
+}
+
+// ── User name cache (shared across instances) ──────────────────────────────
+
+const userCache = new Map<string, string>()
+
+// ── Composable ─────────────────────────────────────────────────────────────
+
+export function useCashBook() {
+  const supabase = useSupabaseClient()
+  const { organization } = useOrganization()
+
+  // ── Reactive state ───────────────────────────────────────────────────────
+
+  const cashBooks = ref<CashBook[]>([])
+  const selectedCashBook = ref<CashBook | null>(null)
+  const entries = ref<CashBookEntry[]>([])
+  const theoreticalCash = ref<TheoreticalCash | null>(null)
+  const loading = ref(false)
+  const entriesLoading = ref(false)
+  const allMachines = ref<VendingMachineBasic[]>([])
+
+  // ── Activity logging (same pattern as useMachineTrays) ───────────────────
+
+  async function logActivity(action: string, entityId: string | null, metadata: Record<string, unknown>) {
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const u = session?.user ?? null
+      const fullName = [u?.user_metadata?.first_name, u?.user_metadata?.last_name]
+        .filter(Boolean).join(' ').trim()
+      const userDisplay = fullName || u?.email || null
+
+      await (supabase as any).from('activity_log').insert({
+        company_id: organization.value?.id,
+        user_id: u?.id ?? null,
+        entity_type: 'cash_book',
+        entity_id: entityId,
+        action,
+        metadata: {
+          ...metadata,
+          _user_email: u?.email ?? null,
+          _user_display: userDisplay,
+        },
+      })
+    } catch (err) {
+      console.warn('activity_log insert failed:', err)
+    }
+  }
+
+  // ── User name resolution ────────────────────────────────────────────────
+
+  async function enrichEntriesWithUsers(rawEntries: CashBookEntry[]): Promise<CashBookEntry[]> {
+    const unknownIds = [...new Set(
+      rawEntries
+        .map(e => e.created_by)
+        .filter(id => id && !userCache.has(id))
+    )]
+
+    if (unknownIds.length > 0) {
+      const { data: users } = await (supabase as any)
+        .from('users')
+        .select('id, email, first_name, last_name')
+        .in('id', unknownIds)
+
+      for (const u of users ?? []) {
+        const name = [u.first_name, u.last_name].filter(Boolean).join(' ').trim()
+        userCache.set(u.id, name || u.email || u.id.slice(0, 8))
+      }
+    }
+
+    return rawEntries.map(e => ({
+      ...e,
+      user_display: userCache.get(e.created_by) || e.created_by?.slice(0, 8) || 'Unbekannt',
+    }))
+  }
+
+  function getMemberName(userId: string): string {
+    return userCache.get(userId) || 'Unbekannt'
+  }
+
+  // ── Cash book CRUD ──────────────────────────────────────────────────────
+
+  async function fetchCashBooks() {
+    loading.value = true
+    try {
+      const { data, error } = await (supabase as any)
+        .from('cash_books')
+        .select('*')
+        .order('name')
+
+      if (error) throw error
+      cashBooks.value = (data ?? []) as CashBook[]
+
+      // Auto-select if only one exists
+      if (cashBooks.value.length === 1 && !selectedCashBook.value) {
+        selectedCashBook.value = cashBooks.value[0]!
+      }
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function createCashBook(name: string, initialBalance: number) {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.user) throw new Error('Not authenticated')
+
+    const { data, error } = await (supabase as any)
+      .from('cash_books')
+      .insert({
+        company_id: organization.value?.id,
+        name,
+        initial_balance: initialBalance,
+        created_by: session.user.id,
+      })
+      .select()
+      .single()
+
+    if (error) throw error
+
+    await logActivity('cash_book_created', data.id, { name, initial_balance: initialBalance })
+
+    await fetchCashBooks()
+
+    // Auto-select the newly created one
+    const created = cashBooks.value.find(cb => cb.id === data.id)
+    if (created) selectedCashBook.value = created
+
+    return data as CashBook
+  }
+
+  // ── Entries ──────────────────────────────────────────────────────────────
+
+  async function fetchEntries(cashBookId: string, options?: { from?: string; to?: string }) {
+    entriesLoading.value = true
+    try {
+      let query = (supabase as any)
+        .from('cash_book_entries')
+        .select('*')
+        .eq('cash_book_id', cashBookId)
+        .order('entry_number', { ascending: false })
+
+      if (options?.from) {
+        query = query.gte('created_at', options.from)
+      }
+      if (options?.to) {
+        const nextDay = new Date(options.to)
+        nextDay.setDate(nextDay.getDate() + 1)
+        query = query.lt('created_at', nextDay.toISOString().split('T')[0])
+      }
+
+      const { data, error } = await query
+
+      if (error) throw error
+      entries.value = await enrichEntriesWithUsers((data ?? []) as CashBookEntry[])
+    } finally {
+      entriesLoading.value = false
+    }
+  }
+
+  async function createEntry(entry: {
+    cash_book_id: string
+    type: 'withdrawal' | 'correction' | 'payout' | 'reversal'
+    amount: number
+    description?: string
+    machine_id?: string | null
+    counted_amount?: number | null
+    expected_amount?: number | null
+    corrects_entry_id?: string | null
+  }) {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.user) throw new Error('Not authenticated')
+
+    const { data, error } = await (supabase as any)
+      .from('cash_book_entries')
+      .insert({
+        ...entry,
+        company_id: organization.value?.id,
+        created_by: session.user.id,
+      })
+      .select()
+      .single()
+
+    if (error) throw error
+
+    await logActivity('cash_book_entry_created', data.id, {
+      cash_book_id: entry.cash_book_id,
+      type: entry.type,
+      amount: entry.amount,
+      description: entry.description,
+    })
+
+    // Refresh entries and theoretical cash
+    await fetchEntries(entry.cash_book_id)
+    await fetchTheoreticalCash(entry.cash_book_id)
+
+    return data as CashBookEntry
+  }
+
+  // ── Theoretical cash RPC ────────────────────────────────────────────────
+
+  async function fetchTheoreticalCash(cashBookId: string) {
+    const { data, error } = await (supabase as any)
+      .rpc('get_theoretical_cash', {
+        p_cash_book_id: cashBookId,
+        p_company_id: organization.value?.id,
+      })
+
+    if (error) throw error
+    theoreticalCash.value = data as TheoreticalCash | null
+  }
+
+  // ── Machine assignment ──────────────────────────────────────────────────
+
+  async function fetchAllMachines() {
+    const { data, error } = await (supabase as any)
+      .from('vendingMachine')
+      .select('id, name, cash_book_id')
+      .order('name')
+
+    if (error) throw error
+    allMachines.value = (data ?? []) as VendingMachineBasic[]
+  }
+
+  async function assignMachine(machineId: string, cashBookId: string) {
+    const { error } = await (supabase as any)
+      .from('vendingMachine')
+      .update({ cash_book_id: cashBookId })
+      .eq('id', machineId)
+
+    if (error) throw error
+
+    // Update local state
+    const machine = allMachines.value.find(m => m.id === machineId)
+    if (machine) machine.cash_book_id = cashBookId
+
+    await logActivity('machine_assigned_to_cash_book', machineId, {
+      cash_book_id: cashBookId,
+      machine_name: machine?.name,
+    })
+  }
+
+  async function unassignMachine(machineId: string) {
+    const { error } = await (supabase as any)
+      .from('vendingMachine')
+      .update({ cash_book_id: null })
+      .eq('id', machineId)
+
+    if (error) throw error
+
+    const machine = allMachines.value.find(m => m.id === machineId)
+    if (machine) machine.cash_book_id = null
+
+    await logActivity('machine_unassigned_from_cash_book', machineId, {
+      machine_name: machine?.name,
+    })
+  }
+
+  // ── Integrity verification (client-side hash chain) ──────────────────────
+
+  async function verifyIntegrity(entriesToCheck: CashBookEntry[]): Promise<{ verified: number; total: number; valid: boolean }> {
+    // Sort ascending by entry_number for chain verification
+    const sorted = [...entriesToCheck].sort((a, b) => a.entry_number - b.entry_number)
+    let verified = 0
+    let prevHash = ''
+
+    for (const entry of sorted) {
+      const input = entry.entry_number.toString() + entry.type + entry.amount.toString() + entry.balance_after.toString() + prevHash
+      const encoder = new TextEncoder()
+      const data = encoder.encode(input)
+      const hashBuffer = await crypto.subtle.digest('SHA-256', data)
+      const hashArray = Array.from(new Uint8Array(hashBuffer))
+      const computedHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+
+      if (computedHash === entry.hash) {
+        verified++
+      }
+      prevHash = entry.hash
+    }
+
+    return {
+      verified,
+      total: sorted.length,
+      valid: verified === sorted.length,
+    }
+  }
+
+  // ── Computed helpers for KPIs ───────────────────────────────────────────
+
+  const currentBalance = computed(() => {
+    if (entries.value.length === 0) return 0
+    // Entries are sorted DESC by entry_number, first one is latest
+    return entries.value[0]!.balance_after
+  })
+
+  const totalWithdrawals = computed(() => {
+    const withdrawals = entries.value.filter(e => e.type === 'withdrawal' && !e.is_reversed)
+    return {
+      amount: withdrawals.reduce((sum, e) => sum + Math.abs(e.amount), 0),
+      count: withdrawals.length,
+    }
+  })
+
+  const totalCorrections = computed(() => {
+    const corrections = entries.value.filter(e => e.type === 'correction' && !e.is_reversed)
+    return {
+      amount: corrections.reduce((sum, e) => sum + e.amount, 0),
+      count: corrections.length,
+    }
+  })
+
+  // ── Return ──────────────────────────────────────────────────────────────
+
+  return {
+    // State
+    cashBooks,
+    selectedCashBook,
+    entries,
+    theoreticalCash,
+    loading,
+    entriesLoading,
+    allMachines,
+
+    // Cash book CRUD
+    fetchCashBooks,
+    createCashBook,
+
+    // Entries
+    fetchEntries,
+    createEntry,
+
+    // Theoretical cash
+    fetchTheoreticalCash,
+
+    // Machine assignment
+    fetchAllMachines,
+    assignMachine,
+    unassignMachine,
+
+    // Integrity
+    verifyIntegrity,
+
+    // User names
+    getMemberName,
+
+    // Computed KPIs
+    currentBalance,
+    totalWithdrawals,
+    totalCorrections,
+  }
+}

@@ -7,13 +7,13 @@ Extend the existing production vending machine telemetry system with AI-powered 
 ## Current Milestone
 
 **Kassenbuch (v1.6)**
-Status: In progress
-Phases: 1 of 2 complete
+Status: Complete
+Phases: 2 of 2 complete
 
 | Phase | Name | Plans | Status | Completed |
 |-------|------|-------|--------|-----------|
 | 12 | cash-book-infrastructure | 1 | Complete | 2026-04-07 |
-| 13 | cash-book-frontend | TBD | Not started | - |
+| 13 | cash-book-frontend | 2 | Complete | 2026-04-07 |
 
 ### Phase 12: cash-book-infrastructure
 
@@ -80,4 +80,4 @@ Plans: TBD (defined during /paul:plan)
 
 ---
 *Roadmap created: 2026-03-17*
-*Last updated: 2026-04-07 — Phase 12 complete*
+*Last updated: 2026-04-07 — Milestone v1.6 Kassenbuch complete*
