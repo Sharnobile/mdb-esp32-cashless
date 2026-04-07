@@ -1526,7 +1526,10 @@ void readTelemetryDDCMP() {
 	} while(1);
 }
 
-void requestTelemetryData(void *arg) {
+// One-shot FreeRTOS task for telemetry — needs its own stack because
+// readTelemetryDDCMP() allocates 1 KB on the stack, which exceeds the
+// esp_timer task's default ~3.5 KB.
+static void telemetry_task(void *arg) {
 
 	readTelemetryDDCMP();
 	readTelemetryDEX();
@@ -1534,13 +1537,28 @@ void requestTelemetryData(void *arg) {
 	size_t dex_size;
 	uint8_t *dex = (uint8_t*) xRingbufferReceive(dexRingbuf, &dex_size, 0);
 
-  	char topic[128];
-	snprintf(topic, sizeof(topic), "/%s/%s/dex", my_company_id, my_device_id);
+	if (dex != NULL) {
+		char topic[128];
+		snprintf(topic, sizeof(topic), "/%s/%s/dex", my_company_id, my_device_id);
 
-    mqtt_publish_safe(mqttClient, topic, (char*) dex, dex_size, 0, 0);
-    printf("%.*s", dex_size, (char*) dex);
+		mqtt_publish_safe(mqttClient, topic, (char*) dex, dex_size, 0, 0);
+		ESP_LOGI(TAG, "DEX telemetry published (%d bytes)", (int)dex_size);
 
-    vRingbufferReturnItem(dexRingbuf, (void*) dex);
+		vRingbufferReturnItem(dexRingbuf, (void*) dex);
+	} else {
+		ESP_LOGW(TAG, "DEX telemetry: ring buffer empty, nothing to publish");
+	}
+
+	vTaskDelete(NULL);  // self-delete
+}
+
+// esp_timer callback — lightweight wrapper that spawns the heavy telemetry work
+// in a dedicated task with sufficient stack.
+static void requestTelemetryData(void *arg) {
+	BaseType_t ret = xTaskCreate(telemetry_task, "dex_telem", 4096, NULL, 5, NULL);
+	if (ret != pdPASS) {
+		ESP_LOGE(TAG, "DEX telemetry: failed to create task");
+	}
 }
 
 void vTaskBitEvent(void *pvParameters) {
