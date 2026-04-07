@@ -5,27 +5,22 @@
 See: .paul/PROJECT.md (updated 2026-04-07)
 
 **Core value:** Vending machine operators can manage all the telemetry, monitor sales, and optimize inventory from a single dashboard
-**Current focus:** Kassenbuch v1.6 — GoBD-konformes Kassenbuch
+**Current focus:** Kassenbuch v1.6 — COMPLETE
 
 ## Current Position
 
-Milestone: Kassenbuch (v1.6)
-Phase: 13 of 13 (cash-book-frontend)
-Plan: 13-01 unified, 13-02 ready for APPLY
-Status: APPLY ready for Plan 13-02
-Last activity: 2026-04-07 — Plan 13-01 unified, proceeding to 13-02
+Milestone: Kassenbuch (v1.6) — COMPLETE
+Phase: 13 of 13 (cash-book-frontend) — Complete
+Plan: All plans complete
+Status: Milestone complete
+Last activity: 2026-04-07 — Milestone v1.6 complete
 
 Progress:
-- Kassenbuch v1.6: [███████░░░] 70%
-- Phase 13: [█████░░░░░] 50% (1 of 2 plans complete)
+- Kassenbuch v1.6: [██████████] 100%
 
 ## Loop Position
 
-Current loop state (Plan 13-02):
-```
-PLAN ──▶ APPLY ──▶ UNIFY
-  ✓        ○        ○     [Plan 13-02 approved, executing]
-```
+All loops closed.
 
 ## Accumulated Context
 
@@ -34,12 +29,16 @@ PLAN ──▶ APPLY ──▶ UNIFY
 - Kassenbuch: GoBD corrections via Stornobuchung (reversal entry), never UPDATE/DELETE
 - Kassenbuch: Hash chain SHA256(entry_number + type + amount + balance_after + prev_hash)
 - Kassenbuch: Theoretical cash aggregated across all assigned machines per Barkasse
+- Kassenbuch: Withdrawal = POSITIVE (cash collected from machine INTO Barkasse)
+- Kassenbuch: Payout = NEGATIVE (cash going OUT to bank)
+- Kassenbuch: No auto-correction after withdrawal — difference is informational only
 - Frontend: No toast library — use inline banners for errors/info
-- Frontend: Split Phase 13 into 2 plans (shell + dialogs/PDF)
+- Frontend: ssr: false for cash-book page (jspdf + component resolution)
+- Frontend: jspdf via dynamic import (client-only)
 
 ### Git State
 Branch: main
-Last commit: 723e17c feat(cash-book-infrastructure)
+Last commit: b23e75d feat(cash-book-frontend)
 
 ### Deferred Issues
 - `supabase db reset` does not work locally — pre-existing issue
@@ -53,9 +52,9 @@ None.
 ## Session Continuity
 
 Last session: 2026-04-07
-Stopped at: Plan 13-01 unified, executing Plan 13-02
-Next action: /paul:apply .paul/phases/13-cash-book-frontend/13-02-PLAN.md
-Resume file: .paul/phases/13-cash-book-frontend/13-02-PLAN.md
+Stopped at: Milestone v1.6 complete
+Next action: /paul:complete-milestone or start next milestone
+Resume file: .paul/ROADMAP.md
 
 ---
 *STATE.md — Updated after every significant action*
