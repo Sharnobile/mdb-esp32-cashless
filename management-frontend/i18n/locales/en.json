@@ -981,6 +981,14 @@
     "createCorrectionYes": "Create Correction",
     "reversalConfirmTitle": "Reverse Entry",
     "reversalConfirmMessage": "Reverse entry #{number}? This creates a counter-entry and cannot be undone.",
-    "reversalOf": "Reversal of entry"
+    "reversalOf": "Reversal of entry",
+    "deleteCashBook": "Delete Cash Register",
+    "deleteWarning": "Warning: This action cannot be undone!",
+    "deleteWarningEntries": "All {count} entries will be permanently deleted",
+    "deleteWarningMachines": "All assigned machines will be unassigned from this cash register",
+    "deleteWarningIrreversible": "The GoBD-compliant booking history will be lost",
+    "deleteConfirmStep1": "I understand, continue",
+    "deleteTypeName": "Type the name \"{name}\" to confirm deletion:",
+    "deleteConfirmFinal": "Delete permanently"
   }
 }

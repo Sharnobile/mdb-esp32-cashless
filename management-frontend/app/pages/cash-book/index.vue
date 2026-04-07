@@ -9,6 +9,7 @@ import {
   IconPlus,
   IconDevices,
   IconDownload,
+  IconTrash,
 } from '@tabler/icons-vue'
 
 import { Badge } from '@/components/ui/badge'
@@ -38,6 +39,7 @@ const {
   allMachines,
   fetchCashBooks,
   createCashBook,
+  deleteCashBook,
   fetchEntries,
   createEntry,
   fetchTheoreticalCash,
@@ -63,6 +65,31 @@ const creating = ref(false)
 
 const showAssignModal = ref(false)
 const assignLoading = ref(false)
+
+// Delete (multi-step confirmation)
+const showDeleteModal = ref(false)
+const deleteStep = ref<1 | 2>(1)
+const deleteConfirmName = ref('')
+const deleting = ref(false)
+
+function openDeleteModal() {
+  deleteStep.value = 1
+  deleteConfirmName.value = ''
+  showDeleteModal.value = true
+}
+
+async function confirmDelete() {
+  if (!selectedCashBook.value) return
+  deleting.value = true
+  try {
+    await deleteCashBook(selectedCashBook.value.id)
+    showDeleteModal.value = false
+  } catch (err: any) {
+    errorMessage.value = err.message
+  } finally {
+    deleting.value = false
+  }
+}
 
 // ── Date filter computation ──────────────────────────────────────────────────
 
@@ -602,6 +629,14 @@ async function exportPdf() {
           <IconDevices class="size-4" />
           {{ t('cashBook.assignMachines') }}
         </button>
+        <div class="flex-1" />
+        <button
+          class="inline-flex h-9 items-center gap-2 rounded-md border border-red-200 px-4 text-sm font-medium text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/20"
+          @click="openDeleteModal"
+        >
+          <IconTrash class="size-4" />
+          {{ t('cashBook.deleteCashBook') }}
+        </button>
       </div>
 
       <!-- Entries section -->
@@ -1010,6 +1045,65 @@ async function exportPdf() {
             {{ reversalLoading ? t('common.loading') : t('cashBook.reverseEntry') }}
           </button>
         </div>
+      </div>
+    </AppModal>
+
+    <!-- Delete Cash Book Modal (multi-step) -->
+    <AppModal
+      v-model:open="showDeleteModal"
+      :title="t('cashBook.deleteCashBook')"
+      size="sm"
+    >
+      <div class="space-y-4">
+        <!-- Step 1: Warning -->
+        <template v-if="deleteStep === 1">
+          <div class="rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-900/20">
+            <p class="text-sm font-medium text-red-700 dark:text-red-400">
+              {{ t('cashBook.deleteWarning') }}
+            </p>
+            <ul class="mt-2 list-disc pl-5 text-sm text-red-600 dark:text-red-400 space-y-1">
+              <li>{{ t('cashBook.deleteWarningEntries', { count: integrityResult?.total ?? entries.length }) }}</li>
+              <li>{{ t('cashBook.deleteWarningMachines') }}</li>
+              <li>{{ t('cashBook.deleteWarningIrreversible') }}</li>
+            </ul>
+          </div>
+          <div class="flex justify-end gap-2">
+            <button class="h-9 rounded-md border border-input px-4 text-sm font-medium hover:bg-accent" @click="showDeleteModal = false">
+              {{ t('common.cancel') }}
+            </button>
+            <button
+              class="h-9 rounded-md bg-red-600 px-4 text-sm font-medium text-white hover:bg-red-700"
+              @click="deleteStep = 2"
+            >
+              {{ t('cashBook.deleteConfirmStep1') }}
+            </button>
+          </div>
+        </template>
+
+        <!-- Step 2: Type name to confirm -->
+        <template v-if="deleteStep === 2">
+          <p class="text-sm">
+            {{ t('cashBook.deleteTypeName', { name: selectedCashBook?.name }) }}
+          </p>
+          <input
+            v-model="deleteConfirmName"
+            type="text"
+            :placeholder="selectedCashBook?.name"
+            class="h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          />
+          <div class="flex justify-end gap-2">
+            <button class="h-9 rounded-md border border-input px-4 text-sm font-medium hover:bg-accent" @click="showDeleteModal = false">
+              {{ t('common.cancel') }}
+            </button>
+            <button
+              :disabled="deleting || deleteConfirmName !== selectedCashBook?.name"
+              class="h-9 rounded-md bg-red-600 px-4 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+              @click="confirmDelete"
+            >
+              {{ deleting ? t('common.loading') : t('cashBook.deleteConfirmFinal') }}
+            </button>
+          </div>
+        </template>
       </div>
     </AppModal>
   </div>

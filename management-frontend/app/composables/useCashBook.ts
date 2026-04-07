@@ -175,6 +175,28 @@ export function useCashBook() {
     return data as CashBook
   }
 
+  async function deleteCashBook(cashBookId: string) {
+    const { data, error } = await (supabase as any)
+      .rpc('delete_cash_book', {
+        p_cash_book_id: cashBookId,
+        p_company_id: organization.value?.id,
+      })
+
+    if (error) throw error
+
+    await logActivity('cash_book_deleted', cashBookId, {})
+
+    // Clear selection if deleted
+    if (selectedCashBook.value?.id === cashBookId) {
+      selectedCashBook.value = null
+      entries.value = []
+      theoreticalCash.value = null
+    }
+
+    await fetchCashBooks()
+    return data
+  }
+
   // ── Entries ──────────────────────────────────────────────────────────────
 
   async function fetchEntries(cashBookId: string, options?: { from?: string; to?: string }) {
@@ -370,6 +392,7 @@ export function useCashBook() {
     // Cash book CRUD
     fetchCashBooks,
     createCashBook,
+    deleteCashBook,
 
     // Entries
     fetchEntries,
