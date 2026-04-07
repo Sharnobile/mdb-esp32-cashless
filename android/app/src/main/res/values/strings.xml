@@ -1,5 +1,6 @@
 <resources>
-    <string name="app_name">VMflow.xyz</string>
-    <!-- TODO: Remove or change this placeholder text -->
-    <string name="hello_blank_fragment">Hello blank fragment</string>
+    <string name="app_name">VMflow</string>
+    <!-- Supabase configuration (override via gradle properties or BuildConfig) -->
+    <string name="supabase_url">https://supabase.vmflow.xyz</string>
+    <string name="supabase_anon_key">your-anon-key-here</string>
 </resources>

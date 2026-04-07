@@ -1,0 +1,140 @@
+import Foundation
+import Supabase
+import Combine
+
+/// Manages authentication state and user session via Supabase Auth.
+/// Published properties drive the app's auth-dependent UI.
+@MainActor
+final class AuthService: ObservableObject {
+    @Published var isAuthenticated = false
+    @Published var isLoading = true
+    @Published var organization: Organization?
+    @Published var role: OrganizationRole?
+    @Published var error: String?
+
+    private let client = SupabaseService.shared.client
+    private var authStateTask: Task<Void, Never>?
+
+    init() {
+        authStateTask = Task { [weak self] in
+            guard let self else { return }
+            // Check initial session
+            await self.checkSession()
+            // Listen for auth state changes
+            for await (event, _) in self.client.auth.authStateChanges {
+                switch event {
+                case .signedIn:
+                    self.isAuthenticated = true
+                    await self.fetchOrganization()
+                case .signedOut:
+                    self.isAuthenticated = false
+                    self.organization = nil
+                    self.role = nil
+                default:
+                    break
+                }
+                self.isLoading = false
+            }
+        }
+    }
+
+    deinit {
+        authStateTask?.cancel()
+    }
+
+    // MARK: - Session
+
+    /// Check for an existing session on app launch.
+    func checkSession() async {
+        isLoading = true
+        do {
+            let session = try await client.auth.session
+            isAuthenticated = true
+            _ = session
+            await fetchOrganization()
+        } catch {
+            isAuthenticated = false
+        }
+        isLoading = false
+    }
+
+    // MARK: - Login
+
+    /// Sign in with email and password.
+    func login(email: String, password: String) async {
+        error = nil
+        isLoading = true
+        do {
+            try await client.auth.signIn(email: email, password: password)
+            isAuthenticated = true
+            await fetchOrganization()
+        } catch {
+            self.error = error.localizedDescription
+        }
+        isLoading = false
+    }
+
+    // MARK: - Register
+
+    /// Create a new account with email and password.
+    func register(email: String, password: String, firstName: String, lastName: String) async {
+        error = nil
+        isLoading = true
+        do {
+            try await client.auth.signUp(
+                email: email,
+                password: password,
+                data: [
+                    "first_name": .string(firstName),
+                    "last_name": .string(lastName)
+                ]
+            )
+            isAuthenticated = true
+            await fetchOrganization()
+        } catch {
+            self.error = error.localizedDescription
+        }
+        isLoading = false
+    }
+
+    // MARK: - Logout
+
+    /// Sign out and clear state.
+    func logout() async {
+        do {
+            try await client.auth.signOut()
+        } catch {
+            // Ignore sign-out errors — clear local state regardless
+        }
+        isAuthenticated = false
+        organization = nil
+        role = nil
+    }
+
+    // MARK: - Organization
+
+    /// Fetch the user's organization via the `get-my-organization` edge function.
+    func fetchOrganization() async {
+        do {
+            let response: OrganizationResponse = try await client.functions.invoke(
+                "get-my-organization",
+                options: .init(method: .get)
+            )
+            organization = response.organization
+            if let roleString = response.role {
+                role = OrganizationRole(rawValue: roleString)
+            }
+        } catch {
+            // User may not have an organization yet
+            organization = nil
+            role = nil
+        }
+    }
+
+    /// The current access token for API calls.
+    var accessToken: String? {
+        get async {
+            try? await client.auth.session.accessToken
+        }
+    }
+}

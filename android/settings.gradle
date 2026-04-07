@@ -19,5 +19,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Target"
+rootProject.name = "VMflow"
 include ':app'
