@@ -2,36 +2,41 @@
 
 ## Overview
 
-Extend the existing production vending machine telemetry system with AI-powered analytics, optimized warehouse picking workflows, and tax-compliant sales reporting.
+Extend the existing production vending machine telemetry system with AI-powered analytics, optimized warehouse picking workflows, tax-compliant sales reporting, and GoBD-compliant cash book management.
 
 ## Current Milestone
 
-**Steuer-Berichte (v1.5)**
-Status: Complete
-Phases: 3 of 3 complete
+**Kassenbuch (v1.6)**
+Status: In progress
+Phases: 1 of 2 complete
 
 | Phase | Name | Plans | Status | Completed |
 |-------|------|-------|--------|-----------|
-| 09 | tax-infrastructure | 2 | Complete | 2026-04-05 |
-| 10 | tax-backfill-validation | 1 | Complete | 2026-04-05 |
-| 11 | tax-reports-export | 1 | Complete | 2026-04-05 |
+| 12 | cash-book-infrastructure | 1 | Complete | 2026-04-07 |
+| 13 | cash-book-frontend | TBD | Not started | - |
 
-### Phase 09: tax-infrastructure
+### Phase 12: cash-book-infrastructure
 
-Focus: DB + Backend — `tax_classes`, `tax_rates`, `system_tax_rates` Tabellen + RLS; `tax_class_id` auf Kategorie/Produkt; `country_code` auf Company/Machine; Sales-Stamp-Trigger; DE/AT Rates seeden; UI für Steuerklassen/Sätze pflegen + Kategorie-Zuweisung + Land-Auswahl
+Focus: DB + Backend — `cash_books` Tabelle (pro Automat, Aktivierungsdatum, Anfangsbestand), `cash_book_entries` Tabelle (unveränderliche GoBD-konforme Einträge mit Hash-Kette), RLS-Policies (kein DELETE/UPDATE auf Einträge), RPC für theoretischen Kassenstand (Bargeldverkäufe seit letzter Entnahme), sequentielle Nummerierung
 Plans: TBD (defined during /paul:plan)
 
-### Phase 10: tax-backfill-validation
+### Phase 13: cash-book-frontend
 
-Focus: Datenbereinigung — Backfill historischer Sales (nachträglich stempeln); Export-Seite Validierung (Blocker wenn Steuerklassen fehlen); Hinweis-Banner
-Plans: TBD (defined during /paul:plan)
-
-### Phase 11: tax-reports-export
-
-Focus: Export-Funktionalität — Report-Seite mit Zeitraum-Auswahl; DATEV Buchungsstapel CSV-Export; Einfacher CSV-Export; Vorschau-Tabelle
+Focus: UI — Kassenbuch-Seite pro Automat, KPI-Karten (aktueller Stand, Gesamtentnahmen, Korrekturen, Integritätsprüfung), Entnahme-Dialog mit Soll/Ist-Vergleich (theoretischer vs. gezählter Betrag, Differenz-Anzeige), Korrektur-Dialog, Auszahlung auf Bankkonto, GoBD-Konformitäts-Badge, PDF-Export, Zeitraumfilter, i18n (de/en)
 Plans: TBD (defined during /paul:plan)
 
 ## Completed Milestones
+
+<details>
+<summary>Steuer-Berichte (v1.5) — 2026-04-05 (3 phases)</summary>
+
+| Phase | Name | Plans | Completed |
+|-------|------|-------|-----------|
+| 09 | tax-infrastructure | 2 | 2026-04-05 |
+| 10 | tax-backfill-validation | 1 | 2026-04-05 |
+| 11 | tax-reports-export | 1 | 2026-04-05 |
+
+</details>
 
 <details>
 <summary>Enhanced AI Insights (v1.4) — 2026-03-19 (1 phase)</summary>
@@ -75,4 +80,4 @@ Plans: TBD (defined during /paul:plan)
 
 ---
 *Roadmap created: 2026-03-17*
-*Last updated: 2026-04-05 — Milestone v1.5 Steuer-Berichte created*
+*Last updated: 2026-04-07 — Phase 12 complete*

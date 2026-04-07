@@ -48,10 +48,13 @@ Vending machine operators can manage all the telemetry, monitor sales, and optim
 
 ### Active (In Progress)
 
-- [ ] Tax-compliant sales recording and export (Steuer-Berichte v1.5)
+- [x] Tax-compliant sales recording and export (Steuer-Berichte v1.5)
   - [x] Phase 09: Tax infrastructure — tax_classes, tax_rates, country_code, sales stamp trigger, UI — Phase 09 complete
   - [x] Phase 10: Backfill + validation — historical sales backfill, export blocker — Phase 10 complete
   - [x] Phase 11: Tax reports export — report page, DATEV CSV, simple CSV, VAT breakdown, payment filters — Phase 11 complete
+- [ ] GoBD-konformes Kassenbuch (Kassenbuch v1.6)
+  - [x] Phase 12: Cash book infrastructure — cash_books, cash_book_entries, hash chain, reversal, get_theoretical_cash RPC — Phase 12 complete
+  - [ ] Phase 13: Cash book frontend — page, composable, entry forms, PDF export, i18n
 
 ### Planned (Next)
 
@@ -131,4 +134,4 @@ Production system with live ESP32 devices installed in the field. Backward compa
 
 ---
 *PROJECT.md — Updated when requirements or context change*
-*Last updated: 2026-03-19 after Phase 08 (enhanced-insights) — Milestone v1.4 complete*
+*Last updated: 2026-04-07 after Phase 12 (cash-book-infrastructure) — Phase 12 complete*

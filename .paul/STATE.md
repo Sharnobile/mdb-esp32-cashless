@@ -2,28 +2,29 @@
 
 ## Project Reference
 
-See: .paul/PROJECT.md (updated 2026-04-05)
+See: .paul/PROJECT.md (updated 2026-04-07)
 
 **Core value:** Vending machine operators can manage all the telemetry, monitor sales, and optimize inventory from a single dashboard
-**Current focus:** Steuer-Berichte v1.5 — MILESTONE COMPLETE
+**Current focus:** Kassenbuch v1.6 — GoBD-konformes Kassenbuch
 
 ## Current Position
 
-Milestone: Steuer-Berichte (v1.5) — COMPLETE
-Phase: All 3 phases complete (09, 10, 11)
-Plan: All plans executed and unified
-Status: Milestone v1.5 complete
-Last activity: 2026-04-05 — Phase 11 complete, milestone done
+Milestone: Kassenbuch (v1.6)
+Phase: 13 of 13 (cash-book-frontend)
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-04-07 — Phase 12 complete, transitioned to Phase 13
 
 Progress:
-- Steuer-Berichte v1.5: [██████████] 100%
-- Phase 09: [██████████] 100% (2 plans)
-- Phase 10: [██████████] 100% (1 plan)
-- Phase 11: [██████████] 100% (1 plan)
+- Kassenbuch v1.6: [█████░░░░░] 50%
 
 ## Loop Position
 
-All loops closed.
+Current loop state:
+```
+PLAN ──▶ APPLY ──▶ UNIFY
+  ○        ○        ○     [Ready for first PLAN of Phase 13]
+```
 
 ## Accumulated Context
 
@@ -38,6 +39,10 @@ All loops closed.
 - Client-side CSV generation, no server-side export
 - Payment filters affect all views + exports
 - VAT breakdown table added per user request
+- Kassenbuch: 1-n Barkassen per company (not 1:1 machine), machines assigned via vendingMachine.cash_book_id
+- Kassenbuch: GoBD corrections via Stornobuchung (reversal entry), never UPDATE/DELETE
+- Kassenbuch: Hash chain SHA256(entry_number + type + amount + balance_after + prev_hash)
+- Kassenbuch: Theoretical cash aggregated across all assigned machines per Barkasse
 
 ### Git State
 Branch: main
@@ -47,15 +52,16 @@ Branch: main
 - SonarQube integration planned but not started
 - Warehouse positions duplicate product bug (ON CONFLICT error)
 - DATEV account numbers hardcoded SKR03 — make configurable in future
+- Migration 20260407000000 not live-tested yet — first test when DB starts
 
 ### Blockers/Concerns
 None.
 
 ## Session Continuity
 
-Last session: 2026-04-05
-Stopped at: Milestone v1.5 Steuer-Berichte complete
-Next action: /paul:complete-milestone or start next milestone
+Last session: 2026-04-07
+Stopped at: Phase 12 complete, ready to plan Phase 13
+Next action: /paul:plan for Phase 13
 Resume file: .paul/ROADMAP.md
 
 ---
