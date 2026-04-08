@@ -347,6 +347,116 @@ export function useReports() {
     return [...map.values()].sort((a, b) => b.rate - a.rate)
   })
 
+  /** Monthly summary export — one row per machine per month with VAT split */
+  function exportMonthlySummary() {
+    if (filteredSales.value.length === 0) return
+
+    // Group by machine + month
+    const map = new Map<string, {
+      month: string
+      machine_name: string
+      machine_id: string
+      gross: number
+      gross_standard: number
+      net_standard: number
+      tax_standard: number
+      gross_reduced: number
+      net_reduced: number
+      tax_reduced: number
+      gross_other: number
+      net_other: number
+      tax_other: number
+      cash: number
+      cashless: number
+      count: number
+    }>()
+
+    for (const s of filteredSales.value) {
+      const d = new Date(s.created_at)
+      const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+      const key = `${month}:${s.machine_id}`
+
+      let entry = map.get(key)
+      if (!entry) {
+        entry = {
+          month,
+          machine_name: s.machine_name,
+          machine_id: s.machine_id,
+          gross: 0,
+          gross_standard: 0, net_standard: 0, tax_standard: 0,
+          gross_reduced: 0, net_reduced: 0, tax_reduced: 0,
+          gross_other: 0, net_other: 0, tax_other: 0,
+          cash: 0, cashless: 0,
+          count: 0,
+        }
+        map.set(key, entry)
+      }
+
+      entry.gross += s.item_price ?? 0
+      entry.count += 1
+
+      // Payment method
+      const ch = s.channel ?? 'cashless'
+      if (ch === 'cash') {
+        entry.cash += s.item_price ?? 0
+      } else {
+        entry.cashless += s.item_price ?? 0
+      }
+
+      // VAT split
+      const rate = s.tax_rate_snapshot
+      if (rate != null && Math.abs(rate - 0.19) < 0.001) {
+        entry.gross_standard += s.item_price ?? 0
+        entry.net_standard += s.price_net ?? 0
+        entry.tax_standard += s.tax_amount ?? 0
+      } else if (rate != null && Math.abs(rate - 0.07) < 0.001) {
+        entry.gross_reduced += s.item_price ?? 0
+        entry.net_reduced += s.price_net ?? 0
+        entry.tax_reduced += s.tax_amount ?? 0
+      } else {
+        entry.gross_other += s.item_price ?? 0
+        entry.net_other += s.price_net ?? 0
+        entry.tax_other += s.tax_amount ?? 0
+      }
+    }
+
+    const headers = [
+      'Monat', 'Automat', 'Automaten-ID', 'Anzahl Verkäufe',
+      'Brutto Gesamt',
+      'Brutto 19%', 'Netto 19%', 'MwSt. 19%',
+      'Brutto 7%', 'Netto 7%', 'MwSt. 7%',
+      'Brutto Sonstige', 'Netto Sonstige', 'MwSt. Sonstige',
+      'Bar', 'Karte/Bargeldlos',
+    ]
+
+    const sorted = [...map.values()].sort((a, b) =>
+      a.month.localeCompare(b.month) || a.machine_name.localeCompare(b.machine_name)
+    )
+
+    const rows = sorted.map(e => [
+      e.month,
+      e.machine_name,
+      e.machine_id,
+      String(e.count),
+      germanNumber(e.gross),
+      germanNumber(e.gross_standard), germanNumber(e.net_standard), germanNumber(e.tax_standard),
+      germanNumber(e.gross_reduced), germanNumber(e.net_reduced), germanNumber(e.tax_reduced),
+      germanNumber(e.gross_other), germanNumber(e.net_other), germanNumber(e.tax_other),
+      germanNumber(e.cash), germanNumber(e.cashless),
+    ])
+
+    const csv = [
+      headers.join(';'),
+      ...rows.map(r => r.map(cell => `"${cell}"`).join(';')),
+    ].join('\r\n')
+
+    const bom = '\uFEFF'
+    const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8' })
+    const fromStr = dateFrom.value.replace(/-/g, '')
+    const toStr = dateTo.value.replace(/-/g, '')
+    downloadBlob(blob, `Monatssummary_${fromStr}_${toStr}.csv`)
+  }
+
   function toggleChannel(channel: string) {
     channelFilters.value[channel] = !channelFilters.value[channel]
   }
@@ -365,5 +475,6 @@ export function useReports() {
     fetchReportData,
     exportSimpleCsv,
     exportDatev,
+    exportMonthlySummary,
   }
 }

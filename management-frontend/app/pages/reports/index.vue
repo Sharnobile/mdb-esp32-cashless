@@ -22,6 +22,7 @@ const {
   fetchReportData,
   exportSimpleCsv,
   exportDatev,
+  exportMonthlySummary,
 } = useReports()
 
 // Ensure tax + products data is loaded for readiness check
@@ -180,6 +181,15 @@ function formatPercent(rate: number | null): string {
       >
         <IconDownload class="size-4" />
         {{ t('reports.exportDatev') }}
+      </button>
+      <button
+        :disabled="!canExport"
+        class="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90 disabled:opacity-50"
+        :title="!taxReadiness.isReady ? t('reports.taxNotReady') : ''"
+        @click="exportMonthlySummary"
+      >
+        <IconDownload class="size-4" />
+        {{ t('reports.exportMonthlySummary') }}
       </button>
     </div>
 
