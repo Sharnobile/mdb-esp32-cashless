@@ -19,7 +19,7 @@
 	<key>CFBundleShortVersionString</key>
 	<string>1.0</string>
 	<key>CFBundleVersion</key>
-	<string>3</string>
+	<string>4</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>LSRequiresIPhoneOS</key>
@@ -36,7 +36,7 @@
 		<string>_http._tcp</string>
 	</array>
 	<key>NSCameraUsageDescription</key>
-	<string>VMflow uses the camera to scan product barcodes for stock intake.</string>
+	<string>VMflow uses the camera to scan QR codes and product barcodes.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>VMflow needs local network access to connect to the development server.</string>
 	<key>SUPABASE_ANON_KEY</key>
