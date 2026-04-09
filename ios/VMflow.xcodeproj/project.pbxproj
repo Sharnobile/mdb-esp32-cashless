@@ -55,6 +55,9 @@
 		L10N000000000000000000002 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = L10N000000000000000000001 /* Localizable.xcstrings */; };
 		SE01000000000000000000001 /* ServerEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = SE01000000000000000000002 /* ServerEntry.swift */; };
 		SS01000000000000000000001 /* ServerStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = SS01000000000000000000002 /* ServerStore.swift */; };
+		SV01000000000000000000001 /* ServerSelectionSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = SV01000000000000000000002 /* ServerSelectionSheet.swift */; };
+		SV02000000000000000000001 /* AddServerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SV02000000000000000000002 /* AddServerView.swift */; };
+		SV03000000000000000000001 /* QRScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SV03000000000000000000002 /* QRScannerView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -110,6 +113,9 @@
 		L10N000000000000000000001 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		SE01000000000000000000002 /* ServerEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerEntry.swift; sourceTree = "<group>"; };
 		SS01000000000000000000002 /* ServerStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerStore.swift; sourceTree = "<group>"; };
+		SV01000000000000000000002 /* ServerSelectionSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerSelectionSheet.swift; sourceTree = "<group>"; };
+		SV02000000000000000000002 /* AddServerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddServerView.swift; sourceTree = "<group>"; };
+		SV03000000000000000000002 /* QRScannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QRScannerView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -219,8 +225,11 @@
 		AB159947A661761F733E13D3 /* Auth */ = {
 			isa = PBXGroup;
 			children = (
+				SV02000000000000000000002 /* AddServerView.swift */,
 				55B32C8EEFABC9DADF2C73DD /* LoginView.swift */,
+				SV03000000000000000000002 /* QRScannerView.swift */,
 				813681CDE6C321A49F84A20B /* RegisterView.swift */,
+				SV01000000000000000000002 /* ServerSelectionSheet.swift */,
 			);
 			path = Auth;
 			sourceTree = "<group>";
@@ -426,6 +435,9 @@
 				AD28437ACBB0F0A443AA458E /* RegisterView.swift in Sources */,
 				C2A2406A5D534A262F1CB0BA /* Sale.swift in Sources */,
 				SE01000000000000000000001 /* ServerEntry.swift in Sources */,
+				SV01000000000000000000001 /* ServerSelectionSheet.swift in Sources */,
+				SV02000000000000000000001 /* AddServerView.swift in Sources */,
+				SV03000000000000000000001 /* QRScannerView.swift in Sources */,
 				SS01000000000000000000001 /* ServerStore.swift in Sources */,
 				14E8E7A13B8FB4BBA2CE3AA1 /* SettingsView.swift in Sources */,
 				4317985673B05FA56A45069B /* StatusBadge.swift in Sources */,
