@@ -73,15 +73,43 @@ cd "$SCRIPT_DIR"
 # ═══════════════════════════════════════════════════════════════════════════════
 step "Environment Check"
 
-# Read env vars safely (values may contain spaces, so we can't just `source .env`)
-while IFS='=' read -r key value; do
+# Read env vars safely, handling multi-line quoted values (e.g. PEM keys)
+_current_key=""
+_current_value=""
+_in_multiline=false
+
+while IFS= read -r line || [[ -n "$line" ]]; do
+    if $_in_multiline; then
+        _current_value="$_current_value"$'\n'"$line"
+        # Check if this line closes the quote
+        if [[ "$line" =~ \"[[:space:]]*$ ]]; then
+            _in_multiline=false
+            _current_value="${_current_value%\"}"
+            export "$_current_key=$_current_value"
+        fi
+        continue
+    fi
+
     # Skip comments and blank lines
-    [[ "$key" =~ ^[[:space:]]*# ]] && continue
-    [[ -z "$key" ]] && continue
-    # Trim whitespace from key
-    key=$(echo "$key" | xargs)
-    # Export the variable
-    export "$key=$value"
+    [[ "$line" =~ ^[[:space:]]*# ]] && continue
+    [[ -z "${line// /}" ]] && continue
+    # Skip lines that don't look like KEY=VALUE
+    [[ "$line" =~ ^[[:alpha:]][[:alnum:]_]*= ]] || continue
+
+    _current_key="${line%%=*}"
+    _current_value="${line#*=}"
+
+    # Check for multi-line quoted value (opening " without closing ")
+    if [[ "$_current_value" =~ ^\" ]] && ! [[ "$_current_value" =~ \"$ ]]; then
+        _in_multiline=true
+        _current_value="${_current_value#\"}"
+        continue
+    fi
+
+    # Strip surrounding quotes for single-line values
+    _current_value="${_current_value#\"}"
+    _current_value="${_current_value%\"}"
+    export "$_current_key=$_current_value"
 done < .env
 
 # ─── VAPID keys (required for push notifications) ────────────────────────────
