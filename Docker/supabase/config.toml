@@ -514,3 +514,21 @@ enabled = true
 verify_jwt = false
 import_map = "./functions/check-low-stock/deno.json"
 entrypoint = "./functions/check-low-stock/index.ts"
+
+[functions.public-machine-data]
+enabled = true
+verify_jwt = false
+import_map = "./functions/public-machine-data/deno.json"
+entrypoint = "./functions/public-machine-data/index.ts"
+
+[functions.subscribe-restock]
+enabled = true
+verify_jwt = false
+import_map = "./functions/subscribe-restock/deno.json"
+entrypoint = "./functions/subscribe-restock/index.ts"
+
+[functions.submit-product-wish]
+enabled = true
+verify_jwt = false
+import_map = "./functions/submit-product-wish/deno.json"
+entrypoint = "./functions/submit-product-wish/index.ts"

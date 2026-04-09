@@ -2,30 +2,41 @@
 
 ## Overview
 
-Extend the existing production vending machine telemetry system with AI-powered analytics, optimized warehouse picking workflows, tax-compliant sales reporting, and GoBD-compliant cash book management.
+Extend the existing production vending machine telemetry system with AI-powered analytics, optimized warehouse picking workflows, tax-compliant sales reporting, GoBD-compliant cash book management, and a public-facing mobile storefront with cashless payment.
 
 ## Current Milestone
 
-**Kassenbuch (v1.6)**
-Status: Complete
-Phases: 2 of 2 complete
+**Mobile Storefront (v1.7)**
+Status: In progress
+Phases: 1 of 2 complete
 
 | Phase | Name | Plans | Status | Completed |
 |-------|------|-------|--------|-----------|
-| 12 | cash-book-infrastructure | 1 | Complete | 2026-04-07 |
-| 13 | cash-book-frontend | 2 | Complete | 2026-04-07 |
+| 14 | public-storefront | 1 | Complete | 2026-04-09 |
+| 15 | mobile-payment | TBD | Not started | - |
 
-### Phase 12: cash-book-infrastructure
+### Phase 14: public-storefront
 
-Focus: DB + Backend — `cash_books` Tabelle (pro Automat, Aktivierungsdatum, Anfangsbestand), `cash_book_entries` Tabelle (unveränderliche GoBD-konforme Einträge mit Hash-Kette), RLS-Policies (kein DELETE/UPDATE auf Einträge), RPC für theoretischen Kassenstand (Bargeldverkäufe seit letzter Entnahme), sequentielle Nummerierung
-Plans: TBD (defined during /paul:plan)
+Focus: Public machine page — Edge function `public-machine-data` (service_role, no auth), public Nuxt page `/m/[subdomain]` showing machine name, status, location, products grouped by category with stock levels, prices, availability badges, product images, and color-coded stock progress bars. Mobile-first responsive design, i18n (en/de).
+Plans: 1 (14-01-PLAN.md) — Complete
 
-### Phase 13: cash-book-frontend
+### Phase 15: mobile-payment
 
-Focus: UI — Kassenbuch-Seite pro Automat, KPI-Karten (aktueller Stand, Gesamtentnahmen, Korrekturen, Integritätsprüfung), Entnahme-Dialog mit Soll/Ist-Vergleich (theoretischer vs. gezählter Betrag, Differenz-Anzeige), Korrektur-Dialog, Auszahlung auf Bankkonto, GoBD-Konformitäts-Badge, PDF-Export, Zeitraumfilter, i18n (de/en)
+Focus: Stripe payment integration — Per-company Stripe API keys, Stripe Payment Intent edge function, product selection + checkout UI on public page, Apple Pay / Google Pay via Stripe Payment Element, credit delivery to ESP32 via existing send-credit flow on successful payment, payment records.
+**Note:** MDB slave device cannot force a vend — the flow is: web payment → credit to ESP32 → ESP32 presents credit to VMC → customer selects product on machine → VMC vends. Customer must physically interact with the machine after paying online.
 Plans: TBD (defined during /paul:plan)
 
 ## Completed Milestones
+
+<details>
+<summary>Kassenbuch (v1.6) — 2026-04-07 (2 phases)</summary>
+
+| Phase | Name | Plans | Completed |
+|-------|------|-------|-----------|
+| 12 | cash-book-infrastructure | 1 | 2026-04-07 |
+| 13 | cash-book-frontend | 2 | 2026-04-07 |
+
+</details>
 
 <details>
 <summary>Steuer-Berichte (v1.5) — 2026-04-05 (3 phases)</summary>
@@ -80,4 +91,4 @@ Plans: TBD (defined during /paul:plan)
 
 ---
 *Roadmap created: 2026-03-17*
-*Last updated: 2026-04-07 — Milestone v1.6 Kassenbuch complete*
+*Last updated: 2026-04-09 — Milestone v1.7 Mobile Storefront started*
