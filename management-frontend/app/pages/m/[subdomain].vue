@@ -29,6 +29,7 @@ interface MachineData {
   status: string | null
   status_at: string | null
   categories: Category[]
+  payment_enabled: boolean
 }
 
 const { data, error, refresh } = await useFetch<MachineData>('/functions/v1/public-machine-data', {
@@ -111,6 +112,132 @@ async function submitWish() {
   }
 }
 
+// --- Payment state ---
+const selectedProduct = ref<Product | null>(null)
+const paymentLoading = ref(false)
+const paymentError = ref('')
+const paymentSuccess = ref(false)
+const confirmLoading = ref(false)
+const paymentElementReady = ref(false)
+
+let stripeInstance: any = null
+let elementsInstance: any = null
+let currentPaymentIntentId = ''
+
+async function loadStripeJs(): Promise<any> {
+  if ((window as any).Stripe) return (window as any).Stripe
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script')
+    script.src = 'https://js.stripe.com/v3/'
+    script.onload = () => resolve((window as any).Stripe)
+    script.onerror = () => reject(new Error('Failed to load Stripe.js'))
+    document.head.appendChild(script)
+  })
+}
+
+async function openPayment(product: Product) {
+  selectedProduct.value = product
+  paymentError.value = ''
+  paymentSuccess.value = false
+  paymentLoading.value = true
+  paymentElementReady.value = false
+
+  try {
+    // 1. Create PaymentIntent
+    const pi = await $fetch<{
+      clientSecret: string
+      paymentIntentId: string
+      publishableKey: string
+      amount: number
+      currency: string
+    }>('/functions/v1/create-payment-intent', {
+      method: 'POST',
+      body: {
+        subdomain: parseInt(subdomain, 10),
+        product_id: product.id,
+        slot: product.slot,
+      },
+    })
+
+    currentPaymentIntentId = pi.paymentIntentId
+
+    // 2. Load Stripe.js + init
+    const StripeConstructor = await loadStripeJs()
+    stripeInstance = StripeConstructor(pi.publishableKey)
+    elementsInstance = stripeInstance.elements({
+      clientSecret: pi.clientSecret,
+      appearance: {
+        theme: document.documentElement.classList.contains('dark') ? 'night' : 'stripe',
+        variables: { borderRadius: '8px' },
+      },
+    })
+
+    // 3. Mount Payment Element after DOM is ready
+    await nextTick()
+    const paymentElement = elementsInstance.create('payment')
+    paymentElement.mount('#payment-element')
+    paymentElement.on('ready', () => {
+      paymentElementReady.value = true
+    })
+  } catch (err: any) {
+    paymentError.value = err?.data?.error || err?.message || t('publicStorefront.paymentFailed')
+  } finally {
+    paymentLoading.value = false
+  }
+}
+
+function closePayment() {
+  selectedProduct.value = null
+  paymentError.value = ''
+  paymentSuccess.value = false
+  paymentElementReady.value = false
+  stripeInstance = null
+  elementsInstance = null
+  currentPaymentIntentId = ''
+}
+
+async function submitPayment() {
+  if (!stripeInstance || !elementsInstance) return
+  paymentError.value = ''
+  confirmLoading.value = true
+
+  try {
+    // Confirm payment with Stripe
+    const { error: stripeError, paymentIntent } = await stripeInstance.confirmPayment({
+      elements: elementsInstance,
+      confirmParams: { return_url: window.location.href },
+      redirect: 'if_required',
+    })
+
+    if (stripeError) {
+      paymentError.value = stripeError.message || t('publicStorefront.paymentFailed')
+      return
+    }
+
+    if (paymentIntent?.status === 'succeeded') {
+      // Deliver credit via confirm-payment edge function
+      try {
+        await $fetch('/functions/v1/confirm-payment', {
+          method: 'POST',
+          body: {
+            payment_intent_id: paymentIntent.id,
+            subdomain: parseInt(subdomain, 10),
+          },
+        })
+        paymentSuccess.value = true
+      } catch {
+        // Payment succeeded but credit delivery failed — webhook will handle it
+        paymentSuccess.value = true
+        paymentError.value = t('publicStorefront.creditDeliveryFailed')
+      }
+    }
+  } catch (err: any) {
+    paymentError.value = err?.message || t('publicStorefront.paymentFailed')
+  } finally {
+    confirmLoading.value = false
+  }
+}
+
 // --- Helpers ---
 function stockPercent(stock: number, capacity: number) {
   return capacity > 0 ? (stock / capacity) * 100 : 0
@@ -132,13 +259,10 @@ function mapsUrl(lat: number, lon: number) {
 }
 
 const isOnline = computed(() => data.value?.status === 'online')
-
-// Dark mode is handled by the app-level head script that adds .dark to <html>
-// based on localStorage/prefers-color-scheme. No manual handling needed here.
 </script>
 
 <template>
-  <div :class="{ dark: isDark }" class="min-h-dvh bg-background text-foreground">
+  <div class="min-h-dvh bg-background text-foreground">
     <Head>
       <title>{{ data?.machine?.name || t('publicStorefront.loading') }}</title>
       <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -177,7 +301,6 @@ const isOnline = computed(() => data.value?.status === 'online')
       <header class="mb-6">
         <h1 class="text-2xl font-bold tracking-tight">{{ data.machine.name }}</h1>
         <div class="mt-2 flex flex-wrap items-center gap-3">
-          <!-- Status badge -->
           <span
             class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium"
             :class="isOnline
@@ -187,7 +310,6 @@ const isOnline = computed(() => data.value?.status === 'online')
             <span class="size-1.5 rounded-full" :class="isOnline ? 'bg-emerald-500' : 'bg-muted-foreground'" />
             {{ isOnline ? t('publicStorefront.online') : t('publicStorefront.offline') }}
           </span>
-          <!-- Route link -->
           <a
             v-if="data.machine.location_lat && data.machine.location_lon"
             :href="mapsUrl(data.machine.location_lat, data.machine.location_lon)"
@@ -285,6 +407,18 @@ const isOnline = computed(() => data.value?.status === 'online')
               />
             </div>
 
+            <!-- Buy button (only when payment enabled + in stock) -->
+            <button
+              v-if="data.payment_enabled && product.available && product.price"
+              class="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg bg-primary py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+              @click="openPayment(product)"
+            >
+              <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z" />
+              </svg>
+              {{ t('publicStorefront.buy') }} · {{ formatPrice(product.price) }}
+            </button>
+
             <!-- Notify button for sold-out products -->
             <button
               v-if="!product.available && !notifyDone.has(product.id)"
@@ -312,13 +446,106 @@ const isOnline = computed(() => data.value?.status === 'online')
       </footer>
     </div>
 
+    <!-- Payment modal -->
+    <Teleport to="body">
+      <Transition name="fade">
+        <div
+          v-if="selectedProduct"
+          class="fixed inset-0 z-50 flex items-end justify-center sm:items-center"
+        >
+          <div class="fixed inset-0 bg-black/50" @click="!confirmLoading && closePayment()" />
+          <div class="relative w-full max-w-md rounded-t-2xl border border-border bg-card p-6 sm:rounded-2xl">
+            <!-- Success state -->
+            <div v-if="paymentSuccess" class="py-6 text-center">
+              <div class="mx-auto mb-3 flex size-14 items-center justify-center rounded-full bg-emerald-500/15">
+                <svg class="size-7 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                </svg>
+              </div>
+              <h3 class="mb-1 text-base font-semibold text-card-foreground">
+                {{ t('publicStorefront.paymentSuccess') }}
+              </h3>
+              <p class="mb-1 text-sm text-muted-foreground">
+                {{ t('publicStorefront.creditDelivered') }}
+              </p>
+              <p class="mb-4 text-xs text-muted-foreground">
+                {{ t('publicStorefront.selectOnMachine') }}
+              </p>
+              <p v-if="paymentError" class="mb-4 text-xs text-amber-500">
+                {{ paymentError }}
+              </p>
+              <button
+                class="rounded-lg bg-primary px-6 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                @click="closePayment()"
+              >
+                {{ t('publicStorefront.dismiss') }}
+              </button>
+            </div>
+
+            <!-- Payment form -->
+            <div v-else>
+              <div class="mb-4 flex items-center justify-between">
+                <div>
+                  <h3 class="text-base font-semibold text-card-foreground">{{ selectedProduct.name }}</h3>
+                  <p class="text-sm text-muted-foreground">{{ formatPrice(selectedProduct.price) }}</p>
+                </div>
+                <button
+                  v-if="!confirmLoading"
+                  class="text-muted-foreground hover:text-foreground"
+                  @click="closePayment()"
+                >
+                  <svg class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <!-- Loading PI creation -->
+              <div v-if="paymentLoading" class="flex items-center justify-center py-8">
+                <div class="text-center">
+                  <div class="mx-auto mb-3 size-6 animate-spin rounded-full border-2 border-muted-foreground border-t-primary" />
+                  <p class="text-sm text-muted-foreground">{{ t('publicStorefront.preparingPayment') }}</p>
+                </div>
+              </div>
+
+              <!-- Stripe Payment Element -->
+              <div v-show="!paymentLoading && !paymentError" class="space-y-4">
+                <div id="payment-element" class="min-h-[120px]" />
+                <button
+                  :disabled="confirmLoading || !paymentElementReady"
+                  class="w-full rounded-lg bg-primary py-3 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                  @click="submitPayment()"
+                >
+                  <span v-if="confirmLoading">
+                    <span class="inline-block size-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent align-middle" />
+                  </span>
+                  <span v-else>{{ t('publicStorefront.pay') }} · {{ formatPrice(selectedProduct.price) }}</span>
+                </button>
+              </div>
+
+              <!-- Error -->
+              <div v-if="paymentError && !paymentLoading" class="py-4 text-center">
+                <p class="mb-3 text-sm text-red-500">{{ paymentError }}</p>
+                <button
+                  class="rounded-lg border border-border px-4 py-2 text-sm font-medium text-card-foreground hover:bg-accent"
+                  @click="closePayment()"
+                >
+                  {{ t('publicStorefront.dismiss') }}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
     <!-- Notify modal overlay -->
     <Teleport to="body">
       <Transition name="fade">
         <div
           v-if="notifyProductId"
           class="fixed inset-0 z-50 flex items-end justify-center sm:items-center"
-                  >
+        >
           <div class="fixed inset-0 bg-black/50" @click="closeNotify()" />
           <div class="relative w-full max-w-md rounded-t-2xl border border-border bg-card p-6 sm:rounded-2xl">
             <h3 class="mb-1 text-sm font-semibold text-card-foreground">
@@ -354,7 +581,7 @@ const isOnline = computed(() => data.value?.status === 'online')
         <div
           v-if="wishOpen"
           class="fixed inset-0 z-50 flex items-end justify-center sm:items-center"
-                  >
+        >
           <div class="fixed inset-0 bg-black/50" @click="wishOpen = false" />
           <div class="relative w-full max-w-md rounded-t-2xl border border-border bg-card p-6 sm:rounded-2xl">
             <h3 class="mb-4 text-sm font-semibold text-card-foreground">

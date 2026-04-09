@@ -55,9 +55,9 @@ Vending machine operators can manage all the telemetry, monitor sales, and optim
 - [x] GoBD-konformes Kassenbuch (Kassenbuch v1.6)
   - [x] Phase 12: Cash book infrastructure — cash_books, cash_book_entries, hash chain, reversal, get_theoretical_cash RPC — Phase 12 complete
   - [x] Phase 13: Cash book frontend — useCashBook composable, /cash-book page, entry dialogs (withdrawal/correction/payout/reversal), PDF export, i18n — Phase 13 complete
-- [ ] Mobile Storefront with cashless payment (v1.7)
+- [x] Mobile Storefront with cashless payment (v1.7)
   - [x] Phase 14: Public storefront page — `/m/[subdomain]` public page, `public-machine-data` edge function, restock subscriptions, product wishes, mobile-first UI — Phase 14 complete
-  - [ ] Phase 15: Mobile payment — Stripe integration, per-company keys, Apple Pay/Google Pay, credit delivery
+  - [x] Phase 15: Mobile payment — Stripe Payment Element (Apple Pay/Google Pay/card), per-company keys, hybrid credit delivery (confirm + webhook) — Phase 15 complete
 
 ### Planned (Next)
 
@@ -139,4 +139,4 @@ Production system with live ESP32 devices installed in the field. Backward compa
 
 ---
 *PROJECT.md — Updated when requirements or context change*
-*Last updated: 2026-04-09 after Phase 14 (public-storefront) — Milestone v1.7 in progress*
+*Last updated: 2026-04-09 after Phase 15 (mobile-payment) — Milestone v1.7 complete*

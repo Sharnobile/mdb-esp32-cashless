@@ -532,3 +532,21 @@ enabled = true
 verify_jwt = false
 import_map = "./functions/submit-product-wish/deno.json"
 entrypoint = "./functions/submit-product-wish/index.ts"
+
+[functions.create-payment-intent]
+enabled = true
+verify_jwt = false
+import_map = "./functions/create-payment-intent/deno.json"
+entrypoint = "./functions/create-payment-intent/index.ts"
+
+[functions.confirm-payment]
+enabled = true
+verify_jwt = false
+import_map = "./functions/confirm-payment/deno.json"
+entrypoint = "./functions/confirm-payment/index.ts"
+
+[functions.stripe-webhook]
+enabled = true
+verify_jwt = false
+import_map = "./functions/stripe-webhook/deno.json"
+entrypoint = "./functions/stripe-webhook/index.ts"

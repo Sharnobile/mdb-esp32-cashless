@@ -1034,7 +1034,16 @@
     "wishSubmit": "Wunsch absenden",
     "wishSuccess": "Vielen Dank für Ihren Produktwunsch!",
     "wishError": "Wunsch konnte nicht gesendet werden. Bitte erneut versuchen.",
-    "noProducts": "Derzeit sind keine Produkte verfügbar."
+    "noProducts": "Derzeit sind keine Produkte verfügbar.",
+    "buy": "Kaufen",
+    "preparingPayment": "Zahlung wird vorbereitet...",
+    "pay": "Bezahlen",
+    "paymentSuccess": "Zahlung erfolgreich!",
+    "paymentFailed": "Zahlung fehlgeschlagen. Bitte erneut versuchen.",
+    "creditDelivered": "Ihr Guthaben wurde an den Automaten gesendet.",
+    "creditDeliveryFailed": "Zahlung erfolgreich. Guthaben wird in Kürze übermittelt.",
+    "selectOnMachine": "Bitte wählen Sie Ihr Produkt am Automaten-Display.",
+    "dismiss": "Schließen"
   },
   "mobileApp": {
     "title": "Mobile App Einrichtung",

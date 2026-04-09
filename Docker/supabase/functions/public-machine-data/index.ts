@@ -57,7 +57,7 @@ Deno.serve(async (req) => {
   // 1. Find embedded device by subdomain
   const { data: embedded, error: embeddedErr } = await supabase
     .from('embeddeds')
-    .select('id, status, status_at')
+    .select('id, status, status_at, company')
     .eq('subdomain', subdomain)
     .single()
 
@@ -123,6 +123,13 @@ Deno.serve(async (req) => {
     products,
   }))
 
+  // 5. Check if Stripe is configured for this company
+  const { data: company } = await supabase
+    .from('companies')
+    .select('stripe_publishable_key')
+    .eq('id', embedded.company)
+    .single()
+
   return jsonResponse({
     machine: {
       name: machine.name,
@@ -133,5 +140,6 @@ Deno.serve(async (req) => {
     status: embedded.status,
     status_at: embedded.status_at,
     categories,
+    payment_enabled: !!company?.stripe_publishable_key,
   })
 })
