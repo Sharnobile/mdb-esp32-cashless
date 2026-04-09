@@ -8,7 +8,7 @@ struct ProductImage: View {
 
     private var imageURL: URL? {
         guard let path = imagePath, !path.isEmpty else { return nil }
-        let baseURL = AppConfig.supabaseURL.absoluteString
+        let baseURL = SupabaseService.shared.supabaseURL.absoluteString
         return URL(string: "\(baseURL)/storage/v1/object/public/product-images/\(path)")
     }
 
