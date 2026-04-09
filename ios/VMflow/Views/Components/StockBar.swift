@@ -7,6 +7,10 @@ struct StockBar: View {
     let capacity: Int
     var showLabel: Bool = true
     var height: CGFloat = 8
+    /// Optional min_stock threshold marker (amber line).
+    var minStock: Int? = nil
+    /// Optional fill_when_below threshold marker (blue line).
+    var fillWhenBelow: Int? = nil
 
     private var ratio: Double {
         guard capacity > 0 else { return 0 }
@@ -17,6 +21,11 @@ struct StockBar: View {
         if ratio > 0.5 { return .green }
         if ratio > 0.2 { return .yellow }
         return .red
+    }
+
+    private func markerPercent(_ value: Int) -> Double? {
+        guard capacity > 0, value > 0, value < capacity else { return nil }
+        return Double(value) / Double(capacity)
     }
 
     var body: some View {
@@ -33,6 +42,22 @@ struct StockBar: View {
                         .fill(color)
                         .frame(width: max(0, geo.size.width * ratio), height: height)
                         .animation(.spring(duration: 0.4), value: ratio)
+
+                    // Min stock marker (amber)
+                    if let pct = markerPercent(minStock ?? 0) {
+                        RoundedRectangle(cornerRadius: 0.5)
+                            .fill(Color.orange)
+                            .frame(width: 2, height: height)
+                            .offset(x: geo.size.width * pct - 1)
+                    }
+
+                    // Fill when below marker (blue)
+                    if let pct = markerPercent(fillWhenBelow ?? 0) {
+                        RoundedRectangle(cornerRadius: 0.5)
+                            .fill(Color.blue)
+                            .frame(width: 2, height: height)
+                            .offset(x: geo.size.width * pct - 1)
+                    }
                 }
             }
             .frame(height: height)

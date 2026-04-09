@@ -5,7 +5,7 @@ import Foundation
 struct Organization: Codable, Identifiable, Equatable {
     let id: UUID
     let name: String
-    let createdAt: Date
+    let createdAt: String
 
     enum CodingKeys: String, CodingKey {
         case id, name

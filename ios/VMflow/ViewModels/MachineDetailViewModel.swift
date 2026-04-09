@@ -31,6 +31,8 @@ final class MachineDetailViewModel: ObservableObject {
             async let productsTask: () = loadProducts()
 
             _ = try await (traysTask, salesTask, productsTask)
+        } catch is CancellationError {
+            // Ignore — SwiftUI cancels refreshable tasks routinely
         } catch {
             self.error = error.localizedDescription
         }
@@ -91,6 +93,8 @@ final class MachineDetailViewModel: ObservableObject {
 
             // Reload trays
             try await loadTrays()
+        } catch is CancellationError {
+            // Ignore — SwiftUI cancels refreshable tasks routinely
         } catch {
             self.error = error.localizedDescription
         }
@@ -106,6 +110,8 @@ final class MachineDetailViewModel: ObservableObject {
                 .execute()
 
             try await loadTrays()
+        } catch is CancellationError {
+            // Ignore — SwiftUI cancels refreshable tasks routinely
         } catch {
             self.error = error.localizedDescription
         }

@@ -39,6 +39,8 @@ final class DashboardViewModel: ObservableObject {
             async let recentTask: () = loadRecentSales()
 
             _ = try await (salesTask, machinesTask, chartTask, recentTask)
+        } catch is CancellationError {
+            // Ignore — SwiftUI cancels refreshable tasks routinely
         } catch {
             self.error = error.localizedDescription
         }
@@ -209,22 +211,23 @@ final class DashboardViewModel: ObservableObject {
             .execute()
             .value
 
-        // Build lookup: (machineId, itemNumber) -> productName
-        var productLookup: [String: String] = [:]
+        // Build lookup: (machineId, itemNumber) -> (productName, imagePath)
+        var productLookup: [String: (name: String?, imagePath: String?)] = [:]
         for tray in trays {
             let key = "\(tray.machineId)_\(tray.itemNumber)"
-            if let name = tray.products?.name {
-                productLookup[key] = name
-            }
+            productLookup[key] = (name: tray.products?.name, imagePath: tray.products?.imagePath)
         }
 
         recentSales = sales.map { sale in
             let machineName = sale.machineId.flatMap { machineNames[$0] }
             var productName: String? = nil
+            var productImagePath: String? = nil
             if let machineId = sale.machineId, let itemNum = sale.itemNumber {
-                productName = productLookup["\(machineId)_\(itemNum)"]
+                let product = productLookup["\(machineId)_\(itemNum)"]
+                productName = product?.name
+                productImagePath = product?.imagePath
             }
-            return SaleWithMachine(sale: sale, machineName: machineName, productName: productName)
+            return SaleWithMachine(sale: sale, machineName: machineName, productName: productName, productImagePath: productImagePath)
         }
     }
 }

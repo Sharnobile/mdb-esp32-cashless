@@ -3,6 +3,12 @@ import SwiftUI
 /// List/grid of vending machines with search, pull to refresh, and stock urgency sorting.
 struct MachineListView: View {
     @StateObject private var viewModel = MachineListViewModel()
+    @EnvironmentObject private var realtime: RealtimeService
+
+    /// Combined version that triggers reload on any relevant change.
+    private var realtimeVersion: Int {
+        realtime.salesVersion + realtime.traysVersion + realtime.machinesVersion + realtime.embeddedVersion
+    }
 
     var body: some View {
         ScrollView {
@@ -29,9 +35,10 @@ struct MachineListView: View {
         .searchable(text: $viewModel.searchText, prompt: "Search machines")
         .navigationTitle("Machines")
         .task {
-            if viewModel.machines.isEmpty {
-                await viewModel.loadMachines()
-            }
+            await viewModel.loadMachines()
+        }
+        .onChange(of: realtimeVersion) { _, _ in
+            Task { await viewModel.loadMachines() }
         }
         .overlay {
             if viewModel.isLoading && viewModel.machines.isEmpty {

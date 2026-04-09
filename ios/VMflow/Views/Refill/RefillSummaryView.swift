@@ -41,7 +41,9 @@ struct RefillSummaryView: View {
                         .opacity(showStats ? 1 : 0)
                         .offset(y: showStats ? 0 : 20)
 
-                    Text("All machines have been refilled")
+                    Text(viewModel.machinesSkipped > 0
+                         ? "\(viewModel.machinesVisited) of \(viewModel.machinesVisited + viewModel.machinesSkipped) machines refilled"
+                         : "All machines have been refilled")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .opacity(showStats ? 1 : 0)
@@ -52,7 +54,7 @@ struct RefillSummaryView: View {
                 // Stats Cards
                 VStack(spacing: 12) {
                     statCard(
-                        icon: "vending.machine.fill",
+                        icon: "storefront.fill",
                         label: "Machines Visited",
                         value: "\(viewModel.machinesVisited)",
                         color: .blue
@@ -66,19 +68,18 @@ struct RefillSummaryView: View {
                     )
 
                     statCard(
-                        icon: "cube.box.fill",
+                        icon: "shippingbox.fill",
                         label: "Total Items Added",
                         value: "\(viewModel.totalItemsAdded)",
                         color: .green
                     )
 
                     // Skipped machines
-                    let skipped = viewModel.machines.filter { $0.isPacked && $0.isSkipped }.count
-                    if skipped > 0 {
+                    if viewModel.machinesSkipped > 0 {
                         statCard(
                             icon: "forward.fill",
                             label: "Machines Skipped",
-                            value: "\(skipped)",
+                            value: "\(viewModel.machinesSkipped)",
                             color: .orange
                         )
                     }
@@ -156,9 +157,12 @@ struct RefillSummaryView: View {
 
 #Preview {
     let vm = RefillWizardViewModel()
-    vm.machinesVisited = 3
-    vm.traysRefilled = 12
-    vm.totalItemsAdded = 87
+    // Populate tourLog to simulate completed tour stats
+    vm.tourLog = [
+        TourLogEntry(machineId: UUID(), machineName: "Machine A", traysRefilled: 4, totalAdded: 30, skipped: false),
+        TourLogEntry(machineId: UUID(), machineName: "Machine B", traysRefilled: 5, totalAdded: 42, skipped: false),
+        TourLogEntry(machineId: UUID(), machineName: "Machine C", traysRefilled: 3, totalAdded: 15, skipped: false),
+    ]
 
     return NavigationStack {
         RefillSummaryView(viewModel: vm)

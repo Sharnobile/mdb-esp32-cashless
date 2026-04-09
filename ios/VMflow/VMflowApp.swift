@@ -2,7 +2,14 @@ import SwiftUI
 
 @main
 struct VMflowApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject private var authService = AuthService()
+
+    init() {
+        #if DEBUG
+        LocalNetworkPermission.shared.trigger()
+        #endif
+    }
 
     var body: some Scene {
         WindowGroup {
@@ -89,24 +96,36 @@ struct AuthNavigationView: View {
     }
 }
 
+// MARK: - Tab Selection
+
+enum AppTab: Hashable {
+    case dashboard, machines, refill, more
+}
+
 // MARK: - Main Tab View
 
 struct MainTabView: View {
+    @EnvironmentObject var auth: AuthService
+    @StateObject private var realtime = RealtimeService.shared
+    @State private var selectedTab: AppTab = .dashboard
+
     var body: some View {
-        TabView {
+        TabView(selection: $selectedTab) {
             NavigationStack {
-                DashboardView()
+                DashboardView(selectedTab: $selectedTab)
             }
             .tabItem {
                 Label("Dashboard", systemImage: "chart.bar.fill")
             }
+            .tag(AppTab.dashboard)
 
             NavigationStack {
                 MachineListView()
             }
             .tabItem {
-                Label("Machines", systemImage: "vending.machine.fill")
+                Label("Machines", systemImage: "storefront.fill")
             }
+            .tag(AppTab.machines)
 
             NavigationStack {
                 RefillWizardView()
@@ -114,7 +133,54 @@ struct MainTabView: View {
             .tabItem {
                 Label("Refill", systemImage: "arrow.clockwise.circle.fill")
             }
+            .tag(AppTab.refill)
+
+            NavigationStack {
+                MoreView()
+            }
+            .tabItem {
+                Label("More", systemImage: "ellipsis.circle.fill")
+            }
+            .tag(AppTab.more)
         }
         .tint(.blue)
+        .environmentObject(realtime)
+        .task {
+            realtime.start()
+            await NotificationService.shared.setupAfterLogin()
+        }
+    }
+}
+
+// MARK: - More View
+
+struct MoreView: View {
+    @EnvironmentObject var auth: AuthService
+
+    var body: some View {
+        List {
+            Section {
+                NavigationLink {
+                    ProductsView()
+                } label: {
+                    Label("Products", systemImage: "cube.box.fill")
+                }
+
+                NavigationLink {
+                    WarehouseView()
+                } label: {
+                    Label("Warehouse", systemImage: "shippingbox.fill")
+                }
+            }
+
+            Section {
+                NavigationLink {
+                    SettingsView()
+                } label: {
+                    Label("Settings", systemImage: "gearshape.fill")
+                }
+            }
+        }
+        .navigationTitle("More")
     }
 }

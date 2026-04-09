@@ -1,0 +1,10 @@
+// Release (Production)
+// Point to your production Supabase instance
+
+SUPABASE_SCHEME = https
+SUPABASE_HOST = supabase.kerl-handel.de
+SUPABASE_ANON_KEY = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzcyMzc3NzY3LCJleHAiOjIwODc3Mzc3Njd9.5Mu3-BgmHhekSP6vm0W20iwwT3mOjcYQPjO9b-oqgwA
+
+// Release bundle ID and icon
+PRODUCT_BUNDLE_IDENTIFIER = de.kerl-handel.app
+ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon

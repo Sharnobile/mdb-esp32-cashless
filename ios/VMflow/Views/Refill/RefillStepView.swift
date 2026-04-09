@@ -4,6 +4,7 @@ import SwiftUI
 /// Designed for one-handed use with large touch targets.
 struct RefillStepView: View {
     @ObservedObject var viewModel: RefillWizardViewModel
+    @State private var showMachinePicker = false
 
     var body: some View {
         if let machine = viewModel.currentMachine {
@@ -27,13 +28,13 @@ struct RefillStepView: View {
                         .buttonStyle(.bordered)
                         .tint(.blue)
 
-                        // Tray List
-                        ForEach(machine.trays.filter { $0.deficit > 0 }) { refillTray in
+                        // Tray List (only trays with items to refill)
+                        ForEach(machine.trays.filter { $0.fillAmount > 0 }) { refillTray in
                             refillTrayCard(refillTray, machineId: machine.id)
                         }
 
-                        // Trays that are already full (collapsed)
-                        let fullTrays = machine.trays.filter { $0.deficit == 0 }
+                        // Trays that are genuinely full (deficit == 0), not unpacked ones
+                        let fullTrays = machine.trays.filter { $0.fillAmount == 0 && $0.deficit == 0 }
                         if !fullTrays.isEmpty {
                             DisclosureGroup {
                                 ForEach(fullTrays) { tray in
@@ -74,7 +75,7 @@ struct RefillStepView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
-                Text("\(machine.traysNeedingRefill) trays to refill")
+                Text("\(machine.trays.filter { $0.fillAmount > 0 }.count) trays to refill")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -92,14 +93,76 @@ struct RefillStepView: View {
             }
             .frame(height: 4)
 
-            // Machine Name
-            Text(machine.machine.displayName)
-                .font(.title2.bold())
-                .frame(maxWidth: .infinity, alignment: .leading)
+            // Machine Name — tappable to switch
+            Button {
+                showMachinePicker = true
+            } label: {
+                HStack(spacing: 6) {
+                    Text(machine.machine.displayName)
+                        .font(.title2.bold())
+                        .foregroundStyle(.primary)
+                    if viewModel.remainingMachines.count > 1 {
+                        Image(systemName: "chevron.down.circle.fill")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                }
+            }
+            .buttonStyle(.plain)
+            .disabled(viewModel.remainingMachines.count <= 1)
         }
         .padding(.horizontal)
         .padding(.vertical, 12)
         .background(.bar)
+        .sheet(isPresented: $showMachinePicker) {
+            machinePicker
+        }
+    }
+
+    // MARK: - Machine Picker Sheet
+
+    private var machinePicker: some View {
+        NavigationStack {
+            List {
+                ForEach(viewModel.remainingMachines) { machine in
+                    let isCurrent = machine.id == viewModel.currentMachine?.id
+                    Button {
+                        viewModel.selectMachine(machine.id)
+                        showMachinePicker = false
+                    } label: {
+                        HStack(spacing: 12) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(machine.machine.displayName)
+                                    .font(.body.weight(isCurrent ? .bold : .regular))
+                                    .foregroundStyle(.primary)
+
+                                let traysToRefill = machine.trays.filter { $0.fillAmount > 0 }.count
+                                let totalDeficit = machine.trays.reduce(0) { $0 + $1.fillAmount }
+                                Text("\(traysToRefill) trays · \(totalDeficit) items")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            Spacer()
+
+                            if isCurrent {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundStyle(.blue)
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Select Machine")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { showMachinePicker = false }
+                }
+            }
+        }
+        .presentationDetents([.medium])
     }
 
     private var progressFraction: Double {
@@ -224,7 +287,7 @@ struct RefillStepView: View {
                         .foregroundStyle(.blue)
                 }
                 .buttonStyle(.plain)
-                .disabled(refillTray.fillAmount >= refillTray.deficit)
+                .disabled(refillTray.fillAmount >= refillTray.tray.capacity - refillTray.tray.currentStock)
 
                 Spacer()
 
@@ -242,7 +305,7 @@ struct RefillStepView: View {
                         .foregroundStyle(.white)
                 }
                 .buttonStyle(.plain)
-                .disabled(refillTray.fillAmount >= refillTray.deficit)
+                .disabled(refillTray.fillAmount >= refillTray.tray.capacity - refillTray.tray.currentStock)
             }
         }
         .padding(16)
@@ -285,7 +348,7 @@ struct RefillStepView: View {
             HStack(spacing: 12) {
                 // Skip button
                 Button {
-                    viewModel.skipMachine(machineId: machine.id)
+                    Task { await viewModel.skipMachine(machineId: machine.id) }
                 } label: {
                     Text("Skip")
                         .font(.subheadline.weight(.medium))

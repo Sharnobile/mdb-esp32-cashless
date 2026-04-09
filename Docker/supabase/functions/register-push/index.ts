@@ -34,20 +34,31 @@ Deno.serve(async (req) => {
       const userAgent = req.headers.get('User-Agent') ?? null
 
       if (body.fcm_token) {
-        // Native registration (iOS/Android via FCM)
+        // Native registration (iOS/Android via APNs/FCM).
+        // Uses delete+insert instead of upsert because the unique index on
+        // (user_id, fcm_token) is a PARTIAL index (WHERE fcm_token IS NOT NULL)
+        // and PostgREST's upsert cannot match partial indexes.
         const platform = body.platform === 'ios' ? 'ios' : 'android'
+
+        // Remove existing subscription for this token (if any).
+        // Uses delete+insert instead of upsert because the unique index on
+        // (user_id, fcm_token) is a PARTIAL index (WHERE fcm_token IS NOT NULL)
+        // and PostgREST's upsert cannot match partial indexes.
+        await adminClient
+          .from('push_subscriptions')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('fcm_token', body.fcm_token)
 
         const { error } = await adminClient
           .from('push_subscriptions')
-          .upsert(
-            {
-              user_id: user.id,
-              fcm_token: body.fcm_token,
-              platform,
-              user_agent: userAgent,
-            },
-            { onConflict: 'user_id,fcm_token' },
-          )
+          .insert({
+            user_id: user.id,
+            fcm_token: body.fcm_token,
+            platform,
+            user_agent: userAgent,
+            apns_topic: body.bundle_id ?? null,
+          })
 
         if (error) throw error
       } else {

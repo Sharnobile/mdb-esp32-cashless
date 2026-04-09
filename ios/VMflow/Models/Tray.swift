@@ -65,14 +65,14 @@ struct Tray: Codable, Identifiable, Equatable, Hashable {
         currentStock == 0
     }
 
-    /// Whether stock is below min_stock threshold.
+    /// Whether stock is at or below min_stock threshold.
     var isBelowMinStock: Bool {
-        minStock > 0 && currentStock < minStock
+        minStock > 0 && currentStock <= minStock
     }
 
-    /// Whether stock is below the soft fill_when_below threshold.
+    /// Whether stock is at or below the soft fill_when_below threshold.
     var isBelowFillThreshold: Bool {
-        fillWhenBelow > 0 && currentStock < fillWhenBelow
+        fillWhenBelow > 0 && currentStock <= fillWhenBelow
     }
 
     /// Stock health for this individual tray.

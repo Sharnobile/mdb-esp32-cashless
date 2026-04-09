@@ -52,15 +52,24 @@ struct TrayEditSheet: View {
 
                 // Product
                 Section("Product") {
-                    Picker("Product", selection: $selectedProductId) {
-                        Text("None")
-                            .tag(UUID?.none)
-                        ForEach(products) { product in
-                            HStack {
-                                ProductImage(imagePath: product.imagePath, size: 24)
+                    NavigationLink {
+                        ProductPickerView(
+                            products: products,
+                            selectedProductId: $selectedProductId
+                        )
+                    } label: {
+                        HStack {
+                            Text("Product")
+                            Spacer()
+                            if let id = selectedProductId,
+                               let product = products.first(where: { $0.id == id }) {
+                                ProductImage(imagePath: product.imagePath, size: 28)
                                 Text(product.name ?? "Unnamed")
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                Text("None")
+                                    .foregroundStyle(.secondary)
                             }
-                            .tag(UUID?.some(product.id))
                         }
                     }
                 }
@@ -69,8 +78,38 @@ struct TrayEditSheet: View {
                 Section("Stock") {
                     Stepper("Capacity: \(capacity)", value: $capacity, in: 1...999)
                     Stepper("Current Stock: \(currentStock)", value: $currentStock, in: 0...capacity)
-                    StockBar(current: currentStock, capacity: capacity, height: 10)
-                        .padding(.vertical, 4)
+                    StockBar(
+                        current: currentStock,
+                        capacity: capacity,
+                        height: 10,
+                        minStock: minStock,
+                        fillWhenBelow: fillWhenBelow
+                    )
+                    .padding(.vertical, 4)
+                    if minStock > 0 || fillWhenBelow > 0 {
+                        HStack(spacing: 12) {
+                            if minStock > 0 {
+                                HStack(spacing: 4) {
+                                    RoundedRectangle(cornerRadius: 1)
+                                        .fill(Color.orange)
+                                        .frame(width: 10, height: 3)
+                                    Text("Min Stock")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            if fillWhenBelow > 0 {
+                                HStack(spacing: 4) {
+                                    RoundedRectangle(cornerRadius: 1)
+                                        .fill(Color.blue)
+                                        .frame(width: 10, height: 3)
+                                    Text("Fill Below")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                    }
                 }
 
                 // Thresholds
@@ -175,6 +214,99 @@ struct BatchAddTraySheet: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - Product Picker
+
+/// Full-screen picker for selecting a product with fuzzy search.
+struct ProductPickerView: View {
+    let products: [Product]
+    @Binding var selectedProductId: UUID?
+    @Environment(\.dismiss) private var dismiss
+    @State private var searchText = ""
+
+    /// Fuzzy-filtered products: matches if every character of the query appears in order in the name.
+    private var filteredProducts: [Product] {
+        guard !searchText.isEmpty else { return products }
+        let query = searchText.lowercased()
+        return products
+            .compactMap { product -> (Product, Int)? in
+                guard let name = product.name?.lowercased() else { return nil }
+                if let score = fuzzyMatch(query: query, target: name) {
+                    return (product, score)
+                }
+                return nil
+            }
+            .sorted { $0.1 < $1.1 }
+            .map(\.0)
+    }
+
+    /// Returns a match score (lower = better) if query fuzzy-matches target, nil otherwise.
+    /// Each character of query must appear in target in order. Score favours consecutive and early matches.
+    private func fuzzyMatch(query: String, target: String) -> Int? {
+        var score = 0
+        var targetIdx = target.startIndex
+        var lastMatchIdx: String.Index?
+
+        for ch in query {
+            guard let found = target[targetIdx...].firstIndex(of: ch) else { return nil }
+            let distance = target.distance(from: targetIdx, to: found)
+            // Penalise gaps between matched characters
+            if lastMatchIdx != nil { score += distance }
+            // Bonus: no penalty for match at very start of string
+            if lastMatchIdx == nil { score += distance }
+            lastMatchIdx = found
+            targetIdx = target.index(after: found)
+        }
+        return score
+    }
+
+    var body: some View {
+        List {
+            if searchText.isEmpty {
+                Button {
+                    selectedProductId = nil
+                    dismiss()
+                } label: {
+                    HStack {
+                        Text("None")
+                            .foregroundStyle(.primary)
+                        Spacer()
+                        if selectedProductId == nil {
+                            Image(systemName: "checkmark")
+                                .foregroundStyle(.blue)
+                        }
+                    }
+                }
+            }
+
+            ForEach(filteredProducts) { product in
+                Button {
+                    selectedProductId = product.id
+                    dismiss()
+                } label: {
+                    HStack(spacing: 12) {
+                        ProductImage(imagePath: product.imagePath, size: 36)
+                        Text(product.name ?? "Unnamed")
+                            .foregroundStyle(.primary)
+                        Spacer()
+                        if selectedProductId == product.id {
+                            Image(systemName: "checkmark")
+                                .foregroundStyle(.blue)
+                        }
+                    }
+                }
+            }
+
+            if !searchText.isEmpty && filteredProducts.isEmpty {
+                ContentUnavailableView.search(text: searchText)
+                    .listRowBackground(Color.clear)
+            }
+        }
+        .searchable(text: $searchText, prompt: "Search products")
+        .navigationTitle("Select Product")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 

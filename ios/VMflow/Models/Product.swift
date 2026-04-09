@@ -6,21 +6,44 @@ struct Product: Codable, Identifiable, Equatable, Hashable {
     let id: UUID
     let name: String?
     let imagePath: String?
-    let discontinued: Bool
+    let discontinued: Bool?
     let sellprice: Double?
+    let category: UUID?
 
     enum CodingKeys: String, CodingKey {
-        case id, name, sellprice, discontinued
+        case id, name, sellprice, discontinued, category
         case imagePath = "image_path"
     }
 
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decode(UUID.self, forKey: .id)
-        name = try container.decodeIfPresent(String.self, forKey: .name)
-        imagePath = try container.decodeIfPresent(String.self, forKey: .imagePath)
-        discontinued = try container.decodeIfPresent(Bool.self, forKey: .discontinued) ?? false
-        sellprice = try container.decodeIfPresent(Double.self, forKey: .sellprice)
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+}
+
+/// Product category. Maps to the `product_category` table.
+/// Note: DB column is `company` (not `company_id`).
+struct ProductCategory: Codable, Identifiable, Equatable, Hashable {
+    let id: UUID
+    let name: String
+    let company: UUID
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, company
+    }
+}
+
+/// A barcode linked to a product. Maps to the `product_barcodes` table.
+struct ProductBarcode: Codable, Identifiable, Equatable {
+    let id: UUID
+    let productId: UUID
+    let barcode: String
+    let format: String
+    let companyId: UUID
+
+    enum CodingKeys: String, CodingKey {
+        case id, barcode, format
+        case productId = "product_id"
+        case companyId = "company_id"
     }
 }
 
@@ -28,17 +51,10 @@ struct Product: Codable, Identifiable, Equatable, Hashable {
 struct TrayProduct: Codable, Equatable, Hashable {
     let name: String?
     let imagePath: String?
-    let discontinued: Bool
+    let discontinued: Bool?
 
     enum CodingKeys: String, CodingKey {
         case name, discontinued
         case imagePath = "image_path"
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        name = try container.decodeIfPresent(String.self, forKey: .name)
-        imagePath = try container.decodeIfPresent(String.self, forKey: .imagePath)
-        discontinued = try container.decodeIfPresent(Bool.self, forKey: .discontinued) ?? false
     }
 }

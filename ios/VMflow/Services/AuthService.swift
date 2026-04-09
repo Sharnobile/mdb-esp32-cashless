@@ -116,16 +116,18 @@ final class AuthService: ObservableObject {
     /// Fetch the user's organization via the `get-my-organization` edge function.
     func fetchOrganization() async {
         do {
+            print("[AuthService] Fetching organization from \(AppConfig.supabaseURL)/functions/v1/get-my-organization")
             let response: OrganizationResponse = try await client.functions.invoke(
                 "get-my-organization",
                 options: .init(method: .get)
             )
+            print("[AuthService] Response: org=\(String(describing: response.organization?.name)), role=\(String(describing: response.role))")
             organization = response.organization
             if let roleString = response.role {
                 role = OrganizationRole(rawValue: roleString)
             }
         } catch {
-            // User may not have an organization yet
+            print("[AuthService] fetchOrganization error: \(error)")
             organization = nil
             role = nil
         }

@@ -1,0 +1,643 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0C7698AD6ED222844A1255F5 /* Tray.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D260DBBBEC69D0AD7B73C46 /* Tray.swift */; };
+		123DDC46EFE39435A5A69CB5 /* RefillWizardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52A29D496BDB69F848C60674 /* RefillWizardView.swift */; };
+		1254787CC883CE8605189B4B /* PackingStepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90BC01B0752A47A20DF699E7 /* PackingStepView.swift */; };
+		14E8E7A13B8FB4BBA2CE3AA1 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C4757F332F815A5F5300AC8 /* SettingsView.swift */; };
+		1813377797812B72A25F0959 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C67EF9594F3D482E240493C0 /* DashboardView.swift */; };
+		1D3A89F11C2DB525AA3D3A3B /* KPICard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53A6211078603D2C7AD0EAD7 /* KPICard.swift */; };
+		227347A89BC32144B6544F1C /* WarehouseViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84AF9FDF2E1ADB75E706F23A /* WarehouseViewModel.swift */; };
+		237C6C70C5941B38ADA61979 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = FB3502875FE29AF6391900A8 /* Supabase */; };
+		248616CB9DA18C4F098B2461 /* MachineListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6C97FF39451173E8B85466B /* MachineListViewModel.swift */; };
+		2B3AA6B25344C2BCAC8195EC /* MachineDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B84189DCC212B6DBBF84DEB /* MachineDetailViewModel.swift */; };
+		301C227EBDC0E72136F542CD /* MachineCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = C78B6E7FAFE28A4523530D02 /* MachineCard.swift */; };
+		38D6B1CBC8EAA38E361D13CB /* Product.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA94DE3092E2B07986626697 /* Product.swift */; };
+		4317985673B05FA56A45069B /* StatusBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC27FF5E0A1C34BCE4ACCDBE /* StatusBadge.swift */; };
+		45167E803ECFB29F00DA502F /* DashboardViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16E021E42CD9C7C92936F706 /* DashboardViewModel.swift */; };
+		48101BA7F81D7ACA238B9101 /* MachineListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8B6CB1492BFAA927C077A18 /* MachineListView.swift */; };
+		4FFA938E1B8D44AA47597975 /* LocalNetworkPermission.swift in Sources */ = {isa = PBXBuildFile; fileRef = C35FC72F3ED743C438F7C738 /* LocalNetworkPermission.swift */; };
+		5BBE0F0003B82E2E6CEEC86C /* RefillSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9690B8B0412F05E68303EA15 /* RefillSummaryView.swift */; };
+		5C23B7000E2E6CB57DDFD0A2 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA9AFCFBBB69EB2C1D2AD547 /* AppDelegate.swift */; };
+		5C989AE6260DDA7137C3A923 /* TrayEditSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED91CAD5148AD5C6C0991BD3 /* TrayEditSheet.swift */; };
+		6051E236873980E4ABAF7E4B /* ProductEditSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DCE1D189B536C04A31EB746 /* ProductEditSheet.swift */; };
+		69E8033CA200BF33D690DD33 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55B32C8EEFABC9DADF2C73DD /* LoginView.swift */; };
+		720AF70B51AF06424B582271 /* ProductsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F1BF54F8FA6B86DA5380F6 /* ProductsViewModel.swift */; };
+		75FC6DAC6BC35B6F78317FBC /* TrayListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01C39E8B27FCFB5B0EED36FA /* TrayListView.swift */; };
+		7B251D0111BECD9C18F5DD02 /* TrayViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E9A5023EED5804698A679E6 /* TrayViewModel.swift */; };
+		893772831F630561F5DBEF01 /* MachineDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F302EE40A7DDA1135B7A9D7 /* MachineDetailView.swift */; };
+		98DBB72485FA6701994E86A6 /* VMflowApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8ED1159C55CAF705215AD130 /* VMflowApp.swift */; };
+		9AC610D3D52ECEEAF701A011 /* VendingMachine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E7EC46F36DD12575C056A1A /* VendingMachine.swift */; };
+		A1A27831F396EBCD53E5ED9A /* TrayRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 496AADA2A0C49A331A85311A /* TrayRow.swift */; };
+		A1BB4CD6BAE18CF2A1E2FB3C /* Warehouse.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6908142D65605FE1D58C1AE /* Warehouse.swift */; };
+		A36AE2752621D3854B40CCE2 /* RefillWizardViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D17D5562BFC75116621B04A /* RefillWizardViewModel.swift */; };
+		AD28437ACBB0F0A443AA458E /* RegisterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 813681CDE6C321A49F84A20B /* RegisterView.swift */; };
+		B274325852BED5CF815DDA42 /* Organization.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7F443AA9AA51CCB3B6A7C75 /* Organization.swift */; };
+		BA2A1DA46A8F97997C993449 /* RefillStepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B84F596B8E26B3A5377BCAA0 /* RefillStepView.swift */; };
+		BE954A375ED01316E322C570 /* BarcodeScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 822CB83FD364F5DCF05D6213 /* BarcodeScannerView.swift */; };
+		BEE87BCF91FBF732036F5D34 /* ProductsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B17A2CD3A0F549B76FAFF29 /* ProductsView.swift */; };
+		C1D2E3F4A5B6C7D8E9F0A1B2 /* ReviewStepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1E2F3A4B5C6D7E8F9A0B1C2 /* ReviewStepView.swift */; };
+		C2A2406A5D534A262F1CB0BA /* Sale.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79D8F4403556EBD0620DEECF /* Sale.swift */; };
+		D26A6A4A55DF5DC1587BAD9A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 70B6B1A9D2611C8B7EE53EDC /* Assets.xcassets */; };
+		D87208736751BB897289C9B6 /* WarehouseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEABE7DE0463DA34A9DB9FB9 /* WarehouseView.swift */; };
+		D88E0EB43AF2F7FE4977B3C9 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 285CDF78E1AA2017C62282F8 /* NotificationService.swift */; };
+		E49EF3FACFF4F910A4F7AA1F /* ProductImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A1ABF4B45C7B0D2415238F6 /* ProductImage.swift */; };
+		F0501A7FD0A96B9377D2DCCF /* SupabaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70E364431AFD63E8DE1238E3 /* SupabaseService.swift */; };
+		FA92F123C410DDE5A56A5EF7 /* RealtimeService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AE7FC95E2E89DD0AC7A6981 /* RealtimeService.swift */; };
+		FDA63D4358CC508737E8C10F /* AuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC323B6816B89C5044F50027 /* AuthService.swift */; };
+		FE4C794519B8D88EA6886C0A /* StockBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204427FECDDE3A1BB3CB316C /* StockBar.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		01C39E8B27FCFB5B0EED36FA /* TrayListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrayListView.swift; sourceTree = "<group>"; };
+		0C4757F332F815A5F5300AC8 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		0DCE1D189B536C04A31EB746 /* ProductEditSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductEditSheet.swift; sourceTree = "<group>"; };
+		16E021E42CD9C7C92936F706 /* DashboardViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardViewModel.swift; sourceTree = "<group>"; };
+		204427FECDDE3A1BB3CB316C /* StockBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StockBar.swift; sourceTree = "<group>"; };
+		215EDEE2A21B82EE7D2ED841 /* Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Debug.xcconfig; sourceTree = "<group>"; };
+		285CDF78E1AA2017C62282F8 /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
+		2B17A2CD3A0F549B76FAFF29 /* ProductsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductsView.swift; sourceTree = "<group>"; };
+		2D260DBBBEC69D0AD7B73C46 /* Tray.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tray.swift; sourceTree = "<group>"; };
+		37A932859D1B7FE49EB4FDE0 /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
+		3A1ABF4B45C7B0D2415238F6 /* ProductImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductImage.swift; sourceTree = "<group>"; };
+		3B84189DCC212B6DBBF84DEB /* MachineDetailViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MachineDetailViewModel.swift; sourceTree = "<group>"; };
+		45AE89831021CC12416B0F89 /* VMflow.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = VMflow.entitlements; sourceTree = "<group>"; };
+		496AADA2A0C49A331A85311A /* TrayRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrayRow.swift; sourceTree = "<group>"; };
+		4E7EC46F36DD12575C056A1A /* VendingMachine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VendingMachine.swift; sourceTree = "<group>"; };
+		52A29D496BDB69F848C60674 /* RefillWizardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefillWizardView.swift; sourceTree = "<group>"; };
+		53A6211078603D2C7AD0EAD7 /* KPICard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KPICard.swift; sourceTree = "<group>"; };
+		55B32C8EEFABC9DADF2C73DD /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
+		5AE7FC95E2E89DD0AC7A6981 /* RealtimeService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RealtimeService.swift; sourceTree = "<group>"; };
+		70B6B1A9D2611C8B7EE53EDC /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		70E364431AFD63E8DE1238E3 /* SupabaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseService.swift; sourceTree = "<group>"; };
+		79D8F4403556EBD0620DEECF /* Sale.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sale.swift; sourceTree = "<group>"; };
+		7E9A5023EED5804698A679E6 /* TrayViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrayViewModel.swift; sourceTree = "<group>"; };
+		813681CDE6C321A49F84A20B /* RegisterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegisterView.swift; sourceTree = "<group>"; };
+		822CB83FD364F5DCF05D6213 /* BarcodeScannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BarcodeScannerView.swift; sourceTree = "<group>"; };
+		84AF9FDF2E1ADB75E706F23A /* WarehouseViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WarehouseViewModel.swift; sourceTree = "<group>"; };
+		8AEDEC41AB195897D4F6BC89 /* VMflow.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = VMflow.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		8ED1159C55CAF705215AD130 /* VMflowApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VMflowApp.swift; sourceTree = "<group>"; };
+		8F302EE40A7DDA1135B7A9D7 /* MachineDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MachineDetailView.swift; sourceTree = "<group>"; };
+		90BC01B0752A47A20DF699E7 /* PackingStepView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PackingStepView.swift; sourceTree = "<group>"; };
+		9690B8B0412F05E68303EA15 /* RefillSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefillSummaryView.swift; sourceTree = "<group>"; };
+		9D17D5562BFC75116621B04A /* RefillWizardViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefillWizardViewModel.swift; sourceTree = "<group>"; };
+		A6908142D65605FE1D58C1AE /* Warehouse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Warehouse.swift; sourceTree = "<group>"; };
+		A8B6CB1492BFAA927C077A18 /* MachineListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MachineListView.swift; sourceTree = "<group>"; };
+		AC27FF5E0A1C34BCE4ACCDBE /* StatusBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusBadge.swift; sourceTree = "<group>"; };
+		AC323B6816B89C5044F50027 /* AuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthService.swift; sourceTree = "<group>"; };
+		B84F596B8E26B3A5377BCAA0 /* RefillStepView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefillStepView.swift; sourceTree = "<group>"; };
+		C35FC72F3ED743C438F7C738 /* LocalNetworkPermission.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalNetworkPermission.swift; sourceTree = "<group>"; };
+		C67EF9594F3D482E240493C0 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
+		C78B6E7FAFE28A4523530D02 /* MachineCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MachineCard.swift; sourceTree = "<group>"; };
+		CA772EA0093974ACECD47777 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		CA94DE3092E2B07986626697 /* Product.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Product.swift; sourceTree = "<group>"; };
+		D1E2F3A4B5C6D7E8F9A0B1C2 /* ReviewStepView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewStepView.swift; sourceTree = "<group>"; };
+		DA9AFCFBBB69EB2C1D2AD547 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		E6C97FF39451173E8B85466B /* MachineListViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MachineListViewModel.swift; sourceTree = "<group>"; };
+		E7F443AA9AA51CCB3B6A7C75 /* Organization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Organization.swift; sourceTree = "<group>"; };
+		ED91CAD5148AD5C6C0991BD3 /* TrayEditSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrayEditSheet.swift; sourceTree = "<group>"; };
+		F7F1BF54F8FA6B86DA5380F6 /* ProductsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductsViewModel.swift; sourceTree = "<group>"; };
+		FEABE7DE0463DA34A9DB9FB9 /* WarehouseView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WarehouseView.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		CD4D26070950CCEFF183670D /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				237C6C70C5941B38ADA61979 /* Supabase in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		0027C46851E4D2A841666B4B /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				E7F443AA9AA51CCB3B6A7C75 /* Organization.swift */,
+				CA94DE3092E2B07986626697 /* Product.swift */,
+				79D8F4403556EBD0620DEECF /* Sale.swift */,
+				2D260DBBBEC69D0AD7B73C46 /* Tray.swift */,
+				4E7EC46F36DD12575C056A1A /* VendingMachine.swift */,
+				A6908142D65605FE1D58C1AE /* Warehouse.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		151FEAAAAFCE27FD9ABC63F5 /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				822CB83FD364F5DCF05D6213 /* BarcodeScannerView.swift */,
+				53A6211078603D2C7AD0EAD7 /* KPICard.swift */,
+				3A1ABF4B45C7B0D2415238F6 /* ProductImage.swift */,
+				AC27FF5E0A1C34BCE4ACCDBE /* StatusBadge.swift */,
+				204427FECDDE3A1BB3CB316C /* StockBar.swift */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
+		1633A09D8C71104301B729CB /* Configurations */ = {
+			isa = PBXGroup;
+			children = (
+				215EDEE2A21B82EE7D2ED841 /* Debug.xcconfig */,
+				37A932859D1B7FE49EB4FDE0 /* Release.xcconfig */,
+			);
+			path = Configurations;
+			sourceTree = "<group>";
+		};
+		1E65690806067FF339F02410 /* Refill */ = {
+			isa = PBXGroup;
+			children = (
+				90BC01B0752A47A20DF699E7 /* PackingStepView.swift */,
+				B84F596B8E26B3A5377BCAA0 /* RefillStepView.swift */,
+				D1E2F3A4B5C6D7E8F9A0B1C2 /* ReviewStepView.swift */,
+				9690B8B0412F05E68303EA15 /* RefillSummaryView.swift */,
+				52A29D496BDB69F848C60674 /* RefillWizardView.swift */,
+			);
+			path = Refill;
+			sourceTree = "<group>";
+		};
+		50FA058BB16C4A1997C4B32E /* Machines */ = {
+			isa = PBXGroup;
+			children = (
+				C78B6E7FAFE28A4523530D02 /* MachineCard.swift */,
+				8F302EE40A7DDA1135B7A9D7 /* MachineDetailView.swift */,
+				A8B6CB1492BFAA927C077A18 /* MachineListView.swift */,
+			);
+			path = Machines;
+			sourceTree = "<group>";
+		};
+		58B62D1DB456E1297ED7E44D /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				0DCE1D189B536C04A31EB746 /* ProductEditSheet.swift */,
+				2B17A2CD3A0F549B76FAFF29 /* ProductsView.swift */,
+			);
+			path = Products;
+			sourceTree = "<group>";
+		};
+		5ADBE508EDBC5E52ED2C2F08 /* Trays */ = {
+			isa = PBXGroup;
+			children = (
+				ED91CAD5148AD5C6C0991BD3 /* TrayEditSheet.swift */,
+				01C39E8B27FCFB5B0EED36FA /* TrayListView.swift */,
+				496AADA2A0C49A331A85311A /* TrayRow.swift */,
+			);
+			path = Trays;
+			sourceTree = "<group>";
+		};
+		7A6705F8C8A1E13AC410D72D /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				8AEDEC41AB195897D4F6BC89 /* VMflow.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		9FABBE1AE0EDE7E452EE5914 /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				0C4757F332F815A5F5300AC8 /* SettingsView.swift */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
+		AB159947A661761F733E13D3 /* Auth */ = {
+			isa = PBXGroup;
+			children = (
+				55B32C8EEFABC9DADF2C73DD /* LoginView.swift */,
+				813681CDE6C321A49F84A20B /* RegisterView.swift */,
+			);
+			path = Auth;
+			sourceTree = "<group>";
+		};
+		BA69BE2898BA7064DAC9A74C /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				16E021E42CD9C7C92936F706 /* DashboardViewModel.swift */,
+				3B84189DCC212B6DBBF84DEB /* MachineDetailViewModel.swift */,
+				E6C97FF39451173E8B85466B /* MachineListViewModel.swift */,
+				F7F1BF54F8FA6B86DA5380F6 /* ProductsViewModel.swift */,
+				9D17D5562BFC75116621B04A /* RefillWizardViewModel.swift */,
+				7E9A5023EED5804698A679E6 /* TrayViewModel.swift */,
+				84AF9FDF2E1ADB75E706F23A /* WarehouseViewModel.swift */,
+			);
+			path = ViewModels;
+			sourceTree = "<group>";
+		};
+		C0C9A4E98467B62E7FE1AFBD /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				AB159947A661761F733E13D3 /* Auth */,
+				151FEAAAAFCE27FD9ABC63F5 /* Components */,
+				ED1C7C0A94AC9CBEA3615ABF /* Dashboard */,
+				50FA058BB16C4A1997C4B32E /* Machines */,
+				58B62D1DB456E1297ED7E44D /* Products */,
+				1E65690806067FF339F02410 /* Refill */,
+				9FABBE1AE0EDE7E452EE5914 /* Settings */,
+				5ADBE508EDBC5E52ED2C2F08 /* Trays */,
+				D4C20ED2ED4AA5617E345840 /* Warehouse */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		D4C20ED2ED4AA5617E345840 /* Warehouse */ = {
+			isa = PBXGroup;
+			children = (
+				FEABE7DE0463DA34A9DB9FB9 /* WarehouseView.swift */,
+			);
+			path = Warehouse;
+			sourceTree = "<group>";
+		};
+		E5AACF6D3C19C123CD3894C2 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				AC323B6816B89C5044F50027 /* AuthService.swift */,
+				C35FC72F3ED743C438F7C738 /* LocalNetworkPermission.swift */,
+				285CDF78E1AA2017C62282F8 /* NotificationService.swift */,
+				5AE7FC95E2E89DD0AC7A6981 /* RealtimeService.swift */,
+				70E364431AFD63E8DE1238E3 /* SupabaseService.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		E910D6221FB91EB26FA5969A /* VMflow */ = {
+			isa = PBXGroup;
+			children = (
+				DA9AFCFBBB69EB2C1D2AD547 /* AppDelegate.swift */,
+				8ED1159C55CAF705215AD130 /* VMflowApp.swift */,
+				0027C46851E4D2A841666B4B /* Models */,
+				FE6A452CD90058B020886227 /* Resources */,
+				E5AACF6D3C19C123CD3894C2 /* Services */,
+				BA69BE2898BA7064DAC9A74C /* ViewModels */,
+				C0C9A4E98467B62E7FE1AFBD /* Views */,
+			);
+			path = VMflow;
+			sourceTree = "<group>";
+		};
+		ED1C7C0A94AC9CBEA3615ABF /* Dashboard */ = {
+			isa = PBXGroup;
+			children = (
+				C67EF9594F3D482E240493C0 /* DashboardView.swift */,
+			);
+			path = Dashboard;
+			sourceTree = "<group>";
+		};
+		EE34BCFF9B4E3D9CEE17C3A1 = {
+			isa = PBXGroup;
+			children = (
+				1633A09D8C71104301B729CB /* Configurations */,
+				E910D6221FB91EB26FA5969A /* VMflow */,
+				7A6705F8C8A1E13AC410D72D /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		FE6A452CD90058B020886227 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				70B6B1A9D2611C8B7EE53EDC /* Assets.xcassets */,
+				CA772EA0093974ACECD47777 /* Info.plist */,
+				45AE89831021CC12416B0F89 /* VMflow.entitlements */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		896CD9A61911762E88A22E98 /* VMflow */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 26BE41D140DC7534868B92A9 /* Build configuration list for PBXNativeTarget "VMflow" */;
+			buildPhases = (
+				CF37A3A9F0065BB67F3BEE95 /* Sources */,
+				674EE546BCC9074FF2AC9C96 /* Resources */,
+				CD4D26070950CCEFF183670D /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = VMflow;
+			packageProductDependencies = (
+				FB3502875FE29AF6391900A8 /* Supabase */,
+			);
+			productName = VMflow;
+			productReference = 8AEDEC41AB195897D4F6BC89 /* VMflow.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		C39325D98C9AAD78241F928A /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					896CD9A61911762E88A22E98 = {
+						DevelopmentTeam = 4JT3V7XVXM;
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = B1511EBE8EED6F28AF94BC8E /* Build configuration list for PBXProject "VMflow" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = EE34BCFF9B4E3D9CEE17C3A1;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				11212191FAB3A08C935E93FA /* XCRemoteSwiftPackageReference "supabase-swift" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 7A6705F8C8A1E13AC410D72D /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				896CD9A61911762E88A22E98 /* VMflow */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		674EE546BCC9074FF2AC9C96 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D26A6A4A55DF5DC1587BAD9A /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		CF37A3A9F0065BB67F3BEE95 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5C23B7000E2E6CB57DDFD0A2 /* AppDelegate.swift in Sources */,
+				FDA63D4358CC508737E8C10F /* AuthService.swift in Sources */,
+				BE954A375ED01316E322C570 /* BarcodeScannerView.swift in Sources */,
+				1813377797812B72A25F0959 /* DashboardView.swift in Sources */,
+				45167E803ECFB29F00DA502F /* DashboardViewModel.swift in Sources */,
+				1D3A89F11C2DB525AA3D3A3B /* KPICard.swift in Sources */,
+				4FFA938E1B8D44AA47597975 /* LocalNetworkPermission.swift in Sources */,
+				69E8033CA200BF33D690DD33 /* LoginView.swift in Sources */,
+				301C227EBDC0E72136F542CD /* MachineCard.swift in Sources */,
+				893772831F630561F5DBEF01 /* MachineDetailView.swift in Sources */,
+				2B3AA6B25344C2BCAC8195EC /* MachineDetailViewModel.swift in Sources */,
+				48101BA7F81D7ACA238B9101 /* MachineListView.swift in Sources */,
+				248616CB9DA18C4F098B2461 /* MachineListViewModel.swift in Sources */,
+				D88E0EB43AF2F7FE4977B3C9 /* NotificationService.swift in Sources */,
+				B274325852BED5CF815DDA42 /* Organization.swift in Sources */,
+				1254787CC883CE8605189B4B /* PackingStepView.swift in Sources */,
+				38D6B1CBC8EAA38E361D13CB /* Product.swift in Sources */,
+				6051E236873980E4ABAF7E4B /* ProductEditSheet.swift in Sources */,
+				E49EF3FACFF4F910A4F7AA1F /* ProductImage.swift in Sources */,
+				BEE87BCF91FBF732036F5D34 /* ProductsView.swift in Sources */,
+				720AF70B51AF06424B582271 /* ProductsViewModel.swift in Sources */,
+				FA92F123C410DDE5A56A5EF7 /* RealtimeService.swift in Sources */,
+				BA2A1DA46A8F97997C993449 /* RefillStepView.swift in Sources */,
+				C1D2E3F4A5B6C7D8E9F0A1B2 /* ReviewStepView.swift in Sources */,
+				5BBE0F0003B82E2E6CEEC86C /* RefillSummaryView.swift in Sources */,
+				123DDC46EFE39435A5A69CB5 /* RefillWizardView.swift in Sources */,
+				A36AE2752621D3854B40CCE2 /* RefillWizardViewModel.swift in Sources */,
+				AD28437ACBB0F0A443AA458E /* RegisterView.swift in Sources */,
+				C2A2406A5D534A262F1CB0BA /* Sale.swift in Sources */,
+				14E8E7A13B8FB4BBA2CE3AA1 /* SettingsView.swift in Sources */,
+				4317985673B05FA56A45069B /* StatusBadge.swift in Sources */,
+				FE4C794519B8D88EA6886C0A /* StockBar.swift in Sources */,
+				F0501A7FD0A96B9377D2DCCF /* SupabaseService.swift in Sources */,
+				0C7698AD6ED222844A1255F5 /* Tray.swift in Sources */,
+				5C989AE6260DDA7137C3A923 /* TrayEditSheet.swift in Sources */,
+				75FC6DAC6BC35B6F78317FBC /* TrayListView.swift in Sources */,
+				A1A27831F396EBCD53E5ED9A /* TrayRow.swift in Sources */,
+				7B251D0111BECD9C18F5DD02 /* TrayViewModel.swift in Sources */,
+				98DBB72485FA6701994E86A6 /* VMflowApp.swift in Sources */,
+				9AC610D3D52ECEEAF701A011 /* VendingMachine.swift in Sources */,
+				A1BB4CD6BAE18CF2A1E2FB3C /* Warehouse.swift in Sources */,
+				D87208736751BB897289C9B6 /* WarehouseView.swift in Sources */,
+				227347A89BC32144B6544F1C /* WarehouseViewModel.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		382B1ABF0694BE3BE485013F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 215EDEE2A21B82EE7D2ED841 /* Debug.xcconfig */;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = VMflow/Resources/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.9;
+			};
+			name = Debug;
+		};
+		38F117049B613547293740DE /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 37A932859D1B7FE49EB4FDE0 /* Release.xcconfig */;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = VMflow/Resources/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.9;
+			};
+			name = Release;
+		};
+		47D683708BFD2B7EC2F3258E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = VMflow/Resources/VMflow.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 4JT3V7XVXM;
+				INFOPLIST_FILE = VMflow/Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		721C31EF76FFEFD13903BF0D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = VMflow/Resources/VMflow.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 4JT3V7XVXM;
+				INFOPLIST_FILE = VMflow/Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		26BE41D140DC7534868B92A9 /* Build configuration list for PBXNativeTarget "VMflow" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				47D683708BFD2B7EC2F3258E /* Debug */,
+				721C31EF76FFEFD13903BF0D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		B1511EBE8EED6F28AF94BC8E /* Build configuration list for PBXProject "VMflow" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				382B1ABF0694BE3BE485013F /* Debug */,
+				38F117049B613547293740DE /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		11212191FAB3A08C935E93FA /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/supabase/supabase-swift.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		FB3502875FE29AF6391900A8 /* Supabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 11212191FAB3A08C935E93FA /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Supabase;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = C39325D98C9AAD78241F928A /* Project object */;
+}

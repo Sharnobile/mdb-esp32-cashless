@@ -4,12 +4,14 @@ import Supabase
 // MARK: - Configuration
 
 /// App configuration read from Info.plist at runtime.
-/// Set `SUPABASE_URL` and `SUPABASE_ANON_KEY` in your Info.plist or xcconfig.
+/// Values are injected via xcconfig files (Debug.xcconfig / Release.xcconfig).
 enum AppConfig {
     static var supabaseURL: URL {
-        guard let urlString = Bundle.main.infoDictionary?["SUPABASE_URL"] as? String,
-              let url = URL(string: urlString) else {
-            fatalError("SUPABASE_URL not configured in Info.plist")
+        guard let scheme = Bundle.main.infoDictionary?["SUPABASE_SCHEME"] as? String,
+              let host = Bundle.main.infoDictionary?["SUPABASE_HOST"] as? String,
+              !scheme.isEmpty, !host.isEmpty,
+              let url = URL(string: "\(scheme)://\(host)") else {
+            fatalError("SUPABASE_SCHEME / SUPABASE_HOST not configured in Info.plist")
         }
         return url
     }

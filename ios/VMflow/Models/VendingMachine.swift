@@ -16,25 +16,6 @@ struct Embedded: Codable, Identifiable, Equatable {
         case firmwareVersion = "firmware_version"
     }
 
-    init(id: UUID, status: String?, statusAt: Date?, subdomain: Int, macAddress: String?, firmwareVersion: String?) {
-        self.id = id
-        self.status = status
-        self.statusAt = statusAt
-        self.subdomain = subdomain
-        self.macAddress = macAddress
-        self.firmwareVersion = firmwareVersion
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decode(UUID.self, forKey: .id)
-        status = try container.decodeIfPresent(String.self, forKey: .status)
-        statusAt = try container.decodeIfPresent(Date.self, forKey: .statusAt)
-        subdomain = try container.decode(Int.self, forKey: .subdomain)
-        macAddress = try container.decodeIfPresent(String.self, forKey: .macAddress)
-        firmwareVersion = try container.decodeIfPresent(String.self, forKey: .firmwareVersion)
-    }
-
     /// Whether the device reported "online" status.
     var isOnline: Bool {
         status?.lowercased() == "online"
@@ -59,27 +40,6 @@ struct VendingMachine: Codable, Identifiable, Equatable {
         case countryCode = "country_code"
     }
 
-    init(id: UUID, name: String?, locationLat: Double?, locationLon: Double?, embedded: UUID?, countryCode: String?, embeddeds: Embedded? = nil) {
-        self.id = id
-        self.name = name
-        self.locationLat = locationLat
-        self.locationLon = locationLon
-        self.embedded = embedded
-        self.countryCode = countryCode
-        self.embeddeds = embeddeds
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decode(UUID.self, forKey: .id)
-        name = try container.decodeIfPresent(String.self, forKey: .name)
-        locationLat = try container.decodeIfPresent(Double.self, forKey: .locationLat)
-        locationLon = try container.decodeIfPresent(Double.self, forKey: .locationLon)
-        embedded = try container.decodeIfPresent(UUID.self, forKey: .embedded)
-        countryCode = try container.decodeIfPresent(String.self, forKey: .countryCode)
-        embeddeds = try container.decodeIfPresent(Embedded.self, forKey: .embeddeds)
-    }
-
     /// Display name, falling back to "Unnamed Machine".
     var displayName: String {
         name ?? "Unnamed Machine"
@@ -100,7 +60,10 @@ struct MachineStats: Identifiable, Equatable {
     var todaySalesCount: Int = 0
     var yesterdayRevenue: Double = 0
     var yesterdaySalesCount: Int = 0
-    var lastSaleAt: Date?
+    var thisWeekRevenue: Double = 0
+    var thisWeekSalesCount: Int = 0
+    var lastWeekRevenue: Double = 0
+    var lastWeekSalesCount: Int = 0
     var paxcounterCount: Int?
 
     // Stock health
@@ -108,6 +71,13 @@ struct MachineStats: Identifiable, Equatable {
     var lowTrays: Int = 0
     var emptyTrays: Int = 0
     var stockPercent: Double = 0
+
+    // Warehouse-aware stock counts
+    var swapNeededCount: Int = 0   // empty trays with no warehouse stock
+    var noStockCount: Int = 0      // low trays with no warehouse stock
+
+    // Per-product deficit info for card display
+    var trayDeficits: [TrayDeficit] = []
 
     var id: UUID { machine.id }
 
@@ -133,4 +103,29 @@ enum StockHealth: String, Equatable {
     case ok
     case low
     case critical
+}
+
+/// Severity level for individual tray/product stock deficits.
+enum StockSeverity: Equatable, Comparable {
+    case critical  // empty (currentStock == 0)
+    case low       // below minStock
+    case fillBelow // below fillWhenBelow
+}
+
+/// Warehouse stock availability for a product.
+enum WarehouseAvailability: Equatable {
+    case inStock      // Product available in warehouse (green "In Stock")
+    case noStock      // Not in warehouse, tray still has some stock (dimmed "No Stock")
+    case needsSwap    // Not in warehouse AND tray is empty (orange "Swap")
+    case unknown      // No warehouse data available
+}
+
+/// Aggregated product deficit info for display on machine cards.
+struct TrayDeficit: Equatable {
+    let productName: String
+    let imagePath: String?
+    let deficit: Int
+    let severity: StockSeverity
+    let isDiscontinued: Bool
+    let warehouseAvailability: WarehouseAvailability
 }

@@ -32,6 +32,7 @@ struct SaleWithMachine: Identifiable, Equatable {
     let sale: Sale
     let machineName: String?
     let productName: String?
+    let productImagePath: String?
 
     var id: UUID { sale.id }
 }

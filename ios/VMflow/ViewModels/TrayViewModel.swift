@@ -30,6 +30,8 @@ final class TrayViewModel: ObservableObject {
                 .order("item_number", ascending: true)
                 .execute()
                 .value
+        } catch is CancellationError {
+            // Ignore
         } catch {
             self.error = error.localizedDescription
         }
@@ -60,6 +62,8 @@ final class TrayViewModel: ObservableObject {
                 .execute()
 
             await loadTrays()
+        } catch is CancellationError {
+            // Ignore
         } catch {
             self.error = error.localizedDescription
         }
@@ -94,6 +98,8 @@ final class TrayViewModel: ObservableObject {
                 .execute()
 
             await loadTrays()
+        } catch is CancellationError {
+            // Ignore
         } catch {
             self.error = error.localizedDescription
         }
@@ -125,6 +131,8 @@ final class TrayViewModel: ObservableObject {
                 .execute()
 
             await loadTrays()
+        } catch is CancellationError {
+            // Ignore
         } catch {
             self.error = error.localizedDescription
         }
@@ -143,6 +151,8 @@ final class TrayViewModel: ObservableObject {
                 .execute()
 
             trays.removeAll { $0.id == tray.id }
+        } catch is CancellationError {
+            // Ignore
         } catch {
             self.error = error.localizedDescription
         }
@@ -162,6 +172,8 @@ final class TrayViewModel: ObservableObject {
                 .execute()
 
             await loadTrays()
+        } catch is CancellationError {
+            // Ignore
         } catch {
             self.error = error.localizedDescription
         }
@@ -178,6 +190,8 @@ final class TrayViewModel: ObservableObject {
                 .execute()
 
             await loadTrays()
+        } catch is CancellationError {
+            // Ignore
         } catch {
             self.error = error.localizedDescription
         }

@@ -3,8 +3,17 @@ import Charts
 
 /// Main dashboard with KPIs, 30-day chart, recent sales, and quick actions.
 struct DashboardView: View {
+    @Binding var selectedTab: AppTab
     @EnvironmentObject var auth: AuthService
     @StateObject private var viewModel = DashboardViewModel()
+    @EnvironmentObject private var realtime: RealtimeService
+
+    /// Whether a refill tour is currently saved/in-progress.
+    @State private var hasActiveRefill = false
+
+    private var realtimeVersion: Int {
+        realtime.salesVersion + realtime.machinesVersion + realtime.embeddedVersion
+    }
 
     var body: some View {
         ScrollView {
@@ -45,6 +54,12 @@ struct DashboardView: View {
         .task {
             await viewModel.loadDashboard()
         }
+        .onAppear {
+            hasActiveRefill = RefillWizardViewModel.hasSavedTourState
+        }
+        .onChange(of: realtimeVersion) { _, _ in
+            Task { await viewModel.loadDashboard() }
+        }
         .overlay {
             if viewModel.isLoading && viewModel.dailySales.isEmpty {
                 ProgressView("Loading dashboard...")
@@ -73,7 +88,7 @@ struct DashboardView: View {
             )
 
             KPICard(
-                icon: "vending.machine.fill",
+                icon: "storefront.fill",
                 title: "Machines",
                 value: "\(viewModel.machinesOnline)/\(viewModel.machinesTotal)",
                 subtitle: "Online",
@@ -94,20 +109,23 @@ struct DashboardView: View {
 
     private var quickActions: some View {
         HStack(spacing: 12) {
-            NavigationLink {
-                RefillWizardView()
+            Button {
+                selectedTab = .refill
             } label: {
-                Label("Start Refill", systemImage: "arrow.clockwise.circle.fill")
-                    .font(.subheadline.weight(.semibold))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
+                Label(
+                    hasActiveRefill ? "Continue Refill" : "Start Refill",
+                    systemImage: hasActiveRefill ? "arrow.forward.circle.fill" : "arrow.clockwise.circle.fill"
+                )
+                .font(.subheadline.weight(.semibold))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
             }
             .buttonStyle(.borderedProminent)
 
-            NavigationLink {
-                MachineListView()
+            Button {
+                selectedTab = .machines
             } label: {
-                Label("Machines", systemImage: "vending.machine.fill")
+                Label("Machines", systemImage: "storefront.fill")
                     .font(.subheadline.weight(.semibold))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
@@ -186,10 +204,12 @@ struct DashboardView: View {
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.vertical, 20)
             } else {
-                ForEach(viewModel.recentSales.prefix(10)) { item in
-                    RecentSaleRow(item: item)
-                    if item.id != viewModel.recentSales.prefix(10).last?.id {
-                        Divider()
+                let items = Array(viewModel.recentSales.prefix(10))
+                let grouped = groupDashboardSalesByDay(items)
+                ForEach(grouped, id: \.date) { group in
+                    DaySectionHeader(label: dayLabel(for: group.date), count: group.sales.count)
+                    ForEach(group.sales) { item in
+                        RecentSaleRow(item: item)
                     }
                 }
             }
@@ -218,6 +238,32 @@ struct DashboardView: View {
         }
         return String(format: "%.0f", amount)
     }
+
+    // MARK: - Day Grouping Helpers
+
+    private struct DashboardDayGroup {
+        let date: Date
+        let sales: [SaleWithMachine]
+    }
+
+    private func groupDashboardSalesByDay(_ sales: [SaleWithMachine]) -> [DashboardDayGroup] {
+        let calendar = Calendar.current
+        let grouped = Dictionary(grouping: sales) { item in
+            calendar.startOfDay(for: item.sale.createdAt)
+        }
+        return grouped.keys.sorted(by: >).map { date in
+            DashboardDayGroup(date: date, sales: grouped[date]!.sorted { $0.sale.createdAt > $1.sale.createdAt })
+        }
+    }
+
+    private func dayLabel(for date: Date) -> String {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(date) { return "Today" }
+        if calendar.isDateInYesterday(date) { return "Yesterday" }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEEE, d MMMM"
+        return formatter.string(from: date)
+    }
 }
 
 // MARK: - Recent Sale Row
@@ -227,12 +273,7 @@ struct RecentSaleRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: "cart.fill")
-                .font(.callout)
-                .foregroundStyle(.blue)
-                .frame(width: 32, height: 32)
-                .background(Color.blue.opacity(0.1))
-                .clipShape(Circle())
+            ProductImage(imagePath: item.productImagePath, size: 36)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.productName ?? "Item #\(item.sale.itemNumber ?? 0)")
@@ -252,11 +293,17 @@ struct RecentSaleRow: View {
                 Text(item.sale.formattedPrice)
                     .font(.subheadline.weight(.semibold))
                     .monospacedDigit()
-                Text(timeAgo(from: item.sale.createdAt))
-                    .font(.caption2)
+                Text(formatTime(item.sale.createdAt))
+                    .font(.caption2.monospacedDigit())
                     .foregroundStyle(.secondary)
             }
         }
+    }
+
+    private func formatTime(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm:ss"
+        return formatter.string(from: date)
     }
 }
 
@@ -277,7 +324,7 @@ func timeAgo(from date: Date) -> String {
 
 #Preview {
     NavigationStack {
-        DashboardView()
+        DashboardView(selectedTab: .constant(.dashboard))
             .environmentObject(AuthService())
     }
 }

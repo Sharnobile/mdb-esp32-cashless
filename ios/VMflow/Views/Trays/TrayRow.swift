@@ -37,7 +37,13 @@ struct TrayRow: View {
                     }
                 }
 
-                StockBar(current: tray.currentStock, capacity: tray.capacity, height: 6)
+                StockBar(
+                    current: tray.currentStock,
+                    capacity: tray.capacity,
+                    height: 6,
+                    minStock: tray.minStock,
+                    fillWhenBelow: tray.fillWhenBelow
+                )
             }
 
             Spacer(minLength: 4)
@@ -61,20 +67,6 @@ struct TrayRow: View {
                 } label: {
                     Image(systemName: "plus.circle.fill")
                         .font(.title3)
-                        .foregroundStyle(.blue)
-                }
-                .buttonStyle(.plain)
-                .disabled(tray.currentStock >= tray.capacity)
-
-                // Fill
-                Button {
-                    onFill()
-                } label: {
-                    Text("Full")
-                        .font(.caption.weight(.semibold))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 5)
-                        .background(Capsule().fill(.blue.opacity(0.12)))
                         .foregroundStyle(.blue)
                 }
                 .buttonStyle(.plain)
