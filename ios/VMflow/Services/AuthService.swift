@@ -12,15 +12,24 @@ final class AuthService: ObservableObject {
     @Published var role: OrganizationRole?
     @Published var error: String?
 
-    private let client = SupabaseService.shared.client
+    private var client: SupabaseClient { SupabaseService.shared.client }
     private var authStateTask: Task<Void, Never>?
 
     init() {
+        startAuthListener()
+    }
+
+    /// (Re)start the auth state change listener on the current Supabase client.
+    /// Called on init and after server reconfiguration.
+    func restartAuthListener() {
+        authStateTask?.cancel()
+        startAuthListener()
+    }
+
+    private func startAuthListener() {
         authStateTask = Task { [weak self] in
             guard let self else { return }
-            // Check initial session
             await self.checkSession()
-            // Listen for auth state changes
             for await (event, _) in self.client.auth.authStateChanges {
                 switch event {
                 case .signedIn:
@@ -116,7 +125,7 @@ final class AuthService: ObservableObject {
     /// Fetch the user's organization via the `get-my-organization` edge function.
     func fetchOrganization() async {
         do {
-            print("[AuthService] Fetching organization from \(AppConfig.supabaseURL)/functions/v1/get-my-organization")
+            print("[AuthService] Fetching organization from \(SupabaseService.shared.supabaseURL)/functions/v1/get-my-organization")
             let response: OrganizationResponse = try await client.functions.invoke(
                 "get-my-organization",
                 options: .init(method: .get)
