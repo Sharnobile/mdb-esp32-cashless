@@ -28,15 +28,25 @@ enum AppConfig {
 
 /// Singleton providing the configured Supabase client instance.
 /// All services and view models access Supabase through this shared client.
+/// @MainActor ensures reconfigure() is only called from the main thread.
+@MainActor
 final class SupabaseService {
     static let shared = SupabaseService()
 
-    let client: SupabaseClient
+    private(set) var client: SupabaseClient
+    private(set) var supabaseURL: URL
 
     private init() {
-        client = SupabaseClient(
-            supabaseURL: AppConfig.supabaseURL,
-            supabaseKey: AppConfig.supabaseAnonKey
-        )
+        let server = ServerStore.shared.selectedServer
+        let url = URL(string: server.sanitizedURL) ?? AppConfig.supabaseURL
+        supabaseURL = url
+        client = SupabaseClient(supabaseURL: url, supabaseKey: server.anonKey)
+    }
+
+    /// Recreate the Supabase client with new server credentials.
+    /// Must only be called from the login screen when no active sessions exist.
+    func reconfigure(url: URL, anonKey: String) {
+        supabaseURL = url
+        client = SupabaseClient(supabaseURL: url, supabaseKey: anonKey)
     }
 }

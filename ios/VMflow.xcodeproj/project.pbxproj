@@ -7,7 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		L10N000000000000000000002 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = L10N000000000000000000001 /* Localizable.xcstrings */; };
 		0C7698AD6ED222844A1255F5 /* Tray.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D260DBBBEC69D0AD7B73C46 /* Tray.swift */; };
 		123DDC46EFE39435A5A69CB5 /* RefillWizardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52A29D496BDB69F848C60674 /* RefillWizardView.swift */; };
 		1254787CC883CE8605189B4B /* PackingStepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90BC01B0752A47A20DF699E7 /* PackingStepView.swift */; };
@@ -53,6 +52,9 @@
 		FA92F123C410DDE5A56A5EF7 /* RealtimeService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AE7FC95E2E89DD0AC7A6981 /* RealtimeService.swift */; };
 		FDA63D4358CC508737E8C10F /* AuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC323B6816B89C5044F50027 /* AuthService.swift */; };
 		FE4C794519B8D88EA6886C0A /* StockBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204427FECDDE3A1BB3CB316C /* StockBar.swift */; };
+		L10N000000000000000000002 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = L10N000000000000000000001 /* Localizable.xcstrings */; };
+		SE01000000000000000000001 /* ServerEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = SE01000000000000000000002 /* ServerEntry.swift */; };
+		SS01000000000000000000001 /* ServerStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = SS01000000000000000000002 /* ServerStore.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -76,7 +78,6 @@
 		55B32C8EEFABC9DADF2C73DD /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 		5AE7FC95E2E89DD0AC7A6981 /* RealtimeService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RealtimeService.swift; sourceTree = "<group>"; };
 		70B6B1A9D2611C8B7EE53EDC /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		L10N000000000000000000001 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		70E364431AFD63E8DE1238E3 /* SupabaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseService.swift; sourceTree = "<group>"; };
 		79D8F4403556EBD0620DEECF /* Sale.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sale.swift; sourceTree = "<group>"; };
 		7E9A5023EED5804698A679E6 /* TrayViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrayViewModel.swift; sourceTree = "<group>"; };
@@ -106,6 +107,9 @@
 		ED91CAD5148AD5C6C0991BD3 /* TrayEditSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrayEditSheet.swift; sourceTree = "<group>"; };
 		F7F1BF54F8FA6B86DA5380F6 /* ProductsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductsViewModel.swift; sourceTree = "<group>"; };
 		FEABE7DE0463DA34A9DB9FB9 /* WarehouseView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WarehouseView.swift; sourceTree = "<group>"; };
+		L10N000000000000000000001 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
+		SE01000000000000000000002 /* ServerEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerEntry.swift; sourceTree = "<group>"; };
+		SS01000000000000000000002 /* ServerStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerStore.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -126,6 +130,7 @@
 				E7F443AA9AA51CCB3B6A7C75 /* Organization.swift */,
 				CA94DE3092E2B07986626697 /* Product.swift */,
 				79D8F4403556EBD0620DEECF /* Sale.swift */,
+				SE01000000000000000000002 /* ServerEntry.swift */,
 				2D260DBBBEC69D0AD7B73C46 /* Tray.swift */,
 				4E7EC46F36DD12575C056A1A /* VendingMachine.swift */,
 				A6908142D65605FE1D58C1AE /* Warehouse.swift */,
@@ -265,6 +270,7 @@
 				C35FC72F3ED743C438F7C738 /* LocalNetworkPermission.swift */,
 				285CDF78E1AA2017C62282F8 /* NotificationService.swift */,
 				5AE7FC95E2E89DD0AC7A6981 /* RealtimeService.swift */,
+				SS01000000000000000000002 /* ServerStore.swift */,
 				70E364431AFD63E8DE1238E3 /* SupabaseService.swift */,
 			);
 			path = Services;
@@ -419,6 +425,8 @@
 				A36AE2752621D3854B40CCE2 /* RefillWizardViewModel.swift in Sources */,
 				AD28437ACBB0F0A443AA458E /* RegisterView.swift in Sources */,
 				C2A2406A5D534A262F1CB0BA /* Sale.swift in Sources */,
+				SE01000000000000000000001 /* ServerEntry.swift in Sources */,
+				SS01000000000000000000001 /* ServerStore.swift in Sources */,
 				14E8E7A13B8FB4BBA2CE3AA1 /* SettingsView.swift in Sources */,
 				4317985673B05FA56A45069B /* StatusBadge.swift in Sources */,
 				FE4C794519B8D88EA6886C0A /* StockBar.swift in Sources */,
