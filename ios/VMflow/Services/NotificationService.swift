@@ -60,7 +60,7 @@ final class NotificationService: ObservableObject {
         ),
     ]
 
-    private let client = SupabaseService.shared.client
+    private var client: SupabaseClient { SupabaseService.shared.client }
     /// Key for persisting the last registered token to detect changes.
     private let tokenKey = "apns-device-token"
 

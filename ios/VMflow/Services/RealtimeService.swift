@@ -15,7 +15,7 @@ final class RealtimeService: ObservableObject {
     @Published var embeddedVersion: Int = 0
     @Published var warehouseVersion: Int = 0
 
-    private let client = SupabaseService.shared.client
+    private var client: SupabaseClient { SupabaseService.shared.client }
     private var channel: RealtimeChannelV2?
     private var listenTask: Task<Void, Never>?
 
