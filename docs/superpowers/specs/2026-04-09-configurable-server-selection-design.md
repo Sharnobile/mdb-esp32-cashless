@@ -39,12 +39,13 @@ Persisted in UserDefaults as JSON array under key `savedServers`. Active server 
 
 ```json
 {
+  "v": 1,
   "url": "https://supabase.example.com",
   "anonKey": "eyJhbGciOi..."
 }
 ```
 
-Encoded as a standard QR code containing this JSON string. The iOS app parses it and pre-fills the URL + Anon Key fields; the user only adds a display name.
+Encoded as a standard QR code containing this JSON string. The `v` field enables future format changes. The iOS app parses it, validates `v == 1` and JSON structure, then pre-fills URL + Anon Key fields; the user only adds a display name. Non-JSON or unrecognized QR content shows an error alert ("Ungültiger QR-Code").
 
 ## iOS App Changes
 
@@ -82,7 +83,9 @@ Fullscreen presented via NavigationView (or `.sheet`). Layout:
 - "Fertig" validates (non-empty fields, valid URL format) then saves via ServerStore
 - Reused for editing: pre-fills fields, title changes to "Server bearbeiten"
 
-Uses AVFoundation camera for QR scanning (similar to existing BarcodeScanner pattern in the frontend, but native iOS).
+Uses AVFoundation camera for QR scanning (similar to existing BarcodeScanner pattern in the frontend, but native iOS). Requires `NSCameraUsageDescription` in Info.plist (add if not already present).
+
+URL validation must accept both HTTP and HTTPS schemes, and URLs with ports (e.g. `http://10.0.1.50:8000`). Trailing slashes should be stripped before saving.
 
 ### Modified Files
 
@@ -92,6 +95,7 @@ Current state: singleton with `let client: SupabaseClient` initialized once from
 
 Changes:
 - `client` becomes `private(set) var` instead of `let`
+- New computed property `supabaseURL: URL` for use by code that needs the active server URL (e.g. storage image URLs)
 - New method `reconfigure(url: URL, anonKey: String)` that creates a new `SupabaseClient` instance
 - `init()` reads from `ServerStore.shared.selectedServer` instead of hardcoded `AppConfig`
 - `AppConfig` remains as fallback for the default server values
@@ -100,40 +104,79 @@ Changes:
 final class SupabaseService {
     static let shared = SupabaseService()
     private(set) var client: SupabaseClient
+    private(set) var supabaseURL: URL
 
     private init() {
         let server = ServerStore.shared.selectedServer
-        client = SupabaseClient(
-            supabaseURL: URL(string: server.url)!,
-            supabaseKey: server.anonKey
-        )
+        let url = URL(string: server.url)!
+        supabaseURL = url
+        client = SupabaseClient(supabaseURL: url, supabaseKey: server.anonKey)
     }
 
     func reconfigure(url: URL, anonKey: String) {
+        supabaseURL = url
         client = SupabaseClient(supabaseURL: url, supabaseKey: anonKey)
     }
 }
 ```
 
+**Critical: stale client references.** Several services and all ViewModels capture `SupabaseService.shared.client` as `private let client` at init time. After `reconfigure()`, these hold a stale reference. The following services need changes:
+
+| Service | Problem | Fix |
+|---------|---------|-----|
+| `AuthService` | Singleton, alive at app start. `let client` + `authStateChanges` async stream captured in `init()` | Computed property for `client` + `restartAuthListener()` method |
+| `RealtimeService` | Static singleton, persists across login/logout cycles | Computed property for `client` |
+| `NotificationService` | Static singleton, accessed early in `AppDelegate` | Computed property for `client` |
+
+ViewModels (`DashboardViewModel`, `MachineListViewModel`, etc.) use `private let client` but are **not** singletons — they are created fresh when `MainTabView` appears (after login, after any server switch). They always capture the correct post-reconfigure client. No changes needed.
+
+**Thread safety**: `SupabaseService.reconfigure()` must only be called from the main actor when no requests are in flight. Since it only runs from the login screen (no active sessions), this is guaranteed. Add `@MainActor` to `SupabaseService` to enforce this.
+
 #### `Services/AuthService.swift`
 
 Changes:
-- `logout()` gains an optional `switchingServer: Bool` parameter (default false)
-- When `switchingServer` is true, after clearing auth state, calls `SupabaseService.shared.reconfigure()` with the new server's credentials
-- No other changes needed — the auth state change listener already handles `.signedOut` by clearing organization/role
+- `private let client = SupabaseService.shared.client` → `private var client: SupabaseClient { SupabaseService.shared.client }` (computed property, always reads current client for `signIn()`, `fetchOrganization()`, etc.)
+- New method `restartAuthListener()`: cancels the existing `authStateTask`, then starts a new one that subscribes to `client.auth.authStateChanges` on the current (post-reconfigure) client. This is necessary because the `for await` loop in `init()` captures the async stream from the old client — after reconfigure, it would never receive events from the new client.
+- `restartAuthListener()` is called by `ServerSelectionSheet` after `SupabaseService.reconfigure()` completes
+- The debug print in `fetchOrganization()` that references `AppConfig.supabaseURL` should use `SupabaseService.shared.supabaseURL` instead
+
+#### `Services/RealtimeService.swift`
+
+Changes:
+- `private let client = SupabaseService.shared.client` → `private var client: SupabaseClient { SupabaseService.shared.client }` (computed property)
+- Since `RealtimeService` is a static singleton that persists across login/logout cycles, it must always read the current client. When `MainTabView` disappears (logout), realtime channels are stopped. On next login (possibly to a different server), `start()` creates new channels using the now-correct client.
+
+#### `Services/NotificationService.swift`
+
+Changes:
+- `private let client = SupabaseService.shared.client` → `private var client: SupabaseClient { SupabaseService.shared.client }` (computed property)
+- `NotificationService.shared` is accessed in `AppDelegate` at app launch for APNs token handling. With the computed property, it always uses the current client for backend registration calls.
 
 #### `Views/Auth/LoginView.swift`
 
 Changes:
-- Add `@State private var showServerSheet = false` 
+- Add `@State private var showServerSheet = false`
 - Below the "Registrieren" link, add tappable text: "Verbunden mit **{serverName}**"
 - Tap sets `showServerSheet = true`
 - `.sheet(isPresented: $showServerSheet)` presents `ServerSelectionSheet`
 - Server name reads from `ServerStore.shared.selectedServer.name`
 
+#### `Views/Auth/RegisterView.swift`
+
+Changes:
+- Same "Verbunden mit **{serverName}**" indicator as LoginView, so users know which server they are registering on
+
+#### `Views/Components/ProductImage.swift`
+
+Current state: uses `AppConfig.supabaseURL` directly to construct storage image URLs.
+
+Changes:
+- Replace `AppConfig.supabaseURL` with `SupabaseService.shared.supabaseURL`
+- This ensures product images load from the correct server after a switch
+
 #### `VMflowApp.swift`
 
-No changes needed. RootView already routes based on `auth.isAuthenticated` — after a server switch triggers logout, the UI automatically shows the login screen.
+No changes needed. `AuthService` is initialized here as `@StateObject` — since it now uses a computed property for the client, it always reads the current `SupabaseService.shared.client`. RootView already routes based on `auth.isAuthenticated`.
 
 ## Management Frontend Changes
 
@@ -151,10 +194,10 @@ Simple page containing:
    - "1. Lade die VMflow App herunter"
    - "2. Tippe auf 'Self-hosted hinzufügen' auf dem Login-Screen"
    - "3. Scanne diesen QR-Code"
-2. QR code displaying the JSON payload `{"url": "<SUPABASE_URL>", "anonKey": "<ANON_KEY>"}`
+2. QR code displaying the JSON payload `{"v": 1, "url": "<SUPABASE_URL>", "anonKey": "<ANON_KEY>"}`
 3. Alternatively: "Oder gib diese Daten manuell ein:" with copyable URL + Anon Key fields
 
-The QR code is generated client-side using a lightweight library (e.g., `qrcode` npm package or inline SVG generation). The values come from `useRuntimeConfig().public.supabaseUrl` and `useRuntimeConfig().public.supabaseKey`.
+The QR code is generated client-side using a lightweight library (e.g., `qrcode` npm package or inline SVG generation). The Supabase URL comes from `useRuntimeConfig().public.supabase.url` and the anon key from `useRuntimeConfig().public.supabase.key` (injected by `@nuxtjs/supabase` module).
 
 This page requires authentication (behind the auth middleware) since it's part of the organization context.
 
@@ -176,13 +219,28 @@ Complete sequence when a user switches servers:
 
 If switching while already logged in (future consideration — currently only accessible from login screen): logout first, then reconfigure.
 
+### i18n (iOS)
+
+All new views use `String(localized:)` / `Localizable.xcstrings` with both `en` and `de` translations. Key strings:
+- "Connected to" / "Verbunden mit"
+- "Select Server" / "Server auswählen"
+- "Add Self-hosted" / "Self-hosted hinzufügen"
+- "New Server" / "Neuer Server"
+- "Edit Server" / "Server bearbeiten"
+- "Cancel" / "Abbrechen"
+- "Done" / "Fertig"
+- "Scan QR Code" / "QR-Code scannen"
+- "or enter manually" / "oder manuell eingeben"
+- "Invalid QR Code" / "Ungültiger QR-Code"
+- "Name", "Supabase URL", "Anon Key" (same in both languages)
+
 ## What Does NOT Change
 
-- All ViewModels and services continue using `SupabaseService.shared.client` — no API changes
+- All ViewModels continue using `SupabaseService.shared.client` via `private let client` — safe because they are non-singletons created fresh after login (after any server switch)
+- Three singleton services (`AuthService`, `RealtimeService`, `NotificationService`) change `let client` to computed property — this is the only pattern change
 - xcconfig files remain for build-time defaults (Debug = local dev, Release = production)
 - No changes to the backend, edge functions, or MQTT
-- No changes to the existing auth flow logic beyond the server-switch trigger
-- RealtimeService, NotificationService, and all other services work unchanged since they reference `SupabaseService.shared.client` which now points to the new server after reconfigure
+- No changes to the existing auth flow logic beyond the server-switch trigger and `restartAuthListener()`
 
 ## Edge Cases
 
