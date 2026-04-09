@@ -6,6 +6,8 @@ struct LoginView: View {
 
     @State private var email = ""
     @State private var password = ""
+    @ObservedObject var serverStore = ServerStore.shared
+    @State private var showServerSheet = false
     @FocusState private var focusedField: Field?
 
     private enum Field: Hashable {
@@ -105,6 +107,22 @@ struct LoginView: View {
                             .fontWeight(.semibold)
                     }
                     .font(.subheadline)
+                }
+
+                // Server indicator
+                Button {
+                    showServerSheet = true
+                } label: {
+                    HStack(spacing: 4) {
+                        Text("Connected to", comment: "Server indicator prefix on login screen")
+                            .foregroundStyle(.secondary)
+                        Text(serverStore.selectedServer.name)
+                            .fontWeight(.semibold)
+                    }
+                    .font(.caption)
+                }
+                .sheet(isPresented: $showServerSheet) {
+                    ServerSelectionSheet()
                 }
             }
             .padding(.bottom, 40)
