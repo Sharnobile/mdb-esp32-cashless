@@ -358,6 +358,11 @@ services:
       VAPID_SUBJECT: ${VAPID_SUBJECT}
       GITHUB_FIRMWARE_REPO: ${GITHUB_FIRMWARE_REPO:-}
       FCM_SERVICE_ACCOUNT_JSON: ${FCM_SERVICE_ACCOUNT_JSON:-}
+      APNS_KEY_ID: ${APNS_KEY_ID:-}
+      APNS_TEAM_ID: ${APNS_TEAM_ID:-}
+      APNS_PRIVATE_KEY: ${APNS_PRIVATE_KEY:-}
+      APNS_TOPIC: ${APNS_TOPIC:-}
+      APNS_PRODUCTION: ${APNS_PRODUCTION:-false}
     command: ["start", "--main-service", "/home/deno/functions/main"]
 
   # ==========================================================================

@@ -19,6 +19,7 @@ interface PushSubscription {
   auth: string | null
   platform: 'web' | 'android' | 'ios'
   fcm_token: string | null
+  apns_topic: string | null
 }
 
 interface VapidConfig {
@@ -239,6 +240,128 @@ async function hkdf(
   return new Uint8Array(bits)
 }
 
+// ─── APNs HTTP/2 API ───────────────────────────────────────────────────────
+
+interface ApnsConfig {
+  keyId: string       // Key ID from Apple Developer portal
+  teamId: string      // Apple Developer Team ID
+  privateKey: string  // .p8 file contents (PEM-encoded PKCS#8 EC key)
+  topic: string       // App bundle identifier (e.g. com.vmflow.VMflow)
+  production: boolean // true → api.push.apple.com, false → api.sandbox.push.apple.com
+}
+
+let _apnsToken: { token: string; expiresAt: number } | null = null
+
+/**
+ * Create a JWT for APNs provider authentication (ES256).
+ * Token is cached for 50 minutes (APNs allows up to 1 hour).
+ */
+async function createApnsJwt(config: ApnsConfig): Promise<string> {
+  if (_apnsToken && Date.now() < _apnsToken.expiresAt) {
+    return _apnsToken.token
+  }
+
+  const header = { alg: 'ES256', kid: config.keyId }
+  const now = Math.floor(Date.now() / 1000)
+  const payload = { iss: config.teamId, iat: now }
+
+  const headerB64 = uint8ArrayToBase64url(new TextEncoder().encode(JSON.stringify(header)))
+  const payloadB64 = uint8ArrayToBase64url(new TextEncoder().encode(JSON.stringify(payload)))
+  const signingInput = new TextEncoder().encode(`${headerB64}.${payloadB64}`)
+
+  // Import .p8 private key (PKCS#8 PEM → ECDSA P-256)
+  const pemBody = config.privateKey
+    .replace(/-----BEGIN PRIVATE KEY-----/, '')
+    .replace(/-----END PRIVATE KEY-----/, '')
+    .replace(/\s/g, '')
+  const keyBytes = Uint8Array.from(atob(pemBody), c => c.charCodeAt(0))
+
+  const key = await crypto.subtle.importKey(
+    'pkcs8',
+    keyBytes,
+    { name: 'ECDSA', namedCurve: 'P-256' },
+    false,
+    ['sign'],
+  )
+
+  const signature = await crypto.subtle.sign(
+    { name: 'ECDSA', hash: 'SHA-256' },
+    key,
+    signingInput,
+  )
+
+  const rawSig = derToRaw(new Uint8Array(signature))
+  const jwt = `${headerB64}.${payloadB64}.${uint8ArrayToBase64url(rawSig)}`
+
+  _apnsToken = { token: jwt, expiresAt: Date.now() + 50 * 60 * 1000 }
+  return jwt
+}
+
+/**
+ * Send a push notification directly via APNs HTTP/2 API.
+ */
+async function sendApnsNotification(
+  deviceToken: string,
+  payload: PushPayload,
+  config: ApnsConfig,
+): Promise<{ ok: boolean; expired: boolean }> {
+  const jwt = await createApnsJwt(config)
+
+  const host = config.production
+    ? 'api.push.apple.com'
+    : 'api.sandbox.push.apple.com'
+
+  const apnsPayload: Record<string, unknown> = {
+    aps: {
+      alert: {
+        title: payload.title,
+        body: payload.body,
+      },
+      sound: 'default',
+      'mutable-content': 1,
+    },
+  }
+
+  // Merge custom data fields at top level (iOS reads them from userInfo)
+  if (payload.data) {
+    for (const [k, v] of Object.entries(payload.data)) {
+      apnsPayload[k] = v
+    }
+  }
+
+  const resp = await fetch(`https://${host}/3/device/${deviceToken}`, {
+    method: 'POST',
+    headers: {
+      'authorization': `bearer ${jwt}`,
+      'apns-topic': config.topic,
+      'apns-push-type': 'alert',
+      'apns-priority': '10',
+    },
+    body: JSON.stringify(apnsPayload),
+  })
+
+  if (resp.ok) return { ok: true, expired: false }
+
+  // Handle expired/invalid tokens
+  const respBody = await resp.json().catch(() => ({} as Record<string, string>))
+  const reason = (respBody as Record<string, string>).reason ?? ''
+  console.warn(`[APNs] Push failed: status=${resp.status}, reason=${reason}, host=${host}, topic=${config.topic}, token=${deviceToken.slice(0, 8)}...`)
+
+  if (resp.status === 410 || resp.status === 400 || resp.status === 403) {
+    if (
+      reason === 'Unregistered' ||
+      reason === 'BadDeviceToken' ||
+      reason === 'DeviceTokenNotForTopic' ||
+      resp.status === 410
+    ) {
+      return { ok: false, expired: true }
+    }
+  }
+
+  console.warn(`APNs push failed for token ${deviceToken.slice(0, 8)}...: ${resp.status}`)
+  return { ok: false, expired: false }
+}
+
 // ─── FCM HTTP v1 API ────────────────────────────────────────────────────────
 
 interface FcmServiceAccount {
@@ -427,19 +550,35 @@ export async function sendPushToUsers(
   const subject = Deno.env.get('VAPID_SUBJECT')
   const hasVapid = !!(publicKey && privateKey && subject)
 
-  // FCM config for native push
+  // APNs config for iOS native push
+  const apnsKeyId = Deno.env.get('APNS_KEY_ID')
+  const apnsTeamId = Deno.env.get('APNS_TEAM_ID')
+  const apnsPrivateKey = Deno.env.get('APNS_PRIVATE_KEY')
+  const apnsTopic = Deno.env.get('APNS_TOPIC')
+  const apnsConfig: ApnsConfig | null =
+    apnsKeyId && apnsTeamId && apnsPrivateKey && apnsTopic
+      ? {
+          keyId: apnsKeyId,
+          teamId: apnsTeamId,
+          privateKey: apnsPrivateKey,
+          topic: apnsTopic,
+          production: Deno.env.get('APNS_PRODUCTION') !== 'false',
+        }
+      : null
+
+  // FCM config for Android native push
   const fcmJson = Deno.env.get('FCM_SERVICE_ACCOUNT_JSON')
   let fcmServiceAccount: FcmServiceAccount | null = null
   if (fcmJson) {
     try {
       fcmServiceAccount = JSON.parse(fcmJson)
     } catch {
-      console.warn('FCM_SERVICE_ACCOUNT_JSON is not valid JSON — native push disabled')
+      console.warn('FCM_SERVICE_ACCOUNT_JSON is not valid JSON — Android push disabled')
     }
   }
 
-  // If neither is configured, skip entirely
-  if (!hasVapid && !fcmServiceAccount) {
+  // If nothing is configured, skip entirely
+  if (!hasVapid && !apnsConfig && !fcmServiceAccount) {
     return { sent: 0, expired: 0 }
   }
 
@@ -450,7 +589,7 @@ export async function sendPushToUsers(
   // Query subscriptions for users in this company who want this notification type.
   const { data: allSubs, error: subsError } = await adminClient
     .from('push_subscriptions')
-    .select('id, endpoint, p256dh, auth, user_id, platform, fcm_token')
+    .select('id, endpoint, p256dh, auth, user_id, platform, fcm_token, apns_topic')
 
   if (subsError || !allSubs || allSubs.length === 0) {
     return { sent: 0, expired: 0 }
@@ -485,15 +624,16 @@ export async function sendPushToUsers(
     return { sent: 0, expired: 0 }
   }
 
-  // Split into web and native subscriptions
+  // Split subscriptions by platform
   const webSubs = subscriptions.filter(s => s.platform === 'web' && s.endpoint && s.p256dh && s.auth)
-  const nativeSubs = subscriptions.filter(s => (s.platform === 'android' || s.platform === 'ios') && s.fcm_token)
+  const iosSubs = subscriptions.filter(s => s.platform === 'ios' && s.fcm_token)
+  const androidSubs = subscriptions.filter(s => s.platform === 'android' && s.fcm_token)
 
   let sent = 0
   let expired = 0
   const expiredIds: string[] = []
 
-  // Send web push notifications
+  // Send web push notifications (VAPID)
   if (vapid && webSubs.length > 0) {
     await Promise.allSettled(
       webSubs.map(async (sub) => {
@@ -518,14 +658,37 @@ export async function sendPushToUsers(
     )
   }
 
-  // Send native (FCM) push notifications
-  if (fcmServiceAccount && nativeSubs.length > 0) {
+  // Send iOS push notifications (APNs direct)
+  if (apnsConfig && iosSubs.length > 0) {
     await Promise.allSettled(
-      nativeSubs.map(async (sub) => {
+      iosSubs.map(async (sub) => {
+        try {
+          // Use per-subscription bundle ID if stored, otherwise fall back to env var
+          const perSubConfig = sub.apns_topic
+            ? { ...apnsConfig!, topic: sub.apns_topic }
+            : apnsConfig!
+          const result = await sendApnsNotification(sub.fcm_token!, payload, perSubConfig)
+          if (result.ok) {
+            sent++
+          } else if (result.expired) {
+            expired++
+            expiredIds.push(sub.id)
+          }
+        } catch (err) {
+          console.warn(`APNs push error for token ${sub.fcm_token?.slice(0, 8)}...:`, err)
+        }
+      }),
+    )
+  }
+
+  // Send Android push notifications (FCM)
+  if (fcmServiceAccount && androidSubs.length > 0) {
+    await Promise.allSettled(
+      androidSubs.map(async (sub) => {
         try {
           const result = await sendFcmNotification(
             sub.fcm_token!,
-            sub.platform as 'android' | 'ios',
+            'android',
             payload,
             fcmServiceAccount!,
           )

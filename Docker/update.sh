@@ -165,9 +165,16 @@ fi
 
 # ─── FCM_SERVICE_ACCOUNT_JSON (informational only) ────────────────────────────
 if [ -z "${FCM_SERVICE_ACCOUNT_JSON:-}" ]; then
-    info "FCM_SERVICE_ACCOUNT_JSON not set — native iOS/Android push notifications disabled"
+    info "FCM_SERVICE_ACCOUNT_JSON not set — Android push notifications disabled"
 else
     success "FCM_SERVICE_ACCOUNT_JSON is configured"
+fi
+
+# ─── APNs (informational only) ──────────────────────────────────────────────
+if [ -z "${APNS_KEY_ID:-}" ]; then
+    info "APNS_KEY_ID not set — iOS push notifications disabled"
+else
+    success "APNs configured (Key ID: ${APNS_KEY_ID}, Team: ${APNS_TEAM_ID:-?}, Topic: ${APNS_TOPIC:-?})"
 fi
 
 # ─── GITHUB_FIRMWARE_REPO (informational only) ───────────────────────────────

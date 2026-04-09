@@ -43,8 +43,10 @@ Deno.serve(async (req) => {
       })
     }
 
-    // Send a test notification via the full push flow
-    const result = await sendPushToUsers(adminClient, membership.company_id, 'sale', {
+    // Send a test notification — use type '_test' which is never in the
+    // disabled preferences list, so it always reaches the device regardless
+    // of which notification types the user has toggled off.
+    const result = await sendPushToUsers(adminClient, membership.company_id, '_test', {
       title: '🔔 Test Notification',
       body: 'Push notifications are working! This is a test from VMflow.',
       data: { type: 'test' },
