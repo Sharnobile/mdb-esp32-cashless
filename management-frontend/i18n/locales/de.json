@@ -62,7 +62,8 @@
     "groupTeam": "Team",
     "groupTechnical": "Technik",
     "reports": "Berichte",
-    "cashBook": "Kassenbuch"
+    "cashBook": "Kassenbuch",
+    "mobileApp": "Mobile App"
   },
   "auth": {
     "signIn": "Anmelden",
@@ -823,6 +824,20 @@
     "replaceApiKey": "API-Schlüssel ersetzen",
     "saveApiKey": "Schlüssel speichern",
     "updateApiKey": "Schlüssel aktualisieren",
+    "stripeSection": "Stripe-Zahlungen",
+    "stripeDescription": "Verbinden Sie Ihr Stripe-Konto, um mobile Zahlungen auf der öffentlichen Automatenseite zu akzeptieren.",
+    "stripeActive": "Stripe-Schlüssel konfiguriert",
+    "stripeKeysRequired": "Secret Key und Publishable Key sind erforderlich.",
+    "stripeSaved": "Stripe-Schlüssel erfolgreich gespeichert.",
+    "stripeRemoved": "Stripe-Schlüssel entfernt.",
+    "stripeSecretLabel": "Secret Key",
+    "stripePubLabel": "Publishable Key",
+    "stripeWebhookLabel": "Webhook Secret (optional)",
+    "stripeReplace": "Stripe-Schlüssel ersetzen",
+    "stripeSave": "Schlüssel speichern",
+    "stripeUpdate": "Schlüssel aktualisieren",
+    "stripeWebhookUrl": "Webhook-URL",
+    "stripeWebhookHelp": "Fügen Sie diese URL als Webhook-Endpunkt in Ihrem Stripe-Dashboard hinzu (Event: payment_intent.succeeded).",
     "taxSettings": "Steuer-Einstellungen",
     "taxSettingsDescription": "Steuerklassen und Steuersätze für Ihr Unternehmen konfigurieren. Diese werden für steuerkonforme Verkaufsexporte verwendet.",
     "companyCountry": "Firmen-Land",
@@ -1020,5 +1035,16 @@
     "wishSuccess": "Vielen Dank für Ihren Produktwunsch!",
     "wishError": "Wunsch konnte nicht gesendet werden. Bitte erneut versuchen.",
     "noProducts": "Derzeit sind keine Produkte verfügbar."
+  },
+  "mobileApp": {
+    "title": "Mobile App Einrichtung",
+    "description": "Verbinde die VMflow iOS App mit diesem Server.",
+    "step1": "Lade die VMflow App herunter",
+    "step2": "Tippe auf \u201eSelf-hosted hinzuf\u00fcgen\u201c auf dem Login-Screen",
+    "step3": "Scanne diesen QR-Code",
+    "orManual": "Oder manuell eingeben",
+    "supabaseUrl": "Supabase URL",
+    "anonKey": "Anon Key",
+    "copied": "Kopiert!"
   }
 }

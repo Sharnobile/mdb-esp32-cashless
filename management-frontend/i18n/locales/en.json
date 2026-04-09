@@ -62,7 +62,8 @@
     "groupTeam": "Team",
     "groupTechnical": "Technical",
     "reports": "Reports",
-    "cashBook": "Cash Book"
+    "cashBook": "Cash Book",
+    "mobileApp": "Mobile App"
   },
   "auth": {
     "signIn": "Sign in",
@@ -823,6 +824,20 @@
     "replaceApiKey": "Replace API Key",
     "saveApiKey": "Save key",
     "updateApiKey": "Update key",
+    "stripeSection": "Stripe Payments",
+    "stripeDescription": "Connect your Stripe account to accept mobile payments on the public machine page.",
+    "stripeActive": "Stripe keys configured",
+    "stripeKeysRequired": "Secret key and publishable key are required.",
+    "stripeSaved": "Stripe keys saved successfully.",
+    "stripeRemoved": "Stripe keys removed.",
+    "stripeSecretLabel": "Secret Key",
+    "stripePubLabel": "Publishable Key",
+    "stripeWebhookLabel": "Webhook Secret (optional)",
+    "stripeReplace": "Replace Stripe Keys",
+    "stripeSave": "Save keys",
+    "stripeUpdate": "Update keys",
+    "stripeWebhookUrl": "Webhook URL",
+    "stripeWebhookHelp": "Add this URL as a webhook endpoint in your Stripe Dashboard (event: payment_intent.succeeded).",
     "taxSettings": "Tax Settings",
     "taxSettingsDescription": "Configure tax classes and rates for your company. These are used for tax-compliant sales exports.",
     "companyCountry": "Company country",
@@ -1020,5 +1035,16 @@
     "wishSuccess": "Thank you for your product wish!",
     "wishError": "Could not submit wish. Please try again.",
     "noProducts": "No products currently available."
+  },
+  "mobileApp": {
+    "title": "Mobile App Setup",
+    "description": "Connect the VMflow iOS app to this server.",
+    "step1": "Download the VMflow app",
+    "step2": "Tap \"Add Self-hosted\" on the login screen",
+    "step3": "Scan this QR code",
+    "orManual": "Or enter manually",
+    "supabaseUrl": "Supabase URL",
+    "anonKey": "Anon Key",
+    "copied": "Copied!"
   }
 }
