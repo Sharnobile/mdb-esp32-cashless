@@ -3,14 +3,14 @@
 ## System Diagram
 
 ```
-+------------------+
-|   Management UI  |
-|   (Nuxt 4)       |
-|   :3000          |
-+--------+---------+
-         |
-         | HTTP (Supabase JS client)
-         v
++------------------+      +------------------+
+|   Management UI  |      |   iOS App        |
+|   (Nuxt 4)       |      |   (SwiftUI)      |
+|   :3000          |      |                  |
++--------+---------+      +--------+---------+
+         |                          |
+         | HTTP (Supabase JS)       | HTTP (Supabase Swift SDK)
+         v                          v
 +------------------+         +------------------+
 |   Supabase       |  SQL    |   PostgreSQL     |
 |   Kong :8000     +-------->+   :5432          |
@@ -44,6 +44,7 @@
 - **Device -> DB**: ESP32 publishes to Mosquitto -> Forwarder subscribes and POSTs to `mqtt-webhook` edge function -> edge function writes to PostgreSQL
 - **DB -> Device**: UI calls `send-credit` edge function -> edge function connects to Mosquitto and publishes -> ESP32 receives on subscribed topic
 - **UI -> DB**: Nuxt frontend calls Supabase edge functions / REST API directly via HTTP
+- **iOS App -> DB**: SwiftUI app calls Supabase REST API via Supabase Swift SDK (same auth, same RLS)
 
 ---
 
@@ -162,7 +163,28 @@ Nuxt 4 dashboard for managing devices, viewing sales, and inviting team members.
 
 **Real-time:** Supabase realtime channel on `embeddeds` table for live device status.
 
-### 6. VMC Simulator (`mdb-master-esp32s3/`)
+### 6. iOS App (`ios/VMflow/`)
+
+Native iOS app for operators to manage machines in the field. Shares the same Supabase backend as the web dashboard.
+
+| Technology | Detail |
+|------------|--------|
+| Language | Swift 5.9+ |
+| UI | SwiftUI (iOS 17+) |
+| Architecture | MVVM with async/await |
+| Backend SDK | Supabase Swift SDK 2.x |
+| Charts | Swift Charts framework |
+
+**Features matching the web dashboard:**
+- Machine list sorted by stock urgency with warehouse availability labels (In Stock / Swap / No Stock)
+- Extended sales stats (today, yesterday, this week, last week) per machine
+- Tray management with stock bar threshold markers (min stock, fill when below)
+- Product-centric refill packing with warehouse stock awareness
+- Multi-step refill wizard with machine selection, per-tray adjustments, and tour summary
+
+**Data flow:** The app uses the same Supabase API as the web frontend — same auth (GoTrue), same RLS policies, same edge functions. All queries go through the Supabase Swift SDK.
+
+### 7. VMC Simulator (`mdb-master-esp32s3/`)
 
 Test tool. Simulates a vending machine controller that polls MDB peripherals. Button press triggers a vend cycle. Used for development without a real vending machine.
 

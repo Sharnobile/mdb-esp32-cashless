@@ -516,12 +516,34 @@ New types can be added by:
 
 Users configure their preferences in **Settings > Push Notifications**. All types are enabled by default (opt-out model).
 
-### iOS Requirements
+### iOS Web Push (PWA)
 
 - **iOS 16.4+** required for Web Push support
 - App must be **added to Home Screen** (Settings page shows guidance)
 - Site must be served over **HTTPS**
 - User must grant notification permission when prompted
+
+### iOS Native App (APNs)
+
+The native iOS app uses Apple Push Notification service (APNs) instead of Web Push. To enable:
+
+1. Create an APNs key in the [Apple Developer Portal](https://developer.apple.com/account/resources/authkeys/list) (Keys > + > Apple Push Notifications service)
+2. Download the `.p8` key file and note the **Key ID** and your **Team ID**
+3. Add these to `Docker/.env`:
+
+```env
+APNS_KEY_ID=ABC123DEF4                # 10-character key ID from Apple
+APNS_TEAM_ID=TEAM123456               # Your Apple Developer Team ID
+APNS_TOPIC=xyz.vmflow.app             # App bundle identifier
+APNS_PRODUCTION=true                   # true for TestFlight/App Store, false for dev builds
+APNS_KEY_P8="-----BEGIN PRIVATE KEY-----
+MIGTAgEA...your key contents...
+-----END PRIVATE KEY-----"
+```
+
+4. Restart the edge functions: `docker compose up -d --force-recreate functions && docker compose restart kong`
+
+> **Note**: The `APNS_KEY_P8` value is multi-line. Wrap it in double quotes in the `.env` file. The `update.sh` script handles multi-line quoted values correctly.
 
 ---
 
@@ -530,6 +552,7 @@ Users configure their preferences in **Settings > Push Notifications**. All type
 - [ ] All secrets in `.env` are unique, strong, and not the defaults
 - [ ] VAPID keys generated and present in both `Docker/.env` and `management-frontend/.env`
 - [ ] Push notifications tested (subscribe in Settings, trigger a sale, verify push arrives)
+- [ ] APNs configured if using the native iOS app (`APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_KEY_P8`)
 - [ ] `ENABLE_EMAIL_AUTOCONFIRM=false` -- users must verify email
 - [ ] SMTP configured with a real email provider (SendGrid, Mailgun, etc.)
 - [ ] TLS/HTTPS enabled on all public endpoints

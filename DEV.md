@@ -157,7 +157,62 @@ The frontend starts at `http://localhost:3000` with hot-module reload.
 
 ---
 
-## 5. Firmware Development (Optional)
+## 5. iOS App Development (Optional)
+
+Only needed if you're working on the native iOS app.
+
+### Prerequisites
+
+- **Xcode 15+** with iOS 17 SDK
+- A running VMflow backend (Supabase via CLI or Docker)
+
+### Setup
+
+1. Open the project: **File > Open** the `ios/VMflow/` folder in Xcode
+2. The Supabase Swift SDK is included as a Swift Package dependency
+3. Configure `ios/VMflow/Resources/Info.plist` with your backend credentials:
+   - `SUPABASE_URL` — Your Supabase API URL (e.g., `http://10.0.1.181:8000` for Docker, `http://10.0.1.181:54321` for CLI)
+   - `SUPABASE_ANON_KEY` — Your Supabase anonymous key
+
+> **Important**: Use your Mac's LAN IP, not `localhost` — iOS simulators and physical devices need a network-reachable address.
+
+### Build & Run
+
+```bash
+# Build for simulator (from the repo root)
+xcodebuild -project ios/VMflow.xcodeproj -scheme VMflow \
+  -destination 'platform=iOS Simulator,name=iPhone 16 Pro' build
+
+# Or simply open in Xcode and press Cmd+R
+```
+
+### Architecture
+
+The app follows **MVVM** with SwiftUI and Swift Concurrency:
+
+- **Models** — Codable structs matching Supabase table schemas
+- **Services** — `SupabaseService` (singleton client), `AuthService` (session + org state)
+- **ViewModels** — Async data loading, state management, business logic
+- **Views** — SwiftUI views organized by feature (Dashboard, Machines, Trays, Refill)
+
+### Push Notifications (APNs)
+
+To enable push notifications on a physical device:
+
+1. Add APNs keys to your Docker `.env`:
+   ```env
+   APNS_KEY_ID=ABC123DEF4
+   APNS_TEAM_ID=TEAM123456
+   APNS_TOPIC=xyz.vmflow.app          # Your app's bundle identifier
+   APNS_KEY_P8="-----BEGIN PRIVATE KEY-----\nMIGT...your key...\n-----END PRIVATE KEY-----"
+   ```
+2. Restart the `functions` service: `docker compose up -d --force-recreate functions`
+
+See [`ios/README.md`](ios/README.md) for the full feature list and project structure.
+
+---
+
+## 6. Firmware Development (Optional)
 
 Only needed if you're working on the ESP32-S3 firmware.
 
@@ -231,7 +286,7 @@ Generate a provisioning code from the management frontend (`/machines` page > "A
 
 ---
 
-## 6. Full Stack via Docker Compose
+## 7. Full Stack via Docker Compose
 
 If you prefer to run **everything** via Docker Compose (instead of the Supabase CLI + local npm), a single file deploys the entire stack:
 
@@ -268,6 +323,14 @@ mdb-esp32-cashless/
 │   │   ├── config/            # Mosquitto config + ACL + passwd
 │   │   └── forwarder/         # Deno MQTT-to-webhook bridge
 │   └── volumes/               # Docker volume data (db init scripts, storage)
+├── ios/                       # Native iOS app (SwiftUI)
+│   └── VMflow/
+│       ├── VMflowApp.swift    # App entry point, auth routing
+│       ├── Models/            # Codable data models
+│       ├── Services/          # Supabase client, auth state
+│       ├── ViewModels/        # MVVM view models (async/await)
+│       ├── Views/             # SwiftUI views by feature
+│       └── Resources/         # Info.plist (Supabase credentials)
 ├── management-frontend/       # Nuxt 4 dashboard (PWA, i18n en/de)
 │   ├── Dockerfile             # Production Docker image
 │   ├── app/                   # Nuxt 4 app directory

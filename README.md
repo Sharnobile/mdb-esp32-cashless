@@ -283,7 +283,21 @@ Once the platform is running:
 
 ---
 
-## Android App
+## Mobile Apps
+
+### iOS App (SwiftUI)
+
+A native iOS app for vending machine operators — full fleet management from your pocket.
+
+- **Dashboard** — Revenue KPIs, 30-day sales chart, recent sales feed
+- **Machine Management** — Machines sorted by stock urgency with warehouse availability labels
+- **Tray & Stock** — Per-machine tray configuration, quick stock adjustments, threshold markers
+- **Refill Wizard** — Product-centric packing with warehouse stock awareness, guided refill tour, summary
+- **Sales Stats** — Today, yesterday, this week, last week revenue and sales count per machine
+
+Built with SwiftUI, Swift Concurrency, Supabase Swift SDK, and Swift Charts. See [`ios/README.md`](ios/README.md) for setup.
+
+### Android App (Kotlin)
 
 A companion Android app connects to devices via Bluetooth for configuration and sending credits.
 
@@ -373,7 +387,8 @@ curl -X GET 'https://your-server:8000/rest/v1/embeddeds' \
 mdb-esp32-cashless/
 ├── mdb-slave-esp32s3/       # ESP32 firmware — MDB cashless peripheral
 ├── mdb-master-esp32s3/      # ESP32 firmware — VMC simulator (for testing)
-├── management-frontend/     # Nuxt 4 management dashboard
+├── management-frontend/     # Nuxt 4 management dashboard (PWA)
+├── ios/                     # Native iOS app (SwiftUI)
 ├── Docker/                  # Self-hosted backend (docker-compose)
 │   ├── supabase/            # Edge functions, migrations, config
 │   ├── mqtt/                # Mosquitto broker + Deno forwarder
@@ -400,7 +415,8 @@ mdb-esp32-cashless/
 | **MQTT** | Eclipse Mosquitto + custom Deno forwarder |
 | **PCB** | KiCad |
 | **CI/CD** | GitHub Actions (ESP-IDF builds → GitHub Releases) |
-| **Mobile** | Android (Kotlin, BLE) |
+| **iOS App** | SwiftUI, Swift Concurrency, Supabase Swift SDK, Swift Charts |
+| **Android App** | Kotlin, BLE |
 
 ---
 
