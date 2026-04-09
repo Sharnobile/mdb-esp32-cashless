@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import QRCode from 'qrcode'
 
+definePageMeta({ middleware: 'auth' })
+
 const { t } = useI18n()
 const config = useRuntimeConfig()
 

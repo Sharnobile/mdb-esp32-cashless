@@ -113,7 +113,7 @@ struct ServerSelectionSheet: View {
             return
         }
         serverStore.selectServer(server)
-        let url = URL(string: server.sanitizedURL)!
+        guard let url = URL(string: server.sanitizedURL) else { return }
         SupabaseService.shared.reconfigure(url: url, anonKey: server.anonKey)
         auth.restartAuthListener()
         dismiss()
