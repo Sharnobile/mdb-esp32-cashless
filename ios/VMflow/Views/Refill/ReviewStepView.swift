@@ -183,7 +183,7 @@ struct ReviewStepView: View {
     }
 
     private func reasonBadge(_ reason: ReplacementReason) -> some View {
-        let (text, color): (String, Color) = {
+        let (text, color): (LocalizedStringKey, Color) = {
             switch reason {
             case .discontinued: return ("Discontinued", .red)
             case .expired: return ("Expired", .orange)

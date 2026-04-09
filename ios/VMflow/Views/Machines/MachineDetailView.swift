@@ -339,8 +339,8 @@ struct MachineDetailView: View {
 
     private func dayLabel(for date: Date) -> String {
         let calendar = Calendar.current
-        if calendar.isDateInToday(date) { return "Today" }
-        if calendar.isDateInYesterday(date) { return "Yesterday" }
+        if calendar.isDateInToday(date) { return String(localized: "Today") }
+        if calendar.isDateInYesterday(date) { return String(localized: "Yesterday") }
         let formatter = DateFormatter()
         formatter.dateFormat = "EEEE, d MMMM"
         return formatter.string(from: date)
@@ -429,7 +429,7 @@ struct DaySectionHeader: View {
         HStack {
             Text(label)
                 .font(.subheadline.weight(.semibold))
-            Text("\u{00B7} \(count) sale\(count == 1 ? "" : "s")")
+            Text("· \(count) sales")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
             Spacer()

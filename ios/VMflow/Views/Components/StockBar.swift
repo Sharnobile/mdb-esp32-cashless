@@ -80,10 +80,18 @@ struct StockHealthIndicator: View {
         HStack(spacing: 4) {
             Image(systemName: iconName)
                 .font(.caption)
-            Text(health.rawValue.capitalized)
+            Text(localizedLabel)
                 .font(.caption.weight(.medium))
         }
         .foregroundStyle(color)
+    }
+
+    private var localizedLabel: LocalizedStringKey {
+        switch health {
+        case .ok: return "Ok"
+        case .low: return "Low"
+        case .critical: return "Critical"
+        }
     }
 
     private var color: Color {

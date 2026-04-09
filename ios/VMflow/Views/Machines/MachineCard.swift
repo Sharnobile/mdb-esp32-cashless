@@ -3,6 +3,7 @@ import SwiftUI
 /// Card component for the machine list showing key stats at a glance.
 struct MachineCard: View {
     let stats: MachineStats
+    @State private var deficitsExpanded = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -65,20 +66,35 @@ struct MachineCard: View {
                 }
             }
 
-            // Product Deficit Pills
+            // Product Deficit Rows
             if !stats.trayDeficits.isEmpty {
-                let visible = Array(stats.trayDeficits.prefix(4))
-                let remaining = stats.trayDeficits.count - visible.count
+                let visible = deficitsExpanded
+                    ? stats.trayDeficits
+                    : Array(stats.trayDeficits.prefix(4))
+                let remaining = stats.trayDeficits.count - 4
 
                 VStack(spacing: 4) {
                     ForEach(Array(visible.enumerated()), id: \.offset) { _, deficit in
                         deficitRow(deficit)
                     }
                     if remaining > 0 {
-                        Text("+\(remaining) more")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.25)) {
+                                deficitsExpanded.toggle()
+                            }
+                        } label: {
+                            HStack(spacing: 4) {
+                                Text(deficitsExpanded ? "Show less" : "+\(remaining) more")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                Image(systemName: deficitsExpanded ? "chevron.up" : "chevron.down")
+                                    .font(.system(size: 9, weight: .semibold))
+                                    .foregroundStyle(.secondary)
+                            }
                             .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
             }
@@ -113,7 +129,7 @@ struct MachineCard: View {
         }
     }
 
-    private func salesStatCell(label: String, revenue: Double, count: Int) -> some View {
+    private func salesStatCell(label: LocalizedStringKey, revenue: Double, count: Int) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(label)
                 .font(.caption2)
@@ -132,7 +148,7 @@ struct MachineCard: View {
         .background(RoundedRectangle(cornerRadius: 8).fill(.fill.tertiary))
     }
 
-    private func summaryBadge(_ text: String, bg: Color, fg: Color) -> some View {
+    private func summaryBadge(_ text: LocalizedStringKey, bg: Color, fg: Color) -> some View {
         Text(text)
             .font(.caption2.weight(.semibold))
             .foregroundStyle(fg)

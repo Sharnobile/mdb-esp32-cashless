@@ -158,10 +158,10 @@ enum RefillStep: Int, CaseIterable {
 
     var title: String {
         switch self {
-        case .review: return "Review"
-        case .packing: return "Pack"
-        case .refill: return "Refill"
-        case .summary: return "Summary"
+        case .review: return String(localized: "Review")
+        case .packing: return String(localized: "Pack")
+        case .refill: return String(localized: "Refill")
+        case .summary: return String(localized: "Summary")
         }
     }
 

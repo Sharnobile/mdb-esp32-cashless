@@ -258,8 +258,8 @@ struct DashboardView: View {
 
     private func dayLabel(for date: Date) -> String {
         let calendar = Calendar.current
-        if calendar.isDateInToday(date) { return "Today" }
-        if calendar.isDateInYesterday(date) { return "Yesterday" }
+        if calendar.isDateInToday(date) { return String(localized: "Today") }
+        if calendar.isDateInYesterday(date) { return String(localized: "Yesterday") }
         let formatter = DateFormatter()
         formatter.dateFormat = "EEEE, d MMMM"
         return formatter.string(from: date)
@@ -312,10 +312,10 @@ struct RecentSaleRow: View {
 func timeAgo(from date: Date) -> String {
     let interval = Date().timeIntervalSince(date)
 
-    if interval < 60 { return "Just now" }
-    if interval < 3600 { return "\(Int(interval / 60))m ago" }
-    if interval < 86400 { return "\(Int(interval / 3600))h ago" }
-    if interval < 604800 { return "\(Int(interval / 86400))d ago" }
+    if interval < 60 { return String(localized: "Just now") }
+    if interval < 3600 { return String(localized: "\(Int(interval / 60))m ago") }
+    if interval < 86400 { return String(localized: "\(Int(interval / 3600))h ago") }
+    if interval < 604800 { return String(localized: "\(Int(interval / 86400))d ago") }
 
     let formatter = DateFormatter()
     formatter.dateStyle = .short

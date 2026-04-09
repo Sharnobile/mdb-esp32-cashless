@@ -567,11 +567,11 @@ struct RecentIntakeRow: View {
 
     private func timeAgoText(_ date: Date) -> String {
         let interval = Date().timeIntervalSince(date)
-        if interval < 60 { return "just now" }
-        if interval < 3600 { return "\(Int(interval / 60))m ago" }
-        if interval < 86400 { return "\(Int(interval / 3600))h ago" }
+        if interval < 60 { return String(localized: "just now") }
+        if interval < 3600 { return String(localized: "\(Int(interval / 60))m ago") }
+        if interval < 86400 { return String(localized: "\(Int(interval / 3600))h ago") }
         let days = Int(interval / 86400)
-        return "\(days)d ago"
+        return String(localized: "\(days)d ago")
     }
 }
 

@@ -127,7 +127,7 @@ struct RefillSummaryView: View {
         }
     }
 
-    private func statCard(icon: String, label: String, value: String, color: Color) -> some View {
+    private func statCard(icon: String, label: LocalizedStringKey, value: String, color: Color) -> some View {
         HStack(spacing: 16) {
             Image(systemName: icon)
                 .font(.title3)

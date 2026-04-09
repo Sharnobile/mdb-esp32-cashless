@@ -48,14 +48,14 @@ final class NotificationService: ObservableObject {
     static let notificationTypes: [NotificationType] = [
         NotificationType(
             key: "sale",
-            label: "Sale Notifications",
-            description: "Get notified for every vending machine sale",
+            label: String(localized: "Sale Notifications"),
+            description: String(localized: "Get notified for every vending machine sale"),
             icon: "cart.fill"
         ),
         NotificationType(
             key: "low_stock",
-            label: "Low Stock Alerts",
-            description: "Get notified when a product drops below the refill threshold",
+            label: String(localized: "Low Stock Alerts"),
+            description: String(localized: "Get notified when a product drops below the refill threshold"),
             icon: "exclamationmark.triangle.fill"
         ),
     ]

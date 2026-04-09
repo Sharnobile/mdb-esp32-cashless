@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		L10N000000000000000000002 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = L10N000000000000000000001 /* Localizable.xcstrings */; };
 		0C7698AD6ED222844A1255F5 /* Tray.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D260DBBBEC69D0AD7B73C46 /* Tray.swift */; };
 		123DDC46EFE39435A5A69CB5 /* RefillWizardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52A29D496BDB69F848C60674 /* RefillWizardView.swift */; };
 		1254787CC883CE8605189B4B /* PackingStepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90BC01B0752A47A20DF699E7 /* PackingStepView.swift */; };
@@ -75,6 +76,7 @@
 		55B32C8EEFABC9DADF2C73DD /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 		5AE7FC95E2E89DD0AC7A6981 /* RealtimeService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RealtimeService.swift; sourceTree = "<group>"; };
 		70B6B1A9D2611C8B7EE53EDC /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		L10N000000000000000000001 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		70E364431AFD63E8DE1238E3 /* SupabaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseService.swift; sourceTree = "<group>"; };
 		79D8F4403556EBD0620DEECF /* Sale.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sale.swift; sourceTree = "<group>"; };
 		7E9A5023EED5804698A679E6 /* TrayViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrayViewModel.swift; sourceTree = "<group>"; };
@@ -304,6 +306,7 @@
 			children = (
 				70B6B1A9D2611C8B7EE53EDC /* Assets.xcassets */,
 				CA772EA0093974ACECD47777 /* Info.plist */,
+				L10N000000000000000000001 /* Localizable.xcstrings */,
 				45AE89831021CC12416B0F89 /* VMflow.entitlements */,
 			);
 			path = Resources;
@@ -353,6 +356,7 @@
 			knownRegions = (
 				Base,
 				en,
+				de,
 			);
 			mainGroup = EE34BCFF9B4E3D9CEE17C3A1;
 			minimizedProjectReferenceProxies = 1;
@@ -375,6 +379,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				D26A6A4A55DF5DC1587BAD9A /* Assets.xcassets in Resources */,
+				L10N000000000000000000002 /* Localizable.xcstrings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -3,12 +3,12 @@ import SwiftUI
 /// Reusable KPI card with icon, title, main value, and optional subtitle.
 struct KPICard: View {
     let icon: String
-    let title: String
+    let title: LocalizedStringKey
     let value: String
-    let subtitle: String?
+    let subtitle: LocalizedStringKey?
     let color: Color
 
-    init(icon: String, title: String, value: String, subtitle: String? = nil, color: Color = .blue) {
+    init(icon: String, title: LocalizedStringKey, value: String, subtitle: LocalizedStringKey? = nil, color: Color = .blue) {
         self.icon = icon
         self.title = title
         self.value = value
