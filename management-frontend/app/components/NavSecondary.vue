@@ -38,7 +38,11 @@ function handleNavClick() {
           :key="item.title"
         >
           <SidebarMenuButton as-child>
-            <a :href="item.url" @click="handleNavClick">
+            <NuxtLink v-if="!item.url.startsWith('#')" :to="item.url" @click="handleNavClick">
+              <component :is="item.icon" v-if="item.icon" />
+              {{ item.title }}
+            </NuxtLink>
+            <a v-else :href="item.url" @click="handleNavClick">
               <component :is="item.icon" v-if="item.icon" />
               {{ item.title }}
             </a>

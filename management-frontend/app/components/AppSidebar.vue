@@ -4,6 +4,7 @@ import {
   IconCash,
   IconCpu,
   IconDashboard,
+  IconDeviceMobile,
   IconFileSpreadsheet,
   IconHelp,
   IconHistory,
@@ -116,6 +117,11 @@ const navGroups = computed(() => {
 })
 
 const navSecondary = computed(() => [
+  {
+    title: t('nav.mobileApp'),
+    url: "/mobile-app",
+    icon: IconDeviceMobile,
+  },
   {
     title: t('nav.getHelp'),
     url: "#",
