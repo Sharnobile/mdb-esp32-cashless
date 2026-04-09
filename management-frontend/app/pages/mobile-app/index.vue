@@ -14,15 +14,21 @@ const qrPayload = JSON.stringify({
   anonKey: supabaseKey,
 })
 
-const qrDataUrl = ref('')
 const copiedField = ref<string | null>(null)
 
+const qrSvg = ref('')
+
 onMounted(async () => {
-  qrDataUrl.value = await QRCode.toDataURL(qrPayload, {
-    width: 280,
-    margin: 2,
-    color: { dark: '#000000', light: '#ffffff' },
-  })
+  try {
+    qrSvg.value = await QRCode.toString(qrPayload, {
+      type: 'svg',
+      width: 280,
+      margin: 2,
+      color: { dark: '#000000', light: '#ffffff' },
+    })
+  } catch (e) {
+    console.error('[mobile-app] QR generation failed:', e)
+  }
 })
 
 async function copyToClipboard(text: string, field: string) {
@@ -48,7 +54,7 @@ async function copyToClipboard(text: string, field: string) {
 
     <!-- QR Code -->
     <div class="flex justify-center rounded-lg border bg-white p-6">
-      <img v-if="qrDataUrl" :src="qrDataUrl" alt="Server QR Code" class="h-[280px] w-[280px]" />
+      <div v-if="qrSvg" v-html="qrSvg" class="h-[280px] w-[280px]" />
       <div v-else class="flex h-[280px] w-[280px] items-center justify-center">
         <div class="text-muted-foreground">Loading...</div>
       </div>
