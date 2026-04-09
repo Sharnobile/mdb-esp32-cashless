@@ -4,6 +4,7 @@ import SwiftUI
 struct RegisterView: View {
     @EnvironmentObject var auth: AuthService
     @Environment(\.dismiss) private var dismiss
+    @ObservedObject var serverStore = ServerStore.shared
 
     @State private var firstName = ""
     @State private var lastName = ""
@@ -130,6 +131,16 @@ struct RegisterView: View {
                 .controlSize(.large)
                 .disabled(!isFormValid || auth.isLoading)
                 .padding(.horizontal, 24)
+
+                // Server indicator
+                HStack(spacing: 4) {
+                    Text("Connected to", comment: "Server indicator prefix on register screen")
+                        .foregroundStyle(.secondary)
+                    Text(serverStore.selectedServer.name)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.secondary)
+                }
+                .font(.caption)
             }
             .padding(.bottom, 40)
         }
