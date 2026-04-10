@@ -34,6 +34,12 @@ interface PushPayload {
   icon?: string
   image?: string
   data?: Record<string, unknown>
+  /**
+   * Sets `aps.badge` on iOS pushes — controls the red number on the app icon.
+   * 0 clears the badge, undefined leaves it untouched. Ignored on web/Android
+   * (browsers don't surface a badge count we can drive from server-side).
+   */
+  badge?: number
 }
 
 // ─── Base64url helpers ──────────────────────────────────────────────────────
@@ -311,16 +317,19 @@ async function sendApnsNotification(
     ? 'api.push.apple.com'
     : 'api.sandbox.push.apple.com'
 
-  const apnsPayload: Record<string, unknown> = {
-    aps: {
-      alert: {
-        title: payload.title,
-        body: payload.body,
-      },
-      sound: 'default',
-      'mutable-content': 1,
+  // Build aps separately so we can add the optional badge field cleanly.
+  const aps: Record<string, unknown> = {
+    alert: {
+      title: payload.title,
+      body: payload.body,
     },
+    sound: 'default',
+    'mutable-content': 1,
   }
+  if (typeof payload.badge === 'number') {
+    aps.badge = payload.badge
+  }
+  const apnsPayload: Record<string, unknown> = { aps }
 
   // Merge custom data fields at top level (iOS reads them from userInfo)
   if (payload.data) {
@@ -463,13 +472,15 @@ async function sendFcmNotification(
       },
     }
   } else {
+    const fcmAps: Record<string, unknown> = {
+      'mutable-content': 1,
+      sound: 'default',
+    }
+    if (typeof payload.badge === 'number') {
+      fcmAps.badge = payload.badge
+    }
     message.apns = {
-      payload: {
-        aps: {
-          'mutable-content': 1,
-          sound: 'default',
-        },
-      },
+      payload: { aps: fcmAps },
       ...(payload.image ? { fcm_options: { image: payload.image } } : {}),
     }
   }

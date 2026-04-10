@@ -1,3 +1,7 @@
+// Public endpoint for end-customers to submit a problem report or general
+// feedback about a specific vending machine. No auth required — rate-limited
+// per machine to prevent spam. Mirrors the submit-product-wish pattern.
+
 import { createClient } from '@supabase/supabase-js'
 import { notifyInbox } from '../_shared/inbox-notify.ts'
 
@@ -15,6 +19,7 @@ function jsonResponse(body: unknown, status = 200) {
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const VALID_TYPES = new Set(['problem', 'feedback'])
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -25,22 +30,26 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: 'Method not allowed' }, 405)
   }
 
-  let body: { machine_id?: string; wish_text?: string; email?: string }
+  let body: { machine_id?: string; type?: string; message?: string; email?: string }
   try {
     body = await req.json()
   } catch {
     return jsonResponse({ error: 'Invalid JSON' }, 400)
   }
 
-  const { machine_id, wish_text, email } = body
+  const { machine_id, type, message, email } = body
 
-  if (!machine_id || !wish_text) {
-    return jsonResponse({ error: 'machine_id and wish_text are required' }, 400)
+  if (!machine_id || !type || !message) {
+    return jsonResponse({ error: 'machine_id, type and message are required' }, 400)
   }
 
-  const trimmedWish = wish_text.trim()
-  if (trimmedWish.length === 0 || trimmedWish.length > 500) {
-    return jsonResponse({ error: 'wish_text must be 1-500 characters' }, 400)
+  if (!VALID_TYPES.has(type)) {
+    return jsonResponse({ error: 'type must be "problem" or "feedback"' }, 400)
+  }
+
+  const trimmedMessage = message.trim()
+  if (trimmedMessage.length === 0 || trimmedMessage.length > 2000) {
+    return jsonResponse({ error: 'message must be 1-2000 characters' }, 400)
   }
 
   if (email && !EMAIL_RE.test(email)) {
@@ -63,39 +72,42 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: 'Machine not found' }, 404)
   }
 
-  // Rate limit: max 10 wishes per machine per hour
+  // Rate limit: max 10 submissions per machine per hour (same as product wishes)
   const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString()
   const { count } = await supabase
-    .from('product_wishes')
+    .from('machine_feedback')
     .select('id', { count: 'exact', head: true })
     .eq('machine_id', machine_id)
     .gte('created_at', oneHourAgo)
 
   if (count !== null && count >= 10) {
-    return jsonResponse({ error: 'Too many wishes submitted recently. Please try again later.' }, 429)
+    return jsonResponse({ error: 'Too many submissions recently. Please try again later.' }, 429)
   }
 
   const { error: insertErr } = await supabase
-    .from('product_wishes')
+    .from('machine_feedback')
     .insert({
       machine_id,
       company_id: machine.company,
-      wish_text: trimmedWish,
+      type,
+      message: trimmedMessage,
       email: email ? email.toLowerCase().trim() : null,
     })
 
   if (insertErr) {
-    console.error('Failed to insert product wish:', insertErr)
-    return jsonResponse({ error: 'Failed to submit wish' }, 500)
+    console.error('Failed to insert machine feedback:', insertErr)
+    return jsonResponse({ error: 'Failed to submit' }, 500)
   }
 
-  // Fire push notification — same shared helper as submit-machine-feedback.
+  // Fire push notification to all operators of this company. Awaited so the
+  // open-count badge is up-to-date in the same response, but failures are
+  // swallowed inside notifyInbox so the customer-facing submit always succeeds.
   await notifyInbox({
     adminClient: supabase,
     companyId: machine.company,
     machineId: machine_id,
-    kind: 'wish',
-    preview: trimmedWish,
+    kind: type as 'problem' | 'feedback',
+    preview: trimmedMessage,
   })
 
   return jsonResponse({ success: true })

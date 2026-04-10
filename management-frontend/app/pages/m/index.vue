@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { Map as LMap } from 'leaflet'
+
 definePageMeta({ layout: false })
 
 const { t } = useI18n()
@@ -17,45 +19,33 @@ const { data, pending } = await useFetch<{ machines: Machine[] }>(
 )
 
 const mapContainer = ref<HTMLElement | null>(null)
-let mapInstance: any = null
+let mapInstance: LMap | null = null
+let L: typeof import('leaflet') | null = null
+// Guards async initMap against component unmount while dynamic imports run.
+let destroyed = false
 
-async function loadLeaflet(): Promise<any> {
-  if ((window as any).L) return (window as any).L
-  // Load CSS
-  if (!document.querySelector('link[href*="leaflet.css"]')) {
-    const link = document.createElement('link')
-    link.rel = 'stylesheet'
-    link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'
-    link.integrity = 'sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY='
-    link.crossOrigin = ''
-    document.head.appendChild(link)
-  }
-  // Load JS
-  return new Promise((resolve, reject) => {
-    const existing = document.querySelector('script[src*="leaflet.js"]')
-    if (existing) {
-      existing.addEventListener('load', () => resolve((window as any).L))
-      return
-    }
-    const script = document.createElement('script')
-    script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
-    script.integrity = 'sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo='
-    script.crossOrigin = ''
-    script.onload = () => resolve((window as any).L)
-    script.onerror = reject
-    document.head.appendChild(script)
-  })
+function escapeHtml(str: string): string {
+  return str.replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  }[c] || c))
 }
 
 async function initMap() {
-  if (!mapContainer.value || !data.value?.machines || mapInstance) return
+  if (mapInstance) return
+  if (!mapContainer.value || !data.value?.machines) return
 
   const withCoords = data.value.machines.filter(
     (m) => m.location_lat !== null && m.location_lon !== null,
   )
   if (withCoords.length === 0) return
 
-  const L = await loadLeaflet()
+  // Vite-bundled Leaflet + CSS. More reliable than CDN (no HTTP-cache race,
+  // no dangling <script> onload listeners on bfcache restore).
+  const leaflet = await import('leaflet')
+  if (destroyed) return
+  await import('leaflet/dist/leaflet.css')
+  if (destroyed || !mapContainer.value) return
+  L = leaflet.default ?? (leaflet as unknown as typeof import('leaflet'))
 
   mapInstance = L.map(mapContainer.value).setView([51.1657, 10.4515], 6) // Germany center fallback
 
@@ -99,23 +89,76 @@ async function initMap() {
   } else if (bounds.length === 1) {
     mapInstance.setView(bounds[0], 15)
   }
+
+  // Optional: show the visitor's current position. Silently bails on denial.
+  addUserLocationMarker()
 }
 
-function escapeHtml(str: string): string {
-  return str.replace(/[&<>"']/g, (c) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-  }[c] || c))
+function addUserLocationMarker() {
+  if (!mapInstance || !L) return
+  if (typeof navigator === 'undefined' || !navigator.geolocation) return
+
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      if (destroyed || !mapInstance || !L) return
+      const { latitude, longitude, accuracy } = pos.coords
+
+      const userIcon = L.divIcon({
+        className: 'user-location-marker',
+        html: `<div style="width:20px;height:20px;border-radius:50%;background:#3b82f6;border:3px solid white;box-shadow:0 0 0 2px rgba(59,130,246,0.35),0 2px 8px rgba(59,130,246,0.6)"></div>`,
+        iconSize: [20, 20],
+        iconAnchor: [10, 10],
+      })
+
+      L.marker([latitude, longitude], {
+        icon: userIcon,
+        keyboard: false,
+        zIndexOffset: 1000,
+      })
+        .bindPopup(`<div style="font-weight:600;font-size:13px">${escapeHtml(t('publicMap.yourLocation'))}</div>`)
+        .addTo(mapInstance)
+
+      // Soft accuracy halo — skip for obviously-unreliable fixes (>2km).
+      if (accuracy && accuracy > 0 && accuracy < 2000) {
+        L.circle([latitude, longitude], {
+          radius: accuracy,
+          color: '#3b82f6',
+          fillColor: '#3b82f6',
+          fillOpacity: 0.1,
+          weight: 1,
+          interactive: false,
+        }).addTo(mapInstance)
+      }
+    },
+    () => {
+      // Silently ignore — user denied or timed out
+    },
+    { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 },
+  )
 }
 
-onMounted(() => {
-  initMap()
-})
-
-watch(data, () => {
-  if (data.value && !mapInstance) initMap()
-})
+// Watch BOTH mapContainer and data with flush: 'post'.
+//
+// The map container lives inside <template v-else> and is only rendered once
+// pending=false AND data has machines. Under Nuxt hydration paths where the
+// client's useFetch starts with pending=true (no inlined SSR payload, bfcache
+// restore, etc.), onMounted would fire while the spinner div was showing, so
+// mapContainer.value was null and initMap bailed. The previous watch(data)
+// ran with the default flush: 'pre' — BEFORE Vue updates the DOM — so the
+// container ref was still null by the time the callback ran. Result: map
+// never initialized until a hard reload made SSR data available on first
+// render. flush: 'post' runs the callback AFTER the DOM mount, at which point
+// the template ref is finally populated.
+watch(
+  [mapContainer, data],
+  () => {
+    void initMap()
+  },
+  { flush: 'post', immediate: true },
+)
 
 onUnmounted(() => {
+  destroyed = true
   if (mapInstance) {
     mapInstance.remove()
     mapInstance = null

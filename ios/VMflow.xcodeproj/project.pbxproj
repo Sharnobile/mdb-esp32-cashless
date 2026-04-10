@@ -52,6 +52,9 @@
 		FA92F123C410DDE5A56A5EF7 /* RealtimeService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AE7FC95E2E89DD0AC7A6981 /* RealtimeService.swift */; };
 		FDA63D4358CC508737E8C10F /* AuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC323B6816B89C5044F50027 /* AuthService.swift */; };
 		FE4C794519B8D88EA6886C0A /* StockBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204427FECDDE3A1BB3CB316C /* StockBar.swift */; };
+		IB01000000000000000000001 /* Inbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = IB01000000000000000000002 /* Inbox.swift */; };
+		IB02000000000000000000001 /* InboxViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = IB02000000000000000000002 /* InboxViewModel.swift */; };
+		IB03000000000000000000001 /* InboxView.swift in Sources */ = {isa = PBXBuildFile; fileRef = IB03000000000000000000002 /* InboxView.swift */; };
 		L10N000000000000000000002 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = L10N000000000000000000001 /* Localizable.xcstrings */; };
 		SE01000000000000000000001 /* ServerEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = SE01000000000000000000002 /* ServerEntry.swift */; };
 		SS01000000000000000000001 /* ServerStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = SS01000000000000000000002 /* ServerStore.swift */; };
@@ -110,6 +113,9 @@
 		ED91CAD5148AD5C6C0991BD3 /* TrayEditSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrayEditSheet.swift; sourceTree = "<group>"; };
 		F7F1BF54F8FA6B86DA5380F6 /* ProductsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductsViewModel.swift; sourceTree = "<group>"; };
 		FEABE7DE0463DA34A9DB9FB9 /* WarehouseView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WarehouseView.swift; sourceTree = "<group>"; };
+		IB01000000000000000000002 /* Inbox.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Inbox.swift; sourceTree = "<group>"; };
+		IB02000000000000000000002 /* InboxViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InboxViewModel.swift; sourceTree = "<group>"; };
+		IB03000000000000000000002 /* InboxView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InboxView.swift; sourceTree = "<group>"; };
 		L10N000000000000000000001 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		SE01000000000000000000002 /* ServerEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerEntry.swift; sourceTree = "<group>"; };
 		SS01000000000000000000002 /* ServerStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerStore.swift; sourceTree = "<group>"; };
@@ -133,6 +139,7 @@
 		0027C46851E4D2A841666B4B /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				IB01000000000000000000002 /* Inbox.swift */,
 				E7F443AA9AA51CCB3B6A7C75 /* Organization.swift */,
 				CA94DE3092E2B07986626697 /* Product.swift */,
 				79D8F4403556EBD0620DEECF /* Sale.swift */,
@@ -238,6 +245,7 @@
 			isa = PBXGroup;
 			children = (
 				16E021E42CD9C7C92936F706 /* DashboardViewModel.swift */,
+				IB02000000000000000000002 /* InboxViewModel.swift */,
 				3B84189DCC212B6DBBF84DEB /* MachineDetailViewModel.swift */,
 				E6C97FF39451173E8B85466B /* MachineListViewModel.swift */,
 				F7F1BF54F8FA6B86DA5380F6 /* ProductsViewModel.swift */,
@@ -254,6 +262,7 @@
 				AB159947A661761F733E13D3 /* Auth */,
 				151FEAAAAFCE27FD9ABC63F5 /* Components */,
 				ED1C7C0A94AC9CBEA3615ABF /* Dashboard */,
+				IB04000000000000000000001 /* Inbox */,
 				50FA058BB16C4A1997C4B32E /* Machines */,
 				58B62D1DB456E1297ED7E44D /* Products */,
 				1E65690806067FF339F02410 /* Refill */,
@@ -325,6 +334,14 @@
 				45AE89831021CC12416B0F89 /* VMflow.entitlements */,
 			);
 			path = Resources;
+			sourceTree = "<group>";
+		};
+		IB04000000000000000000001 /* Inbox */ = {
+			isa = PBXGroup;
+			children = (
+				IB03000000000000000000002 /* InboxView.swift */,
+			);
+			path = Inbox;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -410,6 +427,9 @@
 				BE954A375ED01316E322C570 /* BarcodeScannerView.swift in Sources */,
 				1813377797812B72A25F0959 /* DashboardView.swift in Sources */,
 				45167E803ECFB29F00DA502F /* DashboardViewModel.swift in Sources */,
+				IB01000000000000000000001 /* Inbox.swift in Sources */,
+				IB03000000000000000000001 /* InboxView.swift in Sources */,
+				IB02000000000000000000001 /* InboxViewModel.swift in Sources */,
 				1D3A89F11C2DB525AA3D3A3B /* KPICard.swift in Sources */,
 				4FFA938E1B8D44AA47597975 /* LocalNetworkPermission.swift in Sources */,
 				69E8033CA200BF33D690DD33 /* LoginView.swift in Sources */,

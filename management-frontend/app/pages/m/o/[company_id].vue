@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { Map as LMap } from 'leaflet'
+
 definePageMeta({ layout: false })
 
 const { t } = useI18n()
@@ -29,33 +31,10 @@ const { data, error, pending } = isValidUuid
   : { data: ref(null), error: ref(new Error('Invalid company ID')), pending: ref(false) }
 
 const mapContainer = ref<HTMLElement | null>(null)
-let mapInstance: any = null
-
-async function loadLeaflet(): Promise<any> {
-  if ((window as any).L) return (window as any).L
-  if (!document.querySelector('link[href*="leaflet.css"]')) {
-    const link = document.createElement('link')
-    link.rel = 'stylesheet'
-    link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'
-    link.integrity = 'sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY='
-    link.crossOrigin = ''
-    document.head.appendChild(link)
-  }
-  return new Promise((resolve, reject) => {
-    const existing = document.querySelector('script[src*="leaflet.js"]')
-    if (existing) {
-      existing.addEventListener('load', () => resolve((window as any).L))
-      return
-    }
-    const script = document.createElement('script')
-    script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
-    script.integrity = 'sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo='
-    script.crossOrigin = ''
-    script.onload = () => resolve((window as any).L)
-    script.onerror = reject
-    document.head.appendChild(script)
-  })
-}
+let mapInstance: LMap | null = null
+let L: typeof import('leaflet') | null = null
+// Guards async initMap against component unmount while dynamic imports run.
+let destroyed = false
 
 function escapeHtml(str: string): string {
   return str.replace(/[&<>"']/g, (c) => ({
@@ -64,14 +43,21 @@ function escapeHtml(str: string): string {
 }
 
 async function initMap() {
-  if (!mapContainer.value || !data.value?.machines || mapInstance) return
+  if (mapInstance) return
+  if (!mapContainer.value || !data.value?.machines) return
 
   const withCoords = data.value.machines.filter(
     (m) => m.location_lat !== null && m.location_lon !== null,
   )
   if (withCoords.length === 0) return
 
-  const L = await loadLeaflet()
+  // Vite-bundled Leaflet + CSS. More reliable than CDN (no HTTP-cache race,
+  // no dangling <script> onload listeners on bfcache restore).
+  const leaflet = await import('leaflet')
+  if (destroyed) return
+  await import('leaflet/dist/leaflet.css')
+  if (destroyed || !mapContainer.value) return
+  L = leaflet.default ?? (leaflet as unknown as typeof import('leaflet'))
 
   mapInstance = L.map(mapContainer.value).setView([51.1657, 10.4515], 6)
 
@@ -111,17 +97,66 @@ async function initMap() {
   } else if (bounds.length === 1) {
     mapInstance.setView(bounds[0], 15)
   }
+
+  // Optional: show the visitor's current position. Silently bails on denial.
+  addUserLocationMarker()
 }
 
-onMounted(() => {
-  initMap()
-})
+function addUserLocationMarker() {
+  if (!mapInstance || !L) return
+  if (typeof navigator === 'undefined' || !navigator.geolocation) return
 
-watch(data, () => {
-  if (data.value && !mapInstance) initMap()
-})
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      if (destroyed || !mapInstance || !L) return
+      const { latitude, longitude, accuracy } = pos.coords
+
+      const userIcon = L.divIcon({
+        className: 'user-location-marker',
+        html: `<div style="width:20px;height:20px;border-radius:50%;background:#3b82f6;border:3px solid white;box-shadow:0 0 0 2px rgba(59,130,246,0.35),0 2px 8px rgba(59,130,246,0.6)"></div>`,
+        iconSize: [20, 20],
+        iconAnchor: [10, 10],
+      })
+
+      L.marker([latitude, longitude], {
+        icon: userIcon,
+        keyboard: false,
+        zIndexOffset: 1000,
+      })
+        .bindPopup(`<div style="font-weight:600;font-size:13px">${escapeHtml(t('publicMap.yourLocation'))}</div>`)
+        .addTo(mapInstance)
+
+      // Soft accuracy halo — skip for obviously-unreliable fixes (>2km).
+      if (accuracy && accuracy > 0 && accuracy < 2000) {
+        L.circle([latitude, longitude], {
+          radius: accuracy,
+          color: '#3b82f6',
+          fillColor: '#3b82f6',
+          fillOpacity: 0.1,
+          weight: 1,
+          interactive: false,
+        }).addTo(mapInstance)
+      }
+    },
+    () => {
+      // Silently ignore — user denied or timed out
+    },
+    { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 },
+  )
+}
+
+// Watch BOTH mapContainer and data with flush: 'post'.
+// See /m/index.vue for full explanation of the hydration race this fixes.
+watch(
+  [mapContainer, data],
+  () => {
+    void initMap()
+  },
+  { flush: 'post', immediate: true },
+)
 
 onUnmounted(() => {
+  destroyed = true
   if (mapInstance) {
     mapInstance.remove()
     mapInstance = null

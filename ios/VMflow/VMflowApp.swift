@@ -99,7 +99,7 @@ struct AuthNavigationView: View {
 // MARK: - Tab Selection
 
 enum AppTab: Hashable {
-    case dashboard, machines, refill, more
+    case dashboard, machines, refill, inbox, more
 }
 
 // MARK: - Main Tab View
@@ -107,7 +107,9 @@ enum AppTab: Hashable {
 struct MainTabView: View {
     @EnvironmentObject var auth: AuthService
     @StateObject private var realtime = RealtimeService.shared
+    @StateObject private var notificationService = NotificationService.shared
     @State private var selectedTab: AppTab = .dashboard
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -136,6 +138,15 @@ struct MainTabView: View {
             .tag(AppTab.refill)
 
             NavigationStack {
+                InboxView()
+            }
+            .tabItem {
+                Label("Inbox", systemImage: "tray.fill")
+            }
+            .badge(notificationService.openInboxCount)
+            .tag(AppTab.inbox)
+
+            NavigationStack {
                 MoreView()
             }
             .tabItem {
@@ -148,6 +159,21 @@ struct MainTabView: View {
         .task {
             realtime.start()
             await NotificationService.shared.setupAfterLogin()
+        }
+        // App returns to foreground → refresh badge from server.
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .active {
+                Task { await NotificationService.shared.refreshBadge() }
+            }
+        }
+        // Notification tap deep-link routing.
+        .onChange(of: notificationService.pendingDeepLink) { _, link in
+            guard let link = link else { return }
+            switch link {
+            case .inbox:
+                selectedTab = .inbox
+            }
+            notificationService.pendingDeepLink = nil
         }
     }
 }

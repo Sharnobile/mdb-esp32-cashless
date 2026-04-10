@@ -18,6 +18,11 @@ export const notificationTypes: NotificationType[] = [
     label: 'Low stock alerts',
     description: 'Get notified when a product drops below the refill threshold.',
   },
+  {
+    key: 'inbox',
+    label: 'Customer inbox',
+    description: 'Get notified when a customer reports a problem, leaves feedback, or submits a product wish.',
+  },
 ]
 
 // ── Composable ──────────────────────────────────────────────────────────────

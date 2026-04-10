@@ -44,6 +44,21 @@ final class NotificationService: ObservableObject {
     @Published var isRegistering: Bool = false
     @Published var error: String?
 
+    /// Open inbox count (problems + feedback + wishes with status='new').
+    /// Drives the app icon badge AND the badge on the Inbox tab.
+    /// Refreshed on app foreground, after Inbox actions, and on push receive.
+    @Published var openInboxCount: Int = 0
+
+    /// Set when a notification tap should deep-link into a specific tab.
+    /// `MainTabView` observes this and resets it after consuming the value
+    /// so back-stack navigation behaves naturally.
+    @Published var pendingDeepLink: DeepLink?
+
+    /// Deep-link targets we currently know how to route to from a push tap.
+    enum DeepLink: Equatable {
+        case inbox
+    }
+
     /// Available notification types (matches web UI).
     static let notificationTypes: [NotificationType] = [
         NotificationType(
@@ -57,6 +72,12 @@ final class NotificationService: ObservableObject {
             label: String(localized: "Low Stock Alerts"),
             description: String(localized: "Get notified when a product drops below the refill threshold"),
             icon: "exclamationmark.triangle.fill"
+        ),
+        NotificationType(
+            key: "inbox",
+            label: String(localized: "Customer Inbox"),
+            description: String(localized: "Get notified when a customer reports a problem, leaves feedback, or submits a product wish"),
+            icon: "tray.full.fill"
         ),
     ]
 
@@ -237,11 +258,60 @@ final class NotificationService: ObservableObject {
 
     // MARK: - Notification Tap Handling
 
-    /// Handle taps on received notifications. Can be extended for deep linking.
+    /// Handle taps on received notifications. Routes to the right tab via
+    /// `pendingDeepLink` which `MainTabView` observes.
     func handleNotificationTap(type: String, userInfo: [AnyHashable: Any]) {
-        // Deep linking can be added here in the future.
-        // For now, just log the event.
         print("[Push] Handle tap: type=\(type), data=\(userInfo)")
+        if type == "inbox" {
+            pendingDeepLink = .inbox
+        }
+    }
+
+    // MARK: - Badge
+
+    /// Recompute the open inbox count from Supabase and apply it to the app
+    /// icon badge. Call on app foreground, after marking items as reviewed/
+    /// dismissed, and after pushes are received in foreground.
+    ///
+    /// Reads `machine_feedback` AND `product_wishes` and sums entries with
+    /// status='new'. Failures are silent — the badge keeps its previous
+    /// value rather than dropping to 0 spuriously.
+    func refreshBadge() async {
+        do {
+            // Two parallel HEAD count queries via PostgREST. RLS scopes them
+            // to the current user's company automatically.
+            async let feedbackCount: Int = countOpen(table: "machine_feedback")
+            async let wishCount: Int = countOpen(table: "product_wishes")
+
+            let total = try await (feedbackCount + wishCount)
+            openInboxCount = total
+            await applyBadgeToAppIcon(total)
+        } catch is CancellationError {
+            // ignore
+        } catch {
+            print("[Inbox] refreshBadge failed: \(error)")
+        }
+    }
+
+    private func countOpen(table: String) async throws -> Int {
+        let response = try await client
+            .from(table)
+            .select("id", head: true, count: .exact)
+            .eq("status", value: "new")
+            .execute()
+        return response.count ?? 0
+    }
+
+    /// Set the iOS home-screen icon badge. Uses the iOS 17+ API when
+    /// available and falls back to the deprecated property otherwise.
+    private func applyBadgeToAppIcon(_ count: Int) async {
+        if #available(iOS 17.0, *) {
+            try? await UNUserNotificationCenter.current().setBadgeCount(count)
+        } else {
+            await MainActor.run {
+                UIApplication.shared.applicationIconBadgeNumber = count
+            }
+        }
     }
 
     // MARK: - Lifecycle
@@ -255,11 +325,14 @@ final class NotificationService: ObservableObject {
         }
 
         await fetchPreferences()
+        await refreshBadge()
     }
 
     /// Call on logout to clean up.
     func cleanupOnLogout() async {
         await unregisterDevice()
         preferences = []
+        openInboxCount = 0
+        await applyBadgeToAppIcon(0)
     }
 }

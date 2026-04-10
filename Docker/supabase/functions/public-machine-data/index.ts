@@ -128,12 +128,31 @@ Deno.serve(async (req) => {
     products,
   }))
 
-  // 5. Fetch company info (name + Stripe check)
+  // 5. Fetch company info (name + Stripe check + imprint / Betreiberinformationen)
   const { data: company } = await supabase
     .from('companies')
-    .select('name, stripe_publishable_key')
+    .select(
+      'name, stripe_publishable_key, legal_name, contact_email, contact_phone, website, address_street, address_house_number, address_postal_code, address_city, country_code',
+    )
     .eq('id', machine.company)
     .single()
+
+  // Build imprint object for the public storefront. Any non-null field is
+  // surfaced to the UI; the client decides whether to show the "Betreiber-
+  // informationen" button at all (all fields null → no imprint data yet).
+  const imprint = company
+    ? {
+        legal_name:          company.legal_name ?? null,
+        contact_email:       company.contact_email ?? null,
+        contact_phone:       company.contact_phone ?? null,
+        website:             company.website ?? null,
+        address_street:      company.address_street ?? null,
+        address_house_number: company.address_house_number ?? null,
+        address_postal_code: company.address_postal_code ?? null,
+        address_city:        company.address_city ?? null,
+        country_code:        company.country_code ?? null,
+      }
+    : null
 
   return jsonResponse({
     machine: {
@@ -144,6 +163,7 @@ Deno.serve(async (req) => {
     machine_id: machine.id,
     company_id: machine.company,
     company_name: company?.name ?? null,
+    imprint,
     status,
     status_at: statusAt,
     categories,

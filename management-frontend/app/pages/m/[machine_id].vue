@@ -26,11 +26,24 @@ interface Category {
   products: Product[]
 }
 
+interface Imprint {
+  legal_name: string | null
+  contact_email: string | null
+  contact_phone: string | null
+  website: string | null
+  address_street: string | null
+  address_house_number: string | null
+  address_postal_code: string | null
+  address_city: string | null
+  country_code: string | null
+}
+
 interface MachineData {
   machine: { name: string; location_lat: number | null; location_lon: number | null }
   machine_id: string
   company_id: string
   company_name: string | null
+  imprint: Imprint | null
   status: string | null
   status_at: string | null
   categories: Category[]
@@ -118,6 +131,80 @@ async function submitWish() {
     wishLoading.value = false
   }
 }
+
+// --- Feedback modal (problem report + general feedback, unified) ---
+// type="problem" → "Problem melden", type="feedback" → "Feedback geben"
+type FeedbackType = 'problem' | 'feedback'
+const feedbackType = ref<FeedbackType | null>(null)
+const feedbackMessage = ref('')
+const feedbackEmail = ref('')
+const feedbackLoading = ref(false)
+const feedbackDone = ref(false)
+const feedbackError = ref(false)
+
+function openFeedback(type: FeedbackType) {
+  feedbackType.value = type
+  feedbackMessage.value = ''
+  feedbackEmail.value = ''
+  feedbackDone.value = false
+  feedbackError.value = false
+}
+
+function closeFeedback() {
+  feedbackType.value = null
+}
+
+async function submitFeedback() {
+  if (!feedbackType.value || !feedbackMessage.value.trim()) return
+  feedbackLoading.value = true
+  feedbackError.value = false
+  try {
+    await $fetch('/functions/v1/submit-machine-feedback', {
+      method: 'POST',
+      body: {
+        machine_id: data.value!.machine_id,
+        type: feedbackType.value,
+        message: feedbackMessage.value.trim(),
+        email: feedbackEmail.value || undefined,
+      },
+    })
+    feedbackDone.value = true
+    setTimeout(() => {
+      closeFeedback()
+    }, 2000)
+  } catch {
+    feedbackError.value = true
+  } finally {
+    feedbackLoading.value = false
+  }
+}
+
+// --- Imprint modal (Betreiberinformationen, read-only for customers) ---
+const imprintOpen = ref(false)
+
+// True only if at least one imprint field is populated — drives visibility of
+// the "Betreiberinformationen" button so we don't show an empty modal.
+const hasImprint = computed(() => {
+  const i = data.value?.imprint
+  if (!i) return false
+  return !!(
+    i.legal_name ||
+    i.contact_email ||
+    i.contact_phone ||
+    i.website ||
+    i.address_street ||
+    i.address_postal_code ||
+    i.address_city
+  )
+})
+
+const imprintAddressLine = computed(() => {
+  const i = data.value?.imprint
+  if (!i) return ''
+  const street = [i.address_street, i.address_house_number].filter(Boolean).join(' ')
+  const city = [i.address_postal_code, i.address_city].filter(Boolean).join(' ')
+  return [street, city].filter(Boolean).join(', ')
+})
 
 // --- Payment state ---
 const selectedProduct = ref<Product | null>(null)
@@ -317,11 +404,11 @@ const isOnline = computed(() => data.value?.status === 'online')
       </NuxtLink>
 
       <!-- Machine header -->
-      <header class="mb-6">
+      <header class="mb-5">
         <h1 class="text-2xl font-bold tracking-tight">{{ data.machine.name }}</h1>
-        <div class="mt-2 flex flex-wrap items-center gap-3">
+        <div class="mt-2 flex flex-wrap items-center gap-2 text-xs">
           <span
-            class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium"
+            class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-medium"
             :class="isOnline
               ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
               : 'bg-muted text-muted-foreground'"
@@ -329,26 +416,68 @@ const isOnline = computed(() => data.value?.status === 'online')
             <span class="size-1.5 rounded-full" :class="isOnline ? 'bg-emerald-500' : 'bg-muted-foreground'" />
             {{ isOnline ? t('publicStorefront.online') : t('publicStorefront.offline') }}
           </span>
-          <a
-            v-if="data.machine.location_lat && data.machine.location_lon"
-            :href="mapsUrl(data.machine.location_lat, data.machine.location_lon)"
-            target="_blank"
-            rel="noopener"
-            class="inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+          <span
+            v-if="imprintAddressLine"
+            class="inline-flex items-center gap-1.5 text-muted-foreground"
           >
-            <svg class="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <svg class="size-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
               <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
             </svg>
-            {{ t('publicStorefront.showRoute') }}
-          </a>
+            {{ imprintAddressLine }}
+          </span>
         </div>
       </header>
 
-      <!-- Action bar -->
-      <div class="mb-6 flex gap-2">
+      <!-- Action bar — Route + Problem + Feedback + Operator info + Wish -->
+      <div class="mb-6 flex flex-wrap gap-2">
+        <a
+          v-if="data.machine.location_lat && data.machine.location_lon"
+          :href="mapsUrl(data.machine.location_lat, data.machine.location_lon)"
+          target="_blank"
+          rel="noopener"
+          class="inline-flex items-center gap-1.5 rounded-full bg-primary px-3.5 py-2 text-sm font-medium text-primary-foreground shadow-sm hover:bg-primary/90"
+        >
+          <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          {{ t('publicStorefront.showRoute') }}
+        </a>
+
         <button
-          class="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-card-foreground hover:bg-accent"
+          class="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3.5 py-2 text-sm font-medium text-card-foreground hover:bg-accent"
+          @click="openFeedback('problem')"
+        >
+          <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+          </svg>
+          {{ t('publicStorefront.reportProblem') }}
+        </button>
+
+        <button
+          class="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3.5 py-2 text-sm font-medium text-card-foreground hover:bg-accent"
+          @click="openFeedback('feedback')"
+        >
+          <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+          </svg>
+          {{ t('publicStorefront.giveFeedback') }}
+        </button>
+
+        <button
+          v-if="hasImprint"
+          class="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3.5 py-2 text-sm font-medium text-card-foreground hover:bg-accent"
+          @click="imprintOpen = true"
+        >
+          <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
+          </svg>
+          {{ t('publicStorefront.operatorInfo') }}
+        </button>
+
+        <button
+          class="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3.5 py-2 text-sm font-medium text-card-foreground hover:bg-accent"
           @click="wishOpen = true; wishDone = false; wishError = false"
         >
           <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
@@ -641,6 +770,181 @@ const isOnline = computed(() => data.value?.status === 'online')
                 {{ t('publicStorefront.wishError') }}
               </p>
             </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- Feedback modal (Problem melden + Feedback geben, unified) -->
+    <Teleport to="body">
+      <Transition name="fade">
+        <div
+          v-if="feedbackType"
+          class="fixed inset-0 z-50 flex items-end justify-center sm:items-center"
+        >
+          <div class="fixed inset-0 bg-black/50" @click="closeFeedback()" />
+          <div class="relative w-full max-w-md rounded-t-2xl border border-border bg-card p-6 sm:rounded-2xl">
+            <!-- Header -->
+            <div class="mb-4 flex items-start justify-between">
+              <div>
+                <h3 class="text-base font-semibold text-card-foreground">
+                  {{ feedbackType === 'problem'
+                    ? t('publicStorefront.reportProblemTitle')
+                    : t('publicStorefront.giveFeedbackTitle') }}
+                </h3>
+                <p class="mt-0.5 text-xs text-muted-foreground">
+                  {{ feedbackType === 'problem'
+                    ? t('publicStorefront.reportProblemDesc')
+                    : t('publicStorefront.giveFeedbackDesc') }}
+                </p>
+              </div>
+              <button
+                v-if="!feedbackLoading"
+                class="text-muted-foreground hover:text-foreground"
+                @click="closeFeedback()"
+              >
+                <svg class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <!-- Success state -->
+            <div v-if="feedbackDone" class="py-4 text-center">
+              <div class="mx-auto mb-2 flex size-10 items-center justify-center rounded-full bg-emerald-500/15">
+                <svg class="size-5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                </svg>
+              </div>
+              <p class="text-sm text-emerald-600 dark:text-emerald-400">
+                {{ t('publicStorefront.feedbackThanks') }}
+              </p>
+            </div>
+
+            <!-- Form -->
+            <div v-else class="space-y-3">
+              <textarea
+                v-model="feedbackMessage"
+                rows="4"
+                maxlength="2000"
+                :placeholder="feedbackType === 'problem'
+                  ? t('publicStorefront.reportProblemPlaceholder')
+                  : t('publicStorefront.giveFeedbackPlaceholder')"
+                class="w-full resize-none rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+              <input
+                v-model="feedbackEmail"
+                type="email"
+                :placeholder="t('publicStorefront.feedbackEmailPlaceholder')"
+                class="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+              <button
+                :disabled="feedbackLoading || !feedbackMessage.trim()"
+                class="w-full rounded-lg bg-primary py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                @click="submitFeedback()"
+              >
+                {{ feedbackLoading ? '...' : t('publicStorefront.feedbackSubmit') }}
+              </button>
+              <p v-if="feedbackError" class="text-xs text-red-500">
+                {{ t('publicStorefront.feedbackError') }}
+              </p>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- Operator info modal (Betreiberinformationen / Impressum, read-only) -->
+    <Teleport to="body">
+      <Transition name="fade">
+        <div
+          v-if="imprintOpen && data?.imprint"
+          class="fixed inset-0 z-50 flex items-end justify-center sm:items-center"
+        >
+          <div class="fixed inset-0 bg-black/50" @click="imprintOpen = false" />
+          <div class="relative w-full max-w-md rounded-t-2xl border border-border bg-card p-6 sm:rounded-2xl">
+            <div class="mb-4 flex items-start justify-between">
+              <h3 class="text-base font-semibold text-card-foreground">
+                {{ t('publicStorefront.operatorInfoTitle') }}
+              </h3>
+              <button
+                class="text-muted-foreground hover:text-foreground"
+                @click="imprintOpen = false"
+              >
+                <svg class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <dl class="space-y-3 text-sm">
+              <div v-if="data.imprint.legal_name || data.company_name">
+                <dt class="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  {{ t('publicStorefront.operator') }}
+                </dt>
+                <dd class="mt-0.5 font-medium text-card-foreground">
+                  {{ data.imprint.legal_name || data.company_name }}
+                </dd>
+              </div>
+
+              <div v-if="imprintAddressLine">
+                <dt class="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  {{ t('publicStorefront.address') }}
+                </dt>
+                <dd class="mt-0.5 text-card-foreground">
+                  <div v-if="data.imprint.address_street">
+                    {{ data.imprint.address_street }}{{ data.imprint.address_house_number ? ' ' + data.imprint.address_house_number : '' }}
+                  </div>
+                  <div v-if="data.imprint.address_postal_code || data.imprint.address_city">
+                    {{ [data.imprint.address_postal_code, data.imprint.address_city].filter(Boolean).join(' ') }}
+                  </div>
+                </dd>
+              </div>
+
+              <div v-if="data.imprint.contact_email">
+                <dt class="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  {{ t('publicStorefront.email') }}
+                </dt>
+                <dd class="mt-0.5">
+                  <a
+                    :href="`mailto:${data.imprint.contact_email}`"
+                    class="text-primary hover:underline"
+                  >
+                    {{ data.imprint.contact_email }}
+                  </a>
+                </dd>
+              </div>
+
+              <div v-if="data.imprint.contact_phone">
+                <dt class="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  {{ t('publicStorefront.phone') }}
+                </dt>
+                <dd class="mt-0.5">
+                  <a
+                    :href="`tel:${data.imprint.contact_phone.replace(/[^+\d]/g, '')}`"
+                    class="text-primary hover:underline"
+                  >
+                    {{ data.imprint.contact_phone }}
+                  </a>
+                </dd>
+              </div>
+
+              <div v-if="data.imprint.website">
+                <dt class="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  {{ t('publicStorefront.website') }}
+                </dt>
+                <dd class="mt-0.5 break-all">
+                  <a
+                    :href="data.imprint.website"
+                    target="_blank"
+                    rel="noopener"
+                    class="text-primary hover:underline"
+                  >
+                    {{ data.imprint.website }}
+                  </a>
+                </dd>
+              </div>
+            </dl>
           </div>
         </div>
       </Transition>

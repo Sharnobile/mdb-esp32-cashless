@@ -533,6 +533,12 @@ verify_jwt = false
 import_map = "./functions/submit-product-wish/deno.json"
 entrypoint = "./functions/submit-product-wish/index.ts"
 
+[functions.submit-machine-feedback]
+enabled = true
+verify_jwt = false
+import_map = "./functions/submit-machine-feedback/deno.json"
+entrypoint = "./functions/submit-machine-feedback/index.ts"
+
 [functions.create-payment-intent]
 enabled = true
 verify_jwt = false
