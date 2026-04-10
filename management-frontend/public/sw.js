@@ -76,8 +76,14 @@ self.addEventListener('fetch', function (event) {
       fetch(request)
         .then(function (response) {
           if (response.ok) {
+            // IMPORTANT: clone() must run synchronously *before* the response
+            // is returned to the browser. caches.open() is async, so if we
+            // clone inside its .then() the body is already locked by the
+            // browser consuming `response`, and clone() throws
+            // "Response body is already used".
+            var copy = response.clone()
             caches.open(CACHE_NAME).then(function (cache) {
-              cache.put(request, response.clone())
+              cache.put(request, copy)
             })
           }
           return response
@@ -127,6 +133,8 @@ self.addEventListener('notificationclick', function (event) {
     targetUrl = '/machines'
   } else if (data.type === 'low_stock' && data.machine_id) {
     targetUrl = '/machines/' + data.machine_id
+  } else if (data.type === 'inbox') {
+    targetUrl = '/inbox'
   }
 
   event.waitUntil(
