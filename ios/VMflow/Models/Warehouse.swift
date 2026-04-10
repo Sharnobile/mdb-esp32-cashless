@@ -115,3 +115,32 @@ struct InsertWarehouseTransaction: Codable {
 struct InsertedBatchResponse: Codable {
     let id: UUID
 }
+
+/// Physical warehouse slot for a product. Maps to `warehouse_product_positions`.
+/// Only the fields needed to compute pick order are decoded.
+struct WarehouseProductPosition: Codable, Equatable {
+    let productId: UUID
+    let sortOrder: Int
+    let groupId: UUID?
+
+    enum CodingKeys: String, CodingKey {
+        case productId = "product_id"
+        case sortOrder = "sort_order"
+        case groupId = "group_id"
+    }
+}
+
+/// Folder-like group of warehouse positions. Groups can nest via `parentId`.
+/// Maps to `warehouse_position_groups`. Only the fields needed for pick-order
+/// traversal are decoded.
+struct WarehousePositionGroup: Codable, Identifiable, Equatable {
+    let id: UUID
+    let parentId: UUID?
+    let sortOrder: Int
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case parentId = "parent_id"
+        case sortOrder = "sort_order"
+    }
+}

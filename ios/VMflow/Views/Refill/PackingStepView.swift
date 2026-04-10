@@ -88,7 +88,10 @@ struct PackingStepView: View {
 
     private func productCard(_ item: CombinedPackingItem) -> some View {
         let fullyPacked = viewModel.isProductFullyPacked(item)
-        let outOfStock = viewModel.isOutOfWarehouseStock(productId: item.productId)
+        // "Out of stock" should mean: nothing left AND nothing packed yet.
+        // If the product is fully committed to one or more machines, the
+        // remaining stock is 0 but the card is packed, not unusable.
+        let outOfStock = !fullyPacked && viewModel.isOutOfWarehouseStock(productId: item.productId)
 
         return VStack(spacing: 0) {
             // Product header
@@ -119,9 +122,10 @@ struct PackingStepView: View {
 
                     Spacer()
 
-                    // Total quantity (sum of actual packing quantities)
+                    // Total quantity — use displayQuantity so unchecked rows
+                    // reflect the warehouse cap instead of the raw deficit.
                     let totalQty = item.machineNeeds.reduce(0) { sum, need in
-                        sum + viewModel.packingQuantity(machineId: need.machineId, productId: item.productId)
+                        sum + viewModel.displayQuantity(machineId: need.machineId, productId: item.productId)
                     }
                     Text("\(totalQty)×")
                         .font(.headline.weight(.bold))
@@ -167,7 +171,9 @@ struct PackingStepView: View {
     private func machineNeedRow(item: CombinedPackingItem, need: MachineNeed) -> some View {
         let isPacked = viewModel.isMachinePacked(machineId: need.machineId, productId: item.productId)
         let isDisabled = viewModel.isOutOfStockForMachine(machineId: need.machineId, productId: item.productId)
-        let qty = viewModel.packingQuantity(machineId: need.machineId, productId: item.productId)
+        // Display the capped quantity for unchecked rows so reducing a tile
+        // after an uncheck doesn't suddenly jump up to the raw deficit.
+        let qty = viewModel.displayQuantity(machineId: need.machineId, productId: item.productId)
         let maxQty = viewModel.maxPackingQuantity(machineId: need.machineId, productId: item.productId)
         let isPartial = isPacked && maxQty < need.quantity
 

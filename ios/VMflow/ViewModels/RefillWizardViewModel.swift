@@ -72,11 +72,37 @@ struct RefillMachine: Identifiable, Equatable, Codable {
 struct RefillTray: Identifiable, Equatable, Codable {
     let tray: Tray
     var fillAmount: Int  // How many items to add (user can adjust)
+    /// Whether this tray is included in the currently active refill tour.
+    /// Set in `startTour()` based on which products were packed:
+    /// - Product-less trays: always `true` (user refills them manually)
+    /// - Product trays: `true` only when the product was packed for this machine
+    /// The RefillStepView filters by this flag, so reducing `fillAmount` to 0
+    /// does not hide a tray that the user packed.
+    var isInTour: Bool = true
 
     var id: UUID { tray.id }
 
     var deficit: Int { tray.deficit }
     var targetStock: Int { tray.currentStock + fillAmount }
+
+    private enum CodingKeys: String, CodingKey {
+        case tray, fillAmount, isInTour
+    }
+
+    init(tray: Tray, fillAmount: Int, isInTour: Bool = true) {
+        self.tray = tray
+        self.fillAmount = fillAmount
+        self.isInTour = isInTour
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.tray = try container.decode(Tray.self, forKey: .tray)
+        self.fillAmount = try container.decode(Int.self, forKey: .fillAmount)
+        // Default to `true` so previously saved tour state (without this field)
+        // decodes cleanly — all saved trays were part of the tour they belonged to.
+        self.isInTour = try container.decodeIfPresent(Bool.self, forKey: .isInTour) ?? true
+    }
 }
 
 /// An item to pack from the warehouse.
@@ -129,15 +155,18 @@ enum ReplacementReason: String, Codable {
     case discontinued
     case expired
     case noStock  // Product has zero warehouse stock AND tray is empty
+    case unassigned  // Tray has no product assigned yet
 }
 
-/// A tray that should be reviewed before packing — product is discontinued or expired.
+/// A tray that should be reviewed before packing — product is discontinued,
+/// expired, out of stock, or not assigned at all.
 struct ReplacementSuggestion: Identifiable, Equatable, Codable {
     let trayId: UUID
     let machineId: UUID
     let machineName: String
     let slotNumber: Int
-    let currentProductId: UUID
+    /// `nil` when the tray has no product assigned (reason: `.unassigned`).
+    let currentProductId: UUID?
     let currentProductName: String
     let currentProductImage: String?
     let currentStock: Int
@@ -192,6 +221,11 @@ final class RefillWizardViewModel: ObservableObject {
     @Published var warehouses: [Warehouse] = []
     @Published var selectedWarehouseId: UUID?
     @Published var warehouseStock: [WarehouseProductStock] = []
+    /// product_id → 0-based index in the warehouse's physical pick order
+    /// (depth-first through position groups). Empty when no positions are
+    /// defined for the selected warehouse, in which case pack lists fall back
+    /// to a quantity-based sort.
+    @Published var warehouseProductOrder: [UUID: Int] = [:]
     @Published var currentMachineIndex: Int = 0
     @Published var isLoading = false
     @Published var isSaving = false
@@ -383,7 +417,9 @@ final class RefillWizardViewModel: ObservableObject {
 
     // MARK: - Combined Packing List
 
-    /// Products grouped across all machines, sorted by name.
+    /// Products grouped across all machines, sorted by warehouse pick order
+    /// when available (see `warehouseProductOrder`), else by total quantity
+    /// descending.
     var combinedPackingList: [CombinedPackingItem] {
         var grouped: [UUID: (name: String, image: String?, total: Int, needs: [MachineNeed])] = [:]
 
@@ -422,7 +458,7 @@ final class RefillWizardViewModel: ObservableObject {
             }
         }
 
-        return grouped.map { (productId, data) in
+        let items = grouped.map { (productId, data) in
             CombinedPackingItem(
                 productId: productId,
                 productName: data.name,
@@ -430,7 +466,51 @@ final class RefillWizardViewModel: ObservableObject {
                 totalQuantity: data.total,
                 machineNeeds: data.needs.sorted { $0.machineName < $1.machineName }
             )
-        }.sorted { $0.productName < $1.productName }
+        }
+
+        // Sort by physical warehouse pick order so the user walks the
+        // warehouse front-to-back only once. Matches the web's combinedPickList
+        // sorting: positioned products first (in position order), then
+        // unpositioned products alphabetically. Falls back to total-quantity
+        // descending when no positions are defined for the warehouse.
+        //
+        // IMPORTANT: every tap on +/- in the Pack screen re-publishes state and
+        // recomputes this list. `grouped` is a Swift Dictionary whose iteration
+        // order is not guaranteed to be stable across instances, so the sort
+        // comparator MUST produce a total order — no ties — or rows with equal
+        // primary keys will swap positions between renders.
+        if warehouseProductOrder.isEmpty {
+            return items.sorted { a, b in
+                if a.totalQuantity != b.totalQuantity {
+                    return a.totalQuantity > b.totalQuantity
+                }
+                let nameCompare = a.productName.localizedCaseInsensitiveCompare(b.productName)
+                if nameCompare != .orderedSame {
+                    return nameCompare == .orderedAscending
+                }
+                return a.productId.uuidString < b.productId.uuidString
+            }
+        }
+        return items.sorted { a, b in
+            let posA = warehouseProductOrder[a.productId]
+            let posB = warehouseProductOrder[b.productId]
+            switch (posA, posB) {
+            case let (pa?, pb?) where pa != pb:
+                return pa < pb
+            case (_?, nil):
+                return true  // a has a position — sort before unpositioned b
+            case (nil, _?):
+                return false // b has a position — sort before unpositioned a
+            default:
+                break        // same position, or both unpositioned — fall through
+            }
+            // Deterministic tiebreaker for equal positions or both unpositioned.
+            let nameCompare = a.productName.localizedCaseInsensitiveCompare(b.productName)
+            if nameCompare != .orderedSame {
+                return nameCompare == .orderedAscending
+            }
+            return a.productId.uuidString < b.productId.uuidString
+        }
     }
 
     /// Whether a specific product is packed for a specific machine.
@@ -446,6 +526,8 @@ final class RefillWizardViewModel: ObservableObject {
     }
 
     /// Get the packing quantity for a machine-product pair (custom or default deficit).
+    /// This is the "truth" used for commitment math and warehouse deduction. For
+    /// UI display that should reflect the warehouse cap, use `displayQuantity`.
     func packingQuantity(machineId: UUID, productId: UUID) -> Int {
         if let custom = customQuantities[machineId]?[productId] {
             return custom
@@ -455,6 +537,24 @@ final class RefillWizardViewModel: ObservableObject {
         return machine.trays
             .filter { $0.tray.productId == productId && $0.deficit > 0 }
             .reduce(0) { $0 + $1.deficit }
+    }
+
+    /// Quantity to show in the Pack UI for a machine-product pair.
+    ///
+    /// - For PACKED machines: returns `packingQuantity` (the actual committed value).
+    /// - For UNCHECKED machines: caps to `maxPackingQuantity` so the UI never
+    ///   advertises more items than the warehouse could actually deliver.
+    ///
+    /// Matches the web's `effectiveDeficit` behaviour. Keeps `packingQuantity`
+    /// (used by `committedQuantity` / `maxPackingQuantity` / warehouse deduction)
+    /// untouched so the commitment math stays precise.
+    func displayQuantity(machineId: UUID, productId: UUID) -> Int {
+        let current = packingQuantity(machineId: machineId, productId: productId)
+        if isMachinePacked(machineId: machineId, productId: productId) {
+            return current
+        }
+        let cap = maxPackingQuantity(machineId: machineId, productId: productId)
+        return Swift.min(current, cap)
     }
 
     /// Max packing quantity for a machine-product pair.
@@ -740,22 +840,26 @@ final class RefillWizardViewModel: ObservableObject {
                 for machine in allMachines {
                     let machineTrays = traysByMachine[machine.id] ?? []
                     for tray in machineTrays {
-                        guard let productId = tray.productId else { continue }
                         guard !seenTrayIds.contains(tray.id) else { continue }
 
                         var reason: ReplacementReason?
 
-                        // 1) Discontinued + empty → must replace
-                        if tray.isDiscontinued && tray.currentStock == 0 {
-                            reason = .discontinued
-                        }
-                        // 2) Expired product (all warehouse batches expired) → any stock level
-                        else if expiredProductIds.contains(productId) {
-                            reason = .expired
-                        }
-                        // 3) No warehouse stock + empty tray → can't refill, suggest replacement
-                        else if tray.currentStock == 0 && !warehouseProductIds.contains(productId) {
-                            reason = .noStock
+                        if let productId = tray.productId {
+                            // 1) Discontinued + empty → must replace
+                            if tray.isDiscontinued && tray.currentStock == 0 {
+                                reason = .discontinued
+                            }
+                            // 2) Expired product (all warehouse batches expired) → any stock level
+                            else if expiredProductIds.contains(productId) {
+                                reason = .expired
+                            }
+                            // 3) No warehouse stock + empty tray → can't refill, suggest replacement
+                            else if tray.currentStock == 0 && !warehouseProductIds.contains(productId) {
+                                reason = .noStock
+                            }
+                        } else {
+                            // 4) Unassigned tray → user should pick a product
+                            reason = .unassigned
                         }
 
                         if let reason {
@@ -765,7 +869,7 @@ final class RefillWizardViewModel: ObservableObject {
                                 machineId: machine.id,
                                 machineName: machine.displayName,
                                 slotNumber: tray.itemNumber,
-                                currentProductId: productId,
+                                currentProductId: tray.productId,
                                 currentProductName: tray.productName,
                                 currentProductImage: tray.products?.imagePath,
                                 currentStock: tray.currentStock,
@@ -794,8 +898,17 @@ final class RefillWizardViewModel: ObservableObject {
         isLoading = false
     }
 
-    /// Load stock for a specific warehouse.
+    /// Load stock for a specific warehouse. Also loads the physical pick
+    /// order (warehouse_product_positions traversed depth-first via
+    /// warehouse_position_groups) so the packing step can sort items to match
+    /// the warehouse layout.
     func loadWarehouseStock(warehouseId: UUID) async {
+        // Fetch physical pick order in parallel with stock. A missing or
+        // failing positions fetch must not break stock loading — warehouses
+        // without configured positions simply fall back to quantity-based
+        // sorting in combinedPackingList.
+        async let orderedIdsTask: [UUID] = fetchOrderedProductIdsOrEmpty(warehouseId: warehouseId)
+
         do {
             let batches: [WarehouseStockBatch] = try await client
                 .from("warehouse_stock_batches")
@@ -813,31 +926,144 @@ final class RefillWizardViewModel: ObservableObject {
 
             // Fetch product details
             let productIds = Array(stockMap.keys)
-            guard !productIds.isEmpty else {
+            if productIds.isEmpty {
                 warehouseStock = []
-                return
+            } else {
+                let products: [Product] = try await client
+                    .from("products")
+                    .select("id, name, image_path, discontinued, sellprice")
+                    .in("id", values: productIds.map { $0.uuidString })
+                    .execute()
+                    .value
+
+                warehouseStock = products.compactMap { product in
+                    guard let qty = stockMap[product.id] else { return nil }
+                    return WarehouseProductStock(
+                        productId: product.id,
+                        productName: product.name ?? "Unknown",
+                        totalQuantity: qty,
+                        imagePath: product.imagePath
+                    )
+                }.sorted { $0.productName < $1.productName }
             }
-
-            let products: [Product] = try await client
-                .from("products")
-                .select("id, name, image_path, discontinued, sellprice")
-                .in("id", values: productIds.map { $0.uuidString })
-                .execute()
-                .value
-
-            warehouseStock = products.compactMap { product in
-                guard let qty = stockMap[product.id] else { return nil }
-                return WarehouseProductStock(
-                    productId: product.id,
-                    productName: product.name ?? "Unknown",
-                    totalQuantity: qty,
-                    imagePath: product.imagePath
-                )
-            }.sorted { $0.productName < $1.productName }
-
         } catch {
             self.error = error.localizedDescription
         }
+
+        // Always apply whatever pick order we got (possibly empty).
+        let orderedIds = await orderedIdsTask
+        var orderMap: [UUID: Int] = [:]
+        orderMap.reserveCapacity(orderedIds.count)
+        for (i, pid) in orderedIds.enumerated() {
+            orderMap[pid] = i
+        }
+        warehouseProductOrder = orderMap
+    }
+
+    /// Wrapper that swallows errors from fetchOrderedProductIds so stock
+    /// loading can run even when the positions fetch fails (e.g. for a
+    /// warehouse that has never had its layout configured).
+    private func fetchOrderedProductIdsOrEmpty(warehouseId: UUID) async -> [UUID] {
+        do {
+            return try await fetchOrderedProductIds(warehouseId: warehouseId)
+        } catch {
+            print("[RefillWizard] fetchOrderedProductIds failed: \(error)")
+            return []
+        }
+    }
+
+    /// Returns product ids in the warehouse's physical pick order:
+    /// depth-first through position groups (sorted by `sort_order` at every
+    /// level), with any ungrouped positioned products appended at the end.
+    /// Mirrors the web's `fetchOrderedProductIds` so iOS produces the same
+    /// pack ordering the web UI does.
+    private func fetchOrderedProductIds(warehouseId: UUID) async throws -> [UUID] {
+        async let groupsResult: [WarehousePositionGroup] = client
+            .from("warehouse_position_groups")
+            .select("id, parent_id, sort_order")
+            .eq("warehouse_id", value: warehouseId.uuidString)
+            .order("sort_order", ascending: true)
+            .execute()
+            .value
+
+        async let positionsResult: [WarehouseProductPosition] = client
+            .from("warehouse_product_positions")
+            .select("product_id, sort_order, group_id")
+            .eq("warehouse_id", value: warehouseId.uuidString)
+            .order("sort_order", ascending: true)
+            .execute()
+            .value
+
+        let groups = try await groupsResult
+        let positions = try await positionsResult
+
+        // Use a reference-type node so we can mutate children/productIds via
+        // dictionary lookups without fighting Swift's value-type copy rules.
+        final class Node {
+            let id: UUID
+            let parentId: UUID?
+            let sortOrder: Int
+            var children: [Node] = []
+            var productIds: [UUID] = []
+            init(_ g: WarehousePositionGroup) {
+                self.id = g.id
+                self.parentId = g.parentId
+                self.sortOrder = g.sortOrder
+            }
+        }
+
+        var nodeMap: [UUID: Node] = [:]
+        nodeMap.reserveCapacity(groups.count)
+        for g in groups {
+            nodeMap[g.id] = Node(g)
+        }
+
+        // Link children to parents; nodes without a known parent are roots.
+        var roots: [Node] = []
+        for node in nodeMap.values {
+            if let parentId = node.parentId, let parent = nodeMap[parentId] {
+                parent.children.append(node)
+            } else {
+                roots.append(node)
+            }
+        }
+
+        // Sort every level by sort_order.
+        func sortChildren(_ node: Node) {
+            node.children.sort { $0.sortOrder < $1.sortOrder }
+            for child in node.children {
+                sortChildren(child)
+            }
+        }
+        roots.sort { $0.sortOrder < $1.sortOrder }
+        for root in roots {
+            sortChildren(root)
+        }
+
+        // Assign positions to their group (or to the ungrouped bucket).
+        // `positions` is already ordered by sort_order from the DB query.
+        var ungrouped: [UUID] = []
+        for p in positions {
+            if let groupId = p.groupId, let node = nodeMap[groupId] {
+                node.productIds.append(p.productId)
+            } else {
+                ungrouped.append(p.productId)
+            }
+        }
+
+        // Depth-first flatten: group products, then recurse into children.
+        var result: [UUID] = []
+        result.reserveCapacity(positions.count)
+        func traverse(_ nodes: [Node]) {
+            for node in nodes {
+                result.append(contentsOf: node.productIds)
+                traverse(node.children)
+            }
+        }
+        traverse(roots)
+        result.append(contentsOf: ungrouped)
+
+        return result
     }
 
     // MARK: - Packing Step Actions
@@ -929,22 +1155,38 @@ final class RefillWizardViewModel: ObservableObject {
         tourId = UUID().uuidString
         tourLog = []
 
-        // Apply custom packing quantities to tray fillAmounts.
-        // Trays for products that were NOT packed get fillAmount = 0.
+        // Apply custom packing quantities and mark which trays belong to this tour.
+        // Trays for products that were NOT packed get fillAmount = 0 and isInTour = false.
+        // Product-less trays always stay in the tour (user refills them manually).
         for mi in machines.indices {
             let machine = machines[mi]
-            guard machine.isPacked else { continue }
+            guard machine.isPacked else {
+                // Unpacked machine: exclude all of its trays from the tour display.
+                for ti in machines[mi].trays.indices {
+                    machines[mi].trays[ti].isInTour = false
+                }
+                continue
+            }
             let packedProductIds = packedItems[machine.id] ?? Set()
 
             for ti in machines[mi].trays.indices {
                 let tray = machines[mi].trays[ti]
-                guard let productId = tray.tray.productId else { continue }
 
-                // Zero out trays for products that were not packed
+                // Product-less trays: always part of the tour (bug 1 follow-through).
+                // Keep their initial fillAmount (= deficit) so the user sees something sensible.
+                guard let productId = tray.tray.productId else {
+                    machines[mi].trays[ti].isInTour = true
+                    continue
+                }
+
+                // Product trays: in the tour only if the product was packed.
                 guard packedProductIds.contains(productId) else {
+                    machines[mi].trays[ti].isInTour = false
                     machines[mi].trays[ti].fillAmount = 0
                     continue
                 }
+
+                machines[mi].trays[ti].isInTour = true
 
                 // Apply custom quantity if set
                 guard let machineCustom = customQuantities[machine.id],

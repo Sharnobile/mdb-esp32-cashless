@@ -17,7 +17,7 @@ struct ReviewStepView: View {
                             .foregroundStyle(.orange)
                         Text("Product Review")
                             .font(.title3.bold())
-                        Text("The following trays have discontinued, expired, or out-of-stock products. Choose a replacement or skip.")
+                        Text("The following trays need attention — discontinued, expired, out-of-stock, or unassigned products. Choose a replacement or skip.")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
@@ -58,7 +58,9 @@ struct ReviewStepView: View {
     // MARK: - Replacement Card
 
     private func replacementCard(_ suggestion: ReplacementSuggestion) -> some View {
-        VStack(spacing: 12) {
+        let isUnassigned = suggestion.reason == .unassigned
+
+        return VStack(spacing: 12) {
             // Current product header
             HStack(spacing: 12) {
                 // Slot badge
@@ -69,13 +71,22 @@ struct ReviewStepView: View {
                     .frame(width: 28, height: 28)
                     .background(Circle().fill(badgeColor(for: suggestion.reason)))
 
-                ProductImage(imagePath: suggestion.currentProductImage, size: 40)
+                if isUnassigned {
+                    // Placeholder icon in lieu of a product image.
+                    Image(systemName: "questionmark.square.dashed")
+                        .font(.title2)
+                        .foregroundStyle(.secondary)
+                        .frame(width: 40, height: 40)
+                } else {
+                    ProductImage(imagePath: suggestion.currentProductImage, size: 40)
+                }
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(suggestion.currentProductName)
                         .font(.subheadline.weight(.semibold))
                         .lineLimit(1)
-                        .strikethrough(true, color: .red)
+                        .strikethrough(!isUnassigned, color: .red)
+                        .foregroundStyle(isUnassigned ? .secondary : .primary)
 
                     HStack(spacing: 6) {
                         reasonBadge(suggestion.reason)
@@ -105,7 +116,9 @@ struct ReviewStepView: View {
                 HStack {
                     Image(systemName: "arrow.right.circle")
                         .foregroundStyle(.secondary)
-                    Text("Skipped — keeping current product")
+                    Text(isUnassigned
+                         ? "Skipped — slot stays unassigned"
+                         : "Skipped — keeping current product")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                     Spacer()
@@ -140,12 +153,15 @@ struct ReviewStepView: View {
                 }
                 .buttonStyle(.plain)
             } else {
-                // Needs action — Replace or Skip
+                // Needs action — Replace/Assign or Skip
                 HStack(spacing: 12) {
                     Button {
                         pickerTrayId = suggestion.trayId
                     } label: {
-                        Label("Replace", systemImage: "arrow.triangle.2.circlepath")
+                        Label(
+                            isUnassigned ? "Assign" : "Replace",
+                            systemImage: isUnassigned ? "plus.circle" : "arrow.triangle.2.circlepath"
+                        )
                             .font(.subheadline.weight(.semibold))
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 10)
@@ -179,6 +195,7 @@ struct ReviewStepView: View {
         case .discontinued: return .red
         case .expired: return .orange
         case .noStock: return .purple
+        case .unassigned: return .blue
         }
     }
 
@@ -188,6 +205,7 @@ struct ReviewStepView: View {
             case .discontinued: return ("Discontinued", .red)
             case .expired: return ("Expired", .orange)
             case .noStock: return ("No Stock", .purple)
+            case .unassigned: return ("Unassigned", .blue)
             }
         }()
 

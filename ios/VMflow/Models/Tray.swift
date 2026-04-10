@@ -84,7 +84,7 @@ struct Tray: Codable, Identifiable, Equatable, Hashable {
 }
 
 /// Payload for creating or updating a tray.
-struct TrayUpsert: Codable {
+struct TrayUpsert: Encodable {
     let machineId: UUID
     let itemNumber: Int
     let productId: UUID?
@@ -101,5 +101,21 @@ struct TrayUpsert: Codable {
         case currentStock = "current_stock"
         case minStock = "min_stock"
         case fillWhenBelow = "fill_when_below"
+    }
+
+    /// Custom encoder that always emits `product_id`, including as explicit
+    /// `null` when unset. Swift's synthesized `encode(to:)` uses
+    /// `encodeIfPresent` for optional properties, which omits the field
+    /// entirely — and PostgREST treats omitted fields as "don't change", so
+    /// clearing a tray's product via UPDATE would silently fail.
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(machineId, forKey: .machineId)
+        try container.encode(itemNumber, forKey: .itemNumber)
+        try container.encode(productId, forKey: .productId)
+        try container.encode(capacity, forKey: .capacity)
+        try container.encode(currentStock, forKey: .currentStock)
+        try container.encode(minStock, forKey: .minStock)
+        try container.encode(fillWhenBelow, forKey: .fillWhenBelow)
     }
 }

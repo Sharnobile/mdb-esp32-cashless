@@ -496,6 +496,17 @@
         }
       }
     },
+    "Add Self-hosted" : {
+      "comment" : "Button to add a self-hosted server configuration",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Self-hosted hinzufügen"
+          }
+        }
+      }
+    },
     "Add Single Tray" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -795,6 +806,17 @@
         }
       }
     },
+    "Connected to" : {
+      "comment" : "Server indicator prefix on login screen\nServer indicator prefix on register screen",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verbunden mit"
+          }
+        }
+      }
+    },
     "Continue" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -988,6 +1010,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Produkt bearbeiten"
+          }
+        }
+      }
+    },
+    "Edit Server" : {
+      "comment" : "Navigation title when editing",
+      "extractionState" : "stale",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Server bearbeiten"
           }
         }
       }
@@ -1221,6 +1255,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Eingang"
+          }
+        }
+      }
+    },
+    "Invalid QR Code" : {
+      "comment" : "Error when QR code is not a valid server config",
+      "extractionState" : "stale",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ungültiger QR-Code"
           }
         }
       }
@@ -1482,6 +1528,18 @@
         }
       }
     },
+    "My Server" : {
+      "comment" : "Server name placeholder",
+      "extractionState" : "stale",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mein Server"
+          }
+        }
+      }
+    },
     "needs %@ / %@" : {
       "localizations" : {
         "en" : {
@@ -1521,6 +1579,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Neues Produkt"
+          }
+        }
+      }
+    },
+    "New Server" : {
+      "comment" : "Navigation title when adding",
+      "extractionState" : "stale",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Neuer Server"
           }
         }
       }
@@ -1783,6 +1853,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Optional"
+          }
+        }
+      }
+    },
+    "or enter manually" : {
+      "comment" : "Divider between QR scan and manual entry",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "oder manuell eingeben"
           }
         }
       }
@@ -2134,6 +2215,28 @@
         }
       }
     },
+    "Scan QR Code" : {
+      "comment" : "QR scan button title",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "QR-Code scannen"
+          }
+        }
+      }
+    },
+    "Scan the code from your web dashboard" : {
+      "comment" : "QR scan button subtitle",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scanne den Code aus deinem Web-Dashboard"
+          }
+        }
+      }
+    },
     "Search machines" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2205,6 +2308,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ersatz auswählen"
+          }
+        }
+      }
+    },
+    "Select Server" : {
+      "comment" : "Title of the server selection sheet",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Server auswählen"
           }
         }
       }
@@ -2313,6 +2427,7 @@
       }
     },
     "Skipped — keeping current product" : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -2455,6 +2570,7 @@
       }
     },
     "The following trays have discontinued, expired, or out-of-stock products. Choose a replacement or skip." : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -2463,6 +2579,10 @@
           }
         }
       }
+    },
+    "The following trays need attention — discontinued, expired, out-of-stock, or unassigned products. Choose a replacement or skip." : {
+      "comment" : "A description below the header that explains the purpose of the review step.",
+      "isCommentAutoGenerated" : true
     },
     "This Week" : {
       "extractionState" : "stale",
@@ -2724,116 +2844,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "du@beispiel.com"
-          }
-        }
-      }
-    },
-    "Select Server" : {
-      "comment" : "Title of the server selection sheet",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Server auswählen"
-          }
-        }
-      }
-    },
-    "Add Self-hosted" : {
-      "comment" : "Button to add a self-hosted server configuration",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Self-hosted hinzufügen"
-          }
-        }
-      }
-    },
-    "New Server" : {
-      "comment" : "Navigation title when adding",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Neuer Server"
-          }
-        }
-      }
-    },
-    "Edit Server" : {
-      "comment" : "Navigation title when editing",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Server bearbeiten"
-          }
-        }
-      }
-    },
-    "Scan QR Code" : {
-      "comment" : "QR scan button title",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "QR-Code scannen"
-          }
-        }
-      }
-    },
-    "Scan the code from your web dashboard" : {
-      "comment" : "QR scan button subtitle",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Scanne den Code aus deinem Web-Dashboard"
-          }
-        }
-      }
-    },
-    "or enter manually" : {
-      "comment" : "Divider between QR scan and manual entry",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "oder manuell eingeben"
-          }
-        }
-      }
-    },
-    "Invalid QR Code" : {
-      "comment" : "Error when QR code is not a valid server config",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ungültiger QR-Code"
-          }
-        }
-      }
-    },
-    "Connected to" : {
-      "comment" : "Server indicator prefix on login screen",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Verbunden mit"
-          }
-        }
-      }
-    },
-    "My Server" : {
-      "comment" : "Server name placeholder",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mein Server"
           }
         }
       }

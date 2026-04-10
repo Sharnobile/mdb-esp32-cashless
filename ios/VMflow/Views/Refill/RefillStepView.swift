@@ -28,8 +28,10 @@ struct RefillStepView: View {
                         .buttonStyle(.bordered)
                         .tint(.blue)
 
-                        // Tray List (only trays with items to refill)
-                        ForEach(machine.trays.filter { $0.fillAmount > 0 }) { refillTray in
+                        // Tray list — show everything that's part of this tour,
+                        // regardless of fillAmount. Reducing fillAmount to 0
+                        // keeps the card visible so the user can bring it back.
+                        ForEach(machine.trays.filter { $0.isInTour }) { refillTray in
                             refillTrayCard(refillTray, machineId: machine.id)
                         }
 
