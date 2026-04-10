@@ -384,7 +384,30 @@
     "unstable": "Instabil",
     "critical": "Kritisch",
     "restartsLast24h": "{count} Neustart in 24h | {count} Neustarts in 24h",
-    "uptime": "Laufzeit"
+    "uptime": "Laufzeit",
+    "settings": "Einstellungen"
+  },
+  "machineSettings": {
+    "title": "Automat-Einstellungen",
+    "addressLabel": "Adresse suchen",
+    "addressPlaceholder": "z. B. Musterstraße 1, Berlin",
+    "searchButton": "Suchen",
+    "searching": "Suche läuft…",
+    "detectedAddress": "Erkannte Adresse",
+    "street": "Straße",
+    "postalCode": "PLZ",
+    "city": "Stadt",
+    "country": "Land",
+    "clearLocation": "Standort entfernen",
+    "pinHint": "Pin ziehen für exakte Position",
+    "mapLoading": "Karte wird geladen…",
+    "geocodingError": "Adresse konnte nicht gefunden werden",
+    "queryTooShort": "Bitte mindestens 2 Zeichen eingeben",
+    "noResults": "Keine Treffer",
+    "countryAutoHint": "Aus Adresse übernommen, manuell überschreibbar",
+    "setLocationOptional": "Standort jetzt festlegen (optional)",
+    "save": "Speichern",
+    "cancel": "Abbrechen"
   },
   "insights": {
     "productSwap": "Produktwechsel",

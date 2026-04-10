@@ -11,6 +11,13 @@ import { useInsights, sortedRecommendations, priorityVariant, recommendationType
 import { useDeviceRestarts, reasonLabel, reasonVariant, formatUptime } from '@/composables/useDeviceRestarts'
 import { timeAgo, formatCurrency, formatDate, formatTime, formatDateTime } from '@/lib/utils'
 import QRCode from 'qrcode'
+import MachineSettingsModal from '~/components/MachineSettingsModal.vue'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '~/components/ui/dropdown-menu'
 
 const { t, locale } = useI18n()
 const route = useRoute()
@@ -24,8 +31,7 @@ const defaultTab = computed(() => {
 const supabase = useSupabaseClient()
 const { role } = useOrganization()
 const { products, categories, fetchProducts } = useProducts()
-const { companyCountry, fetchCompanyCountry } = useTaxSettings()
-const { COUNTRY_OPTIONS } = await import('~/composables/useTaxSettings')
+
 const { trays, loading: traysLoading, fetchTrays, upsertTray, updateTray, batchCreateTrays, refillToFull, refillAll, adjustStock: adjustStockDebounced, deleteTray, subscribeToTrayUpdates } = useMachineTrays()
 const { fetchUnassignedEmbeddeds, swapDevice } = useMachines()
 const { logs: mdbLogs, loading: mdbLogsLoading, hasMore: mdbHasMore, fetchLogs: fetchMdbLogs, fetchMore: fetchMoreMdbLogs, subscribe: subscribeMdbLog, stateLabel, stateVariant } = useMdbLog()
@@ -163,29 +169,33 @@ const sales = ref<any[]>([])
 const loading = ref(true)
 const errorMsg = ref('')
 
+async function fetchMachine() {
+  const { data, error } = await supabase
+    .from('vendingMachine')
+    .select('id, name, location_lat, location_lon, embedded, country_code, public_listing, address_street, address_house_number, address_postal_code, address_city, formatted_address, embeddeds(id, status, status_at, subdomain, mac_address, firmware_version, firmware_build_date, mdb_address, mdb_diagnostics, last_restart_reason, last_restart_at, online_since)')
+    .eq('id', route.params.id)
+    .single()
+  if (error) {
+    errorMsg.value = error.message
+    return
+  }
+  if (data) machine.value = data as any
+}
+
 // Re-fetch machine data when app resumes from background (iOS PWA etc.)
 onResume(async () => {
   const id = route.params.id as string
-  const [machineRes] = await Promise.all([
-    supabase.from('vendingMachine')
-      .select('id, name, location_lat, location_lon, embedded, country_code, public_listing, embeddeds(id, status, status_at, subdomain, mac_address, firmware_version, firmware_build_date, mdb_address, mdb_diagnostics, last_restart_reason, last_restart_at, online_since)')
-      .eq('id', id).single(),
+  await Promise.all([
+    fetchMachine(),
     fetchTrays(id),
   ])
-  if (machineRes.data) machine.value = machineRes.data
 })
 
 onMounted(async () => {
   const id = route.params.id as string
   try {
-    const { data: machineData, error: machineError } = await supabase
-      .from('vendingMachine')
-      .select('id, name, location_lat, location_lon, embedded, country_code, public_listing, embeddeds(id, status, status_at, subdomain, mac_address, firmware_version, firmware_build_date, mdb_address, mdb_diagnostics, last_restart_reason, last_restart_at, online_since)')
-      .eq('id', id)
-      .single()
-
-    if (machineError) throw machineError
-    machine.value = machineData
+    await fetchMachine()
+    if (!machine.value) return
 
     // Fetch trays, products, and sales in parallel — sales query uses machine_id (not embedded_id)
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
@@ -244,16 +254,16 @@ onMounted(async () => {
     onUnmounted(() => supabase.removeChannel(salesChannel))
 
     // Subscribe to embedded status updates (only if a device is assigned)
-    if (machineData.embeddeds?.id) {
+    if (machine.value?.embeddeds?.id) {
       const statusChannel = supabase
-        .channel(`machine-status-${machineData.embeddeds.id}`)
+        .channel(`machine-status-${machine.value?.embeddeds.id}`)
         .on(
           'postgres_changes',
           {
             event: 'UPDATE',
             schema: 'public',
             table: 'embeddeds',
-            filter: `id=eq.${machineData.embeddeds.id}`,
+            filter: `id=eq.${machine.value?.embeddeds.id}`,
           },
           (payload) => {
             if (machine.value?.embeddeds) {
@@ -279,13 +289,13 @@ onMounted(async () => {
       onUnmounted(() => supabase.removeChannel(statusChannel))
 
       // Fetch MDB log history + subscribe to live updates
-      fetchMdbLogs(machineData.embeddeds.id)
-      const unsubMdbLog = subscribeMdbLog(machineData.embeddeds.id)
+      fetchMdbLogs(machine.value?.embeddeds.id)
+      const unsubMdbLog = subscribeMdbLog(machine.value?.embeddeds.id)
       onUnmounted(unsubMdbLog)
 
       // Fetch device restart history + subscribe to live updates
-      fetchRestarts(machineData.embeddeds.id)
-      const unsubRestarts = subscribeRestarts(machineData.embeddeds.id)
+      fetchRestarts(machine.value?.embeddeds.id)
+      const unsubRestarts = subscribeRestarts(machine.value?.embeddeds.id)
       onUnmounted(unsubRestarts)
     }
 
@@ -373,6 +383,7 @@ async function saveNameEdit() {
 
 // ── Device info modal ────────────────────────────────────────────────────────
 const showDeviceInfoModal = ref(false)
+const showMachineSettingsModal = ref(false)
 
 // ── Device swap ─────────────────────────────────────────────────────────────
 const showDeviceModal = ref(false)
@@ -400,30 +411,12 @@ async function submitDeviceSwap() {
   try {
     await swapDevice(machine.value.id, selectedDeviceId.value)
     // Re-fetch machine to get updated embeddeds join
-    const { data } = await supabase
-      .from('vendingMachine')
-      .select('id, name, location_lat, location_lon, embedded, country_code, public_listing, embeddeds(id, status, status_at, subdomain, mac_address, firmware_version, firmware_build_date, mdb_address, mdb_diagnostics, last_restart_reason, last_restart_at, online_since)')
-      .eq('id', machine.value.id)
-      .single()
-    if (data) machine.value = data
+    await fetchMachine()
     showDeviceModal.value = false
   } catch (err: unknown) {
     deviceSwapError.value = err instanceof Error ? err.message : t('machineDetail.failedToSwapDevice')
   } finally {
     deviceSwapLoading.value = false
-  }
-}
-
-async function updateMachineCountry(code: string) {
-  try {
-    const { error } = await supabase
-      .from('vendingMachine')
-      .update({ country_code: code || null } as any)
-      .eq('id', machine.value.id)
-    if (error) throw error
-    machine.value.country_code = code || null
-  } catch {
-    // silent
   }
 }
 
@@ -516,12 +509,7 @@ async function detachDevice() {
   deviceSwapLoading.value = true
   try {
     await swapDevice(machine.value.id, null)
-    const { data } = await supabase
-      .from('vendingMachine')
-      .select('id, name, location_lat, location_lon, embedded, country_code, public_listing, embeddeds(id, status, status_at, subdomain, mac_address, firmware_version, firmware_build_date, mdb_address, mdb_diagnostics, last_restart_reason, last_restart_at, online_since)')
-      .eq('id', machine.value.id)
-      .single()
-    if (data) machine.value = data
+    await fetchMachine()
   } catch (err: unknown) {
     // silent
   } finally {
@@ -1226,20 +1214,14 @@ async function handleAddSale() {
                 {{ machine.name ?? t('machines.unnamedMachine') }}
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
               </h1>
-              <p v-if="machine.location_lat && machine.location_lon" class="mt-1 text-sm text-muted-foreground">
+              <p
+                v-if="machine.location_lat != null && machine.location_lon != null"
+                class="mt-1 text-sm text-muted-foreground"
+                :class="{ 'cursor-pointer hover:text-foreground transition-colors': isAdmin }"
+                @click="isAdmin && (showMachineSettingsModal = true)"
+              >
                 {{ machine.location_lat.toFixed(5) }}, {{ machine.location_lon.toFixed(5) }}
               </p>
-              <div class="mt-1.5 flex items-center gap-2">
-                <label class="text-xs text-muted-foreground">{{ t('machines.country') }}:</label>
-                <select
-                  :value="machine.country_code ?? ''"
-                  class="h-7 rounded-md border border-input bg-background px-2 text-xs shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  @change="updateMachineCountry(($event.target as HTMLSelectElement).value)"
-                >
-                  <option value="">{{ t('machines.countryInherited', { country: companyCountry || 'DE' }) }}</option>
-                  <option v-for="c in COUNTRY_OPTIONS" :key="c.code" :value="c.code">{{ c.code }} — {{ c.label }}</option>
-                </select>
-              </div>
             </div>
             <!-- Device: compact header row -->
             <div class="flex items-center gap-2 shrink-0">
@@ -1270,13 +1252,24 @@ async function handleAddSale() {
                   <IconSend class="size-3" />
                   <span class="hidden sm:inline">{{ t('machineDetail.sendCredit') }}</span>
                 </button>
-                <button
-                  class="inline-flex h-8 w-8 items-center justify-center rounded-md border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                  :title="t('machineDetail.deviceDetails')"
-                  @click="showDeviceInfoModal = true"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
-                </button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger as-child>
+                    <button
+                      class="inline-flex h-8 w-8 items-center justify-center rounded-md border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                      :title="t('machineDetail.settings')"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem v-if="isAdmin" @click="showMachineSettingsModal = true">
+                      {{ t('machineSettings.title') }}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem @click="showDeviceInfoModal = true">
+                      {{ t('machineDetail.deviceDetails') }}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </template>
               <template v-else>
                 <span class="rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
@@ -1289,6 +1282,21 @@ async function handleAddSale() {
                 >
                   {{ t('machineDetail.assignDevice') }}
                 </button>
+                <DropdownMenu v-if="isAdmin">
+                  <DropdownMenuTrigger as-child>
+                    <button
+                      class="inline-flex h-8 w-8 items-center justify-center rounded-md border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                      :title="t('machineDetail.settings')"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem @click="showMachineSettingsModal = true">
+                      {{ t('machineSettings.title') }}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </template>
             </div>
           </div>
@@ -2933,4 +2941,21 @@ async function handleAddSale() {
           </div>
         </SheetContent>
       </Sheet>
+
+      <MachineSettingsModal
+        v-if="machine"
+        v-model:open="showMachineSettingsModal"
+        :machine-id="machine.id"
+        :initial="{
+          location_lat: machine.location_lat,
+          location_lon: machine.location_lon,
+          address_street: (machine as any).address_street ?? null,
+          address_house_number: (machine as any).address_house_number ?? null,
+          address_postal_code: (machine as any).address_postal_code ?? null,
+          address_city: (machine as any).address_city ?? null,
+          formatted_address: (machine as any).formatted_address ?? null,
+          country_code: machine.country_code,
+        }"
+        @saved="fetchMachine"
+      />
 </template>

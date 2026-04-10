@@ -8,6 +8,7 @@ import { reasonLabel } from '@/composables/useDeviceRestarts'
 import { formatCurrency } from '@/lib/utils'
 import { getProductImageUrl } from '@/composables/useProducts'
 import { hasSavedTour, clearSavedTourState } from '@/composables/useRefillWizard'
+import LocationPicker, { type LocationModel } from '~/components/LocationPicker.vue'
 
 const { t } = useI18n()
 const { organization } = useOrganization()
@@ -59,6 +60,35 @@ const sortedMachines = computed(() => {
 // ── Add Machine modal ────────────────────────────────────────────────────────
 const { open: showMachineModal, form: machineForm, loading: creatingMachine, error: machineError, openModal: openMachineModal, closeModal, submit } = useModalForm({ name: '' })
 
+// Collapsible location section state
+const includeLocation = ref(false)
+const locationForm = ref<LocationModel>({
+  location_lat: null,
+  location_lon: null,
+  address_street: null,
+  address_house_number: null,
+  address_postal_code: null,
+  address_city: null,
+  formatted_address: null,
+  country_code: null,
+})
+
+watch(showMachineModal, (isOpen) => {
+  if (!isOpen) {
+    includeLocation.value = false
+    locationForm.value = {
+      location_lat: null,
+      location_lon: null,
+      address_street: null,
+      address_house_number: null,
+      address_postal_code: null,
+      address_city: null,
+      formatted_address: null,
+      country_code: null,
+    }
+  }
+})
+
 // Restart within last 24h = show indicator
 function isRecentRestart(restartAt: string): boolean {
   return Date.now() - new Date(restartAt).getTime() < 24 * 60 * 60 * 1000
@@ -73,7 +103,19 @@ async function submitCreateMachine() {
     machineError.value = t('machines.nameRequired')
     return
   }
-  await submit(() => createMachine(machineForm.value.name.trim(), organization.value!.id))
+  const locationPayload = includeLocation.value && locationForm.value.location_lat != null && locationForm.value.location_lon != null
+    ? {
+        location_lat: locationForm.value.location_lat!,
+        location_lon: locationForm.value.location_lon!,
+        address_street: locationForm.value.address_street,
+        address_house_number: locationForm.value.address_house_number,
+        address_postal_code: locationForm.value.address_postal_code,
+        address_city: locationForm.value.address_city,
+        formatted_address: locationForm.value.formatted_address,
+        country_code: locationForm.value.country_code,
+      }
+    : undefined
+  await submit(() => createMachine(machineForm.value.name.trim(), organization.value!.id, locationPayload))
 }
 </script>
 
@@ -331,6 +373,26 @@ async function submitCreateMachine() {
         class="flex h-9 w-full rounded-md border bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
         @keydown.enter="submitCreateMachine"
       />
+    </div>
+    <div class="mt-4 border-t pt-4">
+      <button
+        type="button"
+        class="flex w-full items-center justify-between text-sm font-medium text-muted-foreground hover:text-foreground"
+        @click="includeLocation = !includeLocation"
+      >
+        <span>{{ t('machineSettings.setLocationOptional') }}</span>
+        <span>{{ includeLocation ? '−' : '+' }}</span>
+      </button>
+      <div v-if="includeLocation" class="mt-3">
+        <ClientOnly>
+          <LocationPicker v-model="locationForm" />
+          <template #fallback>
+            <div class="flex h-[200px] w-full items-center justify-center rounded-md border border-dashed text-sm text-muted-foreground">
+              {{ t('machineSettings.mapLoading') }}
+            </div>
+          </template>
+        </ClientOnly>
+      </div>
     </div>
     <FormError :message="machineError" />
     <template #footer>

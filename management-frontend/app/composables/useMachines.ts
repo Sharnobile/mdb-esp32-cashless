@@ -1,4 +1,4 @@
-import { useSupabaseClient } from '#imports'
+import { ref, useState, useSupabaseClient } from '#imports'
 import { buildWarehouseStockInfo, isProductRefillable } from '@/lib/stock-health'
 
 interface Embedded {
@@ -22,6 +22,13 @@ interface VendingMachine {
   location_lon: number | null
   embedded: string | null
   country_code: string | null
+  public_listing?: boolean | null
+  // NEW: structured address (added 2026-04-10)
+  address_street: string | null
+  address_house_number: string | null
+  address_postal_code: string | null
+  address_city: string | null
+  formatted_address: string | null
   embeddeds: Embedded | null
   last_sale_at?: string | null
   last_sale_amount?: number | null
@@ -56,6 +63,26 @@ interface PendingToken {
   device_only: boolean
 }
 
+export interface MachineSettingsPatch {
+  location_lat: number | null
+  location_lon: number | null
+  address_street: string | null
+  address_house_number: string | null
+  address_postal_code: string | null
+  address_city: string | null
+  formatted_address: string | null
+  country_code: string | null
+}
+
+/**
+ * Location payload for createMachine(). Narrows location_lat/location_lon to
+ * non-null since a machine is only created "with location" when a pin was placed.
+ */
+export type CreateMachineLocation = Omit<MachineSettingsPatch, 'location_lat' | 'location_lon'> & {
+  location_lat: number
+  location_lon: number
+}
+
 export function useMachines() {
   const machines = useState<VendingMachine[]>('machines', () => [])
   const loading = ref(false)
@@ -67,7 +94,8 @@ export function useMachines() {
       const { data, error } = await supabase
         .from('vendingMachine')
         .select(`
-          id, name, location_lat, location_lon, embedded, country_code,
+          id, name, location_lat, location_lon, embedded, country_code, public_listing,
+          address_street, address_house_number, address_postal_code, address_city, formatted_address,
           embeddeds(id, status, status_at, subdomain, mac_address, firmware_version, firmware_build_date, mdb_diagnostics, last_restart_reason, last_restart_at, online_since)
         `)
 
@@ -466,6 +494,12 @@ export function useMachines() {
             machine.name = updated.name
             machine.location_lat = updated.location_lat
             machine.location_lon = updated.location_lon
+            machine.country_code = updated.country_code ?? null
+            machine.address_street = updated.address_street ?? null
+            machine.address_house_number = updated.address_house_number ?? null
+            machine.address_postal_code = updated.address_postal_code ?? null
+            machine.address_city = updated.address_city ?? null
+            machine.formatted_address = updated.formatted_address ?? null
             // If embedded link changed, re-fetch to get the joined data
             if (machine.embedded !== updated.embedded) {
               fetchMachines()
@@ -512,13 +546,48 @@ export function useMachines() {
     return () => supabase.removeChannel(channel)
   }
 
-  async function createMachine(name: string, companyId: string) {
+  async function createMachine(
+    name: string,
+    companyId: string,
+    location?: CreateMachineLocation,
+  ): Promise<void> {
+    const supabase = useSupabaseClient()
+    const insertRow: Record<string, any> = { name, company: companyId }
+    if (location) {
+      insertRow.location_lat = location.location_lat
+      insertRow.location_lon = location.location_lon
+      insertRow.address_street = location.address_street
+      insertRow.address_house_number = location.address_house_number
+      insertRow.address_postal_code = location.address_postal_code
+      insertRow.address_city = location.address_city
+      insertRow.formatted_address = location.formatted_address
+      insertRow.country_code = location.country_code
+    }
+    const { error } = await supabase.from('vendingMachine').insert(insertRow)
+    if (error) throw error
+    await fetchMachines()
+  }
+
+  async function updateMachineSettings(machineId: string, patch: MachineSettingsPatch): Promise<void> {
     const supabase = useSupabaseClient()
     const { error } = await supabase
       .from('vendingMachine')
-      .insert({ name, company: companyId } as any)
+      .update(patch as any)
+      .eq('id', machineId)
     if (error) throw error
-    await fetchMachines()
+    // Optimistically update the local cache so the list re-renders without
+    // waiting for the realtime subscription to fire.
+    const machine = machines.value.find(m => m.id === machineId)
+    if (machine) {
+      machine.location_lat = patch.location_lat
+      machine.location_lon = patch.location_lon
+      machine.country_code = patch.country_code
+      machine.address_street = patch.address_street
+      machine.address_house_number = patch.address_house_number
+      machine.address_postal_code = patch.address_postal_code
+      machine.address_city = patch.address_city
+      machine.formatted_address = patch.formatted_address
+    }
   }
 
   const pendingTokens = useState<PendingToken[]>('pending-tokens', () => [])
@@ -546,6 +615,7 @@ export function useMachines() {
 
   return {
     machines, loading, fetchMachines, fetchUnassignedEmbeddeds, swapDevice, subscribeToStatusUpdates,
-    createMachine, pendingTokens, fetchPendingTokens, deletePendingToken,
+    createMachine, updateMachineSettings,
+    pendingTokens, fetchPendingTokens, deletePendingToken,
   }
 }
