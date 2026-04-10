@@ -374,7 +374,8 @@
     "unstable": "Unstable",
     "critical": "Critical",
     "restartsLast24h": "{count} restart in 24h | {count} restarts in 24h",
-    "uptime": "Uptime"
+    "uptime": "Uptime",
+    "settings": "Settings"
   },
   "machineSettings": {
     "title": "Machine settings",
