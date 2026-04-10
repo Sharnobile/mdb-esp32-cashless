@@ -156,6 +156,13 @@ describe('useGeocoding.search', () => {
     expect(await search('a')).toEqual([])
     expect((globalThis.fetch as any).mock.calls).toHaveLength(0)
   })
+
+  it('returns [] when fetch rejects with AbortError (no throw to caller)', async () => {
+    const abortErr = Object.assign(new Error('aborted'), { name: 'AbortError' })
+    ;(globalThis.fetch as any).mockRejectedValue(abortErr)
+    const { search } = useGeocoding()
+    await expect(search('Berlin')).resolves.toEqual([])
+  })
 })
 
 describe('useGeocoding.reverse', () => {
@@ -224,5 +231,12 @@ describe('useGeocoding.reverse', () => {
     await reverse(0, 0, controller.signal)
     const init = (globalThis.fetch as any).mock.calls[0][1] as RequestInit
     expect(init.signal).toBe(controller.signal)
+  })
+
+  it('returns null when fetch rejects with AbortError (no throw to caller)', async () => {
+    const abortErr = Object.assign(new Error('aborted'), { name: 'AbortError' })
+    ;(globalThis.fetch as any).mockRejectedValue(abortErr)
+    const { reverse } = useGeocoding()
+    await expect(reverse(0, 0)).resolves.toBeNull()
   })
 })

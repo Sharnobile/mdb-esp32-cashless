@@ -137,5 +137,5 @@ export function useGeocoding() {
     }
   }
 
-  return { search, reverse, pickCity }
+  return { search, reverse }
 }
