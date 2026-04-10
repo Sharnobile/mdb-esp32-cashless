@@ -58,6 +58,8 @@ Vending machine operators can manage all the telemetry, monitor sales, and optim
 - [x] Mobile Storefront with cashless payment (v1.7)
   - [x] Phase 14: Public storefront page — `/m/[subdomain]` public page, `public-machine-data` edge function, restock subscriptions, product wishes, mobile-first UI — Phase 14 complete
   - [x] Phase 15: Mobile payment — Stripe Payment Element (Apple Pay/Google Pay/card), per-company keys, hybrid credit delivery (confirm + webhook) — Phase 15 complete
+- [x] Public Discovery (v1.8)
+  - [x] Phase 16: Public discovery — machine UUID URL scheme, global Leaflet/OSM map at /m/, per-operator page at /m/o/[company], per-machine `public_listing` privacy toggle, QR code generator + URL copier in Machine Detail Einstellungen tab — Phase 16 complete
 
 ### Planned (Next)
 
@@ -115,8 +117,10 @@ Production system with live ESP32 devices installed in the field. Backward compa
 | Denormalized `company_id` on warehouse position tables | Matches `warehouse_stock_batches` RLS pattern — simpler policies | 2026-03-18 | Active |
 | Per-company Anthropic API key (not global env var) | Multi-tenant friendly — each company manages their own key in settings | 2026-03-19 | Active |
 | `claude-haiku-4-5` for AI insights | Fast, cheap, well-suited for structured JSON output tasks | 2026-03-19 | Active |
-| Public page URL `/m/[subdomain]` via embeddeds.subdomain | Simple integer URL, bigserial is unique, no auth needed | 2026-04-09 | Active |
+| Public page URL uses `vendingMachine.id` UUID (not device subdomain) | Stable over device swaps, not enumerable, QR codes survive hardware replacement | 2026-04-10 | Active |
 | Edge function service_role for public data | RLS blocks anon access — service_role bypasses for read-only public queries | 2026-04-09 | Active |
+| Per-machine `public_listing` flag for discovery opt-out | Granular control — operator can have 90% public machines + 10% private without affecting URL accessibility | 2026-04-10 | Active |
+| Leaflet + OpenStreetMap for public map | DSGVO-friendly, no API keys, no vendor lock-in, CDN-loaded (no npm install) | 2026-04-10 | Active |
 
 ## Success Metrics
 
@@ -139,4 +143,4 @@ Production system with live ESP32 devices installed in the field. Backward compa
 
 ---
 *PROJECT.md — Updated when requirements or context change*
-*Last updated: 2026-04-09 after Phase 15 (mobile-payment) — Milestone v1.7 complete*
+*Last updated: 2026-04-10 after Phase 16 (public-discovery) — Milestone v1.8 complete*

@@ -6,6 +6,8 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Headers': 'Content-Type',
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -38,15 +40,14 @@ Deno.serve(async (req) => {
   }
 
   const url = new URL(req.url)
-  const subdomainParam = url.searchParams.get('subdomain')
+  const machineId = url.searchParams.get('id')
 
-  if (!subdomainParam) {
-    return jsonResponse({ error: 'subdomain parameter is required' }, 400)
+  if (!machineId) {
+    return jsonResponse({ error: 'id parameter is required' }, 400)
   }
 
-  const subdomain = parseInt(subdomainParam, 10)
-  if (isNaN(subdomain)) {
-    return jsonResponse({ error: 'subdomain must be an integer' }, 400)
+  if (!UUID_RE.test(machineId)) {
+    return jsonResponse({ error: 'id must be a valid UUID' }, 400)
   }
 
   const supabase = createClient(
@@ -54,26 +55,30 @@ Deno.serve(async (req) => {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
   )
 
-  // 1. Find embedded device by subdomain
-  const { data: embedded, error: embeddedErr } = await supabase
-    .from('embeddeds')
-    .select('id, status, status_at, company')
-    .eq('subdomain', subdomain)
-    .single()
-
-  if (embeddedErr || !embedded) {
-    return jsonResponse({ error: 'Machine not found' }, 404)
-  }
-
-  // 2. Find vending machine linked to this device
+  // 1. Find vending machine by UUID
   const { data: machine, error: machineErr } = await supabase
     .from('vendingMachine')
-    .select('id, name, location_lat, location_lon')
-    .eq('embedded', embedded.id)
+    .select('id, name, location_lat, location_lon, company, embedded')
+    .eq('id', machineId)
     .single()
 
   if (machineErr || !machine) {
     return jsonResponse({ error: 'Machine not found' }, 404)
+  }
+
+  // 2. Optionally fetch embedded device info (for online status)
+  let status: string | null = null
+  let statusAt: string | null = null
+  if (machine.embedded) {
+    const { data: embedded } = await supabase
+      .from('embeddeds')
+      .select('status, status_at')
+      .eq('id', machine.embedded)
+      .single()
+    if (embedded) {
+      status = embedded.status
+      statusAt = embedded.status_at
+    }
   }
 
   // 3. Fetch trays with products and categories
@@ -123,11 +128,11 @@ Deno.serve(async (req) => {
     products,
   }))
 
-  // 5. Check if Stripe is configured for this company
+  // 5. Fetch company info (name + Stripe check)
   const { data: company } = await supabase
     .from('companies')
-    .select('stripe_publishable_key')
-    .eq('id', embedded.company)
+    .select('name, stripe_publishable_key')
+    .eq('id', machine.company)
     .single()
 
   return jsonResponse({
@@ -137,8 +142,10 @@ Deno.serve(async (req) => {
       location_lon: machine.location_lon,
     },
     machine_id: machine.id,
-    status: embedded.status,
-    status_at: embedded.status_at,
+    company_id: machine.company,
+    company_name: company?.name ?? null,
+    status,
+    status_at: statusAt,
     categories,
     payment_enabled: !!company?.stripe_publishable_key,
   })

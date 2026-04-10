@@ -550,3 +550,9 @@ enabled = true
 verify_jwt = false
 import_map = "./functions/stripe-webhook/deno.json"
 entrypoint = "./functions/stripe-webhook/index.ts"
+
+[functions.public-machines-list]
+enabled = true
+verify_jwt = false
+import_map = "./functions/public-machines-list/deno.json"
+entrypoint = "./functions/public-machines-list/index.ts"

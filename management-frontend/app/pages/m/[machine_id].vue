@@ -5,7 +5,10 @@ definePageMeta({ layout: false })
 
 const { t } = useI18n()
 const route = useRoute()
-const subdomain = route.params.subdomain as string
+const machineId = route.params.machine_id as string
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const isValidUuid = UUID_RE.test(machineId)
 
 interface Product {
   id: string
@@ -26,15 +29,19 @@ interface Category {
 interface MachineData {
   machine: { name: string; location_lat: number | null; location_lon: number | null }
   machine_id: string
+  company_id: string
+  company_name: string | null
   status: string | null
   status_at: string | null
   categories: Category[]
   payment_enabled: boolean
 }
 
-const { data, error, refresh } = await useFetch<MachineData>('/functions/v1/public-machine-data', {
-  params: { subdomain },
-})
+const { data, error, refresh } = isValidUuid
+  ? await useFetch<MachineData>('/functions/v1/public-machine-data', {
+      params: { id: machineId },
+    })
+  : { data: ref(null), error: ref(new Error('Invalid machine ID')), refresh: () => Promise.resolve() }
 
 // --- Notify modal state ---
 const notifyProductId = ref<string | null>(null)
@@ -153,7 +160,7 @@ async function openPayment(product: Product) {
     }>('/functions/v1/create-payment-intent', {
       method: 'POST',
       body: {
-        subdomain: parseInt(subdomain, 10),
+        machine_id: machineId,
         product_id: product.id,
         slot: product.slot,
       },
@@ -221,7 +228,7 @@ async function submitPayment() {
           method: 'POST',
           body: {
             payment_intent_id: paymentIntent.id,
-            subdomain: parseInt(subdomain, 10),
+            machine_id: machineId,
           },
         })
         paymentSuccess.value = true
@@ -297,6 +304,18 @@ const isOnline = computed(() => data.value?.status === 'online')
 
     <!-- Main content -->
     <div v-else class="mx-auto max-w-2xl px-4 py-6 pb-20">
+      <!-- Back link to operator page -->
+      <NuxtLink
+        v-if="data.company_id && data.company_name"
+        :to="`/m/o/${data.company_id}`"
+        class="mb-4 inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+      >
+        <svg class="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+        </svg>
+        {{ t('publicStorefront.backToOperator', { operator: data.company_name }) }}
+      </NuxtLink>
+
       <!-- Machine header -->
       <header class="mb-6">
         <h1 class="text-2xl font-bold tracking-tight">{{ data.machine.name }}</h1>

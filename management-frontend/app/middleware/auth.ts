@@ -5,9 +5,12 @@ export default defineNuxtRouteMiddleware(async (to) => {
     '/onboarding/create-organization',
     '/onboarding/accept-invitation',
     '/server-loading',
-    '/m/',
   ]
   if (publicRoutes.some(route => to.path.startsWith(route))) {
+    return
+  }
+  // Public machine routes: /m (index), /m/[id], /m/o/[company]
+  if (to.path === '/m' || to.path.startsWith('/m/')) {
     return
   }
 

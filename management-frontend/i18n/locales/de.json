@@ -286,6 +286,16 @@
     "failedToSendCredit": "Guthaben konnte nicht gesendet werden",
     "failedToCancelCredit": "Guthaben konnte nicht storniert werden",
     "failedToSwapDevice": "Gerätewechsel fehlgeschlagen",
+    "failedToUpdate": "Aktualisierung fehlgeschlagen",
+    "settings": "Einstellungen",
+    "publicVisibility": "Öffentliche Sichtbarkeit",
+    "publicListingToggle": "In öffentlicher Automatenkarte anzeigen",
+    "publicListingDescription": "Wenn aktiv, erscheint dieser Automat auf der öffentlichen /m/ Karte und der Operator-Seite.",
+    "publicUrl": "Öffentliche URL",
+    "qrCode": "QR-Code",
+    "qrCodeHint": "Drucken Sie diesen QR-Code und kleben Sie ihn auf den Automaten. Kunden können ihn scannen, um Produkte zu sehen und zu bezahlen.",
+    "downloadQr": "QR herunterladen",
+    "publicListingDisabledHint": "Öffentliche Listung deaktiviert. Die direkte URL funktioniert weiterhin für Mitarbeiter, aber der Automat erscheint nicht in der Discovery-Ansicht.",
     "failedToUpdateMdb": "MDB-Adresse konnte nicht aktualisiert werden",
     "failedToSaveTray": "Fach konnte nicht gespeichert werden",
     "noUnassignedDevices": "Keine verfügbaren Geräte. Registrieren Sie zuerst ein neues Gerät.",
@@ -1043,7 +1053,20 @@
     "creditDelivered": "Ihr Guthaben wurde an den Automaten gesendet.",
     "creditDeliveryFailed": "Zahlung erfolgreich. Guthaben wird in Kürze übermittelt.",
     "selectOnMachine": "Bitte wählen Sie Ihr Produkt am Automaten-Display.",
-    "dismiss": "Schließen"
+    "dismiss": "Schließen",
+    "backToOperator": "Alle Automaten von {operator}"
+  },
+  "publicMap": {
+    "title": "Automaten",
+    "subtitle": "Finde deinen Lieblings-Snack in deiner Nähe",
+    "empty": "Noch keine Automaten verfügbar",
+    "allMachines": "Alle Automaten",
+    "viewDetails": "Details ansehen",
+    "noLocation": "Standort nicht gesetzt",
+    "operatorNotFound": "Operator nicht gefunden",
+    "operatorEmpty": "Dieser Operator hat noch keine öffentlichen Automaten",
+    "backToAll": "Alle Automaten",
+    "machinesBy": "Automaten von {name}"
   },
   "mobileApp": {
     "title": "Mobile App Einrichtung",

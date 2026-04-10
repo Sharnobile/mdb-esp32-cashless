@@ -7,6 +7,8 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Headers': 'Content-Type',
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -23,17 +25,21 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: 'Method not allowed' }, 405)
   }
 
-  let body: { subdomain?: number; product_id?: string; slot?: number }
+  let body: { machine_id?: string; product_id?: string; slot?: number }
   try {
     body = await req.json()
   } catch {
     return jsonResponse({ error: 'Invalid JSON' }, 400)
   }
 
-  const { subdomain, product_id, slot } = body
+  const { machine_id, product_id, slot } = body
 
-  if (!subdomain || !product_id || slot === undefined || slot === null) {
-    return jsonResponse({ error: 'subdomain, product_id, and slot are required' }, 400)
+  if (!machine_id || !product_id || slot === undefined || slot === null) {
+    return jsonResponse({ error: 'machine_id, product_id, and slot are required' }, 400)
+  }
+
+  if (!UUID_RE.test(machine_id)) {
+    return jsonResponse({ error: 'machine_id must be a valid UUID' }, 400)
   }
 
   const supabase = createClient(
@@ -41,26 +47,20 @@ Deno.serve(async (req) => {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
   )
 
-  // 1. Find device by subdomain
-  const { data: embedded } = await supabase
-    .from('embeddeds')
-    .select('id, company')
-    .eq('subdomain', subdomain)
-    .single()
-
-  if (!embedded) {
-    return jsonResponse({ error: 'Machine not found' }, 404)
-  }
-
-  // 2. Find vending machine
+  // 1. Find vending machine by UUID
   const { data: machine } = await supabase
     .from('vendingMachine')
-    .select('id, name')
-    .eq('embedded', embedded.id)
+    .select('id, name, company, embedded')
+    .eq('id', machine_id)
     .single()
 
   if (!machine) {
     return jsonResponse({ error: 'Machine not found' }, 404)
+  }
+
+  // 2. Machine must have a device for credit delivery
+  if (!machine.embedded) {
+    return jsonResponse({ error: 'Payment is not available for this machine (no device)' }, 503)
   }
 
   // 3. Find product + price via tray
@@ -90,7 +90,7 @@ Deno.serve(async (req) => {
   const { data: company } = await supabase
     .from('companies')
     .select('stripe_secret_key, stripe_publishable_key')
-    .eq('id', embedded.company)
+    .eq('id', machine.company)
     .single()
 
   if (!company?.stripe_secret_key || !company?.stripe_publishable_key) {
@@ -111,9 +111,8 @@ Deno.serve(async (req) => {
         product_id: product.id,
         product_name: product.name,
         slot: String(slot),
-        subdomain: String(subdomain),
-        company_id: embedded.company,
-        embedded_id: embedded.id,
+        company_id: machine.company,
+        embedded_id: machine.embedded,
       },
     })
 

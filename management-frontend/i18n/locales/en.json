@@ -286,6 +286,16 @@
     "failedToSendCredit": "Failed to send credit",
     "failedToCancelCredit": "Failed to cancel credit",
     "failedToSwapDevice": "Failed to swap device",
+    "failedToUpdate": "Failed to update",
+    "settings": "Settings",
+    "publicVisibility": "Public Visibility",
+    "publicListingToggle": "Show in public machine map",
+    "publicListingDescription": "When enabled, this machine appears on the public /m/ discovery map and the operator page.",
+    "publicUrl": "Public URL",
+    "qrCode": "QR Code",
+    "qrCodeHint": "Print this QR code and place it on the machine. Customers can scan it to view products and pay.",
+    "downloadQr": "Download QR",
+    "publicListingDisabledHint": "Public listing disabled. The direct URL still works for employees, but the machine won't appear in discovery views.",
     "failedToUpdateMdb": "Failed to update MDB address",
     "failedToSaveTray": "Failed to save tray",
     "noUnassignedDevices": "No unassigned devices available. Provision a new device first.",
@@ -1043,7 +1053,20 @@
     "creditDelivered": "Credit has been sent to the machine.",
     "creditDeliveryFailed": "Payment succeeded. Credit will be delivered shortly.",
     "selectOnMachine": "Please select your product on the machine display.",
-    "dismiss": "Close"
+    "dismiss": "Close",
+    "backToOperator": "All machines by {operator}"
+  },
+  "publicMap": {
+    "title": "Vending Machines",
+    "subtitle": "Find your favorite snack nearby",
+    "empty": "No machines available yet",
+    "allMachines": "All machines",
+    "viewDetails": "View details",
+    "noLocation": "Location not set",
+    "operatorNotFound": "Operator not found",
+    "operatorEmpty": "This operator has no public machines yet",
+    "backToAll": "All machines",
+    "machinesBy": "Machines by {name}"
   },
   "mobileApp": {
     "title": "Mobile App Setup",
