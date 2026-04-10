@@ -392,6 +392,7 @@
     "pinHint": "Pin ziehen für exakte Position",
     "mapLoading": "Karte wird geladen…",
     "geocodingError": "Adresse konnte nicht gefunden werden",
+    "queryTooShort": "Bitte mindestens 2 Zeichen eingeben",
     "noResults": "Keine Treffer",
     "countryAutoHint": "Aus Adresse übernommen, manuell überschreibbar",
     "setLocationOptional": "Standort jetzt festlegen (optional)",

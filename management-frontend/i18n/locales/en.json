@@ -392,6 +392,7 @@
     "pinHint": "Drag pin for exact position",
     "mapLoading": "Loading map…",
     "geocodingError": "Address not found",
+    "queryTooShort": "Please enter at least 2 characters",
     "noResults": "No results",
     "countryAutoHint": "Derived from address, can be overridden",
     "setLocationOptional": "Set location now (optional)",

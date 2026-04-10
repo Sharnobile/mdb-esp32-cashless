@@ -162,25 +162,31 @@ function applyGeocodingResult(r: GeocodingResult, opts: { keepCoords: boolean })
 async function onSearchSubmit() {
   const q = query.value.trim()
   if (q.length < 2) {
-    searchError.value = t('machineSettings.geocodingError')
+    searchError.value = t('machineSettings.queryTooShort')
     return
   }
   abortController?.abort()
-  abortController = new AbortController()
+  const controller = new AbortController()
+  abortController = controller
   searching.value = true
   searchError.value = null
   hasSubmitted.value = true
   try {
-    const found = await search(q, abortController.signal)
+    const found = await search(q, controller.signal)
+    // If this request was aborted (e.g. the user dragged the pin while the
+    // search was in-flight), don't touch results/hasSubmitted — the newer
+    // user action owns the UI state now.
+    if (controller.signal.aborted) return
     results.value = found
     if (found.length === 0) {
       searchError.value = null // "no results" hint is rendered inline in template
     }
   } catch (err) {
+    if (controller.signal.aborted) return
     searchError.value = t('machineSettings.geocodingError')
     console.warn('[LocationPicker] search failed', err)
   } finally {
-    searching.value = false
+    if (!controller.signal.aborted) searching.value = false
   }
 }
 
