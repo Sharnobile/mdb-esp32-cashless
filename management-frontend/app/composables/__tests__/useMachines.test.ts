@@ -93,6 +93,6 @@ describe('useMachines.updateMachineSettings', () => {
         formatted_address: null,
         country_code: null,
       }),
-    ).rejects.toBeDefined()
+    ).rejects.toMatchObject({ message: 'boom' })
   })
 })

@@ -13,7 +13,10 @@ export default defineConfig({
   },
   resolve: {
     alias: {
+      // Intercept Nuxt auto-imports with a test-only stub
       '#imports': resolve(__dirname, 'app/test-helpers/nuxt-stubs.ts'),
+      // Mirror Nuxt path aliases so files under app/ can use @/ and ~/ imports
+      // (Nuxt 4 resolves these at runtime; here we have to wire them manually)
       '@': resolve(__dirname, 'app'),
       '~': resolve(__dirname, 'app'),
     },

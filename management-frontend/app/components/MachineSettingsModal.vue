@@ -8,6 +8,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from '~/components/ui/dialog'
+import { IconTrash } from '@tabler/icons-vue'
 import LocationPicker, { type LocationModel } from '~/components/LocationPicker.vue'
 import { useMachines, type MachineSettingsPatch } from '~/composables/useMachines'
 import { COUNTRY_OPTIONS } from '~/composables/useTaxSettings'
@@ -123,11 +124,12 @@ function cancel() {
         <button
           v-if="form.location_lat != null"
           type="button"
-          class="text-xs text-destructive hover:underline"
+          class="inline-flex items-center gap-1 text-xs text-destructive hover:underline"
           :disabled="saving"
           @click="clearLocation"
         >
-          🗑 {{ t('machineSettings.clearLocation') }}
+          <IconTrash class="size-3.5" />
+          {{ t('machineSettings.clearLocation') }}
         </button>
         <div v-else />
         <div class="flex gap-2">
