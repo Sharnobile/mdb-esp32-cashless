@@ -881,7 +881,6 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: LocationModel): void
-  (e: 'clear'): void
 }>()
 
 const { t } = useI18n()
@@ -1784,10 +1783,10 @@ Goal: users can actually open the modal, edit location, and create machines with
 - Modify: `management-frontend/i18n/locales/en.json`
 
 **Key facts from the codebase (verified):**
-- No `refreshMachine` function exists. The machine fetch is currently inlined in `onMounted` (~line 177), `onResume` (~line 166), and after updates (~lines 407 and 438). We will extract it into a named `fetchMachine()` function in Step 1, then call it from the `@saved` handler and the three existing inline call sites.
-- The existing ⚙ button that opens `showDeviceInfoModal` lives inside the `<template v-if="machine.embeddeds">` branch (around line 1160). Machines **without** an embedded device render the `<template v-else>` branch (around line 1195) and currently have no gear button at all. The new DropdownMenu must be accessible in **both** branches, otherwise admins cannot edit the location of an unassigned machine. We'll add the DropdownMenu as a shared header element outside both `v-if`/`v-else` branches, or duplicate it in both.
+- No `refreshMachine` function exists. The machine fetch is currently inlined at multiple sites (grep `machine.value = ` inside `[id].vue` — 4 occurrences at last check). We will extract it into a named `fetchMachine()` function in Step 1, then call it from the `@saved` handler and replace the inline call sites that use identical logic.
+- The existing ⚙ button that opens `showDeviceInfoModal` lives inside the `<template v-if="machine.embeddeds">` branch. Machines **without** an embedded device render the `<template v-else>` branch and currently have no gear button at all. The new DropdownMenu must be accessible in **both** branches, otherwise admins cannot edit the location of an unassigned machine. We'll add the DropdownMenu by duplicating it in both branches (simpler than restructuring the header layout).
 - The i18n locale files live at `management-frontend/i18n/locales/`, **not** `management-frontend/app/i18n/locales/`.
-- The top-level `"settings"` key already exists in `de.json` (line ~444). The new key we add is `machineDetail.settings`, scoped under the existing `machineDetail` object — **not** at the top level.
+- A top-level `"settings"` namespace (a dict, not a string) already exists in both locale files. The new key we add is `machineDetail.settings` — scoped **inside** the existing `machineDetail` object, NOT at the top level. Grep for `"machineDetail"` and `"settings"` to locate both before editing.
 
 - [ ] **Step 1: Extract a named `fetchMachine()` function**
 
