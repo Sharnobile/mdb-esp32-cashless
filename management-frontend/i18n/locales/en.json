@@ -376,6 +376,27 @@
     "restartsLast24h": "{count} restart in 24h | {count} restarts in 24h",
     "uptime": "Uptime"
   },
+  "machineSettings": {
+    "title": "Machine settings",
+    "addressLabel": "Search address",
+    "addressPlaceholder": "e.g. Main Street 1, Berlin",
+    "searchButton": "Search",
+    "searching": "Searching…",
+    "detectedAddress": "Detected address",
+    "street": "Street",
+    "postalCode": "Postal code",
+    "city": "City",
+    "country": "Country",
+    "clearLocation": "Clear location",
+    "pinHint": "Drag pin for exact position",
+    "mapLoading": "Loading map…",
+    "geocodingError": "Address not found",
+    "noResults": "No results",
+    "countryAutoHint": "Derived from address, can be overridden",
+    "setLocationOptional": "Set location now (optional)",
+    "save": "Save",
+    "cancel": "Cancel"
+  },
   "insights": {
     "productSwap": "Product Swap",
     "capacityIncrease": "Capacity Increase",
