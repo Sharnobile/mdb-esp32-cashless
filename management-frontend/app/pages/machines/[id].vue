@@ -10,7 +10,6 @@ import { Badge } from '@/components/ui/badge'
 import { useInsights, sortedRecommendations, priorityVariant, recommendationTypeLabel } from '@/composables/useInsights'
 import { useDeviceRestarts, reasonLabel, reasonVariant, formatUptime } from '@/composables/useDeviceRestarts'
 import { timeAgo, formatCurrency, formatDate, formatTime, formatDateTime } from '@/lib/utils'
-import QRCode from 'qrcode'
 import MachineSettingsModal from '~/components/MachineSettingsModal.vue'
 import {
   DropdownMenu,
@@ -419,91 +418,6 @@ async function submitDeviceSwap() {
     deviceSwapLoading.value = false
   }
 }
-
-// ── Public visibility (admin only) ──────────────────────────────────────────
-const publicListingLoading = ref(false)
-const publicListingError = ref('')
-const publicUrlCopied = ref(false)
-const publicQrDataUrl = ref<string>('')
-const publicPageOrigin = ref<string>('')
-
-const publicUrl = computed(() => {
-  if (!machine.value?.id || !publicPageOrigin.value) return ''
-  return `${publicPageOrigin.value}/m/${machine.value.id}`
-})
-
-async function togglePublicListing() {
-  if (!machine.value) return
-  const newValue = !machine.value.public_listing
-  publicListingLoading.value = true
-  publicListingError.value = ''
-  const prevValue = machine.value.public_listing
-  machine.value.public_listing = newValue
-  try {
-    const { error } = await supabase
-      .from('vendingMachine')
-      .update({ public_listing: newValue } as any)
-      .eq('id', machine.value.id)
-    if (error) throw error
-    if (newValue) {
-      await generatePublicQr()
-    } else {
-      publicQrDataUrl.value = ''
-    }
-  } catch (err: unknown) {
-    machine.value.public_listing = prevValue
-    publicListingError.value = err instanceof Error ? err.message : t('machineDetail.failedToUpdate')
-  } finally {
-    publicListingLoading.value = false
-  }
-}
-
-async function generatePublicQr() {
-  if (!publicUrl.value) return
-  try {
-    publicQrDataUrl.value = await QRCode.toDataURL(publicUrl.value, {
-      width: 256,
-      margin: 2,
-      errorCorrectionLevel: 'M',
-    })
-  } catch (err) {
-    console.error('QR code generation failed:', err)
-  }
-}
-
-async function copyPublicUrl() {
-  if (!publicUrl.value) return
-  try {
-    await navigator.clipboard.writeText(publicUrl.value)
-    publicUrlCopied.value = true
-    setTimeout(() => { publicUrlCopied.value = false }, 2000)
-  } catch (err) {
-    console.error('Copy failed:', err)
-  }
-}
-
-function downloadQrCode() {
-  if (!publicQrDataUrl.value || !machine.value?.id) return
-  const link = document.createElement('a')
-  link.href = publicQrDataUrl.value
-  link.download = `machine-${machine.value.id.substring(0, 8)}.png`
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-}
-
-onMounted(() => {
-  publicPageOrigin.value = window.location.origin
-  if (machine.value?.public_listing) {
-    generatePublicQr()
-  }
-})
-
-watch(() => machine.value?.id, (newId) => {
-  if (newId && machine.value?.public_listing && publicPageOrigin.value && !publicQrDataUrl.value) {
-    generatePublicQr()
-  }
-})
 
 async function detachDevice() {
   deviceSwapLoading.value = true
@@ -1308,7 +1222,6 @@ async function handleAddSale() {
               <TabsTrigger v-if="isAdmin" value="mdb">{{ t('machineDetail.mdb') }}</TabsTrigger>
               <TabsTrigger value="trays">{{ t('machineDetail.traysAndStock') }}</TabsTrigger>
               <TabsTrigger v-if="machine?.embeddeds" value="health">{{ t('machineDetail.deviceHealth') }}</TabsTrigger>
-              <TabsTrigger v-if="isAdmin" value="settings">{{ t('machineDetail.settings') }}</TabsTrigger>
             </TabsList>
 
             <!-- Sales tab -->
@@ -2133,103 +2046,6 @@ async function handleAddSale() {
               </div>
             </TabsContent>
 
-            <!-- ── Settings Tab (admin only) ───────────────────────────── -->
-            <TabsContent v-if="isAdmin" value="settings" class="mt-4 space-y-6">
-              <!-- Public Visibility Card -->
-              <div class="rounded-xl border bg-card p-4 sm:p-6">
-                <div class="mb-4 flex items-center gap-2">
-                  <svg class="size-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                  <h2 class="text-base font-semibold">{{ t('machineDetail.publicVisibility') }}</h2>
-                </div>
-
-                <!-- Toggle row -->
-                <div class="mb-4 flex items-center justify-between gap-4">
-                  <div class="min-w-0 flex-1">
-                    <p class="text-sm font-medium">{{ t('machineDetail.publicListingToggle') }}</p>
-                    <p class="text-xs text-muted-foreground">{{ t('machineDetail.publicListingDescription') }}</p>
-                  </div>
-                  <button
-                    type="button"
-                    role="switch"
-                    :aria-checked="machine.public_listing"
-                    :disabled="publicListingLoading"
-                    class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
-                    :class="machine.public_listing ? 'bg-primary' : 'bg-input'"
-                    @click="togglePublicListing"
-                  >
-                    <span
-                      class="pointer-events-none inline-block size-5 translate-y-0 rounded-full bg-background shadow-lg ring-0 transition-transform"
-                      :class="machine.public_listing ? 'translate-x-5' : 'translate-x-0'"
-                    />
-                  </button>
-                </div>
-                <p v-if="publicListingError" class="mb-3 text-xs text-destructive">{{ publicListingError }}</p>
-
-                <!-- URL (always shown) -->
-                <div class="mb-4 space-y-1">
-                  <label class="text-xs font-medium text-muted-foreground">{{ t('machineDetail.publicUrl') }}</label>
-                  <div class="flex items-center gap-2 rounded-lg border bg-muted/50 px-3 py-2">
-                    <code class="flex-1 truncate font-mono text-xs">{{ publicUrl || '—' }}</code>
-                    <button
-                      type="button"
-                      class="shrink-0 text-muted-foreground hover:text-foreground disabled:opacity-50"
-                      :disabled="!publicUrl"
-                      :title="publicUrlCopied ? t('common.copied') : t('common.copy')"
-                      @click="copyPublicUrl"
-                    >
-                      <svg v-if="!publicUrlCopied" class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 01-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 011.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 00-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 01-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 00-3.375-3.375h-1.5a1.125 1.125 0 01-1.125-1.125v-1.5a3.375 3.375 0 00-3.375-3.375H9.75" />
-                      </svg>
-                      <svg v-else class="size-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-
-                <!-- QR Code or disabled hint -->
-                <template v-if="machine.public_listing">
-                  <div class="space-y-2">
-                    <label class="text-xs font-medium text-muted-foreground">{{ t('machineDetail.qrCode') }}</label>
-                    <div class="flex flex-col items-center gap-3 rounded-lg border bg-white p-4 sm:flex-row sm:items-start">
-                      <img
-                        v-if="publicQrDataUrl"
-                        :src="publicQrDataUrl"
-                        :alt="t('machineDetail.qrCode')"
-                        class="size-32 shrink-0 sm:size-40"
-                      />
-                      <div v-else class="flex size-32 shrink-0 items-center justify-center bg-muted sm:size-40">
-                        <div class="size-5 animate-spin rounded-full border-2 border-muted-foreground border-t-primary" />
-                      </div>
-                      <div class="flex flex-1 flex-col items-center gap-2 sm:items-start sm:justify-between sm:self-stretch">
-                        <p class="text-center text-xs text-muted-foreground sm:text-left">
-                          {{ t('machineDetail.qrCodeHint') }}
-                        </p>
-                        <button
-                          class="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 disabled:opacity-50"
-                          :disabled="!publicQrDataUrl"
-                          @click="downloadQrCode"
-                        >
-                          <svg class="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
-                          </svg>
-                          {{ t('machineDetail.downloadQr') }}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </template>
-                <template v-else>
-                  <div class="rounded-lg border border-dashed bg-muted/30 px-4 py-3">
-                    <p class="text-xs text-muted-foreground">{{ t('machineDetail.publicListingDisabledHint') }}</p>
-                  </div>
-                </template>
-              </div>
-            </TabsContent>
-
           </Tabs>
         </template>
       </div>
@@ -2946,6 +2762,7 @@ async function handleAddSale() {
         v-if="machine"
         v-model:open="showMachineSettingsModal"
         :machine-id="machine.id"
+        :public-listing="machine.public_listing !== false"
         :initial="{
           location_lat: machine.location_lat,
           location_lon: machine.location_lon,
