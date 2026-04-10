@@ -43,13 +43,19 @@ let map: LMap | null = null
 let marker: LMarker | null = null
 // Holds the dynamically imported Leaflet default export so later functions can use it.
 let L: typeof import('leaflet') | null = null
+// Guard against unmount races: initMap has several await points (dynamic
+// imports of leaflet, CSS, and 3 marker icon PNGs). If the component is
+// destroyed mid-init, we must NOT create a map on a stale DOM node.
+let destroyed = false
 
 async function initMap() {
   if (!mapContainer.value) return
 
   // Dynamic imports — only run on the client, so SSR build won't touch window/document.
   const leaflet = await import('leaflet')
+  if (destroyed) return
   await import('leaflet/dist/leaflet.css')
+  if (destroyed) return
   L = leaflet.default ?? (leaflet as unknown as typeof import('leaflet'))
 
   // Fix for the well-known Leaflet + bundler marker-icon bug: the default icon URLs
@@ -61,6 +67,7 @@ async function initMap() {
     iconUrl: (await import('leaflet/dist/images/marker-icon.png')).default,
     shadowUrl: (await import('leaflet/dist/images/marker-shadow.png')).default,
   })
+  if (destroyed || !mapContainer.value) return
 
   // Default: mid-Europe wide view, no pin
   let initialCenter: [number, number] = [51.0, 10.0]
@@ -110,6 +117,9 @@ function placePin(lat: number, lng: number) {
     marker.setLatLng([lat, lng])
   } else {
     marker = L.marker([lat, lng], { draggable: true }).addTo(map)
+    // The dragend listener is registered only on initial creation — subsequent
+    // placePin calls reuse the existing marker via setLatLng above and must NOT
+    // re-register, or dragend would fire multiple times per user gesture.
     marker.on('dragend', () => {
       if (!marker) return
       const { lat: newLat, lng: newLng } = marker.getLatLng()
@@ -193,11 +203,13 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  destroyed = true
   abortController?.abort()
   if (map) {
     map.remove()
     map = null
   }
+  marker = null
 })
 </script>
 
@@ -241,14 +253,14 @@ onBeforeUnmount(() => {
           </div>
         </li>
       </ul>
-      <p v-else-if="results.length === 0 && !searching && query.trim().length >= 2 && hasSubmitted" class="mt-1 text-xs text-muted-foreground">
+      <p v-else-if="hasSubmitted && !searching" class="mt-1 text-xs text-muted-foreground">
         {{ t('machineSettings.noResults') }}
       </p>
     </div>
 
     <!-- Map -->
     <div ref="mapContainer" class="h-[200px] w-full rounded-md border border-input sm:h-[280px]" />
-    <p v-if="modelValue.location_lat && modelValue.location_lon" class="text-xs text-muted-foreground">
+    <p v-if="modelValue.location_lat != null && modelValue.location_lon != null" class="text-xs text-muted-foreground">
       {{ t('machineSettings.pinHint') }}
     </p>
 
@@ -266,7 +278,7 @@ onBeforeUnmount(() => {
         <div><span class="text-muted-foreground">{{ t('machineSettings.city') }}:</span> {{ modelValue.address_city ?? '—' }}</div>
         <div><span class="text-muted-foreground">{{ t('machineSettings.country') }}:</span> {{ modelValue.country_code ?? '—' }}</div>
       </div>
-      <div v-if="modelValue.location_lat && modelValue.location_lon" class="mt-1 font-mono text-[10px] text-muted-foreground">
+      <div v-if="modelValue.location_lat != null && modelValue.location_lon != null" class="mt-1 font-mono text-[10px] text-muted-foreground">
         {{ modelValue.location_lat.toFixed(5) }}, {{ modelValue.location_lon.toFixed(5) }}
       </div>
     </div>
