@@ -184,13 +184,10 @@ async function fetchMachine() {
 // Re-fetch machine data when app resumes from background (iOS PWA etc.)
 onResume(async () => {
   const id = route.params.id as string
-  const [machineRes] = await Promise.all([
-    supabase.from('vendingMachine')
-      .select('id, name, location_lat, location_lon, embedded, country_code, address_street, address_house_number, address_postal_code, address_city, formatted_address, embeddeds(id, status, status_at, subdomain, mac_address, firmware_version, firmware_build_date, mdb_address, mdb_diagnostics, last_restart_reason, last_restart_at, online_since)')
-      .eq('id', id).single(),
+  await Promise.all([
+    fetchMachine(),
     fetchTrays(id),
   ])
-  if (machineRes.data) machine.value = machineRes.data
 })
 
 onMounted(async () => {
@@ -256,16 +253,16 @@ onMounted(async () => {
     onUnmounted(() => supabase.removeChannel(salesChannel))
 
     // Subscribe to embedded status updates (only if a device is assigned)
-    if (machineData.embeddeds?.id) {
+    if (machine.value?.embeddeds?.id) {
       const statusChannel = supabase
-        .channel(`machine-status-${machineData.embeddeds.id}`)
+        .channel(`machine-status-${machine.value?.embeddeds.id}`)
         .on(
           'postgres_changes',
           {
             event: 'UPDATE',
             schema: 'public',
             table: 'embeddeds',
-            filter: `id=eq.${machineData.embeddeds.id}`,
+            filter: `id=eq.${machine.value?.embeddeds.id}`,
           },
           (payload) => {
             if (machine.value?.embeddeds) {
@@ -291,13 +288,13 @@ onMounted(async () => {
       onUnmounted(() => supabase.removeChannel(statusChannel))
 
       // Fetch MDB log history + subscribe to live updates
-      fetchMdbLogs(machineData.embeddeds.id)
-      const unsubMdbLog = subscribeMdbLog(machineData.embeddeds.id)
+      fetchMdbLogs(machine.value?.embeddeds.id)
+      const unsubMdbLog = subscribeMdbLog(machine.value?.embeddeds.id)
       onUnmounted(unsubMdbLog)
 
       // Fetch device restart history + subscribe to live updates
-      fetchRestarts(machineData.embeddeds.id)
-      const unsubRestarts = subscribeRestarts(machineData.embeddeds.id)
+      fetchRestarts(machine.value?.embeddeds.id)
+      const unsubRestarts = subscribeRestarts(machine.value?.embeddeds.id)
       onUnmounted(unsubRestarts)
     }
 
