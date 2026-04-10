@@ -2,7 +2,7 @@
 // feedback about a specific vending machine. No auth required — rate-limited
 // per machine to prevent spam. Mirrors the submit-product-wish pattern.
 
-import { createClient } from '@supabase/supabase-js'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { notifyInbox } from '../_shared/inbox-notify.ts'
 
 const CORS_HEADERS = {

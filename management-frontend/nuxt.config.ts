@@ -32,11 +32,6 @@ export default defineNuxtConfig({
       secure: false,
     },
   },
-  routeRules: {
-    // Proxy Supabase API requests so LAN devices (ESP32) can reach Supabase
-    // through the Nuxt dev server when the Supabase port is firewalled
-    '/functions/**': { proxy: 'http://127.0.0.1:54321/functions/**' },
-  },
   runtimeConfig: {
     public: {
       vapidPublicKey: process.env.VAPID_PUBLIC_KEY ?? '',
