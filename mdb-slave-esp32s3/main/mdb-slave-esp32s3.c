@@ -257,10 +257,15 @@ esp_mqtt_client_handle_t mqttClient = NULL;
 // Message queues for communication
 static QueueHandle_t mdbSessionQueue = NULL;
 
-// MQTT watchdog: restarts the client if disconnected for too long.
+// MQTT watchdog: forces reconnection if disconnected for too long.
 // mqtt_started is only set to true by MQTT_EVENT_CONNECTED, so this
 // detects both "never connected" and "lost connection" states.
 // As a last resort, hard-reboots the device after extended offline.
+//
+// IMPORTANT: mqtt_last_connected_tick is NOT reset on the soft-reconnect
+// path. The offline timer must keep counting from the actual last successful
+// connect so the hard reboot threshold (MQTT_HARD_REBOOT_SEC) can trigger.
+// Only MQTT_EVENT_CONNECTED resets this tick.
 static void mqtt_watchdog_cb(void *arg) {
     if (!mqtt_started && mqtt_last_connected_tick > 0) {
         TickType_t offline_ticks = xTaskGetTickCount() - mqtt_last_connected_tick;
@@ -268,13 +273,21 @@ static void mqtt_watchdog_cb(void *arg) {
 
         if (offline_sec >= MQTT_HARD_REBOOT_SEC) {
             // Last resort: full reboot to recover from any corrupted state
+            // (stale lwIP DNS cache, stuck MQTT client state, routing issues).
             ESP_LOGE(TAG, "MQTT watchdog: offline for %lus — HARD REBOOT", (unsigned long)offline_sec);
             tracked_restart("mqtt_watchdog");
         } else if (offline_sec >= MQTT_WATCHDOG_TIMEOUT_SEC) {
-            ESP_LOGW(TAG, "MQTT watchdog: offline for %lus — restarting MQTT client", (unsigned long)offline_sec);
-            esp_mqtt_client_stop(mqttClient);
-            esp_mqtt_client_start(mqttClient);
-            mqtt_last_connected_tick = xTaskGetTickCount();
+            // Force a fresh reconnect attempt. esp_mqtt_client_reconnect() is
+            // the API Espressif provides for exactly this case — it tears
+            // down the current transport (incl. TCP socket + DNS resolution)
+            // and starts a new connect cycle. Unlike stop()+start() it is
+            // safe to call mid-retry and does not leave the internal state
+            // machine half-initialized.
+            ESP_LOGW(TAG, "MQTT watchdog: offline for %lus — forcing reconnect", (unsigned long)offline_sec);
+            esp_mqtt_client_reconnect(mqttClient);
+            // DO NOT reset mqtt_last_connected_tick here — otherwise the
+            // hard reboot path can never be reached while the broker stays
+            // unreachable.
         }
     }
 }
@@ -2323,6 +2336,15 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t e
 
             // Start MQTT — the client handles connection asynchronously.
             // mqtt_started is only set to true on MQTT_EVENT_CONNECTED.
+            //
+            // Reset mqtt_last_connected_tick to "now" on every fresh GOT_IP:
+            // this is our baseline for measuring MQTT offline time. Without
+            // this reset, a long WiFi outage could leave a stale tick value
+            // that would cause the watchdog to immediately hard-reboot right
+            // after WiFi recovery, before MQTT had a chance to connect.
+            // The soft-reconnect path in mqtt_watchdog_cb() must NOT reset
+            // this tick — only a genuine connect success (MQTT_EVENT_CONNECTED)
+            // or a fresh network recovery (this branch) resets it.
             if (!mqtt_started) {
                 ESP_LOGW(TAG, "MQTT: starting client (company='%s' device='%s', client=%p)", my_company_id, my_device_id, mqttClient);
                 esp_mqtt_client_start(mqttClient);
