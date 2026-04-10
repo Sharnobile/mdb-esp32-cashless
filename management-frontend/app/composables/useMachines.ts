@@ -22,6 +22,12 @@ interface VendingMachine {
   location_lon: number | null
   embedded: string | null
   country_code: string | null
+  // NEW: structured address (added 2026-04-10)
+  address_street: string | null
+  address_house_number: string | null
+  address_postal_code: string | null
+  address_city: string | null
+  formatted_address: string | null
   embeddeds: Embedded | null
   last_sale_at?: string | null
   last_sale_amount?: number | null
@@ -68,6 +74,7 @@ export function useMachines() {
         .from('vendingMachine')
         .select(`
           id, name, location_lat, location_lon, embedded, country_code,
+          address_street, address_house_number, address_postal_code, address_city, formatted_address,
           embeddeds(id, status, status_at, subdomain, mac_address, firmware_version, firmware_build_date, mdb_diagnostics, last_restart_reason, last_restart_at, online_since)
         `)
 
@@ -466,6 +473,12 @@ export function useMachines() {
             machine.name = updated.name
             machine.location_lat = updated.location_lat
             machine.location_lon = updated.location_lon
+            machine.country_code = updated.country_code ?? null
+            machine.address_street = updated.address_street ?? null
+            machine.address_house_number = updated.address_house_number ?? null
+            machine.address_postal_code = updated.address_postal_code ?? null
+            machine.address_city = updated.address_city ?? null
+            machine.formatted_address = updated.formatted_address ?? null
             // If embedded link changed, re-fetch to get the joined data
             if (machine.embedded !== updated.embedded) {
               fetchMachines()
