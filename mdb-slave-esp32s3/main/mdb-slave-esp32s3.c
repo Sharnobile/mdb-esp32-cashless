@@ -511,9 +511,14 @@ void vTaskMdbEvent(void *pvParameters) {
 						(void) vmcDisplayInfo;
 						(void) vmcRowsOnDisplay;
 						(void) vmcColumnsOnDisplay;
-						vmc_feature_level = vmcFeatureLevel > 0 ? vmcFeatureLevel : 1;
 
                         if (read_9(NULL) != checksum) { mdb_checksum_errors++; mdb_drain_bus(); continue; }
+
+						// Only trust vmcFeatureLevel after the checksum has verified — otherwise
+						// a bit-flipped byte could persistently set a wrong level until the next
+						// SETUP cycle, causing the firmware to send a 10-byte Level 2/3
+						// BEGIN_SESSION to a Level 1 VMC (protocol desync).
+						vmc_feature_level = vmcFeatureLevel > 0 ? vmcFeatureLevel : 1;
 
 						machine_state = DISABLED_STATE;
 						mdb_last_cmd = "SETUP:CONFIG_DATA";
@@ -596,14 +601,21 @@ void vTaskMdbEvent(void *pvParameters) {
 						mdb_payload[2] = fundsAvailable;
 
 						if (vmc_feature_level >= 2) {
-							// Level 2/3: add Media ID (4) + Payment Type (1) + Payment Data (2)
+							// Level 2/3: add Media ID (4) + Payment Type (1) + Payment Data (2).
+							// Per MDB/ICP section 7.4.x Begin Session response:
+							//   Z4-Z7 = Payment Media ID (0xFFFFFFFF = unknown)
+							//   Z8    = Payment Type; 0x00 = normal vend card, sub-type 0 "VMC default prices"
+							//   Z9-Z10 = Payment Data; for sub-type 0 undefined/unused → must be 0x0000.
+							// A previous implementation echoed fundsAvailable into Z9-Z10, which strict
+							// VMCs interpret as an out-of-range discount/price-list value and refuse to
+							// display the credit (session starts, bill validator disables, but no credit).
 							mdb_payload[3] = 0xFF; // Media ID byte 0 (no specific card)
 							mdb_payload[4] = 0xFF; // Media ID byte 1
 							mdb_payload[5] = 0xFF; // Media ID byte 2
 							mdb_payload[6] = 0xFF; // Media ID byte 3
-							mdb_payload[7] = 0x00; // Payment Type: normal vend
-							mdb_payload[8] = fundsAvailable >> 8; // Payment Data = funds
-							mdb_payload[9] = fundsAvailable;
+							mdb_payload[7] = 0x00; // Payment Type: normal vend card, VMC default prices
+							mdb_payload[8] = 0x00; // Payment Data unused for sub-type 0
+							mdb_payload[9] = 0x00;
 							available_tx = 10;
 						} else {
 							available_tx = 3;
@@ -1053,6 +1065,11 @@ uint8_t xorDecodeWithPasskey(uint16_t *itemPrice, uint16_t *itemNumber, uint8_t 
 	}
 
     if(chk != payload[p_len - 1]){
+        // Common causes: passkey in NVS differs from backend DB, or message
+        // corrupted in transit. Without this log the message was silently
+        // dropped and the device appeared unreachable for send-credit.
+        ESP_LOGW(TAG, "xorDecode: checksum mismatch (cmd=0x%02x got=0x%02x expected=0x%02x)",
+                 payload[0], payload[p_len - 1], chk);
         return 0;
     }
 
@@ -1063,7 +1080,12 @@ uint8_t xorDecodeWithPasskey(uint16_t *itemPrice, uint16_t *itemNumber, uint8_t 
 
     time_t now = time(NULL);
 
-    if( abs((int32_t) now - timestamp) > 8 /*sec*/){
+    int32_t drift = (int32_t) now - timestamp;
+    if( abs(drift) > 8 /*sec*/){
+        // Common causes: SNTP hasn't synced yet after boot, clock drift,
+        // or firewall blocks pool.ntp.org at the install site.
+        ESP_LOGW(TAG, "xorDecode: timestamp out of window (cmd=0x%02x drift=%lds now=%lu msg=%lu)",
+                 payload[0], (long) drift, (unsigned long)(uint32_t) now, (unsigned long)(uint32_t) timestamp);
         return 0;
     }
 

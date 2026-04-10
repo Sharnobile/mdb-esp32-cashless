@@ -44,10 +44,11 @@ Level 3 expanded mode requires VMC to explicitly enable feature bits via Expansi
 - Level 1: 3 bytes (unchanged)
   - `0x03 | funds_high | funds_low`
 - Level 2/3: 10 bytes
-  - `0x03 | funds_high | funds_low | 0xFF 0xFF 0xFF 0xFF | 0x00 | funds_high | funds_low`
+  - `0x03 | funds_high | funds_low | 0xFF 0xFF 0xFF 0xFF | 0x00 | 0x00 | 0x00`
   - Media ID = `0xFFFFFFFF` (no specific card)
-  - Payment Type = `0x00` (normal vend)
-  - Payment Data = copy of funds available
+  - Payment Type = `0x00` — top 2 bits `00` = normal vend card, bottom 6 bits `000000` = sub-type 0 "VMC default prices"
+  - Payment Data = `0x0000` — undefined for sub-type 0, must be zero
+    - **Earlier revision of this doc specified "copy of funds available" — that was wrong.** Echoing funds into Z9-Z10 causes strict VMCs to interpret the value as an out-of-range `xx000011b` "Discount percentage factor" (valid range 0..100), resulting in the session starting (bill validator disabled) but no credit displayed. See MDB/ICP Section 7.4 Begin Session payment data table.
 
 **Add vmcLevel to diagnostics:**
 - `publish_mdb_diag()`: add `"vmcLevel":<n>` to JSON payload
