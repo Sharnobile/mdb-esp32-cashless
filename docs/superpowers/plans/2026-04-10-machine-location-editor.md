@@ -102,8 +102,10 @@ Expected output: a line showing the new migration applied, no errors. **Do not r
 - [ ] **Step 3: Verify the columns exist**
 
 ```bash
-cd Docker/supabase && supabase db execute --local "SELECT column_name, data_type, is_nullable FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'vendingMachine' AND column_name LIKE 'address_%' OR column_name = 'formatted_address' ORDER BY column_name;"
+cd Docker/supabase && supabase db execute --local "SELECT column_name, data_type, is_nullable FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'vendingMachine' AND (column_name LIKE 'address_%' OR column_name = 'formatted_address') ORDER BY column_name;"
 ```
+
+(The parenthesized `AND (... OR ...)` ensures operator precedence groups the column filter correctly.)
 
 Expected output: 5 rows — `address_city`, `address_house_number`, `address_postal_code`, `address_street`, `formatted_address` — all `text`, all `YES` nullable.
 
@@ -207,19 +209,19 @@ After:
 
 - [ ] **Step 3: Update each SELECT in `app/pages/machines/[id].vue`**
 
-There are 4 SELECT strings in this file. Each one looks like:
+There are 4 SELECT strings in this file. Each one looks roughly like:
 
 ```ts
-.select('id, name, location_lat, location_lon, embedded, country_code, embeddeds(id, status, ... online_since)')
+.select('id, name, location_lat, location_lon, embedded, country_code, embeddeds(id, status, ..., mdb_address, ..., online_since)')
 ```
 
-For each of them, insert the new fields so it becomes:
+**Important:** The illustrative snippet above may NOT match the exact content of your file — the actual strings also include fields like `mdb_address` that aren't shown here. Use your actual file content (from Step 1's grep output) as the source of truth, and in each SELECT insert the new fields **between `country_code` and `embeddeds(`**:
 
-```ts
-.select('id, name, location_lat, location_lon, embedded, country_code, address_street, address_house_number, address_postal_code, address_city, formatted_address, embeddeds(id, status, ... online_since)')
+```
+, address_street, address_house_number, address_postal_code, address_city, formatted_address,
 ```
 
-Use the Edit tool with enough surrounding context to make each edit unique (the four occurrences may differ slightly in formatting).
+For each of the 4 occurrences, insert exactly those 5 new columns after `country_code` and before `embeddeds(...)`. Use the Edit tool with enough surrounding context to make each edit unique (the four occurrences may differ slightly in formatting).
 
 - [ ] **Step 4: Verify every SELECT was updated**
 
@@ -365,7 +367,15 @@ EOF
 
 ```ts
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { pickCity, NOMINATIM_BASE } from '../useGeocoding'
+
+// Mock #imports before any import that might transitively touch it.
+// vi.mock is hoisted, so the order here doesn't matter functionally, but keeping
+// it at the top of the file is the convention the existing useMdbLog.test.ts follows.
+vi.mock('#imports', () => ({
+  useI18n: () => ({ locale: { value: 'de' } }),
+}))
+
+import { pickCity, NOMINATIM_BASE, useGeocoding } from '../useGeocoding'
 
 // ── pickCity: pure helper ────────────────────────────────────────────────
 
@@ -492,24 +502,10 @@ Expected: all `pickCity` tests PASS. No other failures.
 
 - [ ] **Step 1: Append fetch-mocked tests for `search` and `reverse`**
 
-Add this block at the end of the existing test file:
+The `vi.mock('#imports', ...)` block and the `useGeocoding` import are already at the top of the file from Task 2.2, Step 1 — you don't need to repeat them here. Just append the two new `describe` blocks to the end of the existing test file:
 
 ```ts
 // ── search + reverse: mocked fetch ───────────────────────────────────────
-
-// Stub #imports so useGeocoding's `useI18n` resolves inside vitest.
-vi.mock('#imports', () => {
-  return {
-    useI18n: () => ({
-      locale: { value: 'de' },
-    }),
-  }
-})
-
-// Re-import to get the hoisted-mocked version of the composable.
-// (Vitest hoists vi.mock() above imports, so the static import at
-// the top of this file already uses the mocked #imports.)
-import { useGeocoding } from '../useGeocoding'
 
 const originalFetch = globalThis.fetch
 
@@ -713,6 +709,12 @@ export function useGeocoding() {
   const { locale } = useI18n()
 
   function buildHeaders(): Record<string, string> {
+    // Note: browsers treat 'User-Agent' as a "forbidden header name" and silently
+    // drop it from fetch() requests — the browser's real UA is sent instead.
+    // We set it anyway for (a) documentation intent, (b) correctness in non-browser
+    // environments (Nuxt SSR, tests, a future Node-side caller), and (c) so the
+    // unit test can verify the policy-required UA is present in the code path.
+    // Nominatim's policy accepts browser-sent UAs for browser apps, so this is OK.
     return {
       'User-Agent': USER_AGENT,
       'Accept-Language': locale.value || 'en',
@@ -849,13 +851,18 @@ Goal: a self-contained reusable editor that exposes `v-model` for location data,
 
 Create a minimum viable component so the file exists and Vite/TypeScript can find it. We'll flesh out the map next.
 
+**Critical SSR note:** Leaflet touches `window`/`document` at module load time, so we **must not** import its default export at the top of the file — that would crash `npm run build` during SSR prerendering (Nuxt runs component modules on the server even if the parent wraps them in `<ClientOnly>`, which only skips *rendering*, not *module evaluation*). We therefore:
+
+1. Import Leaflet **types** only at the top (type imports are erased and SSR-safe).
+2. Dynamically `import('leaflet')` and `import('leaflet/dist/leaflet.css')` inside `onMounted`, which only runs on the client.
+
 ```vue
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useI18n } from '#imports'
 import { useGeocoding, pickCity, type GeocodingResult } from '~/composables/useGeocoding'
-import 'leaflet/dist/leaflet.css'
-import L from 'leaflet'
+// Type-only imports — erased at runtime, SSR-safe.
+import type { Map as LMap, Marker as LMarker, LeafletMouseEvent } from 'leaflet'
 
 export interface LocationModel {
   location_lat: number | null
@@ -885,18 +892,30 @@ const query = ref('')
 const results = ref<GeocodingResult[]>([])
 const searching = ref(false)
 const searchError = ref<string | null>(null)
+const hasSubmitted = ref(false)
 
-// Shared AbortController for in-flight requests
+// Shared AbortController — one in-flight request at a time across search/reverse
 let abortController: AbortController | null = null
 
-// Map state
+// Map state — populated in onMounted after dynamic Leaflet import
 const mapContainer = ref<HTMLDivElement | null>(null)
-let map: L.Map | null = null
-let marker: L.Marker | null = null
+let map: LMap | null = null
+let marker: LMarker | null = null
+// Holds the dynamically imported Leaflet default export so later functions can use it.
+// We type it as `typeof import('leaflet')` to get full type safety without a runtime import.
+let L: typeof import('leaflet') | null = null
+
+async function onSearchSubmit() {
+  // implemented in Task 3.3
+}
+
+function onPickResult(_r: GeocodingResult) {
+  // implemented in Task 3.3
+}
 
 // Lifecycle — stub for now, implemented in Task 3.2
-onMounted(() => {
-  // initMap()  — filled in Task 3.2
+onMounted(async () => {
+  // initMap() — filled in Task 3.2 (will perform the dynamic Leaflet import)
 })
 
 onBeforeUnmount(() => {
@@ -981,19 +1000,7 @@ onBeforeUnmount(() => {
 </template>
 ```
 
-Add a `hasSubmitted` ref and the `onSearchSubmit` / `onPickResult` stubs after `searchError`:
-
-```ts
-const hasSubmitted = ref(false)
-
-async function onSearchSubmit() {
-  // implemented in Task 3.3
-}
-
-function onPickResult(_r: GeocodingResult) {
-  // implemented in Task 3.3
-}
-```
+The `hasSubmitted` ref and the `onSearchSubmit` / `onPickResult` stubs are already in the consolidated script block above — there is no separate code block to paste. This keeps template bindings and their declarations in one place.
 
 - [ ] **Step 2: Type-check that the skeleton compiles**
 
@@ -1010,11 +1017,27 @@ Expected: no new errors. If Leaflet complains about types, make sure `@types/lea
 
 - [ ] **Step 1: Implement `initMap` with the three modes from the spec**
 
-Add an `initMap` function directly above `onMounted` and have `onMounted` call it:
+Add an `initMap` function directly above `onMounted` and have `onMounted` call it. Note that `initMap` is `async` and performs the dynamic Leaflet import before using `L`.
 
 ```ts
-function initMap() {
+async function initMap() {
   if (!mapContainer.value) return
+
+  // Dynamic imports — only run on the client, so SSR build won't touch window/document.
+  const leaflet = await import('leaflet')
+  await import('leaflet/dist/leaflet.css')
+  L = leaflet.default ?? (leaflet as unknown as typeof import('leaflet'))
+
+  // Fix for the well-known Leaflet + bundler marker-icon bug: the default icon URLs
+  // reference relative paths that Vite can't resolve. Point them at the bundled assets.
+  // (This only needs to happen once per page load.)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  delete (L.Icon.Default.prototype as any)._getIconUrl
+  L.Icon.Default.mergeOptions({
+    iconRetinaUrl: (await import('leaflet/dist/images/marker-icon-2x.png')).default,
+    iconUrl: (await import('leaflet/dist/images/marker-icon.png')).default,
+    shadowUrl: (await import('leaflet/dist/images/marker-shadow.png')).default,
+  })
 
   // Default: mid-Europe wide view, no pin
   let initialCenter: [number, number] = [51.0, 10.0]
@@ -1050,7 +1073,7 @@ function initMap() {
   }
 
   // Click on empty map places a pin and triggers reverse geocoding
-  map.on('click', (e: L.LeafletMouseEvent) => {
+  map.on('click', (e: LeafletMouseEvent) => {
     const { lat, lng } = e.latlng
     placePin(lat, lng)
     updateCoords(lat, lng)
@@ -1059,7 +1082,7 @@ function initMap() {
 }
 
 function placePin(lat: number, lng: number) {
-  if (!map) return
+  if (!map || !L) return
   if (marker) {
     marker.setLatLng([lat, lng])
   } else {
@@ -1104,11 +1127,11 @@ function applyGeocodingResult(r: GeocodingResult, opts: { keepCoords: boolean })
 }
 ```
 
-Then update `onMounted`:
+Then update `onMounted` — note that `initMap` is now async so the call must be fire-and-forget via `void`:
 
 ```ts
 onMounted(() => {
-  initMap()
+  void initMap()
 })
 ```
 
@@ -1210,13 +1233,15 @@ Goal: the picker is wrapped in a modal and connected to Supabase via a new compo
 ### Task 4.1: Add i18n keys
 
 **Files:**
-- Modify: `management-frontend/app/i18n/locales/de.json`
-- Modify: `management-frontend/app/i18n/locales/en.json`
+- Modify: `management-frontend/i18n/locales/de.json`
+- Modify: `management-frontend/i18n/locales/en.json`
+
+**Path note:** The locale files live at `management-frontend/i18n/locales/`, **not** `management-frontend/app/i18n/locales/`. The `i18n/` directory is a sibling of `app/`. Using the wrong path will silently `git add` nothing.
 
 - [ ] **Step 1: Locate the machineDetail-adjacent section in both files**
 
 ```bash
-cd management-frontend && grep -n '"machineDetail"' app/i18n/locales/de.json app/i18n/locales/en.json
+cd management-frontend && grep -n '"machineDetail"' i18n/locales/de.json i18n/locales/en.json
 ```
 
 Expected: one line per file.
@@ -1278,7 +1303,7 @@ Add this object as a sibling of `machineDetail` (typically immediately after it;
 - [ ] **Step 4: Verify JSON validity**
 
 ```bash
-cd management-frontend && node -e "JSON.parse(require('fs').readFileSync('app/i18n/locales/de.json','utf8'))" && node -e "JSON.parse(require('fs').readFileSync('app/i18n/locales/en.json','utf8'))" && echo OK
+cd management-frontend && node -e "JSON.parse(require('fs').readFileSync('i18n/locales/de.json','utf8'))" && node -e "JSON.parse(require('fs').readFileSync('i18n/locales/en.json','utf8'))" && echo OK
 ```
 
 Expected: `OK` printed, no parse errors.
@@ -1286,7 +1311,7 @@ Expected: `OK` printed, no parse errors.
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /Users/lucienkerl/Development/mdb-esp32-cashless && git add management-frontend/app/i18n/locales/de.json management-frontend/app/i18n/locales/en.json && git commit -m "$(cat <<'EOF'
+cd /Users/lucienkerl/Development/mdb-esp32-cashless && git add management-frontend/i18n/locales/de.json management-frontend/i18n/locales/en.json && git commit -m "$(cat <<'EOF'
 feat(i18n): add machineSettings keys for location editor
 
 Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
@@ -1299,9 +1324,11 @@ EOF
 **Files:**
 - Modify: `management-frontend/app/composables/useMachines.ts`
 
-- [ ] **Step 1: Add the helper function near `createMachine`**
+**Critical TypeScript note:** `export interface` declarations can only appear at **module level** — they are a syntax error if placed inside a function body. The `useMachines()` composable is itself a function (`export function useMachines() { ... }`), so `MachineSettingsPatch` and `CreateMachineLocation` must be declared OUTSIDE it, near the other module-level interfaces at the top of the file (around lines 4-57). The functions that use them (`updateMachineSettings`, the extended `createMachine`) go INSIDE `useMachines()` as before.
 
-Insert this function right after the existing `createMachine`:
+- [ ] **Step 1: Add the two interfaces at module level**
+
+Near the top of `useMachines.ts`, after the existing `interface VendingMachine { ... }` and `interface PendingToken { ... }` declarations (and before `export function useMachines()`), add:
 
 ```ts
 export interface MachineSettingsPatch {
@@ -1315,6 +1342,21 @@ export interface MachineSettingsPatch {
   country_code: string | null
 }
 
+/**
+ * Location payload for createMachine(). Narrows location_lat/location_lon to
+ * non-null since a machine is only created "with location" when a pin was placed.
+ */
+export type CreateMachineLocation = Omit<MachineSettingsPatch, 'location_lat' | 'location_lon'> & {
+  location_lat: number
+  location_lon: number
+}
+```
+
+- [ ] **Step 2: Add `updateMachineSettings` inside `useMachines()`**
+
+Inside the `useMachines()` function body, directly after the existing `createMachine` function, add:
+
+```ts
 async function updateMachineSettings(machineId: string, patch: MachineSettingsPatch): Promise<void> {
   const supabase = useSupabaseClient()
   const { error } = await supabase
@@ -1338,15 +1380,15 @@ async function updateMachineSettings(machineId: string, patch: MachineSettingsPa
 }
 ```
 
-- [ ] **Step 2: Extend `createMachine` to accept an optional location**
+- [ ] **Step 3: Extend `createMachine` to accept an optional location**
 
-Replace the existing function body:
+Replace the existing `createMachine` function body (inside `useMachines()`) with:
 
 ```ts
 async function createMachine(
   name: string,
   companyId: string,
-  location?: MachineSettingsPatch & { location_lat: number; location_lon: number },
+  location?: CreateMachineLocation,
 ): Promise<void> {
   const supabase = useSupabaseClient()
   const insertRow: Record<string, any> = { name, company: companyId }
@@ -1366,7 +1408,7 @@ async function createMachine(
 }
 ```
 
-- [ ] **Step 3: Export `updateMachineSettings` from `useMachines()`**
+- [ ] **Step 4: Export `updateMachineSettings` from the `useMachines()` return object**
 
 Extend the return object at the bottom of `useMachines()`:
 
@@ -1378,9 +1420,9 @@ return {
 }
 ```
 
-Also export the `MachineSettingsPatch` type at module level if it's not already exported (the `export interface` declaration in Step 1 handles that).
+The type exports (`MachineSettingsPatch`, `CreateMachineLocation`) are already visible to consumers via the module-level `export interface` / `export type` in Step 1 — no change needed to the return object for those.
 
-- [ ] **Step 4: TypeScript check**
+- [ ] **Step 5: TypeScript check**
 
 ```bash
 cd management-frontend && npx vue-tsc --noEmit 2>&1 | tail -20
@@ -1533,6 +1575,8 @@ EOF
 
 - [ ] **Step 1: Create the file**
 
+**COUNTRY_OPTIONS source:** Do NOT inline a copy of the country list. The canonical list is exported from `~/composables/useTaxSettings` (`export const COUNTRY_OPTIONS = [...]`). Import it directly so the modal stays in sync with the rest of the app. The current `app/pages/machines/[id].vue` page uses a dynamic `await import('~/composables/useTaxSettings')` — in a fresh component like this modal, use a regular static import.
+
 ```vue
 <script setup lang="ts">
 import { ref, watch } from 'vue'
@@ -1546,23 +1590,7 @@ import {
 } from '~/components/ui/dialog'
 import LocationPicker, { type LocationModel } from '~/components/LocationPicker.vue'
 import { useMachines, type MachineSettingsPatch } from '~/composables/useMachines'
-
-// Country option list — copy the existing COUNTRY_OPTIONS structure from
-// app/pages/machines/[id].vue. If that file exports it, import instead.
-const COUNTRY_OPTIONS: { code: string; label: string }[] = [
-  { code: 'DE', label: 'Deutschland' },
-  { code: 'AT', label: 'Österreich' },
-  { code: 'CH', label: 'Schweiz' },
-  { code: 'FR', label: 'France' },
-  { code: 'IT', label: 'Italia' },
-  { code: 'NL', label: 'Nederland' },
-  { code: 'BE', label: 'België' },
-  { code: 'LU', label: 'Luxembourg' },
-  { code: 'PL', label: 'Polska' },
-  { code: 'CZ', label: 'Česko' },
-  { code: 'ES', label: 'España' },
-  { code: 'GB', label: 'United Kingdom' },
-]
+import { COUNTRY_OPTIONS } from '~/composables/useTaxSettings'
 
 const props = defineProps<{
   open: boolean
@@ -1752,8 +1780,63 @@ Goal: users can actually open the modal, edit location, and create machines with
 
 **Files:**
 - Modify: `management-frontend/app/pages/machines/[id].vue`
+- Modify: `management-frontend/i18n/locales/de.json`
+- Modify: `management-frontend/i18n/locales/en.json`
 
-- [ ] **Step 1: Import the new components and modal state**
+**Key facts from the codebase (verified):**
+- No `refreshMachine` function exists. The machine fetch is currently inlined in `onMounted` (~line 177), `onResume` (~line 166), and after updates (~lines 407 and 438). We will extract it into a named `fetchMachine()` function in Step 1, then call it from the `@saved` handler and the three existing inline call sites.
+- The existing ⚙ button that opens `showDeviceInfoModal` lives inside the `<template v-if="machine.embeddeds">` branch (around line 1160). Machines **without** an embedded device render the `<template v-else>` branch (around line 1195) and currently have no gear button at all. The new DropdownMenu must be accessible in **both** branches, otherwise admins cannot edit the location of an unassigned machine. We'll add the DropdownMenu as a shared header element outside both `v-if`/`v-else` branches, or duplicate it in both.
+- The i18n locale files live at `management-frontend/i18n/locales/`, **not** `management-frontend/app/i18n/locales/`.
+- The top-level `"settings"` key already exists in `de.json` (line ~444). The new key we add is `machineDetail.settings`, scoped under the existing `machineDetail` object — **not** at the top level.
+
+- [ ] **Step 1: Extract a named `fetchMachine()` function**
+
+Find the existing inline machine-fetch block inside `onMounted` around line 177:
+
+```ts
+onMounted(async () => {
+  // ... (existing async logic that calls supabase.from('vendingMachine').select(...).eq('id', route.params.id).single() and assigns machine.value = data)
+})
+```
+
+Extract the body of the fetch into a named async function at the top of `<script setup>` (near the other helper functions):
+
+```ts
+async function fetchMachine() {
+  const supabase = useSupabaseClient()
+  const { data, error } = await supabase
+    .from('vendingMachine')
+    .select('id, name, location_lat, location_lon, embedded, country_code, address_street, address_house_number, address_postal_code, address_city, formatted_address, embeddeds(id, status, status_at, subdomain, mac_address, firmware_version, firmware_build_date, mdb_address, mdb_diagnostics, last_restart_reason, last_restart_at, online_since)')
+    .eq('id', route.params.id)
+    .single()
+  if (error) {
+    errorMsg.value = error.message
+    return
+  }
+  if (data) machine.value = data as any
+}
+```
+
+Use the exact SELECT string that the existing inline fetch uses (including `mdb_address` and all the embedded fields Task 1.3 already extended). Verify by grepping:
+
+```bash
+cd management-frontend && grep -n "location_lat, location_lon" app/pages/machines/\[id\].vue
+```
+
+Pick whichever of the 4 existing SELECT strings you extracted — they should all already include the new address fields after Task 1.3.
+
+Then update `onMounted` to call the extracted function:
+
+```ts
+onMounted(async () => {
+  await fetchMachine()
+  // ... any other logic that was in the existing onMounted stays
+})
+```
+
+Also replace the two other inline fetches in the file (around lines 407 and 438 — find them by grepping for `machine.value = data` or `machine.value = machineData`) with `await fetchMachine()` calls, unless they have materially different logic (in which case leave them alone and document the exception in the commit message).
+
+- [ ] **Step 2: Import the new components and modal state**
 
 In the `<script setup>` block, add the new imports near the existing component imports:
 
@@ -1773,15 +1856,27 @@ Then add the new reactive state near other `ref()` declarations (e.g., after `sh
 const showMachineSettingsModal = ref(false)
 ```
 
-- [ ] **Step 2: Remove the inline country_code dropdown from the header**
+- [ ] **Step 3: Remove the inline country_code dropdown from the header**
 
 Find the block that renders a `<select>` bound to `machine.country_code` and calls `updateMachineCountry` (identified by the `@change="updateMachineCountry(...)"` handler). Delete the entire `<div class="mt-1.5 flex items-center gap-2">…</div>` block that wraps the label + select.
 
 Also delete the `updateMachineCountry` function in `<script setup>` — it's replaced by `updateMachineSettings` via the modal.
 
-- [ ] **Step 3: Replace the ⚙ button with a DropdownMenu**
+**Check for orphaned `COUNTRY_OPTIONS`:** After removing the inline select, grep to see if `COUNTRY_OPTIONS` is still referenced anywhere in `[id].vue`:
 
-Find the existing button that sets `showDeviceInfoModal = true` (the gear icon, identified by `:title="t('machineDetail.deviceDetails')"`). Replace it with:
+```bash
+cd management-frontend && grep -n "COUNTRY_OPTIONS" app/pages/machines/\[id\].vue
+```
+
+If the only remaining reference is the dynamic `await import('~/composables/useTaxSettings')` statement (which existed only to feed the select we just deleted), delete that import line as well. If there are other references, leave them.
+
+- [ ] **Step 4: Replace the ⚙ button with a DropdownMenu (accessible in both branches)**
+
+Find the existing `<template v-if="machine.embeddeds">` branch that contains the gear icon button setting `showDeviceInfoModal = true`. The `<template v-else>` branch around line 1195 does NOT currently have a gear button — admins editing an unassigned machine have no header controls other than "Assign device".
+
+Do the replacement in two steps:
+
+**Step 4a:** In the `v-if="machine.embeddeds"` branch, replace the existing gear button with the DropdownMenu:
 
 ```vue
 <DropdownMenu>
@@ -1804,7 +1899,27 @@ Find the existing button that sets `showDeviceInfoModal = true` (the gear icon, 
 </DropdownMenu>
 ```
 
-- [ ] **Step 4: Make the coordinates text clickable**
+**Step 4b:** In the `<template v-else>` branch (the "no embedded device" case), add a smaller DropdownMenu that only has the settings entry:
+
+```vue
+<DropdownMenu v-if="isAdmin">
+  <DropdownMenuTrigger as-child>
+    <button
+      class="inline-flex h-8 w-8 items-center justify-center rounded-md border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+      :title="t('machineDetail.settings')"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+    </button>
+  </DropdownMenuTrigger>
+  <DropdownMenuContent align="end">
+    <DropdownMenuItem @click="showMachineSettingsModal = true">
+      {{ t('machineSettings.title') }}
+    </DropdownMenuItem>
+  </DropdownMenuContent>
+</DropdownMenu>
+```
+
+- [ ] **Step 5: Make the coordinates text clickable**
 
 Find the existing `<p>` that renders `machine.location_lat.toFixed(5)`. Wrap it in a `<button>` so it also opens the settings modal when clicked. Keep it visually the same (no underline, same color) but add `@click="isAdmin && (showMachineSettingsModal = true)"` and a `cursor-pointer` class when `isAdmin`.
 
@@ -1819,7 +1934,7 @@ Find the existing `<p>` that renders `machine.location_lat.toFixed(5)`. Wrap it 
 </p>
 ```
 
-- [ ] **Step 5: Render the modal at the bottom of the template**
+- [ ] **Step 6: Render the modal at the bottom of the template**
 
 Just before the closing `</template>` of the main page template, add:
 
@@ -1838,42 +1953,62 @@ Just before the closing `</template>` of the main page template, add:
     formatted_address: (machine as any).formatted_address ?? null,
     country_code: machine.country_code,
   }"
-  @saved="refreshMachine"
+  @saved="fetchMachine"
 />
 ```
 
-(The `refreshMachine` function already exists in `[id].vue`; if it's named differently, pick the one that re-fetches the page's `machine` ref.)
+- [ ] **Step 7: Add the `machineDetail.settings` i18n key**
 
-- [ ] **Step 6: Add the i18n key for the settings label**
+**Scope warning:** Both locale files already have a top-level `"settings"` key (e.g. `de.json` line ~444). The new key we're adding is `machineDetail.settings` — it goes **inside** the existing `machineDetail` object, NOT at the top level. Adding it at the top level would shadow nothing (the top-level `"settings"` is a different namespace) but would also make `t('machineDetail.settings')` fall back to an empty string.
 
-In both locale files, add `"settings": "Einstellungen"` / `"settings": "Settings"` under the existing `machineDetail` object so the gear button's tooltip resolves:
+In `management-frontend/i18n/locales/de.json`, locate the existing `"machineDetail": { ... }` object and add `"settings": "Einstellungen"` as a new property (for example, right before the closing brace of that object):
 
 ```json
 "machineDetail": {
-  ...
-  "settings": "Einstellungen",  // de.json
-  ...
+  ...existing keys...,
+  "settings": "Einstellungen"
 }
 ```
 
-- [ ] **Step 7: Type-check**
+Same for `management-frontend/i18n/locales/en.json`:
+
+```json
+"machineDetail": {
+  ...existing keys...,
+  "settings": "Settings"
+}
+```
+
+Verify JSON validity:
+
+```bash
+cd management-frontend && node -e "JSON.parse(require('fs').readFileSync('i18n/locales/de.json','utf8'))" && node -e "JSON.parse(require('fs').readFileSync('i18n/locales/en.json','utf8'))" && echo OK
+```
+
+Expected: `OK`.
+
+- [ ] **Step 8: Type-check**
 
 ```bash
 cd management-frontend && npx vue-tsc --noEmit 2>&1 | tail -30
 ```
 
-Expected: no new errors. (You may see existing type errors in `[id].vue` due to the `as any` casts on the new fields — that's consistent with the file's existing style and acceptable.)
+Expected: no new errors. (You may see existing type errors in `[id].vue` due to the `as any` casts on the new fields — that's consistent with the file's existing style and acceptable. If Task 1.2's interface extension is complete, you can drop the `as any` casts on the `:initial` prop binding since the new fields are now properly typed — optional cleanup.)
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
-cd /Users/lucienkerl/Development/mdb-esp32-cashless && git add management-frontend/app/pages/machines/\[id\].vue management-frontend/app/i18n/locales/de.json management-frontend/app/i18n/locales/en.json && git commit -m "$(cat <<'EOF'
+cd /Users/lucienkerl/Development/mdb-esp32-cashless && git add management-frontend/app/pages/machines/\[id\].vue management-frontend/i18n/locales/de.json management-frontend/i18n/locales/en.json && git commit -m "$(cat <<'EOF'
 feat(frontend): wire MachineSettingsModal into machine detail page
 
+- Extract inline machine fetch into a named fetchMachine() function
 - Replace ⚙ icon with DropdownMenu (Automat-Einstellungen + Device-Info)
+  in both the "has-embedded" and "no-embedded" header branches so
+  admins can edit location on unassigned machines too
 - Remove inline country_code dropdown from header (moved into modal)
 - Make coordinates display clickable (admin-only shortcut to modal)
-- Modal pre-fills from current machine row and refreshes on save
+- Modal pre-fills from current machine row and refreshes via fetchMachine
+- Add machineDetail.settings i18n key (scoped under existing machineDetail)
 
 Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
 EOF
@@ -2013,13 +2148,15 @@ EOF
 
 Run the dev server and walk through every item from the spec's Verification Plan. For each item, tick the box once you've confirmed it passes.
 
-- [ ] **Step 1: Start the dev server**
+- [ ] **Step 1: Start the dev server in the background**
+
+Use `preview_start` (from the preview tools skill) if available, otherwise run the dev server in its own terminal so the rest of the verification steps can run commands like `npm run build` without fighting the dev server for the `.output/` directory:
 
 ```bash
 cd management-frontend && npm run dev
 ```
 
-Leave it running. Open http://localhost:3000 (or the LAN IP that gets printed).
+Leave it running. Open http://localhost:3000 (or the LAN IP that gets printed). When Step 4 below runs a build, stop the dev server first (Ctrl-C), run the build, then restart dev.
 
 - [ ] **Step 2: (Verification 1) Migration applied**
 
@@ -2032,21 +2169,23 @@ Confirm an existing ESP32 device can still publish `sale` events:
 - Trigger a vend on a physical device (or simulate with the master ESP32 or a manual MQTT publish).
 - Expected: the sale row still gets inserted, `machine_id` populated correctly, and the machines list reflects today's revenue.
 
-If no physical hardware is available, skip the hardware test and instead confirm via grep that no migration/edge-function changed any MQTT topic or payload format:
+If no physical hardware is available, skip the hardware test and instead confirm that this feature did not modify any edge function, MQTT forwarder, or firmware file:
 
 ```bash
-grep -r "address_street\|address_city\|formatted_address" Docker/supabase/functions/ 2>&1
+cd /Users/lucienkerl/Development/mdb-esp32-cashless && git diff main..HEAD -- Docker/supabase/functions/ Docker/mqtt/ mdb-slave-esp32s3/ mdb-master-esp32s3/ 2>&1 | head -5
 ```
 
-Expected: no matches (edge functions untouched).
+Expected: empty diff (no lines). This proves the plan only touched the frontend + one additive DB migration, so existing firmware and edge functions are byte-for-byte unchanged.
 
 - [ ] **Step 4: (Verification 3) Build succeeds, Leaflet is code-split**
 
+Stop the dev server first (Ctrl-C), then:
+
 ```bash
-cd management-frontend && npm run build 2>&1 | tail -20 && ls -lh .output/public/_nuxt/ 2>/dev/null | grep -i leaflet
+cd management-frontend && npm run build 2>&1 | tail -20 && find .output/public -name '*leaflet*' 2>/dev/null
 ```
 
-Expected: build succeeds; a `leaflet.*.js` chunk appears in the output directory. Exact name/path depends on Nitro config.
+Expected: build succeeds; one or more `*leaflet*.js` chunks appear under `.output/public/`. Exact name/path depends on Nitro/Vite chunk hashing — `find` is more reliable than assuming a fixed path. Restart `npm run dev` afterwards to continue verification.
 
 - [ ] **Step 5: (Verification 4) SSR render**
 
@@ -2086,17 +2225,32 @@ If no iPhone is available, skip and mark as "N/A — to verify on staging".
 
 - [ ] **Step 11: (Verification 11) Offline behavior**
 
-In DevTools → Network → set to Offline. Open the settings modal, try to search. Expected:
-- Map tiles render as a gray grid
-- Search shows the geocoding error inline
-- A machine that already had coords can still be saved (the UPDATE won't go through while offline — that's expected; verify that the save button is non-destructive: it shows an error and keeps the modal open)
+In DevTools → Network → set to Offline. Open the settings modal. Verify each sub-assertion:
+
+- **(a) Map tiles:** Leaflet renders a gray grid where tiles would be.
+- **(b) Search:** Type a query and click Search. Expected: inline error "Suchdienst temporär nicht verfügbar" appears; no results list; no crash.
+- **(c) Save click fails gracefully:** On a machine that already has coords, click Save. Expected: `updateMachineSettings` throws (network unreachable), the modal stays open, an error message appears in the modal footer.
+- **(d) Re-enabling network recovers:** Switch DevTools Network back to Online. Click Save again. Expected: the update goes through, modal closes, data is persisted. No double-submit bugs.
 
 - [ ] **Step 12: (Verification 12) Permission check**
 
-Log in as a `viewer` (non-admin) user. Navigate to a machine detail. Expected:
-- The ⚙ dropdown either shows no "Automat-Einstellungen" item, or the whole dropdown is hidden.
-- The coordinates under the name are NOT clickable.
-- Try to call `updateMachineSettings` directly in the DevTools console — it should throw an RLS error.
+Log in as a `viewer` (non-admin) user. Navigate to a machine detail. Verify each sub-assertion:
+
+- **(a) Dropdown UI:** Open the ⚙ dropdown. Expected: "Automat-Einstellungen" menu item is hidden (or the whole dropdown is hidden on machines without an embedded device). Only "Device-Info" is visible on machines that have one.
+- **(b) Coordinates not clickable:** Hover the coordinates text under the machine name. Expected: no pointer cursor, no hover transition, clicks do nothing.
+- **(c) Direct API call is rejected:** Open the Vue DevTools (or `window.__NUXT__` in the browser console), find the machines list page's component instance, and from the Console tab run:
+
+  ```js
+  // In DevTools console — grab the page-level composable via `$nuxt` if exposed, or
+  // just call supabase directly to prove the RLS policy blocks a non-admin update.
+  const sb = window.$nuxt.$supabase ?? window.useNuxtApp?.().$supabase
+  // If neither is exposed, instead: open the Supabase Studio SQL editor as the viewer
+  // user's JWT and run:
+  //   update public."vendingMachine" set address_city = 'HACK' where id = '<some-id>';
+  // Expected: RLS policy "vendingmachine_update" rejects the query.
+  ```
+
+  Easier alternative: use Postman or `curl` with the viewer's access token against the Supabase PostgREST API and confirm a 403/401 on a PATCH to `/rest/v1/vendingMachine?id=eq.<id>`. Expected: non-2xx with an RLS error in the body.
 
 - [ ] **Step 13: (Verification 13) No autocomplete regression**
 
