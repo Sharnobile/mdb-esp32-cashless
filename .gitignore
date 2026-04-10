@@ -4,6 +4,9 @@ kicad/**/fp-info-cache
 kicad/**/*.lck
 kicad/**/*_prl
 
+# Xcode per-user UI state (Apple standard: never commit)
+**/xcuserdata/
+
 Docker/vuejs/package-lock.json
 
 **/managed_components
