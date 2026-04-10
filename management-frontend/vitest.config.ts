@@ -14,6 +14,8 @@ export default defineConfig({
   resolve: {
     alias: {
       '#imports': resolve(__dirname, 'app/test-helpers/nuxt-stubs.ts'),
+      '@': resolve(__dirname, 'app'),
+      '~': resolve(__dirname, 'app'),
     },
   },
 })
