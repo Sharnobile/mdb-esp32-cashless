@@ -38,8 +38,8 @@ All loops closed.
 
 ### Git State
 Branch: main
-Last commit: ba0a1ef feat(mobile-payment)
-Uncommitted: Phase 16 (all 4 plans) — will commit as part of transition
+Last commit: b1e8636 feat(public-discovery)
+Feature branches merged: none
 
 ### Deferred Issues
 - `supabase db reset` does not work locally — pre-existing issue
