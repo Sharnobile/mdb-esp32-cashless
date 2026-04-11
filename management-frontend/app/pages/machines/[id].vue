@@ -991,7 +991,7 @@ function resetAddSaleForm() {
   addSaleForm.item_number = null
   addSaleForm.item_price = 0
   addSaleForm.channel = 'cash'
-  addSaleForm.created_at = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+  addSaleForm.created_at = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 19)
 }
 
 function openAddSaleModal() {
@@ -2119,6 +2119,7 @@ async function handleAddSale() {
             <input
               v-model="addSaleForm.created_at"
               type="datetime-local"
+              step="1"
               class="h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             />
             <p class="mt-1 text-xs text-muted-foreground">{{ t('machineDetail.saleDateHint') }}</p>
