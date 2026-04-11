@@ -109,6 +109,21 @@ supabase start    # starts local Supabase on ports 54321 (API), 54322 (DB), 5432
 supabase db reset # re-runs all migrations + seed
 ```
 
+### Database Migrations (IMMUTABLE)
+
+**Migrations in `Docker/supabase/migrations/*.sql` are immutable once committed to `main`.** Never edit an existing migration file after it has been pushed — always create a new migration with a later timestamp instead.
+
+**Why this matters**: `Docker/update.sh` tracks applied migrations by filename (in `public._migrations`), not by content hash. Editing an already-applied migration leaves every existing database running the OLD version while git source carries the NEW one — a silent divergence that stays latent until the buggy code path is finally executed. This happened once (2026-04-11) with `20260406000000_tax_infrastructure.sql`: the `stamp_machine_and_decrement_stock` trigger was first committed with `ROUND(NEW.item_price / ...)` where `item_price` is `float8` (producing the runtime error `function round(double precision, integer) does not exist`), and later the same file was edited in commit `69effe6` to add `::numeric` casts. Every DB that had already applied the first version kept the buggy trigger; the bug only surfaced days later when the first sale satisfied the `v_tax_rate IS NOT NULL` guard, killing the MQTT sales pipeline for ~24h.
+
+**How to fix a bug in an existing migration:**
+
+1. Leave the old migration file untouched
+2. Create a new migration `YYYYMMDDHHMMSS_fix_<short_description>.sql` with a higher timestamp
+3. Use idempotent operations: `CREATE OR REPLACE FUNCTION`, `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`, `DROP TRIGGER IF EXISTS` / `CREATE TRIGGER`, etc.
+4. The new migration will automatically be applied by `update.sh` on every existing installation and is a no-op on fresh installs that already got the fixed version via ordered apply
+
+**Enforcement:** `.githooks/pre-commit` rejects staged changes to migration files that already exist on `origin/main`. Install once per clone with `scripts/install-git-hooks.sh` (sets `core.hooksPath`). To intentionally bypass — only when you are certain the migration has never been applied anywhere (e.g. you created it in the same uncommitted session) — commit with `--no-verify`.
+
 ### Database Schema
 
 Multi-tenancy model: users belong to `companies` via `organization_members`. All RLS policies use the helper functions `my_company_id()` and `i_am_admin()` which read from `organization_members` for the current JWT user.

@@ -1,0 +1,101 @@
+#!/usr/bin/env bash
+#
+# pre-commit hook: enforce database migration immutability.
+#
+# Reject any staged change that MODIFIES a migration file in
+# Docker/supabase/migrations/ that already exists on origin/main (or main).
+#
+# Migrations are tracked by filename in public._migrations — editing an
+# already-applied migration leaves existing DBs on the old version while
+# git source carries the new one, producing silent divergence.
+# History: on 2026-04-11 this exact pattern broke the entire MQTT sales
+# pipeline for ~24h via the stamp_machine_and_decrement_stock trigger in
+# 20260406000000_tax_infrastructure.sql.
+#
+# To install: bash scripts/install-git-hooks.sh   (sets core.hooksPath)
+# To bypass intentionally: git commit --no-verify
+
+set -euo pipefail
+
+# Collect staged modifications to migration files.
+# --diff-filter=M → only existing files being modified (not added / deleted / renamed)
+MODIFIED_MIGRATIONS=$(
+  git diff --cached --name-only --diff-filter=M \
+    | grep -E '^Docker/supabase/migrations/[0-9]+_.*\.sql$' \
+    || true
+)
+
+if [ -z "$MODIFIED_MIGRATIONS" ]; then
+  exit 0
+fi
+
+# For each modified migration, check whether it exists on origin/main or main.
+# If it does, it's already been pushed and is therefore immutable.
+declare -a BLOCKED=()
+while IFS= read -r file; do
+  [ -z "$file" ] && continue
+  if git cat-file -e "origin/main:$file" 2>/dev/null; then
+    BLOCKED+=("$file")
+  elif git cat-file -e "main:$file" 2>/dev/null; then
+    BLOCKED+=("$file")
+  fi
+done <<< "$MODIFIED_MIGRATIONS"
+
+if [ ${#BLOCKED[@]} -eq 0 ]; then
+  exit 0
+fi
+
+# RED / BOLD / RESET for terminals that support it
+R=$'\033[0;31m'
+B=$'\033[1m'
+Y=$'\033[1;33m'
+N=$'\033[0m'
+
+cat >&2 <<EOF
+
+${R}${B}✖  Migration immutability violation${N}
+
+You are trying to edit migration file(s) that already exist on
+${B}origin/main${N} (or ${B}main${N}). Migrations are immutable once pushed to
+main, because they may already be applied in production databases
+that track them by filename. Editing such a file creates a silent
+divergence between git source and running DBs.
+
+Blocked file(s):
+EOF
+
+for f in "${BLOCKED[@]}"; do
+  printf "   ${Y}•${N} %s\n" "$f" >&2
+done
+
+cat >&2 <<'EOF'
+
+How to fix instead:
+  1. Leave the existing migration file untouched
+  2. Create a new file in Docker/supabase/migrations/ with a later
+     timestamp, e.g. 20260411120000_fix_<topic>.sql
+  3. Use idempotent DDL:
+       CREATE OR REPLACE FUNCTION ...
+       ALTER TABLE ... ADD COLUMN IF NOT EXISTS ...
+       DROP TRIGGER IF EXISTS ...; CREATE TRIGGER ...
+  4. Commit the new migration — update.sh will auto-apply it on every
+     existing installation; fresh installs apply it in timestamp order
+     after the original, ending up at the same correct state.
+
+Background: this hook was added after an incident on 2026-04-11 where
+the stamp_machine_and_decrement_stock trigger in
+20260406000000_tax_infrastructure.sql was first committed with a
+latent ROUND(float8, integer) bug, then the same file was edited in
+commit 69effe6 to add ::numeric casts. Every DB that had already run
+the first version silently kept the buggy trigger while git source
+carried the fix, killing the entire MQTT sales pipeline for ~24h.
+
+If you are ABSOLUTELY CERTAIN this migration has never been applied
+anywhere (e.g. you created it in the same uncommitted session and
+no one else has pulled your branch), bypass with:
+
+    git commit --no-verify
+
+EOF
+
+exit 1
