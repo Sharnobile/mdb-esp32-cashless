@@ -2673,6 +2673,20 @@ void app_main(void) {
 		.session.last_will.msg = "offline",
 		.session.last_will.qos = 1,
 		.session.last_will.retain = 1,
+		/* MQTT-level keepalive: client sends PINGREQ every 60s; if the broker
+		 * fails to answer with PINGRESP within ~1.5x keepalive (~90s) the
+		 * client closes the socket and fires MQTT_EVENT_DISCONNECTED, which
+		 * the watchdog (mqtt_watchdog_cb) then picks up.
+		 *
+		 * We set this explicitly instead of relying on the ESP-IDF default
+		 * (120s) so the dead-connection detection window is bounded and
+		 * doesn't shift silently between IDF versions. */
+		.session.keepalive = 60,
+		.session.disable_keepalive = false,
+		/* Tighter network timeouts so a half-open TCP connection or a
+		 * stalled DNS lookup fails fast and the watchdog can react. */
+		.network.timeout_ms = 10000,
+		.network.reconnect_timeout_ms = 5000,
 	};
 
 	mqtt_publish_mutex = xSemaphoreCreateMutex();
