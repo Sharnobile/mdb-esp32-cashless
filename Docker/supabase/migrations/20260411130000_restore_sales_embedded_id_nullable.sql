@@ -1,0 +1,30 @@
+-- =========================================================
+-- Fix: restore sales.embedded_id nullability
+--
+-- Background:
+-- The initial schema in 20260101000000_initial_schema.sql declared
+-- sales.embedded_id as plain-nullable:
+--   embedded_id uuid references public.embeddeds(id) on delete cascade
+-- Later 20260301400000_device_delete_fks.sql changed the FK action to
+-- ON DELETE SET NULL, which itself requires the column to be nullable.
+-- 20260403000000_manual_sales_management.sql introduced insert_manual_sale()
+-- which deliberately sets only machine_id on the INSERT and relies on
+-- embedded_id being NULL-able so that manually-backfilled sales can be
+-- recorded for machines that had no device attribution at the time.
+--
+-- On at least one production database sales.embedded_id had drifted to
+-- NOT NULL, with no migration in git history adding that constraint.
+-- The likely source is a manual ALTER via psql / Studio at some point,
+-- or an out-of-git historical schema. The drift stayed dormant because
+-- every device sale via mqtt-webhook sets embedded_id, and insert_manual_sale
+-- hadn't been exercised until a production sales backlog triggered manual
+-- backfill on 2026-04-11, at which point every attempt failed with:
+--   23502: null value in column "embedded_id" of relation "sales"
+--          violates not-null constraint
+--
+-- This migration restores the intended state. ALTER COLUMN ... DROP NOT NULL
+-- is idempotent: it is a no-op on any database that already has the column
+-- nullable (which is what git source has intended all along).
+-- =========================================================
+
+ALTER TABLE public.sales ALTER COLUMN embedded_id DROP NOT NULL;
