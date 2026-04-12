@@ -1,5 +1,17 @@
 import Foundation
 
+/// Product info joined from the snapshotted product_id FK on sales.
+/// Available when the sales query includes `products(name, image_path)`.
+struct SaleProduct: Codable, Equatable {
+    let name: String?
+    let imagePath: String?
+
+    enum CodingKeys: String, CodingKey {
+        case name
+        case imagePath = "image_path"
+    }
+}
+
 /// A vend event. Maps to the `sales` table.
 /// Prices are in EUR (not cents).
 struct Sale: Codable, Identifiable, Equatable {
@@ -10,14 +22,18 @@ struct Sale: Codable, Identifiable, Equatable {
     let itemPrice: Double?
     let itemNumber: Int?
     let channel: String?
+    let productId: UUID?
+    /// Nested product from PostgREST FK join (available when select includes `products(name, image_path)`)
+    let products: SaleProduct?
 
     enum CodingKeys: String, CodingKey {
-        case id, channel
+        case id, channel, products
         case createdAt = "created_at"
         case machineId = "machine_id"
         case embeddedId = "embedded_id"
         case itemPrice = "item_price"
         case itemNumber = "item_number"
+        case productId = "product_id"
     }
 
     /// Formatted price string in EUR.

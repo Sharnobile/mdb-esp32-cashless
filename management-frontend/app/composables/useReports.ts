@@ -76,13 +76,15 @@ export function useReports() {
       const supabase = useSupabaseClient()
 
       // Fetch sales with machine name via join
+      // Fetch sales with product (via snapshotted product_id FK) and machine name
       const { data, error } = await supabase
         .from('sales')
         .select(`
           id, created_at, item_price, item_number, channel,
           tax_rate_snapshot, tax_amount, price_net,
-          machine_id,
-          vendingMachine!inner(name)
+          machine_id, product_id,
+          vendingMachine!inner(name),
+          products(name, image_path, product_category(name))
         `)
         .gte('created_at', `${dateFrom.value}T00:00:00`)
         .lte('created_at', `${dateTo.value}T23:59:59`)
@@ -92,15 +94,17 @@ export function useReports() {
       if (error) throw error
 
       const rawSales = (data ?? []) as any[]
-      const machineIds = [...new Set(rawSales.map(s => s.machine_id).filter(Boolean))]
 
-      // Batch fetch tray → product → category mappings for all machines
+      // Fallback: batch fetch tray → product for old sales with NULL product_id
+      const salesWithoutProduct = rawSales.filter(s => !s.product_id && s.machine_id)
+      const fallbackMachineIds = [...new Set(salesWithoutProduct.map(s => s.machine_id))]
+
       let trayMap = new Map<string, { product_name: string | null; category_name: string | null }>()
-      if (machineIds.length > 0) {
+      if (fallbackMachineIds.length > 0) {
         const { data: trays } = await supabase
           .from('machine_trays')
           .select('machine_id, item_number, products(name, product_category(name))')
-          .in('machine_id', machineIds)
+          .in('machine_id', fallbackMachineIds)
 
         for (const tray of (trays ?? []) as any[]) {
           const key = `${tray.machine_id}:${tray.item_number}`
@@ -112,16 +116,16 @@ export function useReports() {
       }
 
       sales.value = rawSales.map(s => {
-        const trayKey = `${s.machine_id}:${s.item_number}`
-        const trayInfo = trayMap.get(trayKey)
+        // Prefer product from snapshotted FK join, fallback to tray lookup for old sales
+        const trayInfo = !s.product_id ? trayMap.get(`${s.machine_id}:${s.item_number}`) : null
         return {
           id: s.id,
           created_at: s.created_at,
           machine_name: s.vendingMachine?.name ?? '—',
           machine_id: s.machine_id ?? '',
           item_number: s.item_number,
-          product_name: trayInfo?.product_name ?? null,
-          category_name: trayInfo?.category_name ?? null,
+          product_name: s.products?.name ?? trayInfo?.product_name ?? null,
+          category_name: s.products?.product_category?.name ?? trayInfo?.category_name ?? null,
           item_price: s.item_price,
           tax_rate_snapshot: s.tax_rate_snapshot,
           tax_amount: s.tax_amount,

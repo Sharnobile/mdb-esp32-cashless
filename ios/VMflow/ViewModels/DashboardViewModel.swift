@@ -179,9 +179,10 @@ final class DashboardViewModel: ObservableObject {
     // MARK: - Recent Sales
 
     private func loadRecentSales() async throws {
+        // Fetch sales with snapshotted product via FK join
         let sales: [Sale] = try await client
             .from("sales")
-            .select("id, created_at, item_price, item_number, machine_id, embedded_id, channel")
+            .select("id, created_at, item_price, item_number, machine_id, embedded_id, channel, product_id, products(name, image_path)")
             .order("created_at", ascending: false)
             .limit(20)
             .execute()
@@ -204,29 +205,38 @@ final class DashboardViewModel: ObservableObject {
             }
         }
 
-        // Fetch product names by item_number via trays
-        let trays: [Tray] = try await client
-            .from("machine_trays")
-            .select("id, machine_id, item_number, product_id, capacity, current_stock, min_stock, fill_when_below, products(name, image_path, discontinued)")
-            .execute()
-            .value
+        // Fallback: fetch tray→product lookup only for old sales without product_id
+        let salesWithoutProduct = sales.filter { $0.productId == nil && $0.machineId != nil }
+        var trayProductLookup: [String: (name: String?, imagePath: String?)] = [:]
 
-        // Build lookup: (machineId, itemNumber) -> (productName, imagePath)
-        var productLookup: [String: (name: String?, imagePath: String?)] = [:]
-        for tray in trays {
-            let key = "\(tray.machineId)_\(tray.itemNumber)"
-            productLookup[key] = (name: tray.products?.name, imagePath: tray.products?.imagePath)
+        if !salesWithoutProduct.isEmpty {
+            let fallbackMachineIds = Set(salesWithoutProduct.compactMap { $0.machineId })
+            let trays: [Tray] = try await client
+                .from("machine_trays")
+                .select("id, machine_id, item_number, product_id, capacity, current_stock, min_stock, fill_when_below, products(name, image_path, discontinued)")
+                .in("machine_id", values: fallbackMachineIds.map { $0.uuidString })
+                .execute()
+                .value
+
+            for tray in trays {
+                let key = "\(tray.machineId)_\(tray.itemNumber)"
+                trayProductLookup[key] = (name: tray.products?.name, imagePath: tray.products?.imagePath)
+            }
         }
 
         recentSales = sales.map { sale in
             let machineName = sale.machineId.flatMap { machineNames[$0] }
-            var productName: String? = nil
-            var productImagePath: String? = nil
-            if let machineId = sale.machineId, let itemNum = sale.itemNumber {
-                let product = productLookup["\(machineId)_\(itemNum)"]
-                productName = product?.name
-                productImagePath = product?.imagePath
+
+            // Prefer snapshotted product from FK join, fallback to tray lookup
+            var productName: String? = sale.products?.name
+            var productImagePath: String? = sale.products?.imagePath
+
+            if productName == nil, let machineId = sale.machineId, let itemNum = sale.itemNumber {
+                let trayProduct = trayProductLookup["\(machineId)_\(itemNum)"]
+                productName = trayProduct?.name
+                productImagePath = trayProduct?.imagePath
             }
+
             return SaleWithMachine(sale: sale, machineName: machineName, productName: productName, productImagePath: productImagePath)
         }
     }

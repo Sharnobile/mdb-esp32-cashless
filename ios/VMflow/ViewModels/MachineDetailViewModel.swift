@@ -57,7 +57,7 @@ final class MachineDetailViewModel: ObservableObject {
     private func loadSales() async throws {
         recentSales = try await client
             .from("sales")
-            .select("id, created_at, item_price, item_number, machine_id, embedded_id, channel")
+            .select("id, created_at, item_price, item_number, machine_id, embedded_id, channel, product_id, products(name, image_path)")
             .eq("machine_id", value: machine.id.uuidString)
             .order("created_at", ascending: false)
             .limit(50)

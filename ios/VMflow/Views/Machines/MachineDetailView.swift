@@ -353,10 +353,19 @@ struct SaleRow: View {
     let sale: Sale
     let trays: [Tray]
 
-    /// Find the product for this sale via tray item number.
+    /// Find the product for this sale via tray item number (fallback for old sales without product_id).
     private var tray: Tray? {
         guard let itemNumber = sale.itemNumber else { return nil }
         return trays.first { $0.itemNumber == itemNumber }
+    }
+
+    /// Prefer snapshotted product from FK join, fallback to tray lookup for old sales.
+    private var productName: String {
+        sale.products?.name ?? tray?.productName ?? "Item #\(sale.itemNumber ?? 0)"
+    }
+
+    private var productImagePath: String? {
+        sale.products?.imagePath ?? tray?.products?.imagePath
     }
 
     private var channelColor: Color {
@@ -370,10 +379,10 @@ struct SaleRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            ProductImage(imagePath: tray?.products?.imagePath, size: 44)
+            ProductImage(imagePath: productImagePath, size: 44)
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(tray?.productName ?? "Item #\(sale.itemNumber ?? 0)")
+                Text(productName)
                     .font(.subheadline.weight(.medium))
                     .lineLimit(1)
 

@@ -147,8 +147,23 @@ onMounted(async () => {
           product_name: null,
           product_image_url: null,
         }
-        // Try to resolve product from machine_trays
-        if (sale.machine_id && sale.item_number != null) {
+        // Resolve product: prefer snapshotted product_id from trigger, fallback to tray
+        const productId = sale.product_id
+        if (productId) {
+          supabase
+            .from('products')
+            .select('name, image_path')
+            .eq('id', productId)
+            .maybeSingle()
+            .then(({ data: p }) => {
+              if (p) {
+                newSale.product_name = (p as any).name
+                newSale.product_image_url = (p as any).image_path ? getProductImageUrl((p as any).image_path) : null
+                recentSales.value = [...recentSales.value]
+              }
+            })
+        } else if (sale.machine_id && sale.item_number != null) {
+          // Fallback for old sales or edge cases where trigger didn't stamp product_id
           supabase
             .from('machine_trays')
             .select('products(name, image_path)')
@@ -238,10 +253,10 @@ async function loadDashboard() {
     supabase.from('sales').select('item_price').gte('created_at', yesterdayStart).lt('created_at', todayStart),
     supabase.from('sales').select('item_price, created_at').gte('created_at', weekStart),
     supabase.from('sales').select('item_price').gte('created_at', lastWeekStart).lt('created_at', weekStart),
-    supabase.from('sales').select('item_price, machine_id, item_number').gte('created_at', thisMonthStart),
+    supabase.from('sales').select('item_price, machine_id, item_number, product_id').gte('created_at', thisMonthStart),
     supabase.from('sales').select('item_price').gte('created_at', lastMonthStart).lt('created_at', thisMonthStart),
     supabase.from('vendingMachine').select('id, name, embedded, embeddeds(id, status)'),
-    supabase.from('sales').select('id, created_at, item_price, item_number, channel, machine_id').order('created_at', { ascending: false }).limit(10),
+    supabase.from('sales').select('id, created_at, item_price, item_number, channel, machine_id, product_id, products(name, image_path)').order('created_at', { ascending: false }).limit(10),
     (supabase as any).from('activity_log').select('*').order('created_at', { ascending: false }).limit(8),
   ])
 
@@ -280,15 +295,13 @@ async function loadDashboard() {
 
   // ── Top products (30 days) ─────────────────────────────────────────────────
   {
-    const monthSalesData = (monthSalesRes.data ?? []) as { item_price: number; machine_id: string | null; item_number: number }[]
-    // Collect unique machine_id + item_number pairs
-    const pairSet = new Set<string>()
-    for (const s of monthSalesData) {
-      if (s.machine_id) pairSet.add(`${s.machine_id}:${s.item_number}`)
-    }
-    const machineIdsForProducts = [...new Set(monthSalesData.filter(s => s.machine_id).map(s => s.machine_id!))]
+    const monthSalesData = (monthSalesRes.data ?? []) as { item_price: number; machine_id: string | null; item_number: number; product_id: string | null }[]
 
-    let productLookup = new Map<string, { product_id: string; name: string }>()
+    // Fallback: tray lookup only for sales without snapshotted product_id
+    const salesWithoutProduct = monthSalesData.filter(s => !s.product_id && s.machine_id)
+    const machineIdsForProducts = [...new Set(salesWithoutProduct.map(s => s.machine_id!))]
+
+    let trayProductLookup = new Map<string, { product_id: string; name: string }>()
     if (machineIdsForProducts.length > 0) {
       const { data: trays } = await supabase
         .from('machine_trays')
@@ -296,21 +309,41 @@ async function loadDashboard() {
         .in('machine_id', machineIdsForProducts)
       for (const t of (trays ?? []) as { machine_id: string; item_number: number; product_id: string; products: { name: string } | null }[]) {
         if (t.products && t.product_id) {
-          productLookup.set(`${t.machine_id}:${t.item_number}`, { product_id: t.product_id, name: t.products.name })
+          trayProductLookup.set(`${t.machine_id}:${t.item_number}`, { product_id: t.product_id, name: t.products.name })
         }
       }
     }
 
-    // Aggregate by product
+    // Batch fetch product names for sales that have product_id but no inline join
+    const productIdsFromSales = [...new Set(monthSalesData.filter(s => s.product_id).map(s => s.product_id!))]
+    let productNameMap = new Map<string, string>()
+    if (productIdsFromSales.length > 0) {
+      const { data: products } = await supabase
+        .from('products')
+        .select('id, name')
+        .in('id', productIdsFromSales)
+      for (const p of (products ?? []) as { id: string; name: string }[]) {
+        productNameMap.set(p.id, p.name)
+      }
+    }
+
+    // Aggregate by product — prefer snapshotted product_id, fallback to tray lookup
     const productAgg = new Map<string, { name: string; units: number; revenue: number }>()
     for (const s of monthSalesData) {
-      if (!s.machine_id) continue
-      const product = productLookup.get(`${s.machine_id}:${s.item_number}`)
-      if (!product) continue
-      const existing = productAgg.get(product.product_id) ?? { name: product.name, units: 0, revenue: 0 }
+      let pid: string | null = s.product_id
+      let pname: string | null = pid ? (productNameMap.get(pid) ?? null) : null
+
+      // Fallback to tray lookup for old sales without product_id
+      if (!pid && s.machine_id) {
+        const trayInfo = trayProductLookup.get(`${s.machine_id}:${s.item_number}`)
+        if (trayInfo) { pid = trayInfo.product_id; pname = trayInfo.name }
+      }
+      if (!pid || !pname) continue
+
+      const existing = productAgg.get(pid) ?? { name: pname, units: 0, revenue: 0 }
       existing.units += 1
       existing.revenue += s.item_price ?? 0
-      productAgg.set(product.product_id, existing)
+      productAgg.set(pid, existing)
     }
 
     // Sort by revenue desc, take top 5
@@ -441,15 +474,17 @@ async function loadDashboard() {
   // ── Recent sales ───────────────────────────────────────────────────────────
   const rawSales = (recentSalesRes.data ?? []) as {
     id: string; created_at: string; item_price: number; item_number: number
-    channel: string; machine_id: string | null
+    channel: string; machine_id: string | null; product_id: string | null
+    products: { name: string; image_path: string | null } | null
   }[]
 
   // Build machine name map from already-fetched machines
   const machineNameMap = new Map<string, string>()
   for (const m of machines) machineNameMap.set(m.id, m.name)
 
-  // Resolve product names via machine_trays for sales that have a machine_id
-  const saleMachineIds = [...new Set(rawSales.filter(s => s.machine_id).map(s => s.machine_id!))]
+  // Fallback: resolve product via machine_trays only for old sales without product_id
+  const salesWithoutProduct = rawSales.filter(s => !s.product_id && s.machine_id)
+  const saleMachineIds = [...new Set(salesWithoutProduct.map(s => s.machine_id!))]
   let trayProductMap = new Map<string, { name: string; image_path: string | null }>()
   if (saleMachineIds.length > 0) {
     const { data: trayData } = await supabase
@@ -462,7 +497,10 @@ async function loadDashboard() {
   }
 
   recentSales.value = rawSales.map(s => {
-    const product = s.machine_id ? trayProductMap.get(`${s.machine_id}:${s.item_number}`) : null
+    // Prefer product from snapshotted FK join, fallback to tray lookup for old sales
+    const trayFallback = !s.product_id && s.machine_id ? trayProductMap.get(`${s.machine_id}:${s.item_number}`) : null
+    const productName = s.products?.name ?? trayFallback?.name ?? null
+    const productImagePath = s.products?.image_path ?? trayFallback?.image_path ?? null
     return {
       id: s.id,
       created_at: s.created_at,
@@ -470,8 +508,8 @@ async function loadDashboard() {
       item_number: s.item_number,
       channel: s.channel,
       machine_name: s.machine_id ? (machineNameMap.get(s.machine_id) ?? null) : null,
-      product_name: product?.name ?? null,
-      product_image_url: product?.image_path ? getProductImageUrl(product.image_path) : null,
+      product_name: productName,
+      product_image_url: productImagePath ? getProductImageUrl(productImagePath) : null,
     }
   })
 

@@ -54,8 +54,8 @@ const sortedTrays = computed(() => {
   return [...filtered].sort((a, b) => {
     if (traySortKey.value === 'slot') return dir * ((a.item_number ?? 0) - (b.item_number ?? 0))
     if (traySortKey.value === 'product') {
-      const aName = trayProductMap.value?.get(a.item_number)?.name ?? ''
-      const bName = trayProductMap.value?.get(b.item_number)?.name ?? ''
+      const aName = saleProduct(a)?.name ?? ''
+      const bName = saleProduct(b)?.name ?? ''
       return dir * aName.localeCompare(bName)
     }
     return dir * ((a.current_stock ?? 0) - (b.current_stock ?? 0))
@@ -203,7 +203,7 @@ onMounted(async () => {
       fetchProducts(),
       supabase
         .from('sales')
-        .select('id, created_at, item_price, item_number, channel')
+        .select('id, created_at, item_price, item_number, channel, product_id, products(name, image_path)')
         .eq('machine_id', id)
         .gte('created_at', thirtyDaysAgo)
         .order('created_at', { ascending: false })
@@ -322,7 +322,7 @@ const salesChartData = computed(() => {
 
 type ChartPoint = { date: Date; total: number }
 
-// Map item_number → product info from trays
+// Map item_number → product info from trays (used for tray display AND as fallback for old sales)
 const trayProductMap = computed(() => {
   const map = new Map<number, { name: string; image_url: string | null; sellprice: number | null; discontinued: boolean }>()
   for (const t of trays.value) {
@@ -338,6 +338,21 @@ const trayProductMap = computed(() => {
   }
   return map
 })
+
+// Resolve product info for a sale: prefer snapshotted product_id FK join (immutable),
+// fallback to tray lookup for old sales without product_id
+function saleProduct(sale: any): { name: string; image_url: string | null } | null {
+  if (sale.products?.name) {
+    const imagePath = sale.products.image_path
+    return {
+      name: sale.products.name,
+      image_url: imagePath ? getProductImageUrl(imagePath) : null,
+    }
+  }
+  const tray = trayProductMap.value.get(sale.item_number)
+  if (tray) return { name: tray.name, image_url: tray.image_url }
+  return null
+}
 
 // ── Inline name editing ─────────────────────────────────────────────────────
 const editingName = ref(false)
@@ -1275,9 +1290,9 @@ async function handleAddSale() {
                         <div class="group/sale flex items-start gap-3 px-4 py-3">
                           <!-- Product image or amount badge -->
                           <img
-                            v-if="trayProductMap.get(sale.item_number)?.image_url"
-                            :src="trayProductMap.get(sale.item_number)!.image_url!"
-                            :alt="trayProductMap.get(sale.item_number)!.name"
+                            v-if="saleProduct(sale)?.image_url"
+                            :src="saleProduct(sale)!.image_url!"
+                            :alt="saleProduct(sale)!.name"
                             class="h-9 w-9 shrink-0 rounded-full object-cover mt-0.5"
                           />
                           <div v-else class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary mt-0.5">
@@ -1287,7 +1302,7 @@ async function handleAddSale() {
                           <div class="flex-1 min-w-0">
                             <div class="flex items-start justify-between gap-2">
                               <p class="text-sm font-medium break-words">
-                                {{ trayProductMap.get(sale.item_number)?.name ?? `${t('machineDetail.item')} #${sale.item_number}` }}
+                                {{ saleProduct(sale)?.name ?? `${t('machineDetail.item')} #${sale.item_number}` }}
                                 <!-- Desktop delete button (inline after title) -->
                                 <button
                                   v-if="isAdmin"
@@ -2055,7 +2070,7 @@ async function handleAddSale() {
         <p class="text-sm text-muted-foreground">{{ t('machineDetail.deleteSaleConfirm') }}</p>
         <div v-if="deletingSale" class="mt-3 rounded-md border bg-muted/30 p-3 text-sm">
           <div class="flex items-center justify-between">
-            <span class="font-medium">{{ trayProductMap.get(deletingSale.item_number)?.name ?? `${t('machineDetail.item')} #${deletingSale.item_number}` }}</span>
+            <span class="font-medium">{{ saleProduct(deletingSale)?.name ?? `${t('machineDetail.item')} #${deletingSale.item_number}` }}</span>
             <span class="font-medium">{{ formatCurrency(deletingSale.item_price, locale) }}</span>
           </div>
           <p class="mt-1 text-xs text-muted-foreground">{{ formatDateTime(deletingSale.created_at, locale) }}</p>
