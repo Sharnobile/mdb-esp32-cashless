@@ -36,6 +36,12 @@ targets:
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_ENTITLEMENTS: VMflow/Resources/VMflow.entitlements
         DEVELOPMENT_TEAM: 4JT3V7XVXM
+    preBuildScripts:
+      - name: Auto-increment build number from git
+        script: |
+          BUILD_NUM=$(git -C "${SRCROOT}/.." rev-list --count HEAD)
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUM" "${TARGET_BUILD_DIR}/${INFOPLIST_PATH}"
+        runOnlyWhenInstalling: false
     dependencies:
       - package: Supabase
         product: Supabase
