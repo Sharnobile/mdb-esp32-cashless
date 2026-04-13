@@ -10,7 +10,7 @@ import { getProductImageUrl } from '@/composables/useProducts'
 import { hasSavedTour, clearSavedTourState } from '@/composables/useRefillWizard'
 import LocationPicker, { type LocationModel } from '~/components/LocationPicker.vue'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const { organization } = useOrganization()
 const {
   machines, loading, fetchMachines, subscribeToStatusUpdates, createMachine,
@@ -292,6 +292,9 @@ async function submitCreateMachine() {
                         <span :class="item.severity === 'critical' ? 'text-red-500' : item.severity === 'low' ? 'text-amber-500' : 'text-blue-600 dark:text-blue-400'">
                           {{ item.product_name }} <span class="text-muted-foreground">(-{{ item.deficit }})</span>
                         </span>
+                        <span v-if="item.sellprice != null" class="shrink-0 text-muted-foreground tabular-nums">
+                          {{ formatCurrency(item.sellprice, locale) }}
+                        </span>
                         <span v-if="item.discontinued" class="shrink-0 rounded bg-gray-200 px-1 py-px text-[9px] font-medium text-gray-500 dark:bg-gray-700 dark:text-gray-400">{{ t('warehouse.discontinuedBadge') }}</span>
                       </div>
                       <span class="shrink-0 text-green-500 text-[10px]">{{ t('machines.inStock') }}</span>
@@ -313,6 +316,9 @@ async function submitCreateMachine() {
                           <IconArrowsExchange class="inline h-3 w-3 mr-0.5 -mt-0.5 shrink-0" />
                           {{ item.product_name }} <span class="text-muted-foreground">(-{{ item.deficit }})</span>
                         </span>
+                        <span v-if="item.sellprice != null" class="shrink-0 text-muted-foreground tabular-nums">
+                          {{ formatCurrency(item.sellprice, locale) }}
+                        </span>
                         <span v-if="item.discontinued" class="shrink-0 rounded bg-gray-200 px-1 py-px text-[9px] font-medium text-gray-500 dark:bg-gray-700 dark:text-gray-400">{{ t('warehouse.discontinuedBadge') }}</span>
                       </div>
                       <span class="shrink-0 text-orange-400 text-[10px]">{{ t('machines.swap') }}</span>
@@ -327,6 +333,9 @@ async function submitCreateMachine() {
                         <img v-if="item.image_path" :src="getProductImageUrl(item.image_path)" class="size-5 shrink-0 rounded object-cover" alt="" />
                         <span>
                           {{ item.product_name }} <span class="text-muted-foreground">(-{{ item.deficit }})</span>
+                        </span>
+                        <span v-if="item.sellprice != null" class="shrink-0 text-muted-foreground tabular-nums">
+                          {{ formatCurrency(item.sellprice, locale) }}
                         </span>
                         <span v-if="item.discontinued" class="shrink-0 rounded bg-gray-200 px-1 py-px text-[9px] font-medium text-gray-500 dark:bg-gray-700 dark:text-gray-400">{{ t('warehouse.discontinuedBadge') }}</span>
                       </div>

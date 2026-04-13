@@ -22,6 +22,7 @@ export interface RefillItem {
   product_name: string
   deficit: number
   image_path: string | null
+  sellprice: number | null
   in_stock?: boolean
 }
 
@@ -31,6 +32,7 @@ export interface CombinedPickItem {
   product_id: string
   product_name: string
   image_path: string | null
+  sellprice: number | null
   total_deficit: number
   machines: { id: string; name: string; deficit: number }[]
 }
@@ -41,6 +43,7 @@ export interface TrayForRefill {
   product_id: string | null
   product_name: string | null
   image_path: string | null
+  sellprice: number | null
   capacity: number
   current_stock: number
   min_stock: number
@@ -374,7 +377,7 @@ export function useRefillWizard() {
       // Fetch all trays
       const { data: trayData, error: trayErr } = await (supabase as any)
         .from('machine_trays')
-        .select('machine_id, item_number, product_id, capacity, current_stock, min_stock, fill_when_below, products(name, image_path)')
+        .select('machine_id, item_number, product_id, capacity, current_stock, min_stock, fill_when_below, products(name, image_path, sellprice)')
         .in('machine_id', machineIds)
 
       if (trayErr) throw trayErr
@@ -412,12 +415,13 @@ export function useRefillWizard() {
           const deficit = tray.capacity - tray.current_stock
           const productName = tray.products?.name ?? `Slot ${tray.item_number}`
           const imagePath = tray.products?.image_path ?? null
+          const sellprice = tray.products?.sellprice ?? null
           const key = tray.product_id ?? `slot-${tray.item_number}`
           const existing = entry.deficits.get(key)
           if (existing) {
             existing.deficit += deficit
           } else {
-            entry.deficits.set(key, { product_name: productName, product_id: tray.product_id, deficit, image_path: imagePath })
+            entry.deficits.set(key, { product_name: productName, product_id: tray.product_id, deficit, image_path: imagePath, sellprice })
           }
         }
 
@@ -434,12 +438,13 @@ export function useRefillWizard() {
           if (deficit <= 0) continue
           const productName = tray.products?.name ?? `Slot ${tray.item_number}`
           const imagePath = tray.products?.image_path ?? null
+          const sellprice = tray.products?.sellprice ?? null
           const key = tray.product_id ?? `slot-${tray.item_number}`
           const existing = entry.deficits.get(key)
           if (existing) {
             existing.deficit += deficit
           } else {
-            entry.deficits.set(key, { product_name: productName, product_id: tray.product_id, deficit, image_path: imagePath })
+            entry.deficits.set(key, { product_name: productName, product_id: tray.product_id, deficit, image_path: imagePath, sellprice })
           }
         }
       }
@@ -613,7 +618,7 @@ export function useRefillWizard() {
     try {
       const { data, error } = await (supabase as any)
         .from('machine_trays')
-        .select('id, machine_id, item_number, product_id, capacity, current_stock, min_stock, fill_when_below, products(name, image_path)')
+        .select('id, machine_id, item_number, product_id, capacity, current_stock, min_stock, fill_when_below, products(name, image_path, sellprice)')
         .eq('machine_id', machine.id)
         .order('item_number')
 
@@ -655,6 +660,7 @@ export function useRefillWizard() {
           product_id: t.product_id,
           product_name: t.products?.name ?? null,
           image_path: t.products?.image_path ?? null,
+          sellprice: t.products?.sellprice ?? null,
           capacity: t.capacity,
           current_stock: t.current_stock,
           min_stock: t.min_stock ?? 0,
@@ -885,6 +891,7 @@ export function useRefillWizard() {
             product_id: item.product_id,
             product_name: item.product_name,
             image_path: item.image_path,
+            sellprice: item.sellprice,
             total_deficit: item.deficit,
             machines: [{ id: machine.id, name: machine.name, deficit: item.deficit }],
           })
