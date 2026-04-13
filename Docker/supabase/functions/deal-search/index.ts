@@ -320,21 +320,39 @@ Deno.serve(async (req) => {
     const allDeals: any[] = []
     const seen = new Set<string>() // dedup by offer_id + product_id
 
-    // Batch products: extract unique search terms to reduce API calls
-    // e.g. "Red Bull Sugarfree" and "Red Bull Energy" → search "Red Bull" once
+    // Build search queries: use both the full product name AND shorter
+    // brand-level queries (first 1–2 words). This ensures we find generic
+    // offers like "Powerade versch. Sorten" even when the product is named
+    // "Powerade Sports Mountain Blast".
     const searchQueries = new Map<string, typeof products>()
     for (const product of products) {
       if (!product.name) continue
-      // Use the full product name as search query for best matches
-      const query = product.name.trim()
-      if (!query) continue
-      const existing = searchQueries.get(query) ?? []
+      const fullName = product.name.trim()
+      if (!fullName) continue
+
+      // Full name query → best for exact matches
+      const existing = searchQueries.get(fullName) ?? []
       existing.push(product)
-      searchQueries.set(query, existing)
+      searchQueries.set(fullName, existing)
+
+      // Short brand query (first 1–2 words) → catches generic offers
+      const words = fullName.split(/\s+/)
+      if (words.length >= 2) {
+        // Use first word if long enough (>= 4 chars), else first two words
+        const shortQuery = words[0].length >= 4 ? words[0] : words.slice(0, 2).join(' ')
+        if (shortQuery !== fullName) {
+          const shortExisting = searchQueries.get(shortQuery) ?? []
+          // Only add if not already there
+          if (!shortExisting.some((p: any) => p.id === product.id)) {
+            shortExisting.push(product)
+          }
+          searchQueries.set(shortQuery, shortExisting)
+        }
+      }
     }
 
-    // Limit to 30 searches per request to respect rate limits
-    const queries = Array.from(searchQueries.entries()).slice(0, 30)
+    // Deduplicate and limit queries to keep API usage reasonable
+    const queries = Array.from(searchQueries.entries()).slice(0, 50)
 
     for (const [query, matchProducts] of queries) {
       try {
