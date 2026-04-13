@@ -610,27 +610,54 @@ void vTaskMdbEvent(void *pvParameters) {
 						machine_state = IDLE_STATE;
 
 						mdb_payload[0] = 0x03;
-						mdb_payload[1] = fundsAvailable >> 8;
-						mdb_payload[2] = fundsAvailable;
 
-						if (vmc_feature_level >= 2) {
-							// Level 2/3: add Media ID (4) + Payment Type (1) + Payment Data (2).
-							// Per MDB/ICP section 7.4.x Begin Session response:
-							//   Z4-Z7 = Payment Media ID (0xFFFFFFFF = unknown)
-							//   Z8    = Payment Type; 0x00 = normal vend card, sub-type 0 "VMC default prices"
-							//   Z9-Z10 = Payment Data; for sub-type 0 undefined/unused → must be 0x0000.
-							// A previous implementation echoed fundsAvailable into Z9-Z10, which strict
-							// VMCs interpret as an out-of-range discount/price-list value and refuse to
-							// display the credit (session starts, bill validator disables, but no credit).
-							mdb_payload[3] = 0xFF; // Media ID byte 0 (no specific card)
-							mdb_payload[4] = 0xFF; // Media ID byte 1
-							mdb_payload[5] = 0xFF; // Media ID byte 2
-							mdb_payload[6] = 0xFF; // Media ID byte 3
-							mdb_payload[7] = 0x00; // Payment Type: normal vend card, VMC default prices
-							mdb_payload[8] = 0x00; // Payment Data unused for sub-type 0
-							mdb_payload[9] = 0x00;
+						if (vmc_feature_level >= 3) {
+							// Level 3: 32-bit Funds Available + Media ID + Payment Type +
+							// Payment Data + User Language + User Currency Code.
+							// Per MDB/ICP 4.2 section 7.4, Level 3 Begin Session:
+							//   Z2-Z5  = Funds Available (32-bit scaled)
+							//   Z6-Z9  = Payment Media ID (0xFFFFFFFF = unknown)
+							//   Z10    = Payment Type (0x00 = normal vend, VMC default prices)
+							//   Z11-12 = Payment Data (0xFFFF = not applicable for sub-type 0)
+							//   Z13-14 = User Language (0xFFFF = no preference)
+							//   Z15-16 = User Currency Code (0xFFFF = no preference)
+							mdb_payload[1] = 0x00;                          // Funds (32-bit MSB)
+							mdb_payload[2] = 0x00;
+							mdb_payload[3] = fundsAvailable >> 8;
+							mdb_payload[4] = fundsAvailable & 0xFF;
+							mdb_payload[5] = 0xFF;                          // Media ID (unknown)
+							mdb_payload[6] = 0xFF;
+							mdb_payload[7] = 0xFF;
+							mdb_payload[8] = 0xFF;
+							mdb_payload[9] = 0x00;                          // Payment Type
+							mdb_payload[10] = 0xFF;                         // Payment Data (n/a)
+							mdb_payload[11] = 0xFF;
+							mdb_payload[12] = 0xFF;                         // User Language (no pref)
+							mdb_payload[13] = 0xFF;
+							mdb_payload[14] = 0xFF;                         // User Currency Code (no pref)
+							mdb_payload[15] = 0xFF;
+							available_tx = 16;
+						} else if (vmc_feature_level >= 2) {
+							// Level 2: 16-bit Funds Available + Media ID + Payment Type + Payment Data.
+							// Per MDB/ICP 4.2 section 7.4, Level 2 Begin Session:
+							//   Z2-Z3  = Funds Available (16-bit scaled)
+							//   Z4-Z7  = Payment Media ID (0xFFFFFFFF = unknown)
+							//   Z8     = Payment Type (0x00 = normal vend, VMC default prices)
+							//   Z9-Z10 = Payment Data (0xFFFF = not applicable for sub-type 0)
+							mdb_payload[1] = fundsAvailable >> 8;
+							mdb_payload[2] = fundsAvailable & 0xFF;
+							mdb_payload[3] = 0xFF;                          // Media ID (unknown)
+							mdb_payload[4] = 0xFF;
+							mdb_payload[5] = 0xFF;
+							mdb_payload[6] = 0xFF;
+							mdb_payload[7] = 0x00;                          // Payment Type
+							mdb_payload[8] = 0xFF;                          // Payment Data (n/a)
+							mdb_payload[9] = 0xFF;
 							available_tx = 10;
 						} else {
+							// Level 1: just Funds Available (16-bit)
+							mdb_payload[1] = fundsAvailable >> 8;
+							mdb_payload[2] = fundsAvailable & 0xFF;
 							available_tx = 3;
 						}
 
@@ -651,9 +678,19 @@ void vTaskMdbEvent(void *pvParameters) {
 						vend_approved_todo = false;
 
 						mdb_payload[0] = 0x05;
-						mdb_payload[1] = itemPrice >> 8;
-						mdb_payload[2] = itemPrice;
-						available_tx = 3;
+						if (vmc_feature_level >= 3) {
+							// Level 3: 32-bit Vend Amount
+							mdb_payload[1] = 0x00;
+							mdb_payload[2] = 0x00;
+							mdb_payload[3] = itemPrice >> 8;
+							mdb_payload[4] = itemPrice & 0xFF;
+							available_tx = 5;
+						} else {
+							// Level 1/2: 16-bit Vend Amount
+							mdb_payload[1] = itemPrice >> 8;
+							mdb_payload[2] = itemPrice & 0xFF;
+							available_tx = 3;
+						}
 
 					} else if (vend_denied_todo) {
 						// Vend denied
@@ -1817,7 +1854,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
     	char topic[128];
     	snprintf(topic, sizeof(topic), "/%s/%s/credit", my_company_id, my_device_id);
 		ESP_LOGI(TAG, "MQTT: subscribing to '%s'", topic);
-    	esp_mqtt_client_subscribe(mqttClient, topic, 0);
+    	esp_mqtt_client_subscribe(mqttClient, topic, 1);
 
     	char topic_ota[128];
     	snprintf(topic_ota, sizeof(topic_ota), "/%s/%s/ota", my_company_id, my_device_id);
