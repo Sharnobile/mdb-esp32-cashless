@@ -12,6 +12,7 @@ import {
   IconInnerShadowTop,
   IconKey,
   IconPackage,
+  IconTag,
   IconUsers,
   IconDevices,
   IconCloudUpload,
@@ -61,6 +62,11 @@ const navGroups = computed(() => {
           title: t('nav.warehouse'),
           url: "/warehouse",
           icon: IconBuildingWarehouse,
+        },
+        {
+          title: t('nav.deals'),
+          url: "/deals",
+          icon: IconTag,
         },
         {
           title: t('nav.reports'),

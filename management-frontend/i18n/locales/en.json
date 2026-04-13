@@ -64,7 +64,8 @@
     "reports": "Reports",
     "cashBook": "Cash Book",
     "inbox": "Inbox",
-    "mobileApp": "Mobile App"
+    "mobileApp": "Mobile App",
+    "deals": "Deals"
   },
   "auth": {
     "signIn": "Sign in",
@@ -885,6 +886,13 @@
     "stripeUpdate": "Update keys",
     "stripeWebhookUrl": "Webhook URL",
     "stripeWebhookHelp": "Add this URL as a webhook endpoint in your Stripe Dashboard (event: payment_intent.succeeded).",
+    "dealsSection": "Deal Search",
+    "dealsDescription": "Automatically search local retailers for offers that match your warehouse products.",
+    "dealsEnable": "Enable deal search",
+    "dealsEnableHint": "Search Rewe, Lidl, Kaufland and more for current offers on your products.",
+    "dealsZipCode": "Postal code (PLZ)",
+    "dealsZipCodeHint": "Your location for regional offers. Leave empty for nationwide results.",
+    "dealsSaved": "Deal search settings saved.",
     "taxSettings": "Tax Settings",
     "taxSettingsDescription": "Configure tax classes and rates for your company. These are used for tax-compliant sales exports.",
     "companyCountry": "Company country",
@@ -930,6 +938,25 @@
     "trayCreated": "Tray added",
     "trayUpdated": "Tray updated",
     "warehouseIntake": "Stock intake"
+  },
+  "deals": {
+    "title": "Deals",
+    "refresh": "Refresh",
+    "notEnabled": "Deal search is not enabled",
+    "notEnabledDescription": "Enable the deal search feature in settings to automatically find retailer offers for your products.",
+    "goToSettings": "Go to Settings",
+    "totalDeals": "Deals found",
+    "retailers": "Retailers",
+    "avgDiscount": "Avg. discount",
+    "dataStatus": "Data",
+    "cached": "Cached",
+    "fresh": "Fresh",
+    "searchPlaceholder": "Search deals or products...",
+    "byRetailer": "By retailer",
+    "byProduct": "By product",
+    "noDeals": "No deals found for your products. Try refreshing or adding more products to your catalog.",
+    "validUntil": "until",
+    "match": "match"
   },
   "reports": {
     "title": "Reports",

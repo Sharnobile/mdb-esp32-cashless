@@ -1,7 +1,7 @@
 <script setup lang="ts">
 definePageMeta({ middleware: 'auth' })
 
-import { IconMoon, IconSun, IconBell, IconBellOff, IconDeviceMobile, IconSend, IconTrash, IconSparkles, IconEye, IconEyeOff, IconReceipt2, IconPlus, IconPencil, IconCreditCard, IconCopy, IconBuildingStore } from '@tabler/icons-vue'
+import { IconMoon, IconSun, IconBell, IconBellOff, IconDeviceMobile, IconSend, IconTrash, IconSparkles, IconEye, IconEyeOff, IconReceipt2, IconPlus, IconPencil, IconCreditCard, IconCopy, IconBuildingStore, IconTag } from '@tabler/icons-vue'
 import { Switch } from '~/components/ui/switch'
 import { notificationTypes } from '~/composables/useNotifications'
 import { timeAgo } from '~/lib/utils'
@@ -477,6 +477,21 @@ const stripeWebhookUrl = computed(() => {
   const base = useRuntimeConfig().public.supabase?.url || 'http://127.0.0.1:54321'
   return `${base}/functions/v1/stripe-webhook?company_id=${organization.value.id}`
 })
+
+// ── Deal Search (admin only) ────────────────────────────────────────────────
+const {
+  dealsEnabled,
+  dealsZipCode,
+  settingsLoading: dealsSettingsLoading,
+  settingsError: dealsSettingsError,
+  settingsSuccess: dealsSettingsSuccess,
+  loadSettings: loadDealsSettings,
+  saveSettings: saveDealsSettings,
+} = useDeals()
+
+watch(() => organization.value?.id, (id) => {
+  if (import.meta.client && id && role.value === 'admin') loadDealsSettings()
+}, { immediate: true })
 
 // ── Tax Settings (admin only) ───────────────────────────────────────────────
 const {
@@ -1143,6 +1158,56 @@ async function changeEmail() {
               >
                 <span v-if="stripeLoading">{{ t('common.saving') }}</span>
                 <span v-else>{{ stripeHasKeys ? t('settings.stripeUpdate') : t('settings.stripeSave') }}</span>
+              </button>
+            </form>
+          </div>
+
+          <!-- Deal Search (admin only) -->
+          <div v-if="role === 'admin'" class="rounded-xl border bg-card p-6 shadow-sm">
+            <div class="mb-5 flex items-center gap-2">
+              <IconTag class="size-5 text-primary" />
+              <div>
+                <h2 class="text-lg font-semibold">{{ t('settings.dealsSection') }}</h2>
+                <p class="text-sm text-muted-foreground">{{ t('settings.dealsDescription') }}</p>
+              </div>
+            </div>
+
+            <form class="space-y-4" @submit.prevent="saveDealsSettings">
+              <div class="flex items-center justify-between">
+                <div class="space-y-0.5">
+                  <label class="text-sm font-medium">{{ t('settings.dealsEnable') }}</label>
+                  <p class="text-sm text-muted-foreground">{{ t('settings.dealsEnableHint') }}</p>
+                </div>
+                <Switch
+                  :checked="dealsEnabled"
+                  @update:checked="dealsEnabled = $event"
+                />
+              </div>
+
+              <div v-if="dealsEnabled" class="space-y-1">
+                <label class="text-sm font-medium" for="deals-zip">{{ t('settings.dealsZipCode') }}</label>
+                <input
+                  id="deals-zip"
+                  v-model="dealsZipCode"
+                  type="text"
+                  inputmode="numeric"
+                  maxlength="5"
+                  placeholder="60487"
+                  class="flex h-9 w-full max-w-[200px] rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+                <p class="text-xs text-muted-foreground">{{ t('settings.dealsZipCodeHint') }}</p>
+              </div>
+
+              <p v-if="dealsSettingsError" class="text-sm text-destructive">{{ dealsSettingsError }}</p>
+              <p v-if="dealsSettingsSuccess" class="text-sm text-green-600">{{ t('settings.dealsSaved') }}</p>
+
+              <button
+                type="submit"
+                :disabled="dealsSettingsLoading"
+                class="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90 disabled:opacity-50"
+              >
+                <span v-if="dealsSettingsLoading">{{ t('common.saving') }}</span>
+                <span v-else>{{ t('common.save') }}</span>
               </button>
             </form>
           </div>
