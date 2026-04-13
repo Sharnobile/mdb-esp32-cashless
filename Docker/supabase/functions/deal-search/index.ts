@@ -257,8 +257,22 @@ function matchConfidence(
   }
   const reverseScore = offerTokens.length > 0 ? reverseMatches / offerTokens.length : 0
 
+  // Wildcard boost: if the offer says "versch. Sorten" / "verschiedene Sorten"
+  // etc., it means ALL variants of the brand are included. In that case, a
+  // brand match alone is sufficient — boost the score significantly.
+  let wildcardBonus = 0
+  const wildcardPhrases = [
+    'verschiedene', 'versch', 'diverse', 'sorten', 'sort',
+    'alle sorten', 'viele sorten', 'mehrere sorten',
+  ]
+  const hasWildcard = wildcardPhrases.some((p) => offerNorm.includes(p))
+  if (hasWildcard && brandBonus > 0) {
+    // Brand matches + offer is a wildcard → strong match
+    wildcardBonus = 0.3
+  }
+
   // Combined score (weighted)
-  const combined = Math.min(1.0, tokenScore * 0.6 + reverseScore * 0.25 + brandBonus)
+  const combined = Math.min(1.0, tokenScore * 0.6 + reverseScore * 0.25 + brandBonus + wildcardBonus)
 
   return {
     confidence: Math.round(combined * 100) / 100,
