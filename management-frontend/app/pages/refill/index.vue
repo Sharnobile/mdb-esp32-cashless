@@ -6,8 +6,9 @@ import { Separator } from '@/components/ui/separator'
 import { IconArrowLeft, IconCheck, IconPlayerSkipForward, IconTruck } from '@tabler/icons-vue'
 import { getProductImageUrl } from '@/composables/useProducts'
 import { useRefillWizard, hasSavedTour } from '@/composables/useRefillWizard'
+import { formatCurrency } from '@/lib/utils'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const router = useRouter()
 const { warehouses, fetchWarehouses } = useWarehouse()
 
@@ -190,7 +191,12 @@ const currentMachineDone = computed(() =>
                   </span>
                   <!-- Product info -->
                   <div class="min-w-0 flex-1 transition-all" :class="isPackedCombined(item.product_id) ? 'text-muted-foreground/50' : ''">
-                    <span class="text-sm block">{{ effectiveDeficitCombined(item.product_id) }}&times; {{ item.product_name }}</span>
+                    <span class="text-sm block">
+                      {{ effectiveDeficitCombined(item.product_id) }}&times; {{ item.product_name }}
+                      <span v-if="item.sellprice != null" class="ml-1 text-xs font-medium text-muted-foreground tabular-nums">
+                        {{ formatCurrency(item.sellprice, locale) }}
+                      </span>
+                    </span>
                     <span class="text-xs text-muted-foreground block">
                       {{ t('refill.forMachines', { machines: item.machines.map(m => m.name).join(', ') }) }}
                     </span>
@@ -294,18 +300,32 @@ const currentMachineDone = computed(() =>
                     <span class="min-w-0 flex-1 text-sm transition-all" :class="isPacked(machine.id, item) ? 'text-muted-foreground/50' : ''">
                       <template v-if="isOutOfWarehouseStock(item, machine.id)">
                         <span class="text-muted-foreground">{{ item.deficit }}&times; {{ item.product_name }}</span>
+                        <span v-if="item.sellprice != null" class="ml-1 text-xs font-medium text-muted-foreground tabular-nums">
+                          {{ formatCurrency(item.sellprice, locale) }}
+                        </span>
                         <span class="ml-1 text-xs text-red-500 dark:text-red-400">{{ t('machines.notInStock') }}</span>
                       </template>
                       <template v-else-if="isPacked(machine.id, item) && item.product_id && selectedWarehouseId">
-                        <span class="truncate block">{{ item.product_name }}</span>
+                        <span class="truncate block">
+                          {{ item.product_name }}
+                          <span v-if="item.sellprice != null" class="ml-1 text-xs font-medium text-muted-foreground tabular-nums">
+                            {{ formatCurrency(item.sellprice, locale) }}
+                          </span>
+                        </span>
                         <span v-if="hasPartialStock(item, machine.id)" class="text-xs text-amber-500 dark:text-amber-400">{{ t('machines.needed', { count: item.deficit }) }}</span>
                       </template>
                       <template v-else-if="hasPartialStock(item, machine.id)">
                         {{ effectiveDeficit(item, machine.id) }}&times; {{ item.product_name }}
+                        <span v-if="item.sellprice != null" class="ml-1 text-xs font-medium text-muted-foreground tabular-nums">
+                          {{ formatCurrency(item.sellprice, locale) }}
+                        </span>
                         <span class="ml-1 text-xs text-amber-500 dark:text-amber-400">{{ t('machines.needed', { count: item.deficit }) }}</span>
                       </template>
                       <template v-else>
                         {{ effectiveDeficit(item, machine.id) }}&times; {{ item.product_name }}
+                        <span v-if="item.sellprice != null" class="ml-1 text-xs font-medium text-muted-foreground tabular-nums">
+                          {{ formatCurrency(item.sellprice, locale) }}
+                        </span>
                       </template>
                     </span>
                     <!-- Quantity adjuster (shown when item is checked and has warehouse context) -->
@@ -427,16 +447,22 @@ const currentMachineDone = computed(() =>
                 {{ tray.item_number }}
               </span>
               <div class="min-w-0 flex-1">
-                <p class="text-sm font-medium truncate">{{ tray.product_name ?? `Slot ${tray.item_number}` }}</p>
-                <p class="text-xs text-muted-foreground tabular-nums">
+                <p class="text-sm font-medium truncate">
+                  <span class="text-muted-foreground font-mono text-xs mr-1">#{{ tray.item_number }}</span>
+                  {{ tray.product_name ?? `Slot ${tray.item_number}` }}
+                </p>
+                <p class="text-xs text-muted-foreground tabular-nums flex items-center gap-1.5 flex-wrap">
                   <span
                     class="inline-flex items-center rounded px-1 py-0.5 text-[11px] font-medium"
                     :class="tray.current_stock === 0
                       ? 'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-400'
                       : 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400'"
                   >{{ tray.current_stock }}</span>
-                  <span class="mx-1">/</span>
+                  <span>/</span>
                   <span>{{ tray.capacity }}</span>
+                  <span v-if="tray.sellprice != null" class="ml-1 font-medium text-foreground/80">
+                    {{ formatCurrency(tray.sellprice, locale) }}
+                  </span>
                 </p>
               </div>
             </div>

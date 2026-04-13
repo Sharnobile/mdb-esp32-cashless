@@ -48,10 +48,10 @@ interface VendingMachine {
   empty_trays?: number
   stock_health?: 'ok' | 'low' | 'critical'
   stock_percent?: number
-  tray_summary?: { product_name: string; product_id: string | null; deficit: number; image_path: string | null; in_stock: boolean; severity: 'critical' | 'low' | 'fill'; discontinued?: boolean }[]
+  tray_summary?: { product_name: string; product_id: string | null; deficit: number; image_path: string | null; sellprice: number | null; in_stock: boolean; severity: 'critical' | 'low' | 'fill'; discontinued?: boolean }[]
   critical_product_ids?: Set<string>
   no_stock_trays?: number
-  no_stock_summary?: { product_name: string; product_id: string | null; deficit: number; image_path: string | null; in_stock: boolean; severity: 'critical' | 'low' | 'fill'; discontinued?: boolean }[]
+  no_stock_summary?: { product_name: string; product_id: string | null; deficit: number; image_path: string | null; sellprice: number | null; in_stock: boolean; severity: 'critical' | 'low' | 'fill'; discontinued?: boolean }[]
 }
 
 interface PendingToken {
@@ -153,7 +153,7 @@ export function useMachines() {
         // All tray data in one batch (with product names)
         supabase
           .from('machine_trays')
-          .select('machine_id, item_number, product_id, capacity, current_stock, min_stock, fill_when_below, products(name, image_path, discontinued)')
+          .select('machine_id, item_number, product_id, capacity, current_stock, min_stock, fill_when_below, products(name, image_path, sellprice, discontinued)')
           .in('machine_id', machineIds),
         // Warehouse stock for availability check
         supabase
@@ -266,7 +266,7 @@ export function useMachines() {
         current_stock: number
         min_stock: number
         fill_when_below: number
-        products: { name: string; image_path: string | null } | null
+        products: { name: string; image_path: string | null; sellprice: number | null } | null
       }[]
 
       const stockMap = new Map<string, {
@@ -276,10 +276,10 @@ export function useMachines() {
         noStockCount: number
         totalStock: number
         totalCapacity: number
-        deficits: Map<string, { product_name: string; product_id: string | null; deficit: number; image_path: string | null; in_stock: boolean; severity: 'critical' | 'low' | 'fill'; discontinued?: boolean }>
-        noStockDeficits: Map<string, { product_name: string; product_id: string | null; deficit: number; image_path: string | null; in_stock: boolean; severity: 'critical' | 'low' | 'fill'; discontinued?: boolean }>
+        deficits: Map<string, { product_name: string; product_id: string | null; deficit: number; image_path: string | null; sellprice: number | null; in_stock: boolean; severity: 'critical' | 'low' | 'fill'; discontinued?: boolean }>
+        noStockDeficits: Map<string, { product_name: string; product_id: string | null; deficit: number; image_path: string | null; sellprice: number | null; in_stock: boolean; severity: 'critical' | 'low' | 'fill'; discontinued?: boolean }>
         criticalProductIds: Set<string>
-        fillBelowPending: { product_id: string | null; capacity: number; current_stock: number; item_number: number; products: { name: string; image_path: string | null; discontinued?: boolean } | null }[]
+        fillBelowPending: { product_id: string | null; capacity: number; current_stock: number; item_number: number; products: { name: string; image_path: string | null; sellprice: number | null; discontinued?: boolean } | null }[]
       }>()
 
       // Pass 1: count low/empty trays, split by warehouse availability
@@ -306,6 +306,7 @@ export function useMachines() {
           const deficit = tray.capacity - tray.current_stock
           const productName = tray.products?.name ?? `Slot ${tray.item_number}`
           const imagePath = tray.products?.image_path ?? null
+          const sellprice = tray.products?.sellprice ?? null
           const discontinued = tray.products?.discontinued ?? false
           const key = tray.product_id
 
@@ -318,7 +319,7 @@ export function useMachines() {
               existing.deficit += deficit
               if (severity === 'critical') existing.severity = 'critical'
             } else {
-              entry.deficits.set(key, { product_name: productName, product_id: tray.product_id, deficit, image_path: imagePath, in_stock: true, severity, discontinued })
+              entry.deficits.set(key, { product_name: productName, product_id: tray.product_id, deficit, image_path: imagePath, sellprice, in_stock: true, severity, discontinued })
             }
             entry.criticalProductIds.add(tray.product_id)
           } else {
@@ -328,7 +329,7 @@ export function useMachines() {
               existing.deficit += deficit
               if (severity === 'critical') existing.severity = 'critical'
             } else {
-              entry.noStockDeficits.set(key, { product_name: productName, product_id: tray.product_id, deficit, image_path: imagePath, in_stock: false, severity, discontinued })
+              entry.noStockDeficits.set(key, { product_name: productName, product_id: tray.product_id, deficit, image_path: imagePath, sellprice, in_stock: false, severity, discontinued })
             }
           }
         }
@@ -348,6 +349,7 @@ export function useMachines() {
           const refillable = isProductRefillable(tray.product_id, warehouseStockMap, hasWarehouses)
           const productName = tray.products?.name ?? `Slot ${tray.item_number}`
           const imagePath = tray.products?.image_path ?? null
+          const sellprice = tray.products?.sellprice ?? null
           const discontinued = tray.products?.discontinued ?? false
           const key = tray.product_id
           const targetMap = refillable ? entry.deficits : entry.noStockDeficits
@@ -356,7 +358,7 @@ export function useMachines() {
             existing.deficit += deficit
             // Don't downgrade severity — fill is lowest priority
           } else {
-            targetMap.set(key, { product_name: productName, product_id: tray.product_id, deficit, image_path: imagePath, in_stock: refillable, severity: 'fill', discontinued })
+            targetMap.set(key, { product_name: productName, product_id: tray.product_id, deficit, image_path: imagePath, sellprice, in_stock: refillable, severity: 'fill', discontinued })
           }
         }
       }

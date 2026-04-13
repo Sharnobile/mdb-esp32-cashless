@@ -331,7 +331,10 @@ const trayProductMap = computed(() => {
       map.set(t.item_number, {
         name: t.product_name,
         image_url: product?.image_url ?? null,
-        sellprice: product?.sellprice ?? null,
+        // Prefer the tray-joined sellprice (always loaded with trays) and fall back
+        // to the products list if present. This ensures the price renders even
+        // before the separate products fetch completes.
+        sellprice: t.product_sellprice ?? product?.sellprice ?? null,
         discontinued: t.product_discontinued ?? false,
       })
     }

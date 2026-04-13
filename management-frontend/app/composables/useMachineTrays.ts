@@ -7,6 +7,7 @@ interface Tray {
   item_number: number
   product_id: string | null
   product_name: string | null
+  product_sellprice: number | null
   product_discontinued: boolean
   capacity: number
   current_stock: number
@@ -44,7 +45,7 @@ export function useMachineTrays() {
     try {
       const { data, error } = await (supabase as any)
         .from('machine_trays')
-        .select('id, machine_id, item_number, product_id, capacity, current_stock, min_stock, fill_when_below, products(name, discontinued)')
+        .select('id, machine_id, item_number, product_id, capacity, current_stock, min_stock, fill_when_below, products(name, sellprice, discontinued)')
         .eq('machine_id', machineId)
         .order('item_number')
 
@@ -60,6 +61,7 @@ export function useMachineTrays() {
           item_number: t.item_number,
           product_id: t.product_id,
           product_name: t.products?.name ?? null,
+          product_sellprice: t.products?.sellprice ?? null,
           product_discontinued: t.products?.discontinued ?? false,
           capacity: t.capacity,
           current_stock: existingTray ? existingTray.current_stock : t.current_stock,
