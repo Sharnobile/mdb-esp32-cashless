@@ -51,16 +51,44 @@ export function useDeals() {
   const settingsError = ref('')
   const settingsSuccess = ref('')
 
+  // Configurable keyword lists (null = use country defaults)
+  interface DealsConfig {
+    generic_terms: string[] | null
+    wildcard_phrases: string[] | null
+    app_detection_patterns: string[] | null
+    retailer_prospekt_urls: Record<string, string> | null
+  }
+  const dealsConfig = ref<DealsConfig>({
+    generic_terms: null,
+    wildcard_phrases: null,
+    app_detection_patterns: null,
+    retailer_prospekt_urls: null,
+  })
+  const hasCustomConfig = computed(() => {
+    const c = dealsConfig.value
+    return c.generic_terms !== null || c.wildcard_phrases !== null
+      || c.app_detection_patterns !== null || c.retailer_prospekt_urls !== null
+  })
+
   async function loadSettings() {
     if (!organization.value?.id) return
     const { data } = await supabase
       .from('companies')
-      .select('deals_enabled, deals_zip_code')
+      .select('deals_enabled, deals_zip_code, deals_config')
       .eq('id', organization.value.id)
       .single()
     if (data) {
       dealsEnabled.value = (data as any).deals_enabled ?? false
       dealsZipCode.value = (data as any).deals_zip_code ?? ''
+      const cfg = (data as any).deals_config
+      if (cfg) {
+        dealsConfig.value = {
+          generic_terms: cfg.generic_terms ?? null,
+          wildcard_phrases: cfg.wildcard_phrases ?? null,
+          app_detection_patterns: cfg.app_detection_patterns ?? null,
+          retailer_prospekt_urls: cfg.retailer_prospekt_urls ?? null,
+        }
+      }
     }
   }
 
@@ -69,6 +97,17 @@ export function useDeals() {
     settingsSuccess.value = ''
     if (!organization.value?.id) return
 
+    // Build config: only include non-null overrides
+    const cfg = dealsConfig.value
+    const configToSave = (cfg.generic_terms || cfg.wildcard_phrases || cfg.app_detection_patterns || cfg.retailer_prospekt_urls)
+      ? {
+          ...(cfg.generic_terms ? { generic_terms: cfg.generic_terms } : {}),
+          ...(cfg.wildcard_phrases ? { wildcard_phrases: cfg.wildcard_phrases } : {}),
+          ...(cfg.app_detection_patterns ? { app_detection_patterns: cfg.app_detection_patterns } : {}),
+          ...(cfg.retailer_prospekt_urls ? { retailer_prospekt_urls: cfg.retailer_prospekt_urls } : {}),
+        }
+      : null
+
     settingsLoading.value = true
     try {
       const { error: err } = await supabase
@@ -76,6 +115,7 @@ export function useDeals() {
         .update({
           deals_enabled: dealsEnabled.value,
           deals_zip_code: dealsZipCode.value.trim() || null,
+          deals_config: configToSave,
         })
         .eq('id', organization.value.id)
       if (err) throw err
@@ -84,6 +124,15 @@ export function useDeals() {
       settingsError.value = err instanceof Error ? err.message : 'Failed to save settings'
     } finally {
       settingsLoading.value = false
+    }
+  }
+
+  function resetConfig() {
+    dealsConfig.value = {
+      generic_terms: null,
+      wildcard_phrases: null,
+      app_detection_patterns: null,
+      retailer_prospekt_urls: null,
     }
   }
 
@@ -155,11 +204,14 @@ export function useDeals() {
     lastFetchedAt,
     dealsEnabled,
     dealsZipCode,
+    dealsConfig,
+    hasCustomConfig,
     settingsLoading,
     settingsError,
     settingsSuccess,
     loadSettings,
     saveSettings,
+    resetConfig,
     fetchDeals,
     dealsByRetailer,
     dealsByProduct,

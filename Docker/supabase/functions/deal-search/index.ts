@@ -82,53 +82,123 @@ async function searchMarktguru(
 
 // ─── Retailer prospekt URLs ─────────────────────────────────────────────────
 
-/** Direct links to official online leaflets for German retailers */
-const RETAILER_PROSPEKT_URLS: Record<string, string> = {
-  'lidl': 'https://www.lidl.de/c/online-prospekte/s10005610',
-  'kaufland': 'https://www.kaufland.de/angebote/aktuelle-prospekte.html',
-  'rewe': 'https://www.rewe.de/angebote/nationale-angebote/',
-  'aldi-sued': 'https://www.aldi-sued.de/de/angebote.html',
-  'aldi-nord': 'https://www.aldi-nord.de/angebote.html',
-  'penny': 'https://www.penny.de/angebote',
-  'netto-marken-discount': 'https://www.netto-online.de/angebote',
-  'norma': 'https://www.norma-online.de/de/angebote/',
-  'edeka': 'https://www.edeka.de/angebote.jsp',
-  'rossmann': 'https://www.rossmann.de/de/angebote.html',
-  'dm': 'https://www.dm.de/angebote',
-  'real': 'https://www.real.de/angebote/',
-  'müller': 'https://www.mueller.de/angebote/',
-  'globus': 'https://www.globus.de/angebote/',
-  'tegut': 'https://www.tegut.com/angebote/aktuelle-angebote.html',
-  'hit': 'https://www.hit.de/angebote/',
-  'famila': 'https://www.famila-nordost.de/angebote/',
-  'metro': 'https://www.metro.de/angebote',
-  'selgros': 'https://www.selgros.de/angebote',
+// ─── Country-based keyword presets ──────────────────────────────────────────
+
+interface DealConfig {
+  generic_terms: string[]
+  wildcard_phrases: string[]
+  app_detection_patterns: string[]
+  retailer_prospekt_urls: Record<string, string>
 }
 
-function getRetailerProspektUrl(slug: string): string | null {
-  return RETAILER_PROSPEKT_URLS[slug] ?? null
+const COUNTRY_PRESETS: Record<string, DealConfig> = {
+  DE: {
+    generic_terms: [
+      'verschiedene', 'sorten', 'versch', 'diverse', 'oder', 'und', 'z.b',
+      'zb', 'jede', 'jeder', 'je',
+      'stück', 'packung', 'dose', 'flasche', 'dosen', 'flaschen',
+      'kasten', 'kiste', 'krat', 'tray', 'pack', 'beutel', 'becher',
+      'tafel', 'riegel', 'tube', 'glas',
+      'drink', 'drinks', 'getränk', 'getränke',
+      'light', 'free', 'sugar',
+      'bio', 'vegan',
+      'ml', 'cl', 'liter', 'kg', 'gr',
+    ],
+    wildcard_phrases: [
+      'verschiedene', 'versch', 'diverse', 'sorten', 'sort',
+      'alle sorten', 'viele sorten', 'mehrere sorten',
+    ],
+    app_detection_patterns: [
+      'mit app', 'in der app',
+      'netto-app', 'netto app',
+      'lidl plus', 'lidl-plus',
+      'rewe bonus', 'rewe-bonus',
+      'penny app', 'penny-app',
+      'kaufland card', 'kaufland-card',
+      'app-preis', 'app preis', 'apppreis',
+      'nur mit',
+      'app-coupon', 'app coupon',
+      'digital-coupon', 'digital coupon',
+    ],
+    retailer_prospekt_urls: {
+      'lidl': 'https://www.lidl.de/c/online-prospekte/s10005610',
+      'kaufland': 'https://www.kaufland.de/angebote/aktuelle-prospekte.html',
+      'rewe': 'https://www.rewe.de/angebote/nationale-angebote/',
+      'aldi-sued': 'https://www.aldi-sued.de/de/angebote.html',
+      'aldi-nord': 'https://www.aldi-nord.de/angebote.html',
+      'penny': 'https://www.penny.de/angebote',
+      'netto-marken-discount': 'https://www.netto-online.de/angebote',
+      'norma': 'https://www.norma-online.de/de/angebote/',
+      'edeka': 'https://www.edeka.de/angebote.jsp',
+      'rossmann': 'https://www.rossmann.de/de/angebote.html',
+      'dm': 'https://www.dm.de/angebote',
+      'real': 'https://www.real.de/angebote/',
+      'müller': 'https://www.mueller.de/angebote/',
+      'globus': 'https://www.globus.de/angebote/',
+      'tegut': 'https://www.tegut.com/angebote/aktuelle-angebote.html',
+      'hit': 'https://www.hit.de/angebote/',
+      'famila': 'https://www.famila-nordost.de/angebote/',
+      'metro': 'https://www.metro.de/angebote',
+      'selgros': 'https://www.selgros.de/angebote',
+    },
+  },
+  AT: {
+    generic_terms: [
+      'verschiedene', 'sorten', 'versch', 'diverse', 'oder', 'und', 'z.b',
+      'zb', 'jede', 'jeder', 'je',
+      'stück', 'packung', 'dose', 'flasche', 'dosen', 'flaschen',
+      'kasten', 'kiste', 'krat', 'tray', 'pack', 'beutel', 'becher',
+      'tafel', 'riegel', 'tube', 'glas',
+      'drink', 'drinks', 'getränk', 'getränke',
+      'light', 'free', 'sugar',
+      'bio', 'vegan',
+      'ml', 'cl', 'liter', 'kg', 'gr',
+    ],
+    wildcard_phrases: [
+      'verschiedene', 'versch', 'diverse', 'sorten', 'sort',
+      'alle sorten', 'viele sorten', 'mehrere sorten',
+    ],
+    app_detection_patterns: [
+      'mit app', 'in der app',
+      'billa plus', 'billa-plus',
+      'jö bonus', 'jö-bonus', 'jö app',
+      'spar app', 'spar-app',
+      'lidl plus', 'lidl-plus',
+      'app-preis', 'app preis',
+      'nur mit',
+    ],
+    retailer_prospekt_urls: {
+      'billa': 'https://www.billa.at/angebote/aktuelle-angebote',
+      'billa-plus': 'https://www.billa.at/angebote/aktuelle-angebote',
+      'spar': 'https://www.spar.at/angebote',
+      'eurospar': 'https://www.spar.at/angebote',
+      'interspar': 'https://www.spar.at/angebote',
+      'hofer': 'https://www.hofer.at/de/angebote.html',
+      'lidl': 'https://www.lidl.at/angebote',
+      'penny': 'https://www.penny.at/angebote',
+    },
+  },
+}
+
+/** Merge company overrides on top of country defaults */
+function resolveConfig(countryCode: string, overrides: Partial<DealConfig> | null): DealConfig {
+  const base = COUNTRY_PRESETS[countryCode] ?? COUNTRY_PRESETS['DE']
+  if (!overrides) return base
+  return {
+    generic_terms: overrides.generic_terms ?? base.generic_terms,
+    wildcard_phrases: overrides.wildcard_phrases ?? base.wildcard_phrases,
+    app_detection_patterns: overrides.app_detection_patterns ?? base.app_detection_patterns,
+    retailer_prospekt_urls: overrides.retailer_prospekt_urls
+      ? { ...base.retailer_prospekt_urls, ...overrides.retailer_prospekt_urls }
+      : base.retailer_prospekt_urls,
+  }
 }
 
 /**
  * Detect app requirement from offer description text.
- * Fallback for when requiresLoyalityMembership is false but the
- * description mentions an app price (e.g. "mit Netto-App nur 0,88€").
  */
-function detectAppRequirement(description: string): boolean {
+function detectAppRequirement(description: string, patterns: string[]): boolean {
   const lower = description.toLowerCase()
-  const patterns = [
-    'mit app',
-    'in der app',
-    'netto-app', 'netto app',
-    'lidl plus', 'lidl-plus',
-    'rewe bonus', 'rewe-bonus',
-    'penny app', 'penny-app',
-    'kaufland card', 'kaufland-card',
-    'app-preis', 'app preis', 'apppreis',
-    'nur mit',
-    'app-coupon', 'app coupon',
-    'digital-coupon', 'digital coupon',
-  ]
   return patterns.some((p) => lower.includes(p))
 }
 
@@ -174,6 +244,7 @@ function matchConfidence(
   productName: string,
   offerDescription: string,
   offerBrand: string,
+  config: DealConfig,
 ): MatchResult {
   const productNorm = normalize(productName)
   const offerNorm = normalize(offerDescription)
@@ -188,23 +259,7 @@ function matchConfidence(
   const productTokens = extractTokens(productName)
   if (productTokens.length === 0) return { confidence: 0, matchedTokens: [] }
 
-  // Filter out generic filler words that appear in product names but rarely
-  // in offer descriptions (or vice versa) and would hurt matching scores.
-  const genericTerms = new Set([
-    // German offer phrasing
-    'verschiedene', 'sorten', 'versch', 'diverse', 'oder', 'und', 'z.b',
-    'zb', 'jede', 'jeder', 'je',
-    // Packaging / unit
-    'stück', 'packung', 'dose', 'flasche', 'dosen', 'flaschen',
-    'kasten', 'kiste', 'krat', 'tray', 'pack', 'beutel', 'becher',
-    'tafel', 'riegel', 'tube', 'glas',
-    // Generic product descriptors
-    'drink', 'drinks', 'getränk', 'getränke',
-    'light', 'free', 'sugar',
-    'bio', 'vegan',
-    // Size / weight patterns (commonly in product names but not in offers)
-    'ml', 'cl', 'liter', 'kg', 'gr',
-  ])
+  const genericTerms = new Set(config.generic_terms)
 
   /** Check if a token appears in text — numeric tokens (e.g. "50", "5,0")
    *  must match as a whole word to avoid "50" matching inside "500ml". */
@@ -261,11 +316,7 @@ function matchConfidence(
   // etc., it means ALL variants of the brand are included. In that case, a
   // brand match alone is sufficient — boost the score significantly.
   let wildcardBonus = 0
-  const wildcardPhrases = [
-    'verschiedene', 'versch', 'diverse', 'sorten', 'sort',
-    'alle sorten', 'viele sorten', 'mehrere sorten',
-  ]
-  const hasWildcard = wildcardPhrases.some((p) => offerNorm.includes(p))
+  const hasWildcard = config.wildcard_phrases.some((p) => offerNorm.includes(p))
   if (hasWildcard && brandBonus > 0) {
     // Brand matches + offer is a wildcard → strong match
     wildcardBonus = 0.3
@@ -318,10 +369,10 @@ Deno.serve(async (req) => {
 
     const companyId = membership.company_id
 
-    // Check if deals feature is enabled
+    // Check if deals feature is enabled + load config
     const { data: company } = await adminClient
       .from('companies')
-      .select('deals_enabled, deals_zip_code')
+      .select('deals_enabled, deals_zip_code, deals_config, country_code')
       .eq('id', companyId)
       .single()
 
@@ -333,6 +384,8 @@ Deno.serve(async (req) => {
     }
 
     const zipCode = company.deals_zip_code || '60487'
+    const countryCode = (company as any).country_code ?? 'DE'
+    const dealConfig = resolveConfig(countryCode, (company as any).deals_config ?? null)
 
     const body = await req.json().catch(() => ({}))
     const forceRefresh = body.forceRefresh === true
@@ -440,7 +493,7 @@ Deno.serve(async (req) => {
           const imageUrlLarge = `https://mg2de.b-cdn.net/api/v1/offers/${offer.id}/images/default/0/large.jpg`
 
           // Direct link to official retailer online prospekt (stable, reliable)
-          const prospektUrl = getRetailerProspektUrl(retailerSlug)
+          const prospektUrl = dealConfig.retailer_prospekt_urls[retailerSlug]
             ?? `https://www.marktguru.de/rp/${retailerSlug}-prospekte`
 
           // All offers from this retailer on marktguru
@@ -463,7 +516,7 @@ Deno.serve(async (req) => {
             matched_by: 'name_fuzzy',
             confidence: match.confidence,
             matched_tokens: match.matchedTokens,
-            requires_app: offer.requiresLoyalityMembership || detectAppRequirement(offer.description),
+            requires_app: offer.requiresLoyalityMembership || detectAppRequirement(offer.description, dealConfig.app_detection_patterns),
             fetched_at: new Date().toISOString(),
             offer_id: String(offer.id),
           }
@@ -475,6 +528,7 @@ Deno.serve(async (req) => {
               product.name,
               offer.description,
               offer.brand?.name ?? '',
+              dealConfig,
             )
 
             if (match.confidence < minConfidence) continue
@@ -498,6 +552,7 @@ Deno.serve(async (req) => {
               product.name,
               offer.description,
               offer.brand?.name ?? '',
+              dealConfig,
             )
 
             if (match.confidence < minConfidence) continue
