@@ -19,8 +19,6 @@ interface MarktguruOffer {
   product: { name: string; description: string | null }
   validityDates: { from: string; to: string }[]
   images: { urls: { small: string; medium: string; large: string } }
-  leafletFlightId: number | null
-  externalUrl: string | null
 }
 
 interface MarktguruKeys {
@@ -81,63 +79,33 @@ async function searchMarktguru(
   return data.results ?? []
 }
 
-// ─── Leaflet / Prospekt helpers ──────────────────────────────────────────────
+// ─── Retailer prospekt URLs ─────────────────────────────────────────────────
 
-interface LeafletPage {
-  pageNumber: number
-  imageUrl: string
+/** Direct links to official online leaflets for German retailers */
+const RETAILER_PROSPEKT_URLS: Record<string, string> = {
+  'lidl': 'https://www.lidl.de/c/online-prospekte/s10005610',
+  'kaufland': 'https://www.kaufland.de/angebote/aktuelle-prospekte.html',
+  'rewe': 'https://www.rewe.de/angebote/nationale-angebote/',
+  'aldi-sued': 'https://www.aldi-sued.de/de/angebote.html',
+  'aldi-nord': 'https://www.aldi-nord.de/angebote.html',
+  'penny': 'https://www.penny.de/angebote',
+  'netto-marken-discount': 'https://www.netto-online.de/angebote',
+  'norma': 'https://www.norma-online.de/de/angebote/',
+  'edeka': 'https://www.edeka.de/angebote.jsp',
+  'rossmann': 'https://www.rossmann.de/de/angebote.html',
+  'dm': 'https://www.dm.de/angebote',
+  'real': 'https://www.real.de/angebote/',
+  'müller': 'https://www.mueller.de/angebote/',
+  'globus': 'https://www.globus.de/angebote/',
+  'tegut': 'https://www.tegut.com/angebote/aktuelle-angebote.html',
+  'hit': 'https://www.hit.de/angebote/',
+  'famila': 'https://www.famila-nordost.de/angebote/',
+  'metro': 'https://www.metro.de/angebote',
+  'selgros': 'https://www.selgros.de/angebote',
 }
 
-/**
- * Try to fetch the leaflet (prospekt) pages for a given leafletFlightId.
- * The marktguru API exposes leaflet flights with page images.
- * We try the known endpoint pattern and fall back gracefully.
- */
-async function fetchLeafletPages(
-  leafletFlightId: number | null,
-  keys: MarktguruKeys,
-): Promise<LeafletPage[]> {
-  if (!leafletFlightId) return []
-
-  try {
-    const res = await fetch(
-      `https://api.marktguru.de/api/v1/leafletFlights/${leafletFlightId}`,
-      {
-        headers: {
-          'x-apikey': keys.apiKey,
-          'x-clientkey': keys.clientKey,
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; rv:102.0) Gecko/20100101 Firefox/102.0',
-        },
-      },
-    )
-
-    if (!res.ok) return []
-
-    const data = await res.json()
-
-    // The response may contain pages array or page count
-    // Try common response shapes
-    if (Array.isArray(data.pages)) {
-      return data.pages.map((p: any, i: number) => ({
-        pageNumber: p.pageNumber ?? p.number ?? i,
-        imageUrl: p.imageUrl ?? p.images?.large
-          ?? `https://mg2de.b-cdn.net/api/v1/leafletFlights/${leafletFlightId}/pages/${p.pageNumber ?? i}/large.jpg`,
-      }))
-    }
-
-    // If we get a pageCount, construct URLs from the CDN pattern
-    const pageCount = data.pageCount ?? data.totalPages ?? data.pages_count ?? 0
-    if (pageCount > 0) {
-      return Array.from({ length: pageCount }, (_, i) => ({
-        pageNumber: i,
-        imageUrl: `https://mg2de.b-cdn.net/api/v1/leafletFlights/${leafletFlightId}/pages/${i}/large.jpg`,
-      }))
-    }
-
-    return []
-  } catch {
-    return []
-  }
+function getRetailerProspektUrl(slug: string): string | null {
+  return RETAILER_PROSPEKT_URLS[slug] ?? null
 }
 
 // ─── Fuzzy matching ─────────────────────────────────────────────────────────
@@ -368,15 +336,12 @@ Deno.serve(async (req) => {
     // Limit to 30 searches per request to respect rate limits
     const queries = Array.from(searchQueries.entries()).slice(0, 30)
 
-    // Cache leaflet pages per leafletFlightId to avoid duplicate fetches
-    const leafletCache = new Map<number, LeafletPage[]>()
-
     for (const [query, matchProducts] of queries) {
       try {
         const offers = await searchMarktguru(query, zipCode, keys, 10)
 
         // Helper to build a deal record from an offer + product match
-        function buildDeal(offer: MarktguruOffer, product: any, match: MatchResult, leafletPages: LeafletPage[]) {
+        function buildDeal(offer: MarktguruOffer, product: any, match: MatchResult) {
           const retailerSlug = offer.advertisers?.[0]?.uniqueName ?? 'unknown'
           const retailerName = offer.advertisers?.[0]?.name ?? retailerSlug
           const validFrom = offer.validityDates?.[0]?.from ?? null
@@ -385,13 +350,14 @@ Deno.serve(async (req) => {
             ? Math.round((1 - offer.price / offer.oldPrice) * 100)
             : null
 
-          // Construct large prospekt image URL from CDN
+          // Construct large prospekt image URL from CDN (this IS the leaflet excerpt)
           const imageUrlLarge = `https://mg2de.b-cdn.net/api/v1/offers/${offer.id}/images/default/0/large.jpg`
 
-          // Construct marktguru page URLs:
-          //   /rp/{slug}-prospekte  → leaflet/prospekt page to browse the full flyer
-          //   /r/{slug}             → all current offers for this retailer
-          const prospektUrl = `https://www.marktguru.de/rp/${retailerSlug}-prospekte`
+          // Direct link to official retailer online prospekt (stable, reliable)
+          const prospektUrl = getRetailerProspektUrl(retailerSlug)
+            ?? `https://www.marktguru.de/rp/${retailerSlug}-prospekte`
+
+          // All offers from this retailer on marktguru
           const retailerPageUrl = `https://www.marktguru.de/r/${retailerSlug}`
 
           return {
@@ -411,20 +377,9 @@ Deno.serve(async (req) => {
             matched_by: 'name_fuzzy',
             confidence: match.confidence,
             matched_tokens: match.matchedTokens,
-            leaflet_pages: leafletPages.length > 0 ? leafletPages : null,
             fetched_at: new Date().toISOString(),
             offer_id: String(offer.id),
           }
-        }
-
-        // Helper: get leaflet pages for an offer (cached)
-        async function getLeafletPages(offer: MarktguruOffer): Promise<LeafletPage[]> {
-          const flightId = offer.leafletFlightId
-          if (!flightId) return []
-          if (leafletCache.has(flightId)) return leafletCache.get(flightId)!
-          const pages = await fetchLeafletPages(flightId, keys)
-          leafletCache.set(flightId, pages)
-          return pages
         }
 
         for (const offer of offers) {
@@ -441,8 +396,7 @@ Deno.serve(async (req) => {
             if (seen.has(dedup)) continue
             seen.add(dedup)
 
-            const pages = await getLeafletPages(offer)
-            allDeals.push(buildDeal(offer, product, match, pages))
+            allDeals.push(buildDeal(offer, product, match))
           }
         }
 
@@ -462,8 +416,7 @@ Deno.serve(async (req) => {
             if (match.confidence < minConfidence) continue
             seen.add(dedup)
 
-            const pages = await getLeafletPages(offer)
-            allDeals.push(buildDeal(offer, product, match, pages))
+            allDeals.push(buildDeal(offer, product, match))
           }
         }
       } catch (err) {

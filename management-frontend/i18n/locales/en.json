@@ -948,9 +948,8 @@
     "totalDeals": "Deals found",
     "retailers": "Retailers",
     "avgDiscount": "Avg. discount",
-    "dataStatus": "Data",
-    "cached": "Cached",
-    "fresh": "Fresh",
+    "lastFetched": "Last fetched",
+    "cached": "from cache",
     "searchPlaceholder": "Search deals or products...",
     "byRetailer": "By retailer",
     "byProduct": "By product",
@@ -970,10 +969,7 @@
     "yourPrice": "Your price",
     "matchedTokens": "Matched terms",
     "matchMethod": "Method",
-    "fuzzyNameMatch": "Fuzzy name matching",
-    "prospektPage": "page",
-    "prospektHint": "Leaflet from the retailer — browse pages to verify the offer.",
-    "offerImageHint": "Offer image — leaflet pages not available for this offer."
+    "fuzzyNameMatch": "Fuzzy name matching"
   },
   "reports": {
     "title": "Reports",

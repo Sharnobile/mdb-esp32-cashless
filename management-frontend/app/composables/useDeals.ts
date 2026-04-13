@@ -12,7 +12,6 @@ export interface Deal {
   image_url_large: string | null
   source_url: string | null
   external_url: string | null
-  leaflet_pages: { pageNumber: number; imageUrl: string }[] | null
   matched_by: string
   confidence: number
   matched_tokens: string[] | null
@@ -42,6 +41,7 @@ export function useDeals() {
   const error = ref('')
   const fromCache = ref(false)
   const searchedProducts = ref(0)
+  const lastFetchedAt = ref<string | null>(null)
 
   // Deal search settings
   const dealsEnabled = ref(false)
@@ -100,6 +100,12 @@ export function useDeals() {
       deals.value = res.deals ?? []
       fromCache.value = res.fromCache ?? false
       searchedProducts.value = res.searchedProducts ?? 0
+      // Use the fetched_at from the first deal, or current time for fresh data
+      if (deals.value.length > 0 && deals.value[0].fetched_at) {
+        lastFetchedAt.value = deals.value[0].fetched_at
+      } else if (!res.fromCache) {
+        lastFetchedAt.value = new Date().toISOString()
+      }
     } catch (err: unknown) {
       error.value = err instanceof Error ? err.message : 'Failed to fetch deals'
     } finally {
@@ -145,6 +151,7 @@ export function useDeals() {
     error,
     fromCache,
     searchedProducts,
+    lastFetchedAt,
     dealsEnabled,
     dealsZipCode,
     settingsLoading,

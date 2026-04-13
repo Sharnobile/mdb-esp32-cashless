@@ -948,9 +948,8 @@
     "totalDeals": "Angebote gefunden",
     "retailers": "Händler",
     "avgDiscount": "Ø Rabatt",
-    "dataStatus": "Daten",
-    "cached": "Zwischengespeichert",
-    "fresh": "Aktuell",
+    "lastFetched": "Letzter Abruf",
+    "cached": "aus Cache",
     "searchPlaceholder": "Angebote oder Produkte suchen...",
     "byRetailer": "Nach Händler",
     "byProduct": "Nach Produkt",
@@ -970,10 +969,7 @@
     "yourPrice": "Ihr Preis",
     "matchedTokens": "Übereinstimmende Begriffe",
     "matchMethod": "Methode",
-    "fuzzyNameMatch": "Unscharfer Namensabgleich",
-    "prospektPage": "Seite",
-    "prospektHint": "Prospekt des Händlers — blättern Sie durch die Seiten, um das Angebot zu prüfen.",
-    "offerImageHint": "Angebotsbild — Prospektseiten sind für dieses Angebot nicht verfügbar."
+    "fuzzyNameMatch": "Unscharfer Namensabgleich"
   },
   "reports": {
     "title": "Berichte",
