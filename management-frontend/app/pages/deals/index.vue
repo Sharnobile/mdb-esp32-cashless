@@ -389,12 +389,20 @@ function highlightTokens(text: string, tokens: string[] | null): { text: string;
 
         <div v-if="selectedDeal" class="mt-4 space-y-4">
           <!-- Hero: image + price overlay -->
-          <div class="relative overflow-hidden rounded-xl border bg-muted h-36 sm:h-44">
+          <div class="relative overflow-hidden rounded-xl border h-36 sm:h-44">
+            <!-- Blurred background fill (same image, scaled up) -->
+            <div
+              v-if="selectedDeal.image_url_large"
+              class="absolute inset-0 bg-cover bg-center blur-xl scale-125 opacity-40"
+              :style="{ backgroundImage: `url(${selectedDeal.image_url_large})` }"
+            />
+            <div v-else class="absolute inset-0 bg-muted" />
+            <!-- Actual image (fully visible, centered) -->
             <img
               v-if="selectedDeal.image_url_large"
               :src="selectedDeal.image_url_large"
               :alt="selectedDeal.deal_title"
-              class="size-full object-contain"
+              class="relative size-full object-contain"
               loading="lazy"
             />
             <div v-else class="flex h-32 items-center justify-center">
