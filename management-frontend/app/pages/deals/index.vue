@@ -381,163 +381,154 @@ function highlightTokens(text: string, tokens: string[] | null): { text: string;
 
     <!-- ─── Detail Sheet ────────────────────────────────────────────── -->
     <Sheet v-model:open="sheetOpen">
-      <SheetContent class="w-full sm:max-w-lg overflow-y-auto">
+      <SheetContent class="w-full sm:max-w-md overflow-y-auto">
         <SheetHeader>
           <SheetTitle>{{ t('deals.detailTitle') }}</SheetTitle>
           <SheetDescription>{{ selectedDeal?.retailer }}</SheetDescription>
         </SheetHeader>
 
-        <div v-if="selectedDeal" class="mt-6 space-y-6">
-          <!-- Offer image (prospekt excerpt from marktguru CDN) -->
-          <div class="overflow-hidden rounded-xl border bg-muted">
+        <div v-if="selectedDeal" class="mt-4 space-y-4">
+          <!-- Hero: image + price overlay -->
+          <div class="relative overflow-hidden rounded-xl border bg-muted">
             <img
               v-if="selectedDeal.image_url_large"
               :src="selectedDeal.image_url_large"
               :alt="selectedDeal.deal_title"
-              class="w-full object-contain"
+              class="w-full max-h-48 sm:max-h-56 object-contain"
               loading="lazy"
             />
-            <div v-else class="flex h-48 items-center justify-center">
-              <IconTag class="size-12 text-muted-foreground" />
+            <div v-else class="flex h-32 items-center justify-center">
+              <IconTag class="size-10 text-muted-foreground" />
             </div>
-          </div>
-
-          <!-- Offer info -->
-          <div class="space-y-3">
-            <h3 class="text-base font-semibold">{{ selectedDeal.deal_title }}</h3>
-
-            <div class="flex items-center gap-3">
-              <span v-if="selectedDeal.deal_price != null" class="text-xl font-bold text-green-600 dark:text-green-400">
+            <!-- Price overlay bottom-right -->
+            <div v-if="selectedDeal.deal_price != null" class="absolute bottom-2 right-2 flex items-center gap-1.5 rounded-lg bg-black/70 px-2.5 py-1 backdrop-blur-sm">
+              <span class="text-base font-bold text-green-400">
                 {{ selectedDeal.deal_price.toFixed(2) }}&euro;
               </span>
-              <span v-if="selectedDeal.regular_price != null" class="text-base text-muted-foreground line-through">
+              <span v-if="selectedDeal.regular_price != null" class="text-xs text-white/60 line-through">
                 {{ selectedDeal.regular_price.toFixed(2) }}&euro;
               </span>
-              <Badge v-if="selectedDeal.discount_pct" variant="destructive">
+              <Badge v-if="selectedDeal.discount_pct" variant="destructive" class="text-[10px] px-1.5 py-0">
                 {{ formatDiscount(selectedDeal.discount_pct) }}
               </Badge>
             </div>
+          </div>
 
-            <!-- App required notice -->
-            <div v-if="selectedDeal.requires_app" class="flex items-center gap-2 rounded-lg border border-purple-200 bg-purple-50 px-3 py-2 dark:border-purple-800 dark:bg-purple-950">
-              <IconDeviceMobile class="size-4 shrink-0 text-purple-600 dark:text-purple-400" />
-              <p class="text-sm text-purple-800 dark:text-purple-200">
-                {{ t('deals.requiresApp', { retailer: selectedDeal.retailer }) }}
-              </p>
-            </div>
+          <!-- Title + badges row -->
+          <div class="space-y-2">
+            <h3 class="text-sm font-semibold leading-snug sm:text-base">{{ selectedDeal.deal_title }}</h3>
 
-            <!-- Validity status -->
-            <div v-if="selectedDeal.valid_from || selectedDeal.valid_until" class="flex items-center gap-3">
+            <div class="flex flex-wrap items-center gap-1.5">
+              <!-- Validity badge -->
               <span
-                class="inline-flex rounded-full px-2.5 py-1 text-xs font-medium"
+                v-if="selectedDeal.valid_from || selectedDeal.valid_until"
+                class="inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium"
                 :class="dealValidity(selectedDeal.valid_from, selectedDeal.valid_until).badgeCls"
               >
                 {{ dealValidity(selectedDeal.valid_from, selectedDeal.valid_until).label }}
               </span>
-              <span class="text-sm text-muted-foreground">
-                <span v-if="selectedDeal.valid_from">{{ selectedDeal.valid_from }}</span>
-                <span v-if="selectedDeal.valid_from && selectedDeal.valid_until"> — </span>
-                <span v-if="selectedDeal.valid_until">{{ selectedDeal.valid_until }}</span>
+              <!-- Date range -->
+              <span v-if="selectedDeal.valid_from || selectedDeal.valid_until" class="text-xs text-muted-foreground">
+                {{ selectedDeal.valid_from }}{{ selectedDeal.valid_from && selectedDeal.valid_until ? ' — ' : '' }}{{ selectedDeal.valid_until }}
               </span>
-            </div>
-
-            <!-- Links to marktguru pages -->
-            <div class="flex flex-wrap gap-3">
-              <a
-                v-if="selectedDeal.source_url"
-                :href="selectedDeal.source_url"
-                target="_blank"
-                rel="noopener"
-                class="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-muted"
-              >
-                <IconExternalLink class="size-3.5" />
-                {{ t('deals.viewProspekt') }}
-              </a>
-              <a
-                v-if="selectedDeal.external_url"
-                :href="selectedDeal.external_url"
-                target="_blank"
-                rel="noopener"
-                class="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-muted"
-              >
-                <IconExternalLink class="size-3.5" />
-                {{ t('deals.viewAllOffers', { retailer: selectedDeal.retailer }) }}
-              </a>
+              <!-- App badge -->
+              <span v-if="selectedDeal.requires_app" class="inline-flex items-center gap-0.5 rounded-full bg-purple-100 px-2 py-0.5 text-[11px] font-medium text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+                <IconDeviceMobile class="size-3" />
+                App
+              </span>
             </div>
           </div>
 
-          <!-- ─── Match Validation ──────────────────────────────── -->
-          <div class="rounded-xl border bg-card p-4 space-y-4">
-            <h4 class="text-sm font-semibold">{{ t('deals.matchValidation') }}</h4>
+          <!-- App required notice -->
+          <div v-if="selectedDeal.requires_app" class="flex items-center gap-2 rounded-lg border border-purple-200 bg-purple-50 px-3 py-2 dark:border-purple-800 dark:bg-purple-950">
+            <IconDeviceMobile class="size-4 shrink-0 text-purple-600 dark:text-purple-400" />
+            <p class="text-xs text-purple-800 dark:text-purple-200">
+              {{ t('deals.requiresApp', { retailer: selectedDeal.retailer }) }}
+            </p>
+          </div>
 
-            <!-- Confidence meter -->
-            <div class="space-y-1">
-              <div class="flex items-center justify-between text-sm">
-                <span>{{ t('deals.confidence') }}</span>
-                <span :class="confidenceLevel(selectedDeal.confidence).cls" class="font-medium">
-                  {{ Math.round(selectedDeal.confidence * 100) }}% — {{ confidenceLevel(selectedDeal.confidence).label }}
-                </span>
-              </div>
-              <div class="h-2 overflow-hidden rounded-full bg-muted">
-                <div
-                  class="h-full rounded-full transition-all"
-                  :class="{
-                    'bg-green-500': selectedDeal.confidence >= 0.85,
-                    'bg-yellow-500': selectedDeal.confidence >= 0.65 && selectedDeal.confidence < 0.85,
-                    'bg-orange-500': selectedDeal.confidence < 0.65,
-                  }"
-                  :style="{ width: `${Math.round(selectedDeal.confidence * 100)}%` }"
-                />
-              </div>
+          <!-- Action buttons -->
+          <div class="flex gap-2">
+            <a
+              v-if="selectedDeal.source_url"
+              :href="selectedDeal.source_url"
+              target="_blank"
+              rel="noopener"
+              class="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-colors hover:bg-muted sm:text-sm"
+            >
+              <IconExternalLink class="size-3.5" />
+              {{ t('deals.viewProspekt') }}
+            </a>
+            <a
+              v-if="selectedDeal.external_url"
+              :href="selectedDeal.external_url"
+              target="_blank"
+              rel="noopener"
+              class="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-colors hover:bg-muted sm:text-sm"
+            >
+              <IconExternalLink class="size-3.5" />
+              {{ t('deals.viewAllOffers', { retailer: selectedDeal.retailer }) }}
+            </a>
+          </div>
+
+          <!-- ─── Match Validation (compact) ────────────────────── -->
+          <div class="rounded-xl border bg-card p-3 space-y-3">
+            <div class="flex items-center justify-between">
+              <h4 class="text-xs font-semibold">{{ t('deals.matchValidation') }}</h4>
+              <span :class="confidenceLevel(selectedDeal.confidence).cls" class="text-xs font-medium">
+                {{ Math.round(selectedDeal.confidence * 100) }}% {{ confidenceLevel(selectedDeal.confidence).label }}
+              </span>
+            </div>
+
+            <!-- Confidence bar -->
+            <div class="h-1.5 overflow-hidden rounded-full bg-muted">
+              <div
+                class="h-full rounded-full transition-all"
+                :class="{
+                  'bg-green-500': selectedDeal.confidence >= 0.85,
+                  'bg-yellow-500': selectedDeal.confidence >= 0.65 && selectedDeal.confidence < 0.85,
+                  'bg-orange-500': selectedDeal.confidence < 0.65,
+                }"
+                :style="{ width: `${Math.round(selectedDeal.confidence * 100)}%` }"
+              />
             </div>
 
             <!-- Side by side: Offer vs Product -->
-            <div class="grid grid-cols-2 gap-3">
-              <!-- Offer side -->
-              <div class="space-y-1">
-                <p class="text-xs font-medium text-muted-foreground">{{ t('deals.offerText') }}</p>
-                <p class="text-sm">
+            <div class="grid grid-cols-2 gap-2">
+              <div class="space-y-0.5">
+                <p class="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{{ t('deals.offerText') }}</p>
+                <p class="text-xs leading-snug">
                   <template v-for="(seg, idx) in highlightTokens(selectedDeal.deal_title, selectedDeal.matched_tokens)" :key="idx">
                     <mark v-if="seg.matched" class="rounded-sm bg-green-200 px-0.5 dark:bg-green-900">{{ seg.text }}</mark>
                     <span v-else>{{ seg.text }}</span>
                   </template>
                 </p>
               </div>
-
-              <!-- Product side -->
-              <div class="space-y-1">
-                <p class="text-xs font-medium text-muted-foreground">{{ t('deals.yourProduct') }}</p>
-                <p class="text-sm">
+              <div class="space-y-0.5">
+                <p class="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{{ t('deals.yourProduct') }}</p>
+                <p class="text-xs leading-snug">
                   <template v-for="(seg, idx) in highlightTokens(selectedDeal.products?.name ?? '', selectedDeal.matched_tokens)" :key="idx">
                     <mark v-if="seg.matched" class="rounded-sm bg-green-200 px-0.5 dark:bg-green-900">{{ seg.text }}</mark>
                     <span v-else>{{ seg.text }}</span>
                   </template>
                 </p>
-                <p v-if="selectedDeal.products?.sellprice != null" class="text-xs text-muted-foreground">
+                <p v-if="selectedDeal.products?.sellprice != null" class="text-[10px] text-muted-foreground">
                   {{ t('deals.yourPrice') }}: {{ selectedDeal.products.sellprice.toFixed(2) }}&euro;
                 </p>
               </div>
             </div>
 
-            <!-- Matched tokens list -->
-            <div v-if="selectedDeal.matched_tokens?.length" class="space-y-1">
-              <p class="text-xs font-medium text-muted-foreground">{{ t('deals.matchedTokens') }}</p>
-              <div class="flex flex-wrap gap-1">
-                <span
-                  v-for="token in selectedDeal.matched_tokens"
-                  :key="token"
-                  class="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900 dark:text-green-200"
-                >
-                  <IconCheck class="size-3" />
-                  {{ token }}
-                </span>
-              </div>
+            <!-- Matched tokens -->
+            <div v-if="selectedDeal.matched_tokens?.length" class="flex flex-wrap gap-1">
+              <span
+                v-for="token in selectedDeal.matched_tokens"
+                :key="token"
+                class="inline-flex items-center gap-0.5 rounded-full bg-green-100 px-1.5 py-0.5 text-[10px] font-medium text-green-800 dark:bg-green-900 dark:text-green-200"
+              >
+                <IconCheck class="size-2.5" />
+                {{ token }}
+              </span>
             </div>
-
-            <!-- Match method -->
-            <p class="text-xs text-muted-foreground">
-              {{ t('deals.matchMethod') }}: {{ selectedDeal.matched_by === 'name_fuzzy' ? t('deals.fuzzyNameMatch') : selectedDeal.matched_by }}
-            </p>
           </div>
         </div>
       </SheetContent>
