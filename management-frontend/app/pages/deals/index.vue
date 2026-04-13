@@ -381,13 +381,13 @@ function highlightTokens(text: string, tokens: string[] | null): { text: string;
 
     <!-- ─── Detail Sheet ────────────────────────────────────────────── -->
     <Sheet v-model:open="sheetOpen">
-      <SheetContent class="w-full sm:max-w-md overflow-y-auto">
+      <SheetContent class="w-full sm:max-w-md overflow-y-auto px-5 sm:px-6">
         <SheetHeader>
           <SheetTitle>{{ t('deals.detailTitle') }}</SheetTitle>
           <SheetDescription>{{ selectedDeal?.retailer }}</SheetDescription>
         </SheetHeader>
 
-        <div v-if="selectedDeal" class="mt-4 space-y-4">
+        <div v-if="selectedDeal" class="mt-5 space-y-5">
           <!-- Hero: image + price overlay -->
           <div class="relative overflow-hidden rounded-xl border h-36 sm:h-44">
             <!-- Blurred background fill (same image, scaled up) -->
@@ -423,7 +423,7 @@ function highlightTokens(text: string, tokens: string[] | null): { text: string;
           </div>
 
           <!-- Title + badges row -->
-          <div class="space-y-2">
+          <div class="space-y-2.5">
             <h3 class="text-sm font-semibold leading-snug sm:text-base">{{ selectedDeal.deal_title }}</h3>
 
             <div class="flex flex-wrap items-center gap-1.5">
@@ -480,7 +480,7 @@ function highlightTokens(text: string, tokens: string[] | null): { text: string;
           </div>
 
           <!-- ─── Match Validation (compact) ────────────────────── -->
-          <div class="rounded-xl border bg-card p-3 space-y-3">
+          <div class="rounded-xl border bg-card p-4 space-y-3">
             <div class="flex items-center justify-between">
               <h4 class="text-xs font-semibold">{{ t('deals.matchValidation') }}</h4>
               <span :class="confidenceLevel(selectedDeal.confidence).cls" class="text-xs font-medium">
