@@ -196,18 +196,30 @@ function matchConfidence(
     'tafel', 'riegel', 'tube', 'glas',
     // Generic product descriptors
     'drink', 'drinks', 'getränk', 'getränke',
-    'original', 'classic', 'klassik',
-    'light', 'zero', 'free', 'sugar',
+    'light', 'free', 'sugar',
     'bio', 'vegan',
     // Size / weight patterns (commonly in product names but not in offers)
     'ml', 'cl', 'liter', 'kg', 'gr',
   ])
 
+  /** Check if a token appears in text — numeric tokens must match as a
+   *  whole word to avoid "50" matching inside "500ml" or "1,50€". */
+  function tokenInText(token: string, text: string): boolean {
+    const isNumeric = /^\d+$/.test(token)
+    if (isNumeric) {
+      // Word-boundary match: the token must be surrounded by non-digit chars
+      // or be at the start/end of the string
+      const re = new RegExp(`(?<![0-9])${token}(?![0-9])`)
+      return re.test(text)
+    }
+    return text.includes(token)
+  }
+
   // Check how many product tokens appear in the offer description
   let tokenMatches = 0
   for (const token of productTokens) {
     if (genericTerms.has(token)) continue
-    if (offerNorm.includes(token) || brandNorm.includes(token)) {
+    if (tokenInText(token, offerNorm) || tokenInText(token, brandNorm)) {
       tokenMatches++
       matchedTokens.push(token)
     }
@@ -233,7 +245,7 @@ function matchConfidence(
   const offerTokens = extractTokens(offerDescription).filter((t) => !genericTerms.has(t))
   let reverseMatches = 0
   for (const token of offerTokens) {
-    if (productNorm.includes(token)) {
+    if (tokenInText(token, productNorm)) {
       reverseMatches++
       if (!matchedTokens.includes(token)) matchedTokens.push(token)
     }
