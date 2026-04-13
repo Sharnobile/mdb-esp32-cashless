@@ -318,13 +318,13 @@ function highlightTokens(text: string, tokens: string[] | null): { text: string;
               class="flex gap-3 rounded-xl border bg-card p-4 shadow-sm transition-colors hover:bg-muted/50 text-left cursor-pointer"
               @click="openDetail(deal)"
             >
-              <!-- Deal image -->
+              <!-- Deal image (medium thumbnail, fallback to large prospekt excerpt) -->
               <div class="shrink-0">
                 <img
-                  v-if="deal.image_url"
-                  :src="deal.image_url"
+                  v-if="deal.image_url || deal.image_url_large"
+                  :src="deal.image_url ?? deal.image_url_large!"
                   :alt="deal.deal_title"
-                  class="size-16 rounded-lg object-cover"
+                  class="size-16 rounded-lg object-cover bg-muted"
                   loading="lazy"
                 />
                 <div v-else class="flex size-16 items-center justify-center rounded-lg bg-muted">
