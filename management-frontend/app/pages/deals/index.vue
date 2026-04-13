@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { IconRefresh, IconTag, IconBuildingStore, IconAlertCircle, IconSettings, IconExternalLink, IconCheck, IconX } from '@tabler/icons-vue'
+import { IconRefresh, IconTag, IconBuildingStore, IconAlertCircle, IconSettings, IconExternalLink, IconCheck, IconX, IconChevronLeft, IconChevronRight } from '@tabler/icons-vue'
 import Badge from '@/components/ui/badge/Badge.vue'
 import {
   Sheet,
@@ -33,10 +33,34 @@ const groupBy = ref<'retailer' | 'product'>('retailer')
 // Detail sheet state
 const selectedDeal = ref<Deal | null>(null)
 const sheetOpen = ref(false)
+const leafletPage = ref(0)
 
 function openDetail(deal: Deal) {
   selectedDeal.value = deal
+  leafletPage.value = 0
   sheetOpen.value = true
+}
+
+const hasLeaflet = computed(() => {
+  return (selectedDeal.value?.leaflet_pages?.length ?? 0) > 0
+})
+
+const totalLeafletPages = computed(() => {
+  return selectedDeal.value?.leaflet_pages?.length ?? 0
+})
+
+const currentLeafletImage = computed(() => {
+  const pages = selectedDeal.value?.leaflet_pages
+  if (!pages || pages.length === 0) return null
+  return pages[leafletPage.value]?.imageUrl ?? null
+})
+
+function prevPage() {
+  if (leafletPage.value > 0) leafletPage.value--
+}
+
+function nextPage() {
+  if (leafletPage.value < totalLeafletPages.value - 1) leafletPage.value++
 }
 
 const filteredDeals = computed(() => {
@@ -319,18 +343,59 @@ function highlightTokens(text: string, tokens: string[] | null): { text: string;
         </SheetHeader>
 
         <div v-if="selectedDeal" class="mt-6 space-y-6">
-          <!-- Prospekt image (large) -->
+          <!-- Prospekt / Leaflet viewer -->
           <div class="overflow-hidden rounded-xl border bg-muted">
-            <img
-              v-if="selectedDeal.image_url_large"
-              :src="selectedDeal.image_url_large"
-              :alt="selectedDeal.deal_title"
-              class="w-full object-contain"
-              loading="lazy"
-            />
-            <div v-else class="flex h-48 items-center justify-center">
-              <IconTag class="size-12 text-muted-foreground" />
-            </div>
+            <!-- Leaflet pages available: show browsable prospekt -->
+            <template v-if="hasLeaflet">
+              <div class="relative">
+                <img
+                  :src="currentLeafletImage!"
+                  :alt="`${selectedDeal.retailer} ${t('deals.prospektPage')} ${leafletPage + 1}`"
+                  class="w-full object-contain"
+                  loading="lazy"
+                />
+                <!-- Page navigation overlay -->
+                <div class="absolute inset-x-0 bottom-0 flex items-center justify-between bg-gradient-to-t from-black/50 to-transparent p-3">
+                  <button
+                    :disabled="leafletPage === 0"
+                    class="rounded-full bg-white/90 p-1.5 shadow transition-opacity disabled:opacity-30"
+                    @click="prevPage"
+                  >
+                    <IconChevronLeft class="size-4 text-black" />
+                  </button>
+                  <span class="rounded-full bg-black/60 px-3 py-1 text-xs font-medium text-white">
+                    {{ leafletPage + 1 }} / {{ totalLeafletPages }}
+                  </span>
+                  <button
+                    :disabled="leafletPage >= totalLeafletPages - 1"
+                    class="rounded-full bg-white/90 p-1.5 shadow transition-opacity disabled:opacity-30"
+                    @click="nextPage"
+                  >
+                    <IconChevronRight class="size-4 text-black" />
+                  </button>
+                </div>
+              </div>
+              <p class="px-3 py-2 text-xs text-muted-foreground text-center">
+                {{ t('deals.prospektHint') }}
+              </p>
+            </template>
+
+            <!-- No leaflet pages: fall back to large offer image -->
+            <template v-else>
+              <img
+                v-if="selectedDeal.image_url_large"
+                :src="selectedDeal.image_url_large"
+                :alt="selectedDeal.deal_title"
+                class="w-full object-contain"
+                loading="lazy"
+              />
+              <div v-else class="flex h-48 items-center justify-center">
+                <IconTag class="size-12 text-muted-foreground" />
+              </div>
+              <p v-if="selectedDeal.image_url_large" class="px-3 py-2 text-xs text-muted-foreground text-center">
+                {{ t('deals.offerImageHint') }}
+              </p>
+            </template>
           </div>
 
           <!-- Offer info -->

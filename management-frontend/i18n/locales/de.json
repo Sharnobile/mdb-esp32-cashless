@@ -970,7 +970,10 @@
     "yourPrice": "Ihr Preis",
     "matchedTokens": "Übereinstimmende Begriffe",
     "matchMethod": "Methode",
-    "fuzzyNameMatch": "Unscharfer Namensabgleich"
+    "fuzzyNameMatch": "Unscharfer Namensabgleich",
+    "prospektPage": "Seite",
+    "prospektHint": "Prospekt des Händlers — blättern Sie durch die Seiten, um das Angebot zu prüfen.",
+    "offerImageHint": "Angebotsbild — Prospektseiten sind für dieses Angebot nicht verfügbar."
   },
   "reports": {
     "title": "Berichte",

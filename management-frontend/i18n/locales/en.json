@@ -970,7 +970,10 @@
     "yourPrice": "Your price",
     "matchedTokens": "Matched terms",
     "matchMethod": "Method",
-    "fuzzyNameMatch": "Fuzzy name matching"
+    "fuzzyNameMatch": "Fuzzy name matching",
+    "prospektPage": "page",
+    "prospektHint": "Leaflet from the retailer — browse pages to verify the offer.",
+    "offerImageHint": "Offer image — leaflet pages not available for this offer."
   },
   "reports": {
     "title": "Reports",

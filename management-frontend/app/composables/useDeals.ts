@@ -12,6 +12,7 @@ export interface Deal {
   image_url_large: string | null
   source_url: string | null
   external_url: string | null
+  leaflet_pages: { pageNumber: number; imageUrl: string }[] | null
   matched_by: string
   confidence: number
   matched_tokens: string[] | null
