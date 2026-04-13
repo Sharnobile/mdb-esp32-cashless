@@ -394,7 +394,7 @@ function highlightTokens(text: string, tokens: string[] | null): { text: string;
               v-if="selectedDeal.image_url_large"
               :src="selectedDeal.image_url_large"
               :alt="selectedDeal.deal_title"
-              class="size-full object-cover"
+              class="size-full object-contain"
               loading="lazy"
             />
             <div v-else class="flex h-32 items-center justify-center">
