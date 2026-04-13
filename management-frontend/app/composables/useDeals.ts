@@ -33,6 +33,75 @@ interface DealSearchResponse {
   error?: string
 }
 
+// Country presets — must stay in sync with edge function COUNTRY_PRESETS
+export interface DealsConfig {
+  generic_terms: string[]
+  wildcard_phrases: string[]
+  app_detection_patterns: string[]
+}
+
+export const DEALS_COUNTRY_PRESETS: Record<string, DealsConfig> = {
+  DE: {
+    generic_terms: [
+      'verschiedene', 'sorten', 'versch', 'diverse', 'oder', 'und', 'z.b',
+      'zb', 'jede', 'jeder', 'je',
+      'stück', 'packung', 'dose', 'flasche', 'dosen', 'flaschen',
+      'kasten', 'kiste', 'krat', 'tray', 'pack', 'beutel', 'becher',
+      'tafel', 'riegel', 'tube', 'glas',
+      'drink', 'drinks', 'getränk', 'getränke',
+      'light', 'free', 'sugar',
+      'bio', 'vegan',
+      'ml', 'cl', 'liter', 'kg', 'gr',
+    ],
+    wildcard_phrases: [
+      'verschiedene', 'versch', 'diverse', 'sorten', 'sort',
+      'alle sorten', 'viele sorten', 'mehrere sorten',
+    ],
+    app_detection_patterns: [
+      'mit app', 'in der app',
+      'netto-app', 'netto app',
+      'lidl plus', 'lidl-plus',
+      'rewe bonus', 'rewe-bonus',
+      'penny app', 'penny-app',
+      'kaufland card', 'kaufland-card',
+      'app-preis', 'app preis', 'apppreis',
+      'nur mit',
+      'app-coupon', 'app coupon',
+      'digital-coupon', 'digital coupon',
+    ],
+  },
+  AT: {
+    generic_terms: [
+      'verschiedene', 'sorten', 'versch', 'diverse', 'oder', 'und', 'z.b',
+      'zb', 'jede', 'jeder', 'je',
+      'stück', 'packung', 'dose', 'flasche', 'dosen', 'flaschen',
+      'kasten', 'kiste', 'krat', 'tray', 'pack', 'beutel', 'becher',
+      'tafel', 'riegel', 'tube', 'glas',
+      'drink', 'drinks', 'getränk', 'getränke',
+      'light', 'free', 'sugar',
+      'bio', 'vegan',
+      'ml', 'cl', 'liter', 'kg', 'gr',
+    ],
+    wildcard_phrases: [
+      'verschiedene', 'versch', 'diverse', 'sorten', 'sort',
+      'alle sorten', 'viele sorten', 'mehrere sorten',
+    ],
+    app_detection_patterns: [
+      'mit app', 'in der app',
+      'billa plus', 'billa-plus',
+      'jö bonus', 'jö-bonus', 'jö app',
+      'spar app', 'spar-app',
+      'lidl plus', 'lidl-plus',
+      'app-preis', 'app preis',
+      'nur mit',
+    ],
+  },
+}
+
+export function getDealsPreset(countryCode: string): DealsConfig {
+  return DEALS_COUNTRY_PRESETS[countryCode] ?? DEALS_COUNTRY_PRESETS['DE']
+}
+
 export function useDeals() {
   const supabase = useSupabaseClient()
   const { organization } = useOrganization()
@@ -52,13 +121,13 @@ export function useDeals() {
   const settingsSuccess = ref('')
 
   // Configurable keyword lists (null = use country defaults)
-  interface DealsConfig {
+  interface DealsConfigOverrides {
     generic_terms: string[] | null
     wildcard_phrases: string[] | null
     app_detection_patterns: string[] | null
     retailer_prospekt_urls: Record<string, string> | null
   }
-  const dealsConfig = ref<DealsConfig>({
+  const dealsConfig = ref<DealsConfigOverrides>({
     generic_terms: null,
     wildcard_phrases: null,
     app_detection_patterns: null,

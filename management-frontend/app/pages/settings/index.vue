@@ -2,6 +2,7 @@
 definePageMeta({ middleware: 'auth' })
 
 import { IconMoon, IconSun, IconBell, IconBellOff, IconDeviceMobile, IconSend, IconTrash, IconSparkles, IconEye, IconEyeOff, IconReceipt2, IconPlus, IconPencil, IconCreditCard, IconCopy, IconBuildingStore, IconTag } from '@tabler/icons-vue'
+import { getDealsPreset } from '@/composables/useDeals'
 import { Switch } from '~/components/ui/switch'
 import { notificationTypes } from '~/composables/useNotifications'
 import { timeAgo } from '~/lib/utils'
@@ -499,9 +500,11 @@ const wildcardPhrasesText = ref('')
 const appPatternsText = ref('')
 
 function startEditingKeywords() {
-  genericTermsText.value = (dealsConfig.value.generic_terms ?? []).join(', ')
-  wildcardPhrasesText.value = (dealsConfig.value.wildcard_phrases ?? []).join(', ')
-  appPatternsText.value = (dealsConfig.value.app_detection_patterns ?? []).join(', ')
+  // Pre-fill with custom values if set, otherwise show the country defaults
+  const preset = getDealsPreset(companyCountry.value)
+  genericTermsText.value = (dealsConfig.value.generic_terms ?? preset.generic_terms).join(', ')
+  wildcardPhrasesText.value = (dealsConfig.value.wildcard_phrases ?? preset.wildcard_phrases).join(', ')
+  appPatternsText.value = (dealsConfig.value.app_detection_patterns ?? preset.app_detection_patterns).join(', ')
   editingKeywords.value = true
 }
 
@@ -518,7 +521,11 @@ function applyKeywordEdits() {
 
 function resetToDefaults() {
   resetDealsConfig()
-  editingKeywords.value = false
+  // Refill textareas with country defaults so user sees the reset
+  const preset = getDealsPreset(companyCountry.value)
+  genericTermsText.value = preset.generic_terms.join(', ')
+  wildcardPhrasesText.value = preset.wildcard_phrases.join(', ')
+  appPatternsText.value = preset.app_detection_patterns.join(', ')
 }
 
 watch(() => organization.value?.id, (id) => {
