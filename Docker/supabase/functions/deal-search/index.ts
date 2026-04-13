@@ -161,11 +161,23 @@ function matchConfidence(
   const productTokens = extractTokens(productName)
   if (productTokens.length === 0) return { confidence: 0, matchedTokens: [] }
 
-  // Filter out generic filler words from the offer
+  // Filter out generic filler words that appear in product names but rarely
+  // in offer descriptions (or vice versa) and would hurt matching scores.
   const genericTerms = new Set([
+    // German offer phrasing
     'verschiedene', 'sorten', 'versch', 'diverse', 'oder', 'und', 'z.b',
-    'zb', 'jede', 'jeder', 'je', 'stück', 'packung', 'dose', 'flasche',
-    'kasten', 'kiste', 'krat', 'tray', 'pack',
+    'zb', 'jede', 'jeder', 'je',
+    // Packaging / unit
+    'stück', 'packung', 'dose', 'flasche', 'dosen', 'flaschen',
+    'kasten', 'kiste', 'krat', 'tray', 'pack', 'beutel', 'becher',
+    'tafel', 'riegel', 'tube', 'glas',
+    // Generic product descriptors
+    'drink', 'drinks', 'getränk', 'getränke',
+    'original', 'classic', 'klassik',
+    'light', 'zero', 'free', 'sugar',
+    'bio', 'vegan',
+    // Size / weight patterns (commonly in product names but not in offers)
+    'ml', 'cl', 'liter', 'kg', 'gr',
   ])
 
   // Check how many product tokens appear in the offer description
@@ -179,9 +191,10 @@ function matchConfidence(
   }
 
   const meaningfulTokens = productTokens.filter((t) => !genericTerms.has(t))
-  if (meaningfulTokens.length === 0) return { confidence: 0, matchedTokens: [] }
+  // If all tokens are generic, fall back to using all tokens
+  const scoringTokens = meaningfulTokens.length > 0 ? meaningfulTokens : productTokens
 
-  const tokenScore = tokenMatches / meaningfulTokens.length
+  const tokenScore = tokenMatches / scoringTokens.length
 
   // Bonus: brand name from offer matches first word(s) of product
   let brandBonus = 0
