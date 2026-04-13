@@ -109,6 +109,29 @@ function getRetailerProspektUrl(slug: string): string | null {
   return RETAILER_PROSPEKT_URLS[slug] ?? null
 }
 
+/**
+ * Detect app requirement from offer description text.
+ * Fallback for when requiresLoyalityMembership is false but the
+ * description mentions an app price (e.g. "mit Netto-App nur 0,88€").
+ */
+function detectAppRequirement(description: string): boolean {
+  const lower = description.toLowerCase()
+  const patterns = [
+    'mit app',
+    'in der app',
+    'netto-app', 'netto app',
+    'lidl plus', 'lidl-plus',
+    'rewe bonus', 'rewe-bonus',
+    'penny app', 'penny-app',
+    'kaufland card', 'kaufland-card',
+    'app-preis', 'app preis', 'apppreis',
+    'nur mit',
+    'app-coupon', 'app coupon',
+    'digital-coupon', 'digital coupon',
+  ]
+  return patterns.some((p) => lower.includes(p))
+}
+
 // ─── Fuzzy matching ─────────────────────────────────────────────────────────
 
 /** Normalize string for comparison: lowercase, remove special chars */
@@ -409,7 +432,7 @@ Deno.serve(async (req) => {
             matched_by: 'name_fuzzy',
             confidence: match.confidence,
             matched_tokens: match.matchedTokens,
-            requires_app: offer.requiresLoyalityMembership ?? false,
+            requires_app: offer.requiresLoyalityMembership || detectAppRequirement(offer.description),
             fetched_at: new Date().toISOString(),
             offer_id: String(offer.id),
           }
