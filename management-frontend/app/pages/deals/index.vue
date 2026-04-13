@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { IconRefresh, IconTag, IconBuildingStore, IconAlertCircle, IconSettings, IconExternalLink, IconCheck, IconX } from '@tabler/icons-vue'
+import { IconRefresh, IconTag, IconBuildingStore, IconAlertCircle, IconSettings, IconExternalLink, IconCheck, IconX, IconDeviceMobile } from '@tabler/icons-vue'
 import Badge from '@/components/ui/badge/Badge.vue'
 import {
   Sheet,
@@ -354,6 +354,10 @@ function highlightTokens(text: string, tokens: string[] | null): { text: string;
                   <span v-if="deal.regular_price != null" class="text-xs text-muted-foreground line-through">
                     {{ deal.regular_price.toFixed(2) }}&euro;
                   </span>
+                  <span v-if="deal.requires_app" class="inline-flex items-center gap-0.5 rounded-full bg-purple-100 px-1.5 py-0.5 text-[10px] font-medium text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+                    <IconDeviceMobile class="size-2.5" />
+                    App
+                  </span>
                 </div>
 
                 <!-- Validity & confidence -->
@@ -412,6 +416,14 @@ function highlightTokens(text: string, tokens: string[] | null): { text: string;
               <Badge v-if="selectedDeal.discount_pct" variant="destructive">
                 {{ formatDiscount(selectedDeal.discount_pct) }}
               </Badge>
+            </div>
+
+            <!-- App required notice -->
+            <div v-if="selectedDeal.requires_app" class="flex items-center gap-2 rounded-lg border border-purple-200 bg-purple-50 px-3 py-2 dark:border-purple-800 dark:bg-purple-950">
+              <IconDeviceMobile class="size-4 shrink-0 text-purple-600 dark:text-purple-400" />
+              <p class="text-sm text-purple-800 dark:text-purple-200">
+                {{ t('deals.requiresApp', { retailer: selectedDeal.retailer }) }}
+              </p>
             </div>
 
             <!-- Validity status -->

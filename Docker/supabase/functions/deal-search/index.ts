@@ -14,6 +14,7 @@ interface MarktguruOffer {
   price: number
   oldPrice: number | null
   referencePrice: number
+  requiresLoyalityMembership: boolean
   brand: { name: string; uniqueName: string }
   advertisers: { name: string; uniqueName: string }[]
   product: { name: string; description: string | null }
@@ -395,6 +396,7 @@ Deno.serve(async (req) => {
             matched_by: 'name_fuzzy',
             confidence: match.confidence,
             matched_tokens: match.matchedTokens,
+            requires_app: offer.requiresLoyalityMembership ?? false,
             fetched_at: new Date().toISOString(),
             offer_id: String(offer.id),
           }

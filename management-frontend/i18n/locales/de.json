@@ -959,6 +959,7 @@
     "daysLeft": "noch {days}T",
     "lastDay": "letzter Tag!",
     "expired": "abgelaufen",
+    "requiresApp": "Dieser Preis gilt nur mit der {retailer}-App.",
     "match": "Treffer",
     "detailTitle": "Angebotsdetails",
     "viewProspekt": "Prospekt ansehen",

@@ -959,6 +959,7 @@
     "daysLeft": "{days}d left",
     "lastDay": "last day!",
     "expired": "expired",
+    "requiresApp": "This price requires the {retailer} app.",
     "match": "match",
     "detailTitle": "Offer Details",
     "viewProspekt": "View leaflet",

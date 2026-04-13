@@ -15,6 +15,7 @@ export interface Deal {
   matched_by: string
   confidence: number
   matched_tokens: string[] | null
+  requires_app: boolean
   fetched_at: string
   offer_id: string
   products: {
