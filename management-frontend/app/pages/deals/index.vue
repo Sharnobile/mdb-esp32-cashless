@@ -389,12 +389,12 @@ function highlightTokens(text: string, tokens: string[] | null): { text: string;
 
         <div v-if="selectedDeal" class="mt-4 space-y-4">
           <!-- Hero: image + price overlay -->
-          <div class="relative overflow-hidden rounded-xl border bg-muted">
+          <div class="relative overflow-hidden rounded-xl border bg-muted h-36 sm:h-44">
             <img
               v-if="selectedDeal.image_url_large"
               :src="selectedDeal.image_url_large"
               :alt="selectedDeal.deal_title"
-              class="w-full max-h-48 sm:max-h-56 object-contain"
+              class="size-full object-cover"
               loading="lazy"
             />
             <div v-else class="flex h-32 items-center justify-center">
