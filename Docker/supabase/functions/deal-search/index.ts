@@ -134,11 +134,15 @@ function detectAppRequirement(description: string): boolean {
 
 // ─── Fuzzy matching ─────────────────────────────────────────────────────────
 
-/** Normalize string for comparison: lowercase, remove special chars */
+/** Normalize string for comparison: lowercase, remove special chars but keep
+ *  commas and dots within numbers (e.g. "5,0" stays "5,0", not "50") */
 function normalize(s: string): string {
   return s
     .toLowerCase()
+    // Keep commas/dots that sit between digits (e.g. "5,0", "0.5")
+    .replace(/([0-9])[,.]([0-9])/g, '$1\x00$2')  // temp placeholder
     .replace(/[^a-zäöüß0-9\s]/g, '')
+    .replace(/\x00/g, ',')                         // restore as comma
     .replace(/\s+/g, ' ')
     .trim()
 }
@@ -202,14 +206,15 @@ function matchConfidence(
     'ml', 'cl', 'liter', 'kg', 'gr',
   ])
 
-  /** Check if a token appears in text — numeric tokens must match as a
-   *  whole word to avoid "50" matching inside "500ml" or "1,50€". */
+  /** Check if a token appears in text — numeric tokens (e.g. "50", "5,0")
+   *  must match as a whole word to avoid "50" matching inside "500ml". */
   function tokenInText(token: string, text: string): boolean {
-    const isNumeric = /^\d+$/.test(token)
+    const isNumeric = /^[\d,]+$/.test(token)
     if (isNumeric) {
-      // Word-boundary match: the token must be surrounded by non-digit chars
-      // or be at the start/end of the string
-      const re = new RegExp(`(?<![0-9])${token}(?![0-9])`)
+      // Escape the token for regex (commas are special in some contexts)
+      const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      // Must be surrounded by non-digit/comma chars or string boundaries
+      const re = new RegExp(`(?<![0-9,])${escaped}(?![0-9,])`)
       return re.test(text)
     }
     return text.includes(token)
