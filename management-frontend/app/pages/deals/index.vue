@@ -80,10 +80,67 @@ function formatDiscount(pct: number | null): string {
   return `-${Math.abs(pct)}%`
 }
 
-function isExpiringSoon(validUntil: string | null): boolean {
-  if (!validUntil) return false
-  const diff = new Date(validUntil).getTime() - Date.now()
-  return diff > 0 && diff < 2 * 24 * 60 * 60 * 1000
+interface DealValidity {
+  status: 'upcoming' | 'active' | 'expiring' | 'expired'
+  label: string
+  cls: string
+  badgeCls: string
+}
+
+function dealValidity(validFrom: string | null, validUntil: string | null): DealValidity {
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+
+  if (validFrom) {
+    const from = new Date(validFrom)
+    if (from > today) {
+      const days = Math.ceil((from.getTime() - today.getTime()) / (24 * 60 * 60 * 1000))
+      return {
+        status: 'upcoming',
+        label: days === 1
+          ? t('deals.startsIn', { days: 1 })
+          : t('deals.startsIn', { days }),
+        cls: 'text-blue-600 dark:text-blue-400',
+        badgeCls: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+      }
+    }
+  }
+
+  if (validUntil) {
+    const until = new Date(validUntil)
+    if (until < today) {
+      return {
+        status: 'expired',
+        label: t('deals.expired'),
+        cls: 'text-muted-foreground line-through',
+        badgeCls: 'bg-muted text-muted-foreground',
+      }
+    }
+    const daysLeft = Math.ceil((until.getTime() - today.getTime()) / (24 * 60 * 60 * 1000))
+    if (daysLeft <= 2) {
+      return {
+        status: 'expiring',
+        label: daysLeft === 0
+          ? t('deals.lastDay')
+          : t('deals.daysLeft', { days: daysLeft }),
+        cls: 'text-orange-600 dark:text-orange-400 font-medium',
+        badgeCls: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
+      }
+    }
+    return {
+      status: 'active',
+      label: t('deals.daysLeft', { days: daysLeft }),
+      cls: 'text-green-600 dark:text-green-400',
+      badgeCls: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+    }
+  }
+
+  return {
+    status: 'active',
+    label: t('deals.activeNow'),
+    cls: 'text-green-600 dark:text-green-400',
+    badgeCls: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+  }
 }
 
 /** Confidence label + color */
@@ -300,11 +357,12 @@ function highlightTokens(text: string, tokens: string[] | null): { text: string;
                 </div>
 
                 <!-- Validity & confidence -->
-                <div class="mt-1 flex items-center gap-2 text-[11px] text-muted-foreground">
-                  <span v-if="deal.valid_until">
-                    <span :class="{ 'text-orange-500 font-medium': isExpiringSoon(deal.valid_until) }">
-                      {{ t('deals.validUntil') }} {{ deal.valid_until }}
-                    </span>
+                <div class="mt-1 flex items-center gap-2 text-[11px]">
+                  <span
+                    class="inline-flex rounded-full px-1.5 py-0.5 text-[10px] font-medium"
+                    :class="dealValidity(deal.valid_from, deal.valid_until).badgeCls"
+                  >
+                    {{ dealValidity(deal.valid_from, deal.valid_until).label }}
                   </span>
                   <span :class="confidenceLevel(deal.confidence).cls">
                     {{ Math.round(deal.confidence * 100) }}% {{ t('deals.match') }}
@@ -356,11 +414,18 @@ function highlightTokens(text: string, tokens: string[] | null): { text: string;
               </Badge>
             </div>
 
-            <div v-if="selectedDeal.valid_from || selectedDeal.valid_until" class="text-sm text-muted-foreground">
-              <span v-if="selectedDeal.valid_from">{{ selectedDeal.valid_from }}</span>
-              <span v-if="selectedDeal.valid_from && selectedDeal.valid_until"> — </span>
-              <span v-if="selectedDeal.valid_until" :class="{ 'text-orange-500 font-medium': isExpiringSoon(selectedDeal.valid_until) }">
-                {{ selectedDeal.valid_until }}
+            <!-- Validity status -->
+            <div v-if="selectedDeal.valid_from || selectedDeal.valid_until" class="flex items-center gap-3">
+              <span
+                class="inline-flex rounded-full px-2.5 py-1 text-xs font-medium"
+                :class="dealValidity(selectedDeal.valid_from, selectedDeal.valid_until).badgeCls"
+              >
+                {{ dealValidity(selectedDeal.valid_from, selectedDeal.valid_until).label }}
+              </span>
+              <span class="text-sm text-muted-foreground">
+                <span v-if="selectedDeal.valid_from">{{ selectedDeal.valid_from }}</span>
+                <span v-if="selectedDeal.valid_from && selectedDeal.valid_until"> — </span>
+                <span v-if="selectedDeal.valid_until">{{ selectedDeal.valid_until }}</span>
               </span>
             </div>
 
