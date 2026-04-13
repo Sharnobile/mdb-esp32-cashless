@@ -10,6 +10,7 @@ export interface Deal {
   valid_until: string | null
   image_url: string | null
   image_url_large: string | null
+  source_url: string | null
   external_url: string | null
   matched_by: string
   confidence: number

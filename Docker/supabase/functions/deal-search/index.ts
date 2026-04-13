@@ -315,7 +315,8 @@ Deno.serve(async (req) => {
 
         // Helper to build a deal record from an offer + product match
         function buildDeal(offer: MarktguruOffer, product: any, match: MatchResult) {
-          const retailerName = offer.advertisers?.[0]?.name ?? offer.advertisers?.[0]?.uniqueName ?? 'unknown'
+          const retailerSlug = offer.advertisers?.[0]?.uniqueName ?? 'unknown'
+          const retailerName = offer.advertisers?.[0]?.name ?? retailerSlug
           const validFrom = offer.validityDates?.[0]?.from ?? null
           const validUntil = offer.validityDates?.[0]?.to ?? null
           const discountPct = offer.oldPrice && offer.price
@@ -324,6 +325,12 @@ Deno.serve(async (req) => {
 
           // Construct large prospekt image URL from CDN
           const imageUrlLarge = `https://mg2de.b-cdn.net/api/v1/offers/${offer.id}/images/default/0/large.jpg`
+
+          // Construct marktguru page URLs:
+          //   /rp/{slug}-prospekte  → leaflet/prospekt page to browse the full flyer
+          //   /r/{slug}             → all current offers for this retailer
+          const prospektUrl = `https://www.marktguru.de/rp/${retailerSlug}-prospekte`
+          const retailerPageUrl = `https://www.marktguru.de/r/${retailerSlug}`
 
           return {
             company_id: companyId,
@@ -337,7 +344,8 @@ Deno.serve(async (req) => {
             valid_until: validUntil,
             image_url: offer.images?.urls?.medium ?? null,
             image_url_large: imageUrlLarge,
-            external_url: offer.externalUrl ?? null,
+            source_url: prospektUrl,
+            external_url: retailerPageUrl,
             matched_by: 'name_fuzzy',
             confidence: match.confidence,
             matched_tokens: match.matchedTokens,

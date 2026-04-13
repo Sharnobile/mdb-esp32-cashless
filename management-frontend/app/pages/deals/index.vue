@@ -357,17 +357,29 @@ function highlightTokens(text: string, tokens: string[] | null): { text: string;
               </span>
             </div>
 
-            <!-- External link -->
-            <a
-              v-if="selectedDeal.external_url"
-              :href="selectedDeal.external_url"
-              target="_blank"
-              rel="noopener"
-              class="inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
-            >
-              <IconExternalLink class="size-3.5" />
-              {{ t('deals.viewAtRetailer') }}
-            </a>
+            <!-- Links to marktguru pages -->
+            <div class="flex flex-wrap gap-3">
+              <a
+                v-if="selectedDeal.source_url"
+                :href="selectedDeal.source_url"
+                target="_blank"
+                rel="noopener"
+                class="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-muted"
+              >
+                <IconExternalLink class="size-3.5" />
+                {{ t('deals.viewProspekt') }}
+              </a>
+              <a
+                v-if="selectedDeal.external_url"
+                :href="selectedDeal.external_url"
+                target="_blank"
+                rel="noopener"
+                class="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-muted"
+              >
+                <IconExternalLink class="size-3.5" />
+                {{ t('deals.viewAllOffers', { retailer: selectedDeal.retailer }) }}
+              </a>
+            </div>
           </div>
 
           <!-- ─── Match Validation ──────────────────────────────── -->
