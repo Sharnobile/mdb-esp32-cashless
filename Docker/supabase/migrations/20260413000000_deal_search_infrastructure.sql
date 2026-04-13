@@ -37,8 +37,11 @@ CREATE TABLE IF NOT EXISTS public.deal_cache (
   valid_until    date,
   source_url     text,
   image_url      text,
+  image_url_large text,                       -- large prospekt image from offer API
+  external_url   text,                        -- link to retailer page (if available)
   matched_by     text        NOT NULL,        -- 'name_fuzzy'
   confidence     numeric(3,2),                -- 0.00–1.00
+  matched_tokens text[],                      -- which tokens matched (for validation UI)
   fetched_at     timestamptz NOT NULL DEFAULT now(),
   offer_id       text,                        -- external offer ID for dedup
 

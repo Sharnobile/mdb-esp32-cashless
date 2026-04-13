@@ -1,6 +1,14 @@
 <script setup lang="ts">
-import { IconRefresh, IconTag, IconBuildingStore, IconPercentage, IconAlertCircle, IconSettings } from '@tabler/icons-vue'
+import { IconRefresh, IconTag, IconBuildingStore, IconAlertCircle, IconSettings, IconExternalLink, IconCheck, IconX } from '@tabler/icons-vue'
 import Badge from '@/components/ui/badge/Badge.vue'
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
+import type { Deal } from '@/composables/useDeals'
 
 definePageMeta({ middleware: 'auth' })
 
@@ -12,10 +20,8 @@ const {
   error,
   fromCache,
   dealsEnabled,
-  dealsZipCode,
   loadSettings,
   fetchDeals,
-  dealsByRetailer,
   totalDeals,
   uniqueRetailers,
   avgDiscount,
@@ -23,6 +29,15 @@ const {
 
 const searchQuery = ref('')
 const groupBy = ref<'retailer' | 'product'>('retailer')
+
+// Detail sheet state
+const selectedDeal = ref<Deal | null>(null)
+const sheetOpen = ref(false)
+
+function openDetail(deal: Deal) {
+  selectedDeal.value = deal
+  sheetOpen.value = true
+}
 
 const filteredDeals = computed(() => {
   if (!searchQuery.value.trim()) return deals.value
@@ -61,7 +76,63 @@ function formatDiscount(pct: number | null): string {
 function isExpiringSoon(validUntil: string | null): boolean {
   if (!validUntil) return false
   const diff = new Date(validUntil).getTime() - Date.now()
-  return diff > 0 && diff < 2 * 24 * 60 * 60 * 1000 // < 2 days
+  return diff > 0 && diff < 2 * 24 * 60 * 60 * 1000
+}
+
+/** Confidence label + color */
+function confidenceLevel(c: number): { label: string; cls: string } {
+  if (c >= 0.85) return { label: t('deals.matchHigh'), cls: 'text-green-600 dark:text-green-400' }
+  if (c >= 0.65) return { label: t('deals.matchMedium'), cls: 'text-yellow-600 dark:text-yellow-400' }
+  return { label: t('deals.matchLow'), cls: 'text-orange-600 dark:text-orange-400' }
+}
+
+/**
+ * Highlight matched tokens in a text string.
+ * Returns an array of { text, matched } segments for the template to render.
+ */
+function highlightTokens(text: string, tokens: string[] | null): { text: string; matched: boolean }[] {
+  if (!tokens || tokens.length === 0) return [{ text, matched: false }]
+
+  const lower = text.toLowerCase()
+  const segments: { start: number; end: number }[] = []
+
+  for (const token of tokens) {
+    let pos = 0
+    while (pos < lower.length) {
+      const idx = lower.indexOf(token.toLowerCase(), pos)
+      if (idx === -1) break
+      segments.push({ start: idx, end: idx + token.length })
+      pos = idx + token.length
+    }
+  }
+
+  if (segments.length === 0) return [{ text, matched: false }]
+
+  // Sort and merge overlapping segments
+  segments.sort((a, b) => a.start - b.start)
+  const merged: typeof segments = [segments[0]]
+  for (let i = 1; i < segments.length; i++) {
+    const last = merged[merged.length - 1]
+    if (segments[i].start <= last.end) {
+      last.end = Math.max(last.end, segments[i].end)
+    } else {
+      merged.push(segments[i])
+    }
+  }
+
+  const result: { text: string; matched: boolean }[] = []
+  let cursor = 0
+  for (const seg of merged) {
+    if (cursor < seg.start) {
+      result.push({ text: text.slice(cursor, seg.start), matched: false })
+    }
+    result.push({ text: text.slice(seg.start, seg.end), matched: true })
+    cursor = seg.end
+  }
+  if (cursor < text.length) {
+    result.push({ text: text.slice(cursor), matched: false })
+  }
+  return result
 }
 </script>
 
@@ -177,10 +248,11 @@ function isExpiringSoon(validUntil: string | null): boolean {
           </div>
 
           <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <div
+            <button
               v-for="deal in groupDeals"
               :key="deal.id"
-              class="flex gap-3 rounded-xl border bg-card p-4 shadow-sm transition-colors hover:bg-muted/50"
+              class="flex gap-3 rounded-xl border bg-card p-4 shadow-sm transition-colors hover:bg-muted/50 text-left cursor-pointer"
+              @click="openDetail(deal)"
             >
               <!-- Deal image -->
               <div class="shrink-0">
@@ -227,13 +299,152 @@ function isExpiringSoon(validUntil: string | null): boolean {
                       {{ t('deals.validUntil') }} {{ deal.valid_until }}
                     </span>
                   </span>
-                  <span class="opacity-50">{{ Math.round(deal.confidence * 100) }}% {{ t('deals.match') }}</span>
+                  <span :class="confidenceLevel(deal.confidence).cls">
+                    {{ Math.round(deal.confidence * 100) }}% {{ t('deals.match') }}
+                  </span>
                 </div>
               </div>
-            </div>
+            </button>
           </div>
         </div>
       </div>
     </template>
+
+    <!-- ─── Detail Sheet ────────────────────────────────────────────── -->
+    <Sheet v-model:open="sheetOpen">
+      <SheetContent class="w-full sm:max-w-lg overflow-y-auto">
+        <SheetHeader>
+          <SheetTitle>{{ t('deals.detailTitle') }}</SheetTitle>
+          <SheetDescription>{{ selectedDeal?.retailer }}</SheetDescription>
+        </SheetHeader>
+
+        <div v-if="selectedDeal" class="mt-6 space-y-6">
+          <!-- Prospekt image (large) -->
+          <div class="overflow-hidden rounded-xl border bg-muted">
+            <img
+              v-if="selectedDeal.image_url_large"
+              :src="selectedDeal.image_url_large"
+              :alt="selectedDeal.deal_title"
+              class="w-full object-contain"
+              loading="lazy"
+            />
+            <div v-else class="flex h-48 items-center justify-center">
+              <IconTag class="size-12 text-muted-foreground" />
+            </div>
+          </div>
+
+          <!-- Offer info -->
+          <div class="space-y-3">
+            <h3 class="text-base font-semibold">{{ selectedDeal.deal_title }}</h3>
+
+            <div class="flex items-center gap-3">
+              <span v-if="selectedDeal.deal_price != null" class="text-xl font-bold text-green-600 dark:text-green-400">
+                {{ selectedDeal.deal_price.toFixed(2) }}&euro;
+              </span>
+              <span v-if="selectedDeal.regular_price != null" class="text-base text-muted-foreground line-through">
+                {{ selectedDeal.regular_price.toFixed(2) }}&euro;
+              </span>
+              <Badge v-if="selectedDeal.discount_pct" variant="destructive">
+                {{ formatDiscount(selectedDeal.discount_pct) }}
+              </Badge>
+            </div>
+
+            <div v-if="selectedDeal.valid_from || selectedDeal.valid_until" class="text-sm text-muted-foreground">
+              <span v-if="selectedDeal.valid_from">{{ selectedDeal.valid_from }}</span>
+              <span v-if="selectedDeal.valid_from && selectedDeal.valid_until"> — </span>
+              <span v-if="selectedDeal.valid_until" :class="{ 'text-orange-500 font-medium': isExpiringSoon(selectedDeal.valid_until) }">
+                {{ selectedDeal.valid_until }}
+              </span>
+            </div>
+
+            <!-- External link -->
+            <a
+              v-if="selectedDeal.external_url"
+              :href="selectedDeal.external_url"
+              target="_blank"
+              rel="noopener"
+              class="inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
+            >
+              <IconExternalLink class="size-3.5" />
+              {{ t('deals.viewAtRetailer') }}
+            </a>
+          </div>
+
+          <!-- ─── Match Validation ──────────────────────────────── -->
+          <div class="rounded-xl border bg-card p-4 space-y-4">
+            <h4 class="text-sm font-semibold">{{ t('deals.matchValidation') }}</h4>
+
+            <!-- Confidence meter -->
+            <div class="space-y-1">
+              <div class="flex items-center justify-between text-sm">
+                <span>{{ t('deals.confidence') }}</span>
+                <span :class="confidenceLevel(selectedDeal.confidence).cls" class="font-medium">
+                  {{ Math.round(selectedDeal.confidence * 100) }}% — {{ confidenceLevel(selectedDeal.confidence).label }}
+                </span>
+              </div>
+              <div class="h-2 overflow-hidden rounded-full bg-muted">
+                <div
+                  class="h-full rounded-full transition-all"
+                  :class="{
+                    'bg-green-500': selectedDeal.confidence >= 0.85,
+                    'bg-yellow-500': selectedDeal.confidence >= 0.65 && selectedDeal.confidence < 0.85,
+                    'bg-orange-500': selectedDeal.confidence < 0.65,
+                  }"
+                  :style="{ width: `${Math.round(selectedDeal.confidence * 100)}%` }"
+                />
+              </div>
+            </div>
+
+            <!-- Side by side: Offer vs Product -->
+            <div class="grid grid-cols-2 gap-3">
+              <!-- Offer side -->
+              <div class="space-y-1">
+                <p class="text-xs font-medium text-muted-foreground">{{ t('deals.offerText') }}</p>
+                <p class="text-sm">
+                  <template v-for="(seg, idx) in highlightTokens(selectedDeal.deal_title, selectedDeal.matched_tokens)" :key="idx">
+                    <mark v-if="seg.matched" class="rounded-sm bg-green-200 px-0.5 dark:bg-green-900">{{ seg.text }}</mark>
+                    <span v-else>{{ seg.text }}</span>
+                  </template>
+                </p>
+              </div>
+
+              <!-- Product side -->
+              <div class="space-y-1">
+                <p class="text-xs font-medium text-muted-foreground">{{ t('deals.yourProduct') }}</p>
+                <p class="text-sm">
+                  <template v-for="(seg, idx) in highlightTokens(selectedDeal.products?.name ?? '', selectedDeal.matched_tokens)" :key="idx">
+                    <mark v-if="seg.matched" class="rounded-sm bg-green-200 px-0.5 dark:bg-green-900">{{ seg.text }}</mark>
+                    <span v-else>{{ seg.text }}</span>
+                  </template>
+                </p>
+                <p v-if="selectedDeal.products?.sellprice != null" class="text-xs text-muted-foreground">
+                  {{ t('deals.yourPrice') }}: {{ selectedDeal.products.sellprice.toFixed(2) }}&euro;
+                </p>
+              </div>
+            </div>
+
+            <!-- Matched tokens list -->
+            <div v-if="selectedDeal.matched_tokens?.length" class="space-y-1">
+              <p class="text-xs font-medium text-muted-foreground">{{ t('deals.matchedTokens') }}</p>
+              <div class="flex flex-wrap gap-1">
+                <span
+                  v-for="token in selectedDeal.matched_tokens"
+                  :key="token"
+                  class="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900 dark:text-green-200"
+                >
+                  <IconCheck class="size-3" />
+                  {{ token }}
+                </span>
+              </div>
+            </div>
+
+            <!-- Match method -->
+            <p class="text-xs text-muted-foreground">
+              {{ t('deals.matchMethod') }}: {{ selectedDeal.matched_by === 'name_fuzzy' ? t('deals.fuzzyNameMatch') : selectedDeal.matched_by }}
+            </p>
+          </div>
+        </div>
+      </SheetContent>
+    </Sheet>
   </div>
 </template>

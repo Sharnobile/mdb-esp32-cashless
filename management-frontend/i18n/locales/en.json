@@ -956,7 +956,20 @@
     "byProduct": "By product",
     "noDeals": "No deals found for your products. Try refreshing or adding more products to your catalog.",
     "validUntil": "until",
-    "match": "match"
+    "match": "match",
+    "detailTitle": "Offer Details",
+    "viewAtRetailer": "View at retailer",
+    "matchValidation": "Match Validation",
+    "confidence": "Confidence",
+    "matchHigh": "High",
+    "matchMedium": "Medium",
+    "matchLow": "Low",
+    "offerText": "Offer",
+    "yourProduct": "Your product",
+    "yourPrice": "Your price",
+    "matchedTokens": "Matched terms",
+    "matchMethod": "Method",
+    "fuzzyNameMatch": "Fuzzy name matching"
   },
   "reports": {
     "title": "Reports",

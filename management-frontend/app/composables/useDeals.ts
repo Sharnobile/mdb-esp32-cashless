@@ -9,8 +9,11 @@ export interface Deal {
   valid_from: string | null
   valid_until: string | null
   image_url: string | null
+  image_url_large: string | null
+  external_url: string | null
   matched_by: string
   confidence: number
+  matched_tokens: string[] | null
   fetched_at: string
   offer_id: string
   products: {

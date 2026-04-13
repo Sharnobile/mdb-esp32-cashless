@@ -19,6 +19,8 @@ interface MarktguruOffer {
   product: { name: string; description: string | null }
   validityDates: { from: string; to: string }[]
   images: { urls: { small: string; medium: string; large: string } }
+  leafletFlightId: number | null
+  externalUrl: string | null
 }
 
 interface MarktguruKeys {
@@ -95,6 +97,11 @@ function extractTokens(name: string): string[] {
   return normalize(name).split(' ').filter((t) => t.length > 1)
 }
 
+interface MatchResult {
+  confidence: number
+  matchedTokens: string[]
+}
+
 /**
  * Compute a match confidence between a local product name and a marktguru offer.
  *
@@ -105,21 +112,26 @@ function extractTokens(name: string): string[] {
  * 1. Check if the core brand/product tokens from our product appear in the offer
  * 2. Check if the offer brand matches our product name
  * 3. Penalize generic terms like "verschiedene Sorten"
+ *
+ * Returns both confidence score and list of matched tokens for validation UI.
  */
 function matchConfidence(
   productName: string,
   offerDescription: string,
   offerBrand: string,
-): number {
+): MatchResult {
   const productNorm = normalize(productName)
   const offerNorm = normalize(offerDescription)
   const brandNorm = normalize(offerBrand)
+  const matchedTokens: string[] = []
 
   // Exact match
-  if (productNorm === offerNorm) return 1.0
+  if (productNorm === offerNorm) {
+    return { confidence: 1.0, matchedTokens: extractTokens(productName) }
+  }
 
   const productTokens = extractTokens(productName)
-  if (productTokens.length === 0) return 0
+  if (productTokens.length === 0) return { confidence: 0, matchedTokens: [] }
 
   // Filter out generic filler words from the offer
   const genericTerms = new Set([
@@ -134,11 +146,12 @@ function matchConfidence(
     if (genericTerms.has(token)) continue
     if (offerNorm.includes(token) || brandNorm.includes(token)) {
       tokenMatches++
+      matchedTokens.push(token)
     }
   }
 
   const meaningfulTokens = productTokens.filter((t) => !genericTerms.has(t))
-  if (meaningfulTokens.length === 0) return 0
+  if (meaningfulTokens.length === 0) return { confidence: 0, matchedTokens: [] }
 
   const tokenScore = tokenMatches / meaningfulTokens.length
 
@@ -146,22 +159,30 @@ function matchConfidence(
   let brandBonus = 0
   if (brandNorm && productNorm.startsWith(brandNorm)) {
     brandBonus = 0.15
+    if (!matchedTokens.includes(brandNorm)) matchedTokens.push(brandNorm)
   } else if (brandNorm && productNorm.includes(brandNorm)) {
     brandBonus = 0.1
+    if (!matchedTokens.includes(brandNorm)) matchedTokens.push(brandNorm)
   }
 
   // Check reverse: do offer description tokens appear in product?
   const offerTokens = extractTokens(offerDescription).filter((t) => !genericTerms.has(t))
   let reverseMatches = 0
   for (const token of offerTokens) {
-    if (productNorm.includes(token)) reverseMatches++
+    if (productNorm.includes(token)) {
+      reverseMatches++
+      if (!matchedTokens.includes(token)) matchedTokens.push(token)
+    }
   }
   const reverseScore = offerTokens.length > 0 ? reverseMatches / offerTokens.length : 0
 
   // Combined score (weighted)
   const combined = Math.min(1.0, tokenScore * 0.6 + reverseScore * 0.25 + brandBonus)
 
-  return Math.round(combined * 100) / 100
+  return {
+    confidence: Math.round(combined * 100) / 100,
+    matchedTokens,
+  }
 }
 
 // ─── Main handler ───────────────────────────────────────────────────────────
@@ -292,44 +313,54 @@ Deno.serve(async (req) => {
       try {
         const offers = await searchMarktguru(query, zipCode, keys, 10)
 
+        // Helper to build a deal record from an offer + product match
+        function buildDeal(offer: MarktguruOffer, product: any, match: MatchResult) {
+          const retailerName = offer.advertisers?.[0]?.name ?? offer.advertisers?.[0]?.uniqueName ?? 'unknown'
+          const validFrom = offer.validityDates?.[0]?.from ?? null
+          const validUntil = offer.validityDates?.[0]?.to ?? null
+          const discountPct = offer.oldPrice && offer.price
+            ? Math.round((1 - offer.price / offer.oldPrice) * 100)
+            : null
+
+          // Construct large prospekt image URL from CDN
+          const imageUrlLarge = `https://mg2de.b-cdn.net/api/v1/offers/${offer.id}/images/default/0/large.jpg`
+
+          return {
+            company_id: companyId,
+            product_id: product.id,
+            retailer: retailerName,
+            deal_title: offer.description,
+            deal_price: offer.price,
+            regular_price: offer.oldPrice,
+            discount_pct: discountPct,
+            valid_from: validFrom,
+            valid_until: validUntil,
+            image_url: offer.images?.urls?.medium ?? null,
+            image_url_large: imageUrlLarge,
+            external_url: offer.externalUrl ?? null,
+            matched_by: 'name_fuzzy',
+            confidence: match.confidence,
+            matched_tokens: match.matchedTokens,
+            fetched_at: new Date().toISOString(),
+            offer_id: String(offer.id),
+          }
+        }
+
         for (const offer of offers) {
           for (const product of matchProducts) {
-            const confidence = matchConfidence(
+            const match = matchConfidence(
               product.name,
               offer.description,
               offer.brand?.name ?? '',
             )
 
-            if (confidence < minConfidence) continue
+            if (match.confidence < minConfidence) continue
 
             const dedup = `${offer.id}-${product.id}`
             if (seen.has(dedup)) continue
             seen.add(dedup)
 
-            const retailer = offer.advertisers?.[0]?.uniqueName ?? 'unknown'
-            const retailerName = offer.advertisers?.[0]?.name ?? retailer
-            const validFrom = offer.validityDates?.[0]?.from ?? null
-            const validUntil = offer.validityDates?.[0]?.to ?? null
-            const discountPct = offer.oldPrice && offer.price
-              ? Math.round((1 - offer.price / offer.oldPrice) * 100)
-              : null
-
-            allDeals.push({
-              company_id: companyId,
-              product_id: product.id,
-              retailer: retailerName,
-              deal_title: offer.description,
-              deal_price: offer.price,
-              regular_price: offer.oldPrice,
-              discount_pct: discountPct,
-              valid_from: validFrom,
-              valid_until: validUntil,
-              image_url: offer.images?.urls?.medium ?? null,
-              matched_by: 'name_fuzzy',
-              confidence,
-              fetched_at: new Date().toISOString(),
-              offer_id: String(offer.id),
-            })
+            allDeals.push(buildDeal(offer, product, match))
           }
         }
 
@@ -340,39 +371,16 @@ Deno.serve(async (req) => {
             const dedup = `${offer.id}-${product.id}`
             if (seen.has(dedup)) continue
 
-            const confidence = matchConfidence(
+            const match = matchConfidence(
               product.name,
               offer.description,
               offer.brand?.name ?? '',
             )
 
-            if (confidence < minConfidence) continue
+            if (match.confidence < minConfidence) continue
             seen.add(dedup)
 
-            const retailer = offer.advertisers?.[0]?.uniqueName ?? 'unknown'
-            const retailerName = offer.advertisers?.[0]?.name ?? retailer
-            const validFrom = offer.validityDates?.[0]?.from ?? null
-            const validUntil = offer.validityDates?.[0]?.to ?? null
-            const discountPct = offer.oldPrice && offer.price
-              ? Math.round((1 - offer.price / offer.oldPrice) * 100)
-              : null
-
-            allDeals.push({
-              company_id: companyId,
-              product_id: product.id,
-              retailer: retailerName,
-              deal_title: offer.description,
-              deal_price: offer.price,
-              regular_price: offer.oldPrice,
-              discount_pct: discountPct,
-              valid_from: validFrom,
-              valid_until: validUntil,
-              image_url: offer.images?.urls?.medium ?? null,
-              matched_by: 'name_fuzzy',
-              confidence,
-              fetched_at: new Date().toISOString(),
-              offer_id: String(offer.id),
-            })
+            allDeals.push(buildDeal(offer, product, match))
           }
         }
       } catch (err) {

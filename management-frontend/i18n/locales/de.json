@@ -956,7 +956,20 @@
     "byProduct": "Nach Produkt",
     "noDeals": "Keine Angebote für Ihre Produkte gefunden. Versuchen Sie es erneut oder fügen Sie mehr Produkte hinzu.",
     "validUntil": "bis",
-    "match": "Treffer"
+    "match": "Treffer",
+    "detailTitle": "Angebotsdetails",
+    "viewAtRetailer": "Beim Händler ansehen",
+    "matchValidation": "Abgleich-Prüfung",
+    "confidence": "Treffsicherheit",
+    "matchHigh": "Hoch",
+    "matchMedium": "Mittel",
+    "matchLow": "Niedrig",
+    "offerText": "Angebot",
+    "yourProduct": "Ihr Produkt",
+    "yourPrice": "Ihr Preis",
+    "matchedTokens": "Übereinstimmende Begriffe",
+    "matchMethod": "Methode",
+    "fuzzyNameMatch": "Unscharfer Namensabgleich"
   },
   "reports": {
     "title": "Berichte",
