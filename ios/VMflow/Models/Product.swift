@@ -52,9 +52,10 @@ struct TrayProduct: Codable, Equatable, Hashable {
     let name: String?
     let imagePath: String?
     let discontinued: Bool?
+    let sellprice: Double?
 
     enum CodingKeys: String, CodingKey {
-        case name, discontinued
+        case name, discontinued, sellprice
         case imagePath = "image_path"
     }
 }

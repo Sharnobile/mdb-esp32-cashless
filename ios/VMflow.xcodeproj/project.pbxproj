@@ -421,6 +421,7 @@
 /* Begin PBXShellScriptBuildPhase section */
 		D8695835E12245D68B90C6BF /* Auto-increment build number from git */ = {
 			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
 			files = (
 			);

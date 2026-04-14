@@ -59,6 +59,7 @@ struct RefillMachine: Identifiable, Equatable, Codable {
                         productId: productId,
                         productName: tray.tray.productName,
                         imagePath: tray.tray.products?.imagePath,
+                        sellprice: tray.tray.products?.sellprice,
                         quantity: tray.deficit
                     )
                 }
@@ -110,6 +111,7 @@ struct PackingItem: Identifiable, Equatable {
     let productId: UUID
     let productName: String
     let imagePath: String?
+    let sellprice: Double?
     var quantity: Int
 
     var id: UUID { productId }
@@ -122,10 +124,17 @@ struct CombinedPackingItem: Identifiable, Equatable {
     let productId: UUID
     let productName: String
     let imagePath: String?
+    let sellprice: Double?
     let totalQuantity: Int
     let machineNeeds: [MachineNeed]
 
     var id: UUID { productId }
+
+    /// Formatted EUR price for display, or `nil` when no price is set.
+    var formattedSellprice: String? {
+        guard let price = sellprice else { return nil }
+        return String(format: "%.2f \u{20AC}", price)
+    }
 }
 
 /// One machine's need for a specific product.
@@ -421,7 +430,7 @@ final class RefillWizardViewModel: ObservableObject {
     /// when available (see `warehouseProductOrder`), else by total quantity
     /// descending.
     var combinedPackingList: [CombinedPackingItem] {
-        var grouped: [UUID: (name: String, image: String?, total: Int, needs: [MachineNeed])] = [:]
+        var grouped: [UUID: (name: String, image: String?, sellprice: Double?, total: Int, needs: [MachineNeed])] = [:]
 
         for machine in machines {
             for tray in machine.trays where tray.deficit > 0 {
@@ -451,6 +460,7 @@ final class RefillWizardViewModel: ObservableObject {
                     grouped[productId] = (
                         name: tray.tray.productName,
                         image: tray.tray.products?.imagePath,
+                        sellprice: tray.tray.products?.sellprice,
                         total: tray.deficit,
                         needs: [need]
                     )
@@ -463,6 +473,7 @@ final class RefillWizardViewModel: ObservableObject {
                 productId: productId,
                 productName: data.name,
                 imagePath: data.image,
+                sellprice: data.sellprice,
                 totalQuantity: data.total,
                 machineNeeds: data.needs.sorted { $0.machineName < $1.machineName }
             )
@@ -732,7 +743,7 @@ final class RefillWizardViewModel: ObservableObject {
             print("[RefillWizard] Fetching trays...")
             let allTrays: [Tray] = try await client
                 .from("machine_trays")
-                .select("id, machine_id, item_number, product_id, capacity, current_stock, min_stock, fill_when_below, products(name, image_path, discontinued)")
+                .select("id, machine_id, item_number, product_id, capacity, current_stock, min_stock, fill_when_below, products(name, image_path, discontinued, sellprice)")
                 .order("item_number", ascending: true)
                 .execute()
                 .value

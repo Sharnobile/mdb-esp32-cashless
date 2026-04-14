@@ -61,7 +61,7 @@ final class MachineListViewModel: ObservableObject {
             // 3. Fetch all trays for stock health
             let allTrays: [Tray] = try await client
                 .from("machine_trays")
-                .select("id, machine_id, item_number, product_id, capacity, current_stock, min_stock, fill_when_below, products(name, image_path, discontinued)")
+                .select("id, machine_id, item_number, product_id, capacity, current_stock, min_stock, fill_when_below, products(name, image_path, discontinued, sellprice)")
                 .execute()
                 .value
 

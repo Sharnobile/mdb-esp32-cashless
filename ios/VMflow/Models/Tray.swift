@@ -49,6 +49,13 @@ struct Tray: Codable, Identifiable, Equatable, Hashable {
         products?.discontinued ?? false
     }
 
+    /// Product sell price (EUR), formatted for display. `nil` when no product
+    /// is assigned or the product has no price set.
+    var formattedSellprice: String? {
+        guard let price = products?.sellprice else { return nil }
+        return String(format: "%.2f \u{20AC}", price)
+    }
+
     /// Stock fill ratio (0.0 to 1.0).
     var fillRatio: Double {
         guard capacity > 0 else { return 0 }

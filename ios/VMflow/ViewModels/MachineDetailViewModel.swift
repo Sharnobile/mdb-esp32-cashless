@@ -45,7 +45,7 @@ final class MachineDetailViewModel: ObservableObject {
     private func loadTrays() async throws {
         trays = try await client
             .from("machine_trays")
-            .select("id, machine_id, item_number, product_id, capacity, current_stock, min_stock, fill_when_below, products(name, image_path, discontinued)")
+            .select("id, machine_id, item_number, product_id, capacity, current_stock, min_stock, fill_when_below, products(name, image_path, discontinued, sellprice)")
             .eq("machine_id", value: machine.id.uuidString)
             .order("item_number", ascending: true)
             .execute()

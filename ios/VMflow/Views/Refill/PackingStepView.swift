@@ -112,10 +112,18 @@ struct PackingStepView: View {
                     ProductImage(imagePath: item.imagePath, size: 36)
 
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(item.productName)
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(outOfStock ? .secondary : .primary)
-                            .lineLimit(1)
+                        HStack(spacing: 6) {
+                            Text(item.productName)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(outOfStock ? .secondary : .primary)
+                                .lineLimit(1)
+
+                            if let price = item.formattedSellprice {
+                                Text(price)
+                                    .font(.caption.monospacedDigit())
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
 
                         warehouseStockBadge(for: item)
                     }
