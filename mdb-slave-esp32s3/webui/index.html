@@ -75,16 +75,26 @@
 
   <hr class="divider">
 
-  <label>Provisioning Code
-    <span class="hint" style="font-weight:normal"> — from the management dashboard</span>
-  </label>
-  <input id="prov_code" type="text" placeholder="e.g. AB3KMNPQ" autocomplete="off"
-         style="text-transform:uppercase;letter-spacing:0.1em;font-size:18px">
-  <p class="hint">Leave empty to skip registration (use if device is already registered)</p>
+  <!-- Already-registered banner + toggle (shown only when claimed=true) -->
+  <div id="claimed_banner" style="display:none;background:#e8f5ee;border:1px solid #b7e0c5;color:#155724;padding:10px 12px;border-radius:4px;font-size:13px;margin-top:4px">
+    <strong>Device already registered.</strong>
+    You only need to update the WiFi credentials.
+    <button type="button" class="manual-toggle" style="display:block;margin-top:4px" onclick="toggleProvSection()">Change registration</button>
+  </div>
 
-  <label>Server URL</label>
-  <input id="srv_url" type="text" placeholder="https://your-server.com" autocomplete="off">
-  <p class="hint">The URL of your VMFlow backend</p>
+  <!-- Provisioning section (hidden by default when claimed, shown otherwise) -->
+  <div id="prov_section">
+    <label>Provisioning Code
+      <span class="hint" style="font-weight:normal"> — from the management dashboard</span>
+    </label>
+    <input id="prov_code" type="text" placeholder="e.g. AB3KMNPQ" autocomplete="off"
+           style="text-transform:uppercase;letter-spacing:0.1em;font-size:18px">
+    <p class="hint" id="prov_hint">Leave empty to skip registration (use if device is already registered)</p>
+
+    <label>Server URL</label>
+    <input id="srv_url" type="text" placeholder="https://your-server.com" autocomplete="off">
+    <p class="hint">The URL of your VMFlow backend</p>
+  </div>
 
   <button onclick="saveSettings()">Save &amp; Connect</button>
   <div id="status"></div>
@@ -96,6 +106,7 @@
   const DEFAULTS = { srv_url: 'https://supabase.vmflow.xyz' };
   let manualMode = false;
   let selectedSsid = '';
+  let deviceClaimed = false;
 
   window.addEventListener('DOMContentLoaded', () => {
     fetch('/api/v1/system/info')
@@ -106,6 +117,19 @@
         $('wifi_ssid_input').value = selectedSsid;
         $('wifi_password').value = d.wifi_password || '';
         $('srv_url').value       = d.srv_url       || DEFAULTS.srv_url;
+        $('prov_code').value     = d.prov_code     || '';
+        deviceClaimed            = !!d.claimed;
+
+        /* Hide provisioning section by default if device is already claimed.
+         * The user can reveal it via the "Change registration" toggle. */
+        if (deviceClaimed) {
+          $('claimed_banner').style.display = '';
+          $('prov_section').style.display   = 'none';
+        } else {
+          $('claimed_banner').style.display = 'none';
+          $('prov_section').style.display   = '';
+        }
+
         /* Auto-scan after loading saved settings */
         scanWifi();
       })
@@ -114,6 +138,11 @@
         scanWifi();
       });
   });
+
+  function toggleProvSection() {
+    const sec = $('prov_section');
+    sec.style.display = sec.style.display === 'none' ? '' : 'none';
+  }
 
   function scanWifi() {
     const btn = $('scan_btn');
@@ -204,17 +233,25 @@
 
     const ssid    = $('wifi_ssid').value.trim();
     const pass    = $('wifi_password').value;
-    const code    = $('prov_code').value.trim().toUpperCase();
     const srvUrl  = $('srv_url').value.trim();
+
+    /* If the device is already claimed and the user did not reveal the
+     * provisioning section, do not send prov_code at all — this keeps
+     * an already-registered device from attempting a fresh claim. */
+    const provVisible = $('prov_section').style.display !== 'none';
+    const code        = provVisible ? $('prov_code').value.trim().toUpperCase() : '';
 
     if (!ssid) { setStatus('WiFi SSID is required', false); return; }
 
     setStatus('Saving…', null);
 
+    const body = { ssid, password: pass, srv_url: srvUrl };
+    if (code) body.prov_code = code;
+
     fetch('/api/v1/settings/set', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ssid, password: pass, prov_code: code, srv_url: srvUrl })
+      body: JSON.stringify(body)
     })
     .then(r => r.json())
     .then(d => {

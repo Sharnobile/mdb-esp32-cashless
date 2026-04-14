@@ -172,6 +172,8 @@ static esp_err_t system_info_get_handler(httpd_req_t *req) {
     char mqtt_port[8] = "";
     char mqtt_user[64] = "";
     char mqtt_pass[64] = "";
+    char prov_code[32] = "";
+    char company_id[40] = "";
     nvs_handle_t handle;
     if (nvs_open("vmflow", NVS_READONLY, &handle) == ESP_OK) {
         size_t s_len = sizeof(srv_url);
@@ -184,6 +186,10 @@ static esp_err_t system_info_get_handler(httpd_req_t *req) {
         nvs_get_str(handle, "mqtt_user", mqtt_user, &u_len);
         size_t pw_len = sizeof(mqtt_pass);
         nvs_get_str(handle, "mqtt_pass", mqtt_pass, &pw_len);
+        size_t pc_len = sizeof(prov_code);
+        nvs_get_str(handle, "prov_code", prov_code, &pc_len);
+        size_t c_len = sizeof(company_id);
+        nvs_get_str(handle, "company_id", company_id, &c_len);
         nvs_close(handle);
     }
 
@@ -198,6 +204,8 @@ static esp_err_t system_info_get_handler(httpd_req_t *req) {
     cJSON_AddStringToObject(root, "mqtt_port",     mqtt_port);
     cJSON_AddStringToObject(root, "mqtt_user",     mqtt_user);
     cJSON_AddStringToObject(root, "mqtt_pass",     mqtt_pass);
+    cJSON_AddStringToObject(root, "prov_code",     prov_code);
+    cJSON_AddBoolToObject(root,   "claimed",       strlen(company_id) > 0);
 
     char *json_str = cJSON_PrintUnformatted(root);
     httpd_resp_set_type(req, "application/json");
