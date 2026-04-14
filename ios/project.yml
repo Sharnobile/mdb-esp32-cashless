@@ -40,7 +40,7 @@ targets:
       - name: Auto-increment build number from git
         script: |
           BUILD_NUM=$(git -C "${SRCROOT}/.." rev-list --count HEAD)
-          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUM" "${TARGET_BUILD_DIR}/${INFOPLIST_PATH}"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUM" "${SRCROOT}/VMflow/Resources/Info.plist"
         runOnlyWhenInstalling: false
         basedOnDependencyAnalysis: false
     dependencies:

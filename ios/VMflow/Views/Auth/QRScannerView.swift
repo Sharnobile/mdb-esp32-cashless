@@ -71,7 +71,7 @@ class QRScannerViewController: UIViewController, AVCaptureMetadataOutputObjectsD
               object.type == .qr,
               let value = object.stringValue else { return }
         hasScanned = true
-        AudioServicesPlaySystemSound(SystemSoundID(kSystemSoundID_Vibrate))
+        HapticFeedback.success.fire()
         onCodeScanned?(value)
     }
 }

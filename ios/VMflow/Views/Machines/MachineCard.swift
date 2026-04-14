@@ -127,6 +127,7 @@ struct MachineCard: View {
                 .fill(.regularMaterial)
                 .shadow(color: .black.opacity(0.06), radius: 6, y: 2)
         }
+        .hoverEffect(.highlight)
     }
 
     private func salesStatCell(label: LocalizedStringKey, revenue: Double, count: Int) -> some View {

@@ -155,8 +155,7 @@ class ScannerViewController: UIViewController, AVCaptureMetadataOutputObjectsDel
         hasScanned = true
 
         // Haptic feedback
-        let generator = UINotificationFeedbackGenerator()
-        generator.notificationOccurred(.success)
+        HapticFeedback.success.fire()
 
         delegate?.didScanBarcode(code)
     }

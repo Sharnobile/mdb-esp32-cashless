@@ -76,15 +76,13 @@ struct TrayListView: View {
                             TrayRow(
                                 tray: tray,
                                 onAdjust: { delta in
-                                    let impact = UIImpactFeedbackGenerator(style: .light)
-                                    impact.impactOccurred()
+                                    HapticFeedback.light.fire()
                                     Task {
                                         await viewModel.adjustStock(tray: tray, delta: delta)
                                     }
                                 },
                                 onFill: {
-                                    let impact = UIImpactFeedbackGenerator(style: .medium)
-                                    impact.impactOccurred()
+                                    HapticFeedback.medium.fire()
                                     Task {
                                         await viewModel.fillToCapacity(tray)
                                     }

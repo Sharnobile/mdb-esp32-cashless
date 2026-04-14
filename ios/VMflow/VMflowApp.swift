@@ -34,7 +34,7 @@ struct RootView: View {
             } else if auth.organization == nil {
                 NoOrganizationView()
             } else {
-                MainTabView()
+                AdaptiveRootView()
             }
         }
         .animation(.easeInOut(duration: 0.3), value: auth.isAuthenticated)
@@ -102,82 +102,6 @@ enum AppTab: Hashable {
     case dashboard, machines, refill, inbox, more
 }
 
-// MARK: - Main Tab View
-
-struct MainTabView: View {
-    @EnvironmentObject var auth: AuthService
-    @StateObject private var realtime = RealtimeService.shared
-    @StateObject private var notificationService = NotificationService.shared
-    @State private var selectedTab: AppTab = .dashboard
-    @Environment(\.scenePhase) private var scenePhase
-
-    var body: some View {
-        TabView(selection: $selectedTab) {
-            NavigationStack {
-                DashboardView(selectedTab: $selectedTab)
-            }
-            .tabItem {
-                Label("Dashboard", systemImage: "chart.bar.fill")
-            }
-            .tag(AppTab.dashboard)
-
-            NavigationStack {
-                MachineListView()
-            }
-            .tabItem {
-                Label("Machines", systemImage: "storefront.fill")
-            }
-            .tag(AppTab.machines)
-
-            NavigationStack {
-                RefillWizardView()
-            }
-            .tabItem {
-                Label("Refill", systemImage: "arrow.clockwise.circle.fill")
-            }
-            .tag(AppTab.refill)
-
-            NavigationStack {
-                InboxView()
-            }
-            .tabItem {
-                Label("Inbox", systemImage: "tray.fill")
-            }
-            .badge(notificationService.openInboxCount)
-            .tag(AppTab.inbox)
-
-            NavigationStack {
-                MoreView()
-            }
-            .tabItem {
-                Label("More", systemImage: "ellipsis.circle.fill")
-            }
-            .tag(AppTab.more)
-        }
-        .tint(.blue)
-        .environmentObject(realtime)
-        .task {
-            realtime.start()
-            await NotificationService.shared.setupAfterLogin()
-        }
-        // App returns to foreground → refresh badge from server.
-        .onChange(of: scenePhase) { _, newPhase in
-            if newPhase == .active {
-                Task { await NotificationService.shared.refreshBadge() }
-            }
-        }
-        // Notification tap deep-link routing.
-        .onChange(of: notificationService.pendingDeepLink) { _, link in
-            guard let link = link else { return }
-            switch link {
-            case .inbox:
-                selectedTab = .inbox
-            }
-            notificationService.pendingDeepLink = nil
-        }
-    }
-}
-
 // MARK: - More View
 
 struct MoreView: View {
@@ -196,6 +120,12 @@ struct MoreView: View {
                     WarehouseView()
                 } label: {
                     Label("Warehouse", systemImage: "shippingbox.fill")
+                }
+
+                NavigationLink {
+                    DealsView()
+                } label: {
+                    Label("Deals", systemImage: "tag.fill")
                 }
             }
 

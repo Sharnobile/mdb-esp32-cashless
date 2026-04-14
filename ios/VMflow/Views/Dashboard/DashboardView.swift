@@ -3,10 +3,11 @@ import Charts
 
 /// Main dashboard with KPIs, 30-day chart, recent sales, and quick actions.
 struct DashboardView: View {
-    @Binding var selectedTab: AppTab
+    var onNavigate: (SidebarItem) -> Void = { _ in }
     @EnvironmentObject var auth: AuthService
     @StateObject private var viewModel = DashboardViewModel()
     @EnvironmentObject private var realtime: RealtimeService
+    @Environment(\.horizontalSizeClass) private var sizeClass
 
     /// Whether a refill tour is currently saved/in-progress.
     @State private var hasActiveRefill = false
@@ -69,8 +70,15 @@ struct DashboardView: View {
 
     // MARK: - KPI Cards
 
+    private var kpiColumns: [GridItem] {
+        if sizeClass == .regular {
+            return Array(repeating: GridItem(.flexible()), count: 4)
+        }
+        return [GridItem(.flexible()), GridItem(.flexible())]
+    }
+
     private var kpiSection: some View {
-        LazyVGrid(columns: [.init(.flexible()), .init(.flexible())], spacing: 12) {
+        LazyVGrid(columns: kpiColumns, spacing: 12) {
             KPICard(
                 icon: "eurosign.circle.fill",
                 title: "Today's Revenue",
@@ -110,7 +118,7 @@ struct DashboardView: View {
     private var quickActions: some View {
         HStack(spacing: 12) {
             Button {
-                selectedTab = .refill
+                onNavigate(.refill)
             } label: {
                 Label(
                     hasActiveRefill ? "Continue Refill" : "Start Refill",
@@ -123,7 +131,7 @@ struct DashboardView: View {
             .buttonStyle(.borderedProminent)
 
             Button {
-                selectedTab = .machines
+                onNavigate(.machines)
             } label: {
                 Label("Machines", systemImage: "storefront.fill")
                     .font(.subheadline.weight(.semibold))
@@ -324,7 +332,7 @@ func timeAgo(from date: Date) -> String {
 
 #Preview {
     NavigationStack {
-        DashboardView(selectedTab: .constant(.dashboard))
+        DashboardView()
             .environmentObject(AuthService())
     }
 }

@@ -91,8 +91,7 @@ struct RefillSummaryView: View {
 
                 // Done Button
                 Button {
-                    let notification = UINotificationFeedbackGenerator()
-                    notification.notificationOccurred(.success)
+                    HapticFeedback.success.fire()
                     viewModel.reset()
                     Task { await viewModel.loadData() }
                 } label: {
@@ -113,8 +112,7 @@ struct RefillSummaryView: View {
         }
         .onAppear {
             // Trigger haptic
-            let notification = UINotificationFeedbackGenerator()
-            notification.notificationOccurred(.success)
+            HapticFeedback.success.fire()
 
             // Stagger animations
             withAnimation { showCheckmark = true }

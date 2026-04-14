@@ -1,9 +1,10 @@
 import SwiftUI
 
-/// App settings with notification preferences and account management.
+/// App settings with notification preferences, deal search, and account management.
 struct SettingsView: View {
     @EnvironmentObject private var auth: AuthService
     @StateObject private var notifications = NotificationService.shared
+    @StateObject private var deals = DealsViewModel()
     @State private var isSendingTest = false
     @State private var showSignOutConfirm = false
 
@@ -23,6 +24,50 @@ struct SettingsView: View {
                     Text("Notifications are disabled in system settings. Open Settings to enable them.")
                         .foregroundStyle(.orange)
                 }
+            }
+
+            // MARK: - Deals Section
+            Section {
+                Toggle(isOn: Binding(
+                    get: { deals.dealsEnabled },
+                    set: { newValue in
+                        deals.dealsEnabled = newValue
+                        Task { await deals.saveSettings() }
+                    }
+                )) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "tag.fill")
+                            .font(.title3)
+                            .foregroundStyle(.blue)
+                            .frame(width: 28)
+                        Text("Enable Deal Search")
+                    }
+                }
+
+                if deals.dealsEnabled {
+                    HStack(spacing: 12) {
+                        Image(systemName: "mappin.circle.fill")
+                            .font(.title3)
+                            .foregroundStyle(.orange)
+                            .frame(width: 28)
+
+                        Text("ZIP Code")
+
+                        Spacer()
+
+                        TextField("e.g. 60487", text: $deals.dealsZipCode)
+                            .multilineTextAlignment(.trailing)
+                            .keyboardType(.numberPad)
+                            .frame(maxWidth: 120)
+                            .onSubmit {
+                                Task { await deals.saveSettings() }
+                            }
+                    }
+                }
+            } header: {
+                Label("Deals", systemImage: "tag.fill")
+            } footer: {
+                Text("Automatically find retailer offers matching your products based on your ZIP code.")
             }
 
             // MARK: - Account Section
@@ -67,6 +112,7 @@ struct SettingsView: View {
             if notifications.isEnabled {
                 await notifications.fetchPreferences()
             }
+            await deals.loadSettings()
         }
         .alert("Sign Out", isPresented: $showSignOutConfirm) {
             Button("Sign Out", role: .destructive) {

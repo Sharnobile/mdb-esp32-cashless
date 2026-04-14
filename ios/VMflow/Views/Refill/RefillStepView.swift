@@ -16,8 +16,7 @@ struct RefillStepView: View {
                     VStack(spacing: 12) {
                         // Refill All Button
                         Button {
-                            let impact = UIImpactFeedbackGenerator(style: .medium)
-                            impact.impactOccurred()
+                            HapticFeedback.medium.fire()
                             viewModel.fillAllTrays(machineId: machine.id)
                         } label: {
                             Label("Fill All to Capacity", systemImage: "arrow.up.to.line")
@@ -248,8 +247,7 @@ struct RefillStepView: View {
             HStack(spacing: 16) {
                 // Decrease
                 Button {
-                    let impact = UIImpactFeedbackGenerator(style: .light)
-                    impact.impactOccurred()
+                    HapticFeedback.light.fire()
                     viewModel.adjustFillAmount(
                         machineId: machineId,
                         trayId: refillTray.id,
@@ -280,8 +278,7 @@ struct RefillStepView: View {
 
                 // Increase
                 Button {
-                    let impact = UIImpactFeedbackGenerator(style: .light)
-                    impact.impactOccurred()
+                    HapticFeedback.light.fire()
                     viewModel.adjustFillAmount(
                         machineId: machineId,
                         trayId: refillTray.id,
@@ -301,8 +298,7 @@ struct RefillStepView: View {
 
                 // Fill to capacity
                 Button {
-                    let impact = UIImpactFeedbackGenerator(style: .medium)
-                    impact.impactOccurred()
+                    HapticFeedback.medium.fire()
                     viewModel.fillTrayToCapacity(machineId: machineId, trayId: refillTray.id)
                 } label: {
                     Text("Max")
@@ -369,8 +365,7 @@ struct RefillStepView: View {
 
                 // Confirm button
                 Button {
-                    let notification = UINotificationFeedbackGenerator()
-                    notification.notificationOccurred(.success)
+                    HapticFeedback.success.fire()
                     Task {
                         await viewModel.confirmRefill(machineId: machine.id)
                     }

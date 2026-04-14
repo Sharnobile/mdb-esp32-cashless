@@ -71,8 +71,7 @@ struct PackingStepView: View {
             }
             Spacer()
             Button {
-                let impact = UIImpactFeedbackGenerator(style: .light)
-                impact.impactOccurred()
+                HapticFeedback.light.fire()
                 viewModel.packAllMachines()
             } label: {
                 Text("Select All")
@@ -97,8 +96,7 @@ struct PackingStepView: View {
             // Product header
             Button {
                 guard !outOfStock else { return }
-                let impact = UIImpactFeedbackGenerator(style: .light)
-                impact.impactOccurred()
+                HapticFeedback.light.fire()
                 viewModel.togglePackedAll(productId: item.productId)
             } label: {
                 HStack(spacing: 12) {
@@ -189,8 +187,7 @@ struct PackingStepView: View {
             // Checkbox
             Button {
                 guard !isDisabled else { return }
-                let impact = UIImpactFeedbackGenerator(style: .light)
-                impact.impactOccurred()
+                HapticFeedback.light.fire()
                 viewModel.togglePackedForMachine(productId: item.productId, machineId: need.machineId)
             } label: {
                 Image(systemName: isDisabled ? "xmark.square" :
@@ -232,8 +229,7 @@ struct PackingStepView: View {
             // Quantity stepper
             HStack(spacing: 6) {
                 Button {
-                    let impact = UIImpactFeedbackGenerator(style: .light)
-                    impact.impactOccurred()
+                    HapticFeedback.light.fire()
                     viewModel.setPackingQuantity(
                         machineId: need.machineId,
                         productId: item.productId,
@@ -263,8 +259,7 @@ struct PackingStepView: View {
                     .foregroundStyle(isDisabled ? Color.secondary : Color.blue)
 
                 Button {
-                    let impact = UIImpactFeedbackGenerator(style: .light)
-                    impact.impactOccurred()
+                    HapticFeedback.light.fire()
                     viewModel.setPackingQuantity(
                         machineId: need.machineId,
                         productId: item.productId,
@@ -368,8 +363,7 @@ struct PackingStepView: View {
                 Spacer()
 
                 Button {
-                    let impact = UIImpactFeedbackGenerator(style: .medium)
-                    impact.impactOccurred()
+                    HapticFeedback.medium.fire()
                     Task { await viewModel.startTour() }
                 } label: {
                     if viewModel.isSaving {
