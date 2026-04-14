@@ -1,0 +1,26 @@
+-- =========================================================
+-- Fix: make paxcounter.embedded_id nullable
+--
+-- Background:
+-- The initial schema in 20260228000000_multitenancy.sql declared
+-- paxcounter.embedded_id as NOT NULL:
+--   embedded_id uuid not null references public.embeddeds(id) on delete cascade
+-- Later 20260301400000_device_delete_fks.sql changed the FK action to
+-- ON DELETE SET NULL so that deleting a device preserves paxcounter
+-- history, but forgot to drop the NOT NULL constraint on the column.
+-- The identical oversight was made for sales.embedded_id and was fixed
+-- in 20260411130000_restore_sales_embedded_id_nullable.sql; this is
+-- the paxcounter counterpart, which was missed at the time.
+--
+-- As a result, deleting an embedded device from the webUI fails with:
+--   23502: null value in column "embedded_id" of relation "paxcounter"
+--          violates not-null constraint
+-- …because ON DELETE SET NULL tries to write NULL into a column that
+-- the table definition still forbids.
+--
+-- This migration restores the intended state. ALTER COLUMN ... DROP NOT NULL
+-- is idempotent: it is a no-op on any database that already has the
+-- column nullable.
+-- =========================================================
+
+ALTER TABLE public.paxcounter ALTER COLUMN embedded_id DROP NOT NULL;
