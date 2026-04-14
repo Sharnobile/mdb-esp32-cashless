@@ -27,12 +27,6 @@ struct TrayRow: View {
                         .font(.subheadline.weight(.medium))
                         .lineLimit(1)
 
-                    if let price = tray.formattedSellprice {
-                        Text(price)
-                            .font(.caption.monospacedDigit())
-                            .foregroundStyle(.secondary)
-                    }
-
                     if tray.isDiscontinued {
                         Text("DC")
                             .font(.caption2.weight(.bold))
@@ -46,10 +40,24 @@ struct TrayRow: View {
                 StockBar(
                     current: tray.currentStock,
                     capacity: tray.capacity,
+                    showLabel: false,
                     height: 6,
                     minStock: tray.minStock,
                     fillWhenBelow: tray.fillWhenBelow
                 )
+
+                HStack {
+                    Text("\(tray.currentStock)/\(tray.capacity)")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                    if let price = tray.formattedSellprice {
+                        Spacer()
+                        Text(price)
+                            .font(.caption2.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
 
             Spacer(minLength: 4)
