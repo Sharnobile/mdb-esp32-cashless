@@ -42,6 +42,7 @@ targets:
           BUILD_NUM=$(git -C "${SRCROOT}/.." rev-list --count HEAD)
           /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUM" "${TARGET_BUILD_DIR}/${INFOPLIST_PATH}"
         runOnlyWhenInstalling: false
+        basedOnDependencyAnalysis: false
     dependencies:
       - package: Supabase
         product: Supabase
