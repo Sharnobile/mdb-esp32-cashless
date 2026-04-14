@@ -114,7 +114,7 @@ final class DashboardViewModel: ObservableObject {
         // Load all trays for stock health
         let trays: [Tray] = try await client
             .from("machine_trays")
-            .select("id, machine_id, item_number, product_id, capacity, current_stock, min_stock, fill_when_below, products(name, image_path, discontinued)")
+            .select("id, machine_id, item_number, product_id, capacity, current_stock, min_stock, fill_when_below, products(name, image_path, discontinued, sellprice)")
             .execute()
             .value
 
@@ -213,7 +213,7 @@ final class DashboardViewModel: ObservableObject {
             let fallbackMachineIds = Set(salesWithoutProduct.compactMap { $0.machineId })
             let trays: [Tray] = try await client
                 .from("machine_trays")
-                .select("id, machine_id, item_number, product_id, capacity, current_stock, min_stock, fill_when_below, products(name, image_path, discontinued)")
+                .select("id, machine_id, item_number, product_id, capacity, current_stock, min_stock, fill_when_below, products(name, image_path, discontinued, sellprice)")
                 .in("machine_id", values: fallbackMachineIds.map { $0.uuidString })
                 .execute()
                 .value

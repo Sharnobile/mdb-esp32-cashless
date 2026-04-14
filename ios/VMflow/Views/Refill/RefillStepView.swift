@@ -190,9 +190,17 @@ struct RefillStepView: View {
                 ProductImage(imagePath: refillTray.tray.products?.imagePath, size: 44)
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(refillTray.tray.productName)
-                        .font(.subheadline.weight(.semibold))
-                        .lineLimit(1)
+                    HStack(spacing: 6) {
+                        Text(refillTray.tray.productName)
+                            .font(.subheadline.weight(.semibold))
+                            .lineLimit(1)
+
+                        if let price = refillTray.tray.formattedSellprice {
+                            Text(price)
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                        }
+                    }
 
                     // Current -> Target
                     HStack(spacing: 4) {

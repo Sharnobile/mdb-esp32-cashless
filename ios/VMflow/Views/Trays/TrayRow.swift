@@ -22,10 +22,16 @@ struct TrayRow: View {
 
             // Name + Stock Bar
             VStack(alignment: .leading, spacing: 6) {
-                HStack {
+                HStack(spacing: 6) {
                     Text(tray.productName)
                         .font(.subheadline.weight(.medium))
                         .lineLimit(1)
+
+                    if let price = tray.formattedSellprice {
+                        Text(price)
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                    }
 
                     if tray.isDiscontinued {
                         Text("DC")
