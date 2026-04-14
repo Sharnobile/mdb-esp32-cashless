@@ -3,7 +3,17 @@ import SwiftUI
 /// Container for the multi-step refill wizard with step indicator and smooth transitions.
 struct RefillWizardView: View {
     @StateObject private var viewModel = RefillWizardViewModel()
+    @EnvironmentObject private var realtime: RealtimeService
     @State private var showResumeAlert = false
+
+    /// Bumps whenever a sale is inserted, a tray is mutated, or warehouse
+    /// stock changes. Used to refresh the packing list so new sales that push
+    /// a tray below threshold (new product card) or enlarge an existing
+    /// deficit (bigger `totalQuantity`) show up live while the user is
+    /// checking off machines.
+    private var realtimeVersion: Int {
+        realtime.salesVersion + realtime.traysVersion + realtime.warehouseVersion
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -69,6 +79,12 @@ struct RefillWizardView: View {
             Button("OK") { viewModel.error = nil }
         } message: {
             Text(viewModel.error ?? "")
+        }
+        .onChange(of: realtimeVersion) { _, _ in
+            // Dispatcher picks the right per-step refresh (packing: rebuild
+            // list; refill: display-only stock update). Review/summary
+            // intentionally do nothing.
+            Task { await viewModel.refreshFromRealtime() }
         }
     }
 

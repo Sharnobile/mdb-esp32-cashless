@@ -92,6 +92,39 @@ struct PackingStepView: View {
         // remaining stock is 0 but the card is packed, not unusable.
         let outOfStock = !fullyPacked && viewModel.isOutOfWarehouseStock(productId: item.productId)
 
+        // "All needs met" = every machine-need is both checked AND getting
+        // at least the full required quantity. Distinguishes the ideal state
+        // (every tray will be fully topped up) from a product that's checked
+        // off but underpacked because of warehouse cap or a manual qty reduction.
+        let allNeedsMet = item.machineNeeds.allSatisfy { need in
+            viewModel.isMachinePacked(machineId: need.machineId, productId: item.productId)
+                && viewModel.displayQuantity(machineId: need.machineId, productId: item.productId) >= need.quantity
+        }
+        // "Underpacked" = user has committed to this product (at least one
+        // machine is checked), but the total packed quantity is below the
+        // total required. Warrants a warning border so the user doesn't miss it.
+        let anyPacked = item.machineNeeds.contains { need in
+            viewModel.isMachinePacked(machineId: need.machineId, productId: item.productId)
+        }
+        let underpacked = !outOfStock && anyPacked && !allNeedsMet
+
+        // Border color signals the card's commitment status at a glance.
+        let borderColor: Color = {
+            if outOfStock { return .clear }
+            if allNeedsMet { return .green.opacity(0.35) }
+            if underpacked { return .orange.opacity(0.55) }
+            return .clear
+        }()
+        let borderWidth: CGFloat = underpacked ? 2 : 1.5
+
+        // Total packed vs. total needed — shown beside the quantity badge
+        // when there's a shortfall, so the user sees "6× / 9 needed" at a glance.
+        let totalPacked = item.machineNeeds.reduce(0) { sum, need in
+            let isPacked = viewModel.isMachinePacked(machineId: need.machineId, productId: item.productId)
+            return sum + (isPacked ? viewModel.displayQuantity(machineId: need.machineId, productId: item.productId) : 0)
+        }
+        let shortfall = max(0, item.totalQuantity - totalPacked)
+
         return VStack(spacing: 0) {
             // Product header
             Button {
@@ -133,13 +166,29 @@ struct PackingStepView: View {
                     let totalQty = item.machineNeeds.reduce(0) { sum, need in
                         sum + viewModel.displayQuantity(machineId: need.machineId, productId: item.productId)
                     }
-                    Text("\(totalQty)×")
-                        .font(.headline.weight(.bold))
-                        .monospacedDigit()
-                        .foregroundStyle(outOfStock ? Color.secondary : Color.blue)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
-                        .background(Capsule().fill(outOfStock ? Color.gray.opacity(0.1) : Color.blue.opacity(0.1)))
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text("\(totalQty)×")
+                            .font(.headline.weight(.bold))
+                            .monospacedDigit()
+                            .foregroundStyle(
+                                outOfStock ? Color.secondary :
+                                (underpacked ? Color.orange : Color.blue)
+                            )
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                            .background(Capsule().fill(
+                                outOfStock ? Color.gray.opacity(0.1) :
+                                (underpacked ? Color.orange.opacity(0.12) : Color.blue.opacity(0.1))
+                            ))
+                        if underpacked {
+                            // Make the shortfall explicit — "-3" is more
+                            // actionable than just a coloured border.
+                            Text("-\(shortfall) short")
+                                .font(.caption2.weight(.medium))
+                                .foregroundStyle(.orange)
+                                .monospacedDigit()
+                        }
+                    }
                 }
             }
             .buttonStyle(.plain)
@@ -165,11 +214,12 @@ struct PackingStepView: View {
         .background(RoundedRectangle(cornerRadius: 14).fill(.regularMaterial))
         .overlay(
             RoundedRectangle(cornerRadius: 14)
-                .stroke(fullyPacked && !outOfStock ? Color.green.opacity(0.3) : Color.clear, lineWidth: 1.5)
+                .stroke(borderColor, lineWidth: borderWidth)
         )
         .shadow(color: .black.opacity(0.04), radius: 4, y: 2)
         .opacity(outOfStock ? 0.5 : 1.0)
         .animation(.easeInOut(duration: 0.2), value: fullyPacked)
+        .animation(.easeInOut(duration: 0.2), value: underpacked)
     }
 
     // MARK: - Machine Need Row
@@ -181,7 +231,9 @@ struct PackingStepView: View {
         // after an uncheck doesn't suddenly jump up to the raw deficit.
         let qty = viewModel.displayQuantity(machineId: need.machineId, productId: item.productId)
         let maxQty = viewModel.maxPackingQuantity(machineId: need.machineId, productId: item.productId)
-        let isPartial = isPacked && maxQty < need.quantity
+        // "Partial" fires on either cause: warehouse cap (maxQty < need) or
+        // the user having manually dialled the quantity down below the need.
+        let isPartial = isPacked && qty < need.quantity
 
         return HStack(spacing: 10) {
             // Checkbox

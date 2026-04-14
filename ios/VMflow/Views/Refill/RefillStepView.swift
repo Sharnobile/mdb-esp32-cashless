@@ -175,7 +175,9 @@ struct RefillStepView: View {
     // MARK: - Refill Tray Card
 
     private func refillTrayCard(_ refillTray: RefillTray, machineId: UUID) -> some View {
-        VStack(spacing: 12) {
+        let soldDuringTour = viewModel.staleStockTrayIds.contains(refillTray.tray.id)
+
+        return VStack(spacing: 12) {
             // Product info
             HStack(spacing: 12) {
                 // Slot indicator
@@ -189,19 +191,36 @@ struct RefillStepView: View {
                 ProductImage(imagePath: refillTray.tray.products?.imagePath, size: 44)
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(refillTray.tray.productName)
-                        .font(.subheadline.weight(.semibold))
-                        .lineLimit(1)
+                    HStack(spacing: 6) {
+                        Text(refillTray.tray.productName)
+                            .font(.subheadline.weight(.semibold))
+                            .lineLimit(1)
+
+                        if soldDuringTour {
+                            // Mini badge: a sale happened on this tray after
+                            // the tour started. User should notice before
+                            // committing their pre-planned fillAmount.
+                            Label("Sold during tour", systemImage: "cart.badge.minus")
+                                .labelStyle(.iconOnly)
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                                .accessibilityLabel("Stock changed since tour start")
+                        }
+                    }
 
                     // Current -> Target + Price
                     HStack(spacing: 4) {
                         Text("\(refillTray.tray.currentStock)")
-                            .foregroundStyle(.red)
+                            .foregroundStyle(soldDuringTour ? .orange : .red)
+                            .contentTransition(.numericText())
+                            .animation(.spring(duration: 0.3), value: refillTray.tray.currentStock)
                         Image(systemName: "arrow.right")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                         Text("\(refillTray.targetStock)")
                             .foregroundStyle(.green)
+                            .contentTransition(.numericText())
+                            .animation(.spring(duration: 0.3), value: refillTray.targetStock)
                         Text("/ \(refillTray.tray.capacity)")
                             .foregroundStyle(.secondary)
 

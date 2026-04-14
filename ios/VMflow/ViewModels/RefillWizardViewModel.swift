@@ -250,6 +250,12 @@ final class RefillWizardViewModel: ObservableObject {
     /// Per-machine results recorded during the refill step.
     @Published var tourLog: [TourLogEntry] = []
 
+    /// Tray IDs whose `currentStock` changed due to a sale AFTER the tour
+    /// started. `refreshDuringRefill()` populates this; the RefillStepView
+    /// renders a small "sold-during-tour" badge on flagged trays so the
+    /// user notices the delta before confirming.
+    @Published var staleStockTrayIds: Set<UUID> = []
+
     /// Unique tour identifier, used to group activity log entries.
     private(set) var tourId: String = ""
 
@@ -611,7 +617,7 @@ final class RefillWizardViewModel: ObservableObject {
             guard !isOutOfStockForMachine(machineId: machineId, productId: productId) else { return }
             set.insert(productId)
             // Auto-cap the quantity to remaining warehouse stock
-            capQuantityToWarehouseStock(machineId: machineId, productId: productId)
+            pinPackingQuantity(machineId: machineId, productId: productId)
         }
         packedItems[machineId] = set
         syncMachinePackedState()
@@ -637,7 +643,7 @@ final class RefillWizardViewModel: ObservableObject {
                 var set = packedItems[need.machineId] ?? Set()
                 set.insert(productId)
                 packedItems[need.machineId] = set
-                capQuantityToWarehouseStock(machineId: need.machineId, productId: productId)
+                pinPackingQuantity(machineId: need.machineId, productId: productId)
             }
         }
         syncMachinePackedState()
@@ -651,20 +657,30 @@ final class RefillWizardViewModel: ObservableObject {
                 var set = packedItems[need.machineId] ?? Set()
                 set.insert(item.productId)
                 packedItems[need.machineId] = set
-                capQuantityToWarehouseStock(machineId: need.machineId, productId: item.productId)
+                pinPackingQuantity(machineId: need.machineId, productId: item.productId)
             }
         }
         syncMachinePackedState()
     }
 
-    /// Cap the packing quantity for a machine-product pair to available warehouse stock.
-    private func capQuantityToWarehouseStock(machineId: UUID, productId: UUID) {
-        guard selectedWarehouseId != nil, !warehouseStock.isEmpty else { return }
-        let maxQty = maxPackingQuantity(machineId: machineId, productId: productId)
+    /// Pin the packing quantity as an explicit `customQuantities` entry.
+    ///
+    /// Called at the moment the user packs a product (toggle-all, per-machine
+    /// toggle, or "pack everything"). Without this, `packingQuantity` falls
+    /// back to the tray deficit, which silently drifts under realtime
+    /// refreshes: a sale widens the deficit and the displayed "packed"
+    /// number moves under the user's fingers. Worse, if the warehouse can
+    /// only partially satisfy the new default, the user walks away with
+    /// fewer physical items than the UI implied.
+    ///
+    /// `setPackingQuantity` already clamps the input by `maxPackingQuantity`
+    /// (tray-capacity + warehouse-remaining), so passing the current default
+    /// pins exactly what the user intended at pack time. Any subsequent
+    /// deficit/warehouse drift shows up via the `underpacked` border/badge
+    /// rather than as an invisible adjustment.
+    private func pinPackingQuantity(machineId: UUID, productId: UUID) {
         let currentQty = packingQuantity(machineId: machineId, productId: productId)
-        if currentQty > maxQty {
-            setPackingQuantity(machineId: machineId, productId: productId, quantity: maxQty)
-        }
+        setPackingQuantity(machineId: machineId, productId: productId, quantity: currentQty)
     }
 
     /// Sync machine isPacked flag: a machine is packed when at least one product is checked.
@@ -725,6 +741,210 @@ final class RefillWizardViewModel: ObservableObject {
 
     // MARK: - Load Data
 
+    /// Build the list of machines that need refilling from raw machine/tray data.
+    ///
+    /// Filter logic (mirrors the web app):
+    /// 1. A machine is included only if it has at least one empty or below-min-stock tray.
+    /// 2. Trays included: empty + below-min-stock + below-fill-threshold
+    ///    (fill-when-below trays ride along only when the machine already has a critical tray).
+    ///
+    /// Static so both `loadData()` and `refreshDuringPacking()` share identical filtering.
+    private static func buildRefillMachines(allMachines: [VendingMachine], allTrays: [Tray]) -> [RefillMachine] {
+        let traysByMachine = Dictionary(grouping: allTrays, by: { $0.machineId })
+        var refillMachines: [RefillMachine] = []
+
+        for machine in allMachines {
+            let machineTrays = traysByMachine[machine.id] ?? []
+
+            let hasEmptyOrLow = machineTrays.contains { $0.isEmpty || $0.isBelowMinStock }
+            guard hasEmptyOrLow else { continue }
+
+            let refillTrays: [RefillTray] = machineTrays.compactMap { tray in
+                guard tray.deficit > 0 else { return nil }
+                let isCriticalOrLow = tray.isEmpty || tray.isBelowMinStock
+                let isBelowFillThreshold = tray.isBelowFillThreshold
+                guard isCriticalOrLow || isBelowFillThreshold else { return nil }
+                return RefillTray(tray: tray, fillAmount: tray.deficit)
+            }
+
+            guard !refillTrays.isEmpty else { continue }
+            refillMachines.append(RefillMachine(machine: machine, trays: refillTrays))
+        }
+
+        // Sort by urgency: machines with empty trays first, then by total deficit.
+        refillMachines.sort { a, b in
+            let aEmpty = a.trays.filter { $0.tray.isEmpty }.count
+            let bEmpty = b.trays.filter { $0.tray.isEmpty }.count
+            if aEmpty != bEmpty { return aEmpty > bEmpty }
+            return a.totalDeficit > b.totalDeficit
+        }
+
+        return refillMachines
+    }
+
+    /// Re-fetch machines/trays and warehouse stock in response to realtime
+    /// sale/tray changes, preserving the user's in-progress packing state.
+    ///
+    /// Only runs during the **packing** step — that's where the user can
+    /// observe deficits and pick products. During review the user is handling
+    /// product replacements (unrelated to stock levels). During refill and
+    /// summary the tour is already in progress / done, so silently mutating
+    /// `machines` would destroy the user's tray-level fill amounts and
+    /// `confirmRefill()` already re-fetches fresh stock before writing.
+    ///
+    /// Preserves: `packedItems`, `customQuantities`, `selectedWarehouseId`,
+    /// `currentStep`, `replacements`, `reviewCompleted`.
+    /// `isPacked` flags are re-derived from `packedItems` via `syncMachinePackedState()`.
+    func refreshDuringPacking() async {
+        // Only refresh in packing step — other steps own state we must not trample.
+        guard currentStep == .packing else { return }
+        // Avoid colliding with an in-progress initial load or save.
+        guard !isLoading, !isSaving else { return }
+
+        do {
+            let allMachines: [VendingMachine] = try await client
+                .from("vendingMachine")
+                .select("id, name, location_lat, location_lon, embedded, country_code, embeddeds(id, status, status_at, subdomain, mac_address, firmware_version)")
+                .execute()
+                .value
+
+            let allTrays: [Tray] = try await client
+                .from("machine_trays")
+                .select("id, machine_id, item_number, product_id, capacity, current_stock, min_stock, fill_when_below, products(name, image_path, discontinued, sellprice)")
+                .order("item_number", ascending: true)
+                .execute()
+                .value
+
+            self.machines = Self.buildRefillMachines(allMachines: allMachines, allTrays: allTrays)
+
+            // `packedItems` keyed by machineId still applies to machines that are
+            // still in the list; orphan entries for machines that no longer need
+            // refilling are harmless (nothing reads them). Re-derive isPacked
+            // flags from the preserved packedItems.
+            syncMachinePackedState()
+
+            // Warehouse stock may also have changed (another tour picking,
+            // intake, adjustment). Refresh so the pack-quantity caps stay accurate.
+            if let warehouseId = selectedWarehouseId {
+                await loadWarehouseStock(warehouseId: warehouseId)
+            }
+        } catch {
+            // Silent failure — the user's current UI is still usable, they
+            // will just see stale data until the next event.
+            print("[RefillWizard] refreshDuringPacking failed: \(error)")
+        }
+    }
+
+    /// Refresh the **display-only** tray stock during the refill step.
+    ///
+    /// Triggered by realtime sale/tray events. Updates each `tray.currentStock`
+    /// in place so the user sees live values on the machine card — but
+    /// deliberately leaves the rest of the tour state frozen:
+    ///
+    /// - `fillAmount` stays untouched. The warehouse was FIFO-deducted for
+    ///   exactly this amount in `startTour()`; mutating it here would
+    ///   desynchronise the warehouse ledger from what the user physically
+    ///   packed into their cart.
+    /// - `isInTour` stays untouched. A tray that newly crossed its
+    ///   threshold mid-tour cannot be inserted, because no warehouse items
+    ///   were packed for it.
+    /// - Machine composition, order, and `isPacked`/`isRefilled`/`isSkipped`
+    ///   flags stay untouched.
+    ///
+    /// Trays whose `currentStock` actually decreased get added to
+    /// `staleStockTrayIds` so the UI can render a "sold during tour"
+    /// badge. An increase (another user refilled this tray) is silently
+    /// accepted — `confirmRefill` already clamps to capacity.
+    func refreshDuringRefill() async {
+        guard currentStep == .refill else { return }
+        guard !isSaving else { return }
+
+        // Only fetch stock for trays that are actually part of this tour.
+        let tourTrayIds: [String] = machines
+            .filter { !$0.isRefilled && !$0.isSkipped }
+            .flatMap { m in m.trays.filter { $0.isInTour }.map { $0.tray.id.uuidString } }
+        guard !tourTrayIds.isEmpty else { return }
+
+        struct StockRow: Decodable {
+            let id: UUID
+            let currentStock: Int
+            enum CodingKeys: String, CodingKey {
+                case id
+                case currentStock = "current_stock"
+            }
+        }
+
+        do {
+            let rows: [StockRow] = try await client
+                .from("machine_trays")
+                .select("id, current_stock")
+                .in("id", values: tourTrayIds)
+                .execute()
+                .value
+
+            let freshById: [UUID: Int] = Dictionary(
+                uniqueKeysWithValues: rows.map { ($0.id, $0.currentStock) }
+            )
+
+            for mi in machines.indices {
+                // Skip machines the user has already confirmed or skipped.
+                guard !machines[mi].isRefilled, !machines[mi].isSkipped else { continue }
+
+                for ti in machines[mi].trays.indices {
+                    let rt = machines[mi].trays[ti]
+                    guard let fresh = freshById[rt.tray.id] else { continue }
+                    guard fresh != rt.tray.currentStock else { continue }
+
+                    // Only flag *decreases* — a decrease means a sale happened.
+                    // An increase means a competing refill already topped the
+                    // tray up; no user attention needed.
+                    if fresh < rt.tray.currentStock {
+                        staleStockTrayIds.insert(rt.tray.id)
+                    }
+
+                    // Rebuild Tray with fresh currentStock only; preserve every
+                    // other field. Tray properties are `let`, so we construct
+                    // a new instance.
+                    let oldTray = rt.tray
+                    let newTray = Tray(
+                        id: oldTray.id,
+                        machineId: oldTray.machineId,
+                        itemNumber: oldTray.itemNumber,
+                        productId: oldTray.productId,
+                        capacity: oldTray.capacity,
+                        currentStock: fresh,
+                        minStock: oldTray.minStock,
+                        fillWhenBelow: oldTray.fillWhenBelow,
+                        products: oldTray.products
+                    )
+                    // Preserve fillAmount and isInTour — the user's choice
+                    // is already committed against the warehouse.
+                    machines[mi].trays[ti] = RefillTray(
+                        tray: newTray,
+                        fillAmount: rt.fillAmount,
+                        isInTour: rt.isInTour
+                    )
+                }
+            }
+        } catch {
+            print("[RefillWizard] refreshDuringRefill failed: \(error)")
+        }
+    }
+
+    /// Dispatcher: invoked by the view on every realtime tick and routes to
+    /// the step-appropriate refresh (each step-specific method also guards
+    /// on `currentStep`, so this is belt-and-braces).
+    func refreshFromRealtime() async {
+        switch currentStep {
+        case .packing:
+            await refreshDuringPacking()
+        case .refill:
+            await refreshDuringRefill()
+        case .review, .summary:
+            break
+        }
+    }
+
     func loadData() async {
         isLoading = true
         error = nil
@@ -749,46 +969,8 @@ final class RefillWizardViewModel: ObservableObject {
                 .value
             print("[RefillWizard] Fetched \(allTrays.count) trays")
 
+            self.machines = Self.buildRefillMachines(allMachines: allMachines, allTrays: allTrays)
             let traysByMachine = Dictionary(grouping: allTrays, by: { $0.machineId })
-
-            // Build RefillMachines using the same logic as the web app:
-            // 1. A machine is only included if it has at least one empty or low (below min_stock) tray
-            // 2. Trays included: empty + low + fill_when_below (only if machine has critical trays)
-            var refillMachines: [RefillMachine] = []
-
-            for machine in allMachines {
-                let machineTrays = traysByMachine[machine.id] ?? []
-
-                let hasEmptyOrLow = machineTrays.contains { $0.isEmpty || $0.isBelowMinStock }
-                guard hasEmptyOrLow else { continue }
-
-                // Collect trays that need refilling:
-                // - Empty trays (critical)
-                // - Low trays (below min_stock)
-                // - Fill-when-below trays (only if machine already has critical/low trays)
-                let refillTrays: [RefillTray] = machineTrays.compactMap { tray in
-                    guard tray.deficit > 0 else { return nil }
-
-                    let isCriticalOrLow = tray.isEmpty || tray.isBelowMinStock
-                    let isBelowFillThreshold = tray.isBelowFillThreshold
-
-                    guard isCriticalOrLow || isBelowFillThreshold else { return nil }
-                    return RefillTray(tray: tray, fillAmount: tray.deficit)
-                }
-
-                guard !refillTrays.isEmpty else { continue }
-                refillMachines.append(RefillMachine(machine: machine, trays: refillTrays))
-            }
-
-            // Sort by urgency: machines with empty trays first, then by total deficit
-            refillMachines.sort { a, b in
-                let aEmpty = a.trays.filter { $0.tray.isEmpty }.count
-                let bEmpty = b.trays.filter { $0.tray.isEmpty }.count
-                if aEmpty != bEmpty { return aEmpty > bEmpty }
-                return a.totalDeficit > b.totalDeficit
-            }
-
-            self.machines = refillMachines
 
             // Fetch warehouses first (needed for stock-based detection)
             print("[RefillWizard] Fetching warehouses...")
@@ -1165,6 +1347,7 @@ final class RefillWizardViewModel: ObservableObject {
         isSaving = true
         tourId = UUID().uuidString
         tourLog = []
+        staleStockTrayIds = []
 
         // Apply custom packing quantities and mark which trays belong to this tour.
         // Trays for products that were NOT packed get fillAmount = 0 and isInTour = false.
@@ -1505,6 +1688,7 @@ final class RefillWizardViewModel: ObservableObject {
         hasSavedTour = false
         packedItems = [:]
         customQuantities = [:]
+        staleStockTrayIds = []
         Self.clearSavedTour()
         for i in machines.indices {
             machines[i].isPacked = false
