@@ -802,4 +802,80 @@ function formatSize(bytes: number | null) {
       </div>
     </template>
   </AppModal>
+
+  <!-- Changelog modal -->
+  <AppModal
+    :open="showChangelogModal"
+    :title="t('firmware.changelogTitle') + ': ' + changelogTitle"
+    size="lg"
+    @update:open="(v: boolean) => { if (!v) closeChangelogModal() }"
+  >
+    <div class="space-y-4">
+      <!-- Loading state -->
+      <div v-if="changelogLoading" class="py-8 text-center text-sm text-muted-foreground">
+        {{ t('firmware.loadingChangelog') }}
+      </div>
+
+      <template v-else-if="changelog">
+        <!-- Fetch-failed banner -->
+        <div
+          v-if="changelog.fetchFailed"
+          class="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200"
+        >
+          {{ t('firmware.changelogFetchFailed') }}
+        </div>
+
+        <!-- Meta row: release name + published date + assets -->
+        <div v-if="changelog.releaseName || changelog.publishedAt" class="space-y-1 text-xs text-muted-foreground">
+          <p v-if="changelog.releaseName">
+            <span class="font-medium">{{ t('firmware.changelogReleaseName') }}:</span>
+            {{ changelog.releaseName }}
+          </p>
+          <p v-if="changelog.publishedAt">
+            <span class="font-medium">{{ t('firmware.changelogPublished') }}:</span>
+            <span :title="formatDateTime(changelog.publishedAt)">{{ timeAgo(changelog.publishedAt, t) }}</span>
+          </p>
+          <p v-if="changelog.assets && changelog.assets.length > 0" class="flex flex-wrap gap-1">
+            <span
+              v-for="asset in changelog.assets.filter(a => a.name.endsWith('.bin'))"
+              :key="asset.name"
+              class="inline-flex items-center rounded bg-muted px-1.5 py-0.5 font-mono"
+            >
+              {{ asset.name }} ({{ formatSize(asset.size) }})
+            </span>
+          </p>
+        </div>
+
+        <!-- Body -->
+        <div v-if="changelog.kind === 'none'" class="py-4 text-sm italic text-muted-foreground">
+          {{ t('firmware.noChangelog') }}
+        </div>
+        <div
+          v-else-if="changelog.isMarkdown"
+          class="prose prose-sm dark:prose-invert max-w-none"
+          v-html="changelogHtml"
+        />
+        <div v-else class="whitespace-pre-wrap text-sm">{{ changelog.body }}</div>
+      </template>
+    </div>
+
+    <template #footer>
+      <a
+        v-if="changelog?.externalUrl"
+        :href="changelog.externalUrl"
+        target="_blank"
+        rel="noopener"
+        class="inline-flex h-9 flex-1 items-center justify-center rounded-md border px-4 text-sm font-medium shadow-sm transition-colors hover:bg-muted"
+      >
+        {{ t('firmware.viewOnGitHub') }} ↗
+      </a>
+      <button
+        type="button"
+        class="inline-flex h-9 flex-1 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90"
+        @click="closeChangelogModal"
+      >
+        {{ t('common.close') }}
+      </button>
+    </template>
+  </AppModal>
 </template>
