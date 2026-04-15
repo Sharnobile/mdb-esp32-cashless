@@ -3,6 +3,7 @@ definePageMeta({ middleware: 'auth' })
 
 import { useProductDetail } from '~/composables/useProductDetail'
 import { useWarehouse } from '~/composables/useWarehouse'
+import { useProducts } from '~/composables/useProducts'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -14,13 +15,22 @@ const route = useRoute()
 const router = useRouter()
 
 const { transactionTypeLabel, transactionTypeBadgeClass } = useWarehouse()
+const { products, fetchProducts } = useProducts()
 
 const productId = computed(() => route.params.id as string)
 const detail = useProductDetail(productId)
 
 const editModalOpen = ref(false)
 
-onMounted(() => detail.refresh())
+// On direct-link / deep-link landings the shared useProducts state may still be
+// empty. ProductFormModal resolves `editingProduct` from that state; if it's
+// empty when the user clicks Edit, the modal falls back to create-mode and a
+// subsequent Save would insert a duplicate product. Populate it up-front.
+onMounted(async () => {
+  const jobs: Promise<unknown>[] = [detail.refresh()]
+  if (products.value.length === 0) jobs.push(fetchProducts())
+  await Promise.all(jobs)
+})
 watch(productId, () => detail.refresh())
 
 function goBack() {
