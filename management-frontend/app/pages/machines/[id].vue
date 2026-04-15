@@ -4,7 +4,7 @@ definePageMeta({ middleware: 'auth' })
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { VisAxis, VisStackedBar, VisXYContainer } from '@unovis/vue'
-import { IconCreditCard, IconCoins, IconSend, IconSparkles, IconLoader2, IconRefresh, IconTrash, IconPlus, IconHistory, IconArrowUp, IconArrowDown } from '@tabler/icons-vue'
+import { IconCreditCard, IconCoins, IconSend, IconSparkles, IconLoader2, IconRefresh, IconTrash, IconPlus, IconHistory, IconArrowUp, IconArrowDown, IconExternalLink } from '@tabler/icons-vue'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Badge } from '@/components/ui/badge'
 import { useInsights, sortedRecommendations, priorityVariant, recommendationTypeLabel } from '@/composables/useInsights'
@@ -1464,16 +1464,32 @@ async function handleAddSale() {
                               </div>
                             </div>
                           </div>
-                          <button
-                            v-else
-                            :id="`product-btn-${tray.id}`"
-                            type="button"
-                            class="block truncate text-sm font-medium transition-colors hover:text-primary"
-                            @click="openProductAutocomplete(tray)"
-                          >
-                            {{ tray.product_name ?? '—' }}
-                          </button>
+                          <div v-else class="flex items-center gap-1">
+                            <button
+                              :id="`product-btn-${tray.id}`"
+                              type="button"
+                              class="block flex-1 truncate text-left text-sm font-medium transition-colors hover:text-primary"
+                              @click="openProductAutocomplete(tray)"
+                            >
+                              {{ tray.product_name ?? '—' }}
+                            </button>
+                            <NuxtLink
+                              v-if="tray.product_id"
+                              :to="`/products/${tray.product_id}`"
+                              class="shrink-0 text-muted-foreground transition-colors hover:text-primary"
+                              @click.stop
+                            >
+                              <IconExternalLink class="size-3.5" />
+                            </NuxtLink>
+                          </div>
                         </template>
+                        <NuxtLink
+                          v-else-if="tray.product_id"
+                          :to="`/products/${tray.product_id}`"
+                          class="block truncate text-sm font-medium hover:underline"
+                        >
+                          {{ tray.product_name ?? '—' }}
+                        </NuxtLink>
                         <span v-else class="block truncate text-sm font-medium">{{ tray.product_name ?? '—' }}</span>
                         <div class="flex items-center gap-1.5">
                           <span v-if="trayProductMap.get(tray.item_number)?.sellprice" class="text-xs text-muted-foreground">
@@ -1717,17 +1733,33 @@ async function handleAddSale() {
                                 </div>
                               </div>
                             </div>
-                            <button
-                              v-else
-                              :id="`product-btn-${tray.id}`"
-                              type="button"
-                              class="w-full text-left transition-colors hover:text-primary"
-                              @click="openProductAutocomplete(tray)"
-                              @keydown.enter.prevent="openProductAutocomplete(tray)"
-                            >
-                              {{ tray.product_name ?? '—' }}
-                            </button>
+                            <div v-else class="flex items-center gap-1">
+                              <button
+                                :id="`product-btn-${tray.id}`"
+                                type="button"
+                                class="flex-1 text-left transition-colors hover:text-primary"
+                                @click="openProductAutocomplete(tray)"
+                                @keydown.enter.prevent="openProductAutocomplete(tray)"
+                              >
+                                {{ tray.product_name ?? '—' }}
+                              </button>
+                              <NuxtLink
+                                v-if="tray.product_id"
+                                :to="`/products/${tray.product_id}`"
+                                class="shrink-0 text-muted-foreground transition-colors hover:text-primary"
+                                @click.stop
+                              >
+                                <IconExternalLink class="size-3.5" />
+                              </NuxtLink>
+                            </div>
                           </template>
+                          <NuxtLink
+                            v-else-if="tray.product_id"
+                            :to="`/products/${tray.product_id}`"
+                            class="hover:underline"
+                          >
+                            {{ tray.product_name ?? '—' }}
+                          </NuxtLink>
                           <span v-else>{{ tray.product_name ?? '—' }}</span>
                           <span v-if="tray.product_discontinued" class="ml-1.5 inline-flex items-center rounded bg-gray-200 px-1 py-px text-[9px] font-medium text-gray-500 dark:bg-gray-700 dark:text-gray-400">{{ t('warehouse.discontinuedBadge') }}</span>
                         </td>
