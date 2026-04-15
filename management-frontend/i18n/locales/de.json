@@ -468,7 +468,17 @@
     "productsWithoutImages": "Produkte wurden ohne Bilder erstellt",
     "withoutPrice": "{count} ohne Preis",
     "showErrorDetails": "{count} Fehlerdetails anzeigen",
-    "importing": "Wird importiert…"
+    "importing": "Wird importiert…",
+    "detail": {
+      "notFound": {
+        "title": "Produkt nicht gefunden",
+        "back": "Zurück zu Produkten"
+      },
+      "header": {
+        "discontinued": "Ausgelaufen",
+        "edit": "Bearbeiten"
+      }
+    }
   },
   "warehouse": {
     "title": "Lager",

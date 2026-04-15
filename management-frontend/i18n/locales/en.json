@@ -468,7 +468,17 @@
     "productsWithoutImages": "Products were created without images",
     "withoutPrice": "{count} without price",
     "showErrorDetails": "Show {count} error details",
-    "importing": "Importing…"
+    "importing": "Importing…",
+    "detail": {
+      "notFound": {
+        "title": "Product not found",
+        "back": "Back to products"
+      },
+      "header": {
+        "discontinued": "Discontinued",
+        "edit": "Edit"
+      }
+    }
   },
   "warehouse": {
     "title": "Warehouse",
