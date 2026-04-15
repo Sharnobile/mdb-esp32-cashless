@@ -2,6 +2,7 @@
 definePageMeta({ middleware: 'auth' })
 
 import { useProductDetail } from '~/composables/useProductDetail'
+import { useWarehouse } from '~/composables/useWarehouse'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -11,6 +12,8 @@ import { timeAgo, formatCurrency, formatDate, formatDateTime } from '~/lib/utils
 const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
+
+const { transactionTypeLabel, transactionTypeBadgeClass } = useWarehouse()
 
 const productId = computed(() => route.params.id as string)
 const detail = useProductDetail(productId)
@@ -168,7 +171,7 @@ function onEditSaved() {
             <tbody>
               <tr v-for="b in w.batches" :key="b.id" class="border-t">
                 <td class="px-3 py-1.5 font-mono">{{ b.batch_number ?? '—' }}</td>
-                <td class="px-3 py-1.5">{{ b.expiration_date ?? '—' }}</td>
+                <td class="px-3 py-1.5">{{ formatDate(b.expiration_date) }}</td>
                 <td class="px-3 py-1.5">{{ formatDate(b.created_at) }}</td>
                 <td class="px-3 py-1.5 text-right font-mono">{{ b.quantity }}</td>
               </tr>
@@ -300,7 +303,14 @@ function onEditSaved() {
             <tr v-for="tx in detail.transactions.value" :key="tx.id" class="border-t">
               <td class="px-3 py-2 text-muted-foreground">{{ formatDateTime(tx.created_at) }}</td>
               <td class="px-3 py-2">{{ tx.warehouse_name }}</td>
-              <td class="px-3 py-2">{{ tx.transaction_type }}</td>
+              <td class="px-3 py-2">
+                <span
+                  class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
+                  :class="transactionTypeBadgeClass(tx.transaction_type)"
+                >
+                  {{ transactionTypeLabel(tx.transaction_type) }}
+                </span>
+              </td>
               <td
                 class="px-3 py-2 text-right font-mono"
                 :class="tx.quantity_change >= 0 ? 'text-emerald-600' : 'text-destructive'"
