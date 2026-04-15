@@ -198,6 +198,15 @@ function highlightTokens(text: string, tokens: string[] | null): { text: string;
   }
   return result
 }
+
+// Memoised highlight segments for the selected deal's matched product name.
+// Used by both the NuxtLink and fallback <span> branches in the match validation card
+// so highlightTokens() only runs once per selectedDeal change.
+const highlightedProductTokens = computed(() =>
+  selectedDeal.value
+    ? highlightTokens(selectedDeal.value.products?.name ?? '', selectedDeal.value.matched_tokens)
+    : [],
+)
 </script>
 
 <template>
@@ -520,15 +529,17 @@ function highlightTokens(text: string, tokens: string[] | null): { text: string;
                     :to="`/products/${selectedDeal.product_id}`"
                     class="hover:underline"
                   >
-                    <template v-for="(seg, idx) in highlightTokens(selectedDeal.products?.name ?? '', selectedDeal.matched_tokens)" :key="idx">
+                    <template v-for="(seg, idx) in highlightedProductTokens" :key="idx">
                       <mark v-if="seg.matched" class="rounded-sm bg-green-200 px-0.5 dark:bg-green-900">{{ seg.text }}</mark>
                       <span v-else>{{ seg.text }}</span>
                     </template>
                   </NuxtLink>
-                  <template v-else v-for="(seg, idx) in highlightTokens(selectedDeal.products?.name ?? '', selectedDeal.matched_tokens)" :key="idx">
-                    <mark v-if="seg.matched" class="rounded-sm bg-green-200 px-0.5 dark:bg-green-900">{{ seg.text }}</mark>
-                    <span v-else>{{ seg.text }}</span>
-                  </template>
+                  <span v-else>
+                    <template v-for="(seg, idx) in highlightedProductTokens" :key="idx">
+                      <mark v-if="seg.matched" class="rounded-sm bg-green-200 px-0.5 dark:bg-green-900">{{ seg.text }}</mark>
+                      <span v-else>{{ seg.text }}</span>
+                    </template>
+                  </span>
                 </p>
                 <p v-if="selectedDeal.products?.sellprice != null" class="text-[10px] text-muted-foreground">
                   {{ t('deals.yourPrice') }}: {{ selectedDeal.products.sellprice.toFixed(2) }}&euro;

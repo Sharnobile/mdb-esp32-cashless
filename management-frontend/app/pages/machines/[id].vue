@@ -5,6 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { VisAxis, VisStackedBar, VisXYContainer } from '@unovis/vue'
 import { IconCreditCard, IconCoins, IconSend, IconSparkles, IconLoader2, IconRefresh, IconTrash, IconPlus, IconHistory, IconArrowUp, IconArrowDown, IconExternalLink } from '@tabler/icons-vue'
+import { NuxtLink } from '#components'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Badge } from '@/components/ui/badge'
 import { useInsights, sortedRecommendations, priorityVariant, recommendationTypeLabel } from '@/composables/useInsights'
@@ -364,6 +365,14 @@ function saleProductId(sale: any): string | null {
   const tray = trayProductMap.value.get(sale.item_number)
   return tray?.product_id ?? null
 }
+
+// Memoised product-id lookup per sale id, used by the sales list template to avoid
+// calling saleProductId() multiple times per row render.
+const saleRoutes = computed(() => {
+  const m = new Map<number, string | null>()
+  for (const s of sales.value) m.set(s.id, saleProductId(s))
+  return m
+})
 
 // ── Inline name editing ─────────────────────────────────────────────────────
 const editingName = ref(false)
@@ -1298,10 +1307,11 @@ async function handleAddSale() {
                         :disabled="!isAdmin"
                         @delete="confirmDeleteSale(sale)"
                       >
-                        <div
+                        <component
+                          :is="saleRoutes.get(sale.id) ? NuxtLink : 'div'"
+                          :to="saleRoutes.get(sale.id) ? `/products/${saleRoutes.get(sale.id)}` : undefined"
                           class="group/sale flex items-start gap-3 px-4 py-3"
-                          :class="{ 'cursor-pointer hover:bg-muted/50 transition-colors': saleProductId(sale) }"
-                          @click="saleProductId(sale) && $router.push(`/products/${saleProductId(sale)}`)"
+                          :class="{ 'cursor-pointer hover:bg-muted/50 transition-colors': saleRoutes.get(sale.id) }"
                         >
                           <!-- Product image or amount badge -->
                           <img
@@ -1350,7 +1360,7 @@ async function handleAddSale() {
                               <span class="shrink-0 text-[11px] text-muted-foreground tabular-nums">{{ new Date(sale.created_at).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', second: '2-digit' }) }}</span>
                             </div>
                           </div>
-                        </div>
+                        </component>
                       </SwipeToDelete>
                     </div>
                   </div>
