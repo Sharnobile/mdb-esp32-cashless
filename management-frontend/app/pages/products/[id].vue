@@ -279,10 +279,41 @@ function onEditSaved() {
       </div>
     </section>
 
-    <!-- Sections will be added in Chunk 2 -->
-    <div v-if="detail.product.value" class="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
-      Sections coming in the next chunk.
-    </div>
+    <section class="space-y-2" aria-labelledby="sec-tx">
+      <h2 id="sec-tx" class="text-lg font-semibold">{{ t('products.detail.sections.history') }}</h2>
+      <p v-if="!detail.transactions.value.length" class="text-sm text-muted-foreground">
+        {{ t('products.detail.empty.noTransactions') }}
+      </p>
+      <div v-else class="overflow-x-auto rounded-md border">
+        <table class="w-full text-sm">
+          <thead class="bg-muted/40 text-xs uppercase">
+            <tr>
+              <th class="px-3 py-2 text-left">{{ t('products.detail.history.time') }}</th>
+              <th class="px-3 py-2 text-left">{{ t('products.detail.history.warehouse') }}</th>
+              <th class="px-3 py-2 text-left">{{ t('products.detail.history.type') }}</th>
+              <th class="px-3 py-2 text-right">{{ t('products.detail.history.change') }}</th>
+              <th class="px-3 py-2 text-right">{{ t('products.detail.history.after') }}</th>
+              <th class="px-3 py-2 text-left">{{ t('products.detail.history.user') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="tx in detail.transactions.value" :key="tx.id" class="border-t">
+              <td class="px-3 py-2 text-muted-foreground">{{ formatDateTime(tx.created_at) }}</td>
+              <td class="px-3 py-2">{{ tx.warehouse_name }}</td>
+              <td class="px-3 py-2">{{ tx.transaction_type }}</td>
+              <td
+                class="px-3 py-2 text-right font-mono"
+                :class="tx.quantity_change >= 0 ? 'text-emerald-600' : 'text-destructive'"
+              >
+                {{ tx.quantity_change > 0 ? '+' : '' }}{{ tx.quantity_change }}
+              </td>
+              <td class="px-3 py-2 text-right font-mono">{{ tx.quantity_after ?? '—' }}</td>
+              <td class="px-3 py-2">{{ tx.user_display }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
 
     <ProductFormModal
       v-model:open="editModalOpen"
