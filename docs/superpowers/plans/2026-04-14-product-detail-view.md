@@ -1338,20 +1338,48 @@ git commit -m "i18n(products): add detail page translations (en, de)"
 
 ## Chunk 3: Click-through wiring
 
-Each task adds click-through from one source surface. Any action button inside a row that becomes clickable gets `@click.stop`. Rows depending on `sales.product_id` must guard with `v-if` / a `computed` so null rows render non-clickable.
+Each task adds click-through from one source surface. Rows depending on `sales.product_id` must guard with a conditional so null rows render non-clickable (no `cursor-pointer`, no navigation).
+
+**Universal rules (restated explicitly in every task where applicable):**
+
+1. **`@click.stop` on every interactive child** (buttons, links, icons with handlers) inside any row or card that becomes clickable. Not just delete buttons — every one. A row that mounts an interactive child later must re-check this; leave a comment in the template so future edits notice.
+2. **Consistent conditional idiom.** Use `<component :is>` when clickability is per-row conditional (on `product_id`), as in Task 14. Use `<NuxtLink>` directly when clickability is unconditional (static surfaces). Do not mix `@click` + class-ternary with the component-conditional approach in the same codebase — pick the component-conditional form every time.
+3. **`/refill` is excluded**, not just not-listed. Task 20 Step 3 adds a positive grep assertion to prove no `NuxtLink` to `/products/[id]` was introduced under `app/pages/refill/**`.
+4. **Backtick escaping in this plan:** Vue template literals like `` `/products/${id}` `` appear inside inline code spans. Where unclear, read the block-code snippets as authoritative — the inline fragments are for orientation.
 
 ### Task 13: Dashboard — `DashboardTopProducts`
 
 **Files:**
 - Modify: `management-frontend/app/components/DashboardTopProducts.vue`
 
-- [ ] **Step 1: Read the component to find the card/row element**
+- [ ] **Step 1: Read the component to find where each product item is rendered**
 
-- [ ] **Step 2: Wrap the existing card/item content in `<NuxtLink :to="`/products/${product.id}`">`**
+Note the exact element (likely `<li>`, `<div>`, or `<tr>`), whether each row has a `product.id` in scope, and any existing click handlers or interactive children on the row.
 
-Use `class="block hover:bg-muted/50 transition-colors"` so the hover is visible. If the item is a `<tr>`, switch to a row-level `@click="$router.push(...)"` with `cursor-pointer` because `<tr>` can't be a `<NuxtLink>` child directly.
+- [ ] **Step 2: Wrap each product item's contents in a `<NuxtLink>`**
 
-- [ ] **Step 3: Commit**
+If the row is a `<div>` / `<li>`:
+
+```vue
+<NuxtLink
+  :to="`/products/${product.id}`"
+  class="block hover:bg-muted/50 transition-colors rounded-md"
+>
+  <!-- existing row content -->
+</NuxtLink>
+```
+
+If the row is a `<tr>` (can't contain `<NuxtLink>`), wrap each `<td>`'s content in a `<NuxtLink>` instead. Do **not** use `@click` on the `<tr>` — we are not introducing that idiom.
+
+- [ ] **Step 3: Add `@click.stop` to any interactive child already inside the wrapped content**
+
+Grep the component for `<button`, `@click`, or other `<NuxtLink>`. For each one found inside the newly clickable area, append `@click.stop`. Add a comment `<!-- any interactive child needs @click.stop -->` just above the wrapped content.
+
+- [ ] **Step 4: Verify in browser**
+
+`npm run dev`, open dashboard, click a top product → lands on `/products/[id]`. Any existing button in the card still works without navigating.
+
+- [ ] **Step 5: Commit**
 
 ```bash
 git commit -am "feat(dashboard): make top products card clickable to detail page"
@@ -1359,33 +1387,48 @@ git commit -am "feat(dashboard): make top products card clickable to detail page
 
 ---
 
-### Task 14: Dashboard — `DashboardRecentSales`
+### Task 14: Dashboard — `DashboardRecentSales` (canonical `<component :is>` pattern)
 
-Sales without `product_id` stay non-clickable (no nav, no cursor change).
+Sales without `product_id` stay non-clickable. This task establishes the conditional pattern that Tasks 15, 19, 20 mirror.
 
 **Files:**
 - Modify: `management-frontend/app/components/DashboardRecentSales.vue`
-- Likely modify: the composable / query that feeds this component to include `product_id` if it doesn't already.
+- Modify (if needed): whatever composable or page-level query feeds this component
 
-- [ ] **Step 1: Ensure the feeding query selects `product_id` on the sales rows**
+- [ ] **Step 1: Ensure the feeding query selects `product_id`**
 
-If necessary, add `product_id` to the `.select()` of whatever composable or page-level query feeds `DashboardRecentSales`.
+Grep from `DashboardRecentSales.vue` back to the query source. If the `.select(...)` for sales rows does not include `product_id`, add it. Commit this first so the DB-level change is visible independently.
 
-- [ ] **Step 2: Conditionally wrap the row**
+- [ ] **Step 2: Import NuxtLink into the component's script setup**
+
+```ts
+import { NuxtLink } from '#components'
+```
+
+`NuxtLink` is auto-imported in templates but NOT in `<script setup>`. Don't try `<component :is="'NuxtLink'">` (string form) — it won't resolve.
+
+- [ ] **Step 3: Conditionally wrap the row**
 
 ```vue
 <component
   :is="sale.product_id ? NuxtLink : 'div'"
   :to="sale.product_id ? `/products/${sale.product_id}` : undefined"
-  :class="sale.product_id ? 'hover:bg-muted/50 cursor-pointer' : ''"
+  :class="['block', sale.product_id ? 'hover:bg-muted/50 cursor-pointer' : '']"
 >
   <!-- existing row content -->
+  <!-- any interactive child needs @click.stop -->
 </component>
 ```
 
-Import `NuxtLink` (`import { NuxtLink } from '#components'` — or use a local `component :is` with the resolved component).
+- [ ] **Step 4: Add `@click.stop` to any existing interactive child**
 
-- [ ] **Step 3: Commit**
+Grep the row content for `<button`, `@click`, `<NuxtLink>`. Append `@click.stop` to each one.
+
+- [ ] **Step 5: Verify in browser**
+
+Open dashboard. A sale row with a `product_id` should hover-highlight and click through. A row without (test by picking an older sale; if you don't have any, manually null one in dev DB for the test) should not react to hover or clicks.
+
+- [ ] **Step 6: Commit**
 
 ```bash
 git commit -am "feat(dashboard): make recent sales clickable when product_id is known"
@@ -1395,22 +1438,45 @@ git commit -am "feat(dashboard): make recent sales clickable when product_id is 
 
 ### Task 15: `/machines/[id]` sales tab
 
-Existing delete button in each row must keep working without triggering navigation.
+Rows use `<tr>`. Existing action buttons (delete, possibly others) must keep working without triggering navigation.
 
 **Files:**
 - Modify: `management-frontend/app/pages/machines/[id].vue`
 
-- [ ] **Step 1: Find the sales table inside the `sales` tab**
+- [ ] **Step 1: Find the sales table inside the `sales` tab and inventory its interactive children**
 
-Look for a `<tr>` iterating over sales rows.
+Locate the `<tr v-for="sale in sales">` (or equivalent). Grep its inner template for every `<button`, `@click`, `<NuxtLink>`, or dropdown trigger. Write the list down — every one needs `@click.stop` in Step 4.
 
 - [ ] **Step 2: Ensure the sales query selects `product_id`**
 
-- [ ] **Step 3: Make the row conditionally clickable**
+Find the composable or inline query that feeds the sales tab. Add `product_id` to the `.select(...)` if missing.
 
-Add `@click="sale.product_id && $router.push(`/products/${sale.product_id}`)"` and `:class="{ 'cursor-pointer hover:bg-muted/50': sale.product_id }"` to the `<tr>`. Add `@click.stop` to the delete button inside the row so it does not propagate.
+- [ ] **Step 3: Make the row conditionally clickable using the canonical pattern**
 
-- [ ] **Step 4: Commit**
+Since `<tr>` cannot host `<NuxtLink>` directly, use `@click` on the row **but only** when `sale.product_id` is set. Add a `cursor-pointer` class under the same condition:
+
+```vue
+<tr
+  v-for="sale in sales"
+  :key="sale.id"
+  :class="{ 'cursor-pointer hover:bg-muted/50': sale.product_id }"
+  @click="sale.product_id && $router.push(`/products/${sale.product_id}`)"
+>
+  <!-- cells — each interactive child needs @click.stop -->
+</tr>
+```
+
+This is the one place the component-conditional idiom cannot apply (table semantics). The preamble's rule allows `@click` here as the exception; keep the conditional so null-`product_id` rows are completely inert.
+
+- [ ] **Step 4: Append `@click.stop` to every interactive child identified in Step 1**
+
+Not just delete — every button/link/dropdown trigger inside the row.
+
+- [ ] **Step 5: Verify**
+
+In browser: row with `product_id` hovers and navigates; delete button on that row still deletes without navigating; row without `product_id` (older sale) is fully inert.
+
+- [ ] **Step 6: Commit**
 
 ```bash
 git commit -am "feat(machines): click sales row to open product detail"
@@ -1420,14 +1486,20 @@ git commit -am "feat(machines): click sales row to open product detail"
 
 ### Task 16: `/machines/[id]` trays tab
 
-Row has edit/refill actions — only the product name/image is clickable.
+Row has edit/refill actions — **only** the product name/image cell is clickable. The row itself stays non-clickable.
 
 **Files:**
 - Modify: `management-frontend/app/pages/machines/[id].vue`
 
-- [ ] **Step 1: Find the trays table rendering**
+- [ ] **Step 1: Find the trays table rendering and confirm `tray.product_id` is already in the row scope**
 
-- [ ] **Step 2: Wrap the product name cell with a `<NuxtLink>` when `tray.product_id` is set**
+`machine_trays.product_id` is the FK so it's almost certainly selected already. Verify.
+
+- [ ] **Step 2: Verify no existing handler on the image itself**
+
+Grep the tray-row template for `@click` on `<img>` or parent cell. If any lightbox/zoom handler exists on the image, skip wrapping the image and wrap only the name — otherwise the handler becomes unreachable.
+
+- [ ] **Step 3: Wrap the product name cell when `tray.product_id` is set**
 
 ```vue
 <td>
@@ -1443,9 +1515,13 @@ Row has edit/refill actions — only the product name/image is clickable.
 </td>
 ```
 
-Ensure the tray query provides `product_id` (it likely already does since the tray row lives in `machine_trays`).
+The row's other cells (edit/refill actions) are untouched. No `@click.stop` needed because the row itself has no click handler.
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 4: Verify**
+
+Click a product in the trays tab → detail page. The edit and refill buttons in the same row still work normally (no propagation collision because the click is scoped to the name cell).
+
+- [ ] **Step 5: Commit**
 
 ```bash
 git commit -am "feat(machines): product name in trays table links to detail page"
@@ -1455,16 +1531,35 @@ git commit -am "feat(machines): product name in trays table links to detail page
 
 ### Task 17: `/products` index page
 
-Row click must still open the edit modal; only the product name/image gets a `<NuxtLink>` so it wins over the row click.
+Row click must still open the edit modal; only the product name/image gets a `<NuxtLink>`. The link must use `@click.stop` to prevent the row's edit handler from firing on navigation.
 
 **Files:**
 - Modify: `management-frontend/app/pages/products/index.vue`
 
-- [ ] **Step 1: In the products table, wrap the product name cell contents in a `<NuxtLink :to="`/products/${p.id}`">`**
+- [ ] **Step 1: Verify the row-level click mechanism**
 
-- [ ] **Step 2: Add `@click.stop` to that link so the row's click-to-edit handler doesn't fire when navigating**
+Locate the row that opens the edit modal. Check whether the click handler is on the `<tr>` via `@click` (simple bubbling — `@click.stop` works), on a cell via `@click.capture` (capture phase — `@click.stop` still works since it stops propagation during bubbling), or on a parent via event delegation with a specific target check. In the last case, `@click.stop` on the link is insufficient — you must instead route the edit via an explicit button/cell that excludes the name cell. Write down which mechanism is in use before editing.
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 2: Wrap the product name cell contents in `<NuxtLink>`**
+
+```vue
+<NuxtLink
+  :to="`/products/${p.id}`"
+  class="hover:underline inline-flex items-center gap-2"
+  @click.stop
+>
+  <img v-if="p.image_url" :src="p.image_url" class="size-8 rounded object-cover" />
+  <span>{{ p.name }}</span>
+</NuxtLink>
+```
+
+If Step 1 found a capture/delegation mechanism that `@click.stop` can't handle, take the alternative path: move the edit trigger to an explicit pencil-icon button and remove the row-level click.
+
+- [ ] **Step 3: Verify both paths still work**
+
+Click the product name → navigate to detail page (do not open edit modal). Click any other part of the row → open edit modal (do not navigate).
+
+- [ ] **Step 4: Commit**
 
 ```bash
 git commit -am "feat(products): product name links to detail page (row click still edits)"
@@ -1472,35 +1567,93 @@ git commit -am "feat(products): product name links to detail page (row click sti
 
 ---
 
-### Task 18: `/warehouse` — stock + batches
+### Task 18: `/warehouse` — stock + batches + transactions + min-stock alerts
 
-Many action buttons per row; only name/image clickable.
+Many action buttons per row; only name/image clickable. `/warehouse` is a multi-feature area — the implementer must enumerate every product surface before editing.
 
 **Files:**
-- Modify: `management-frontend/app/pages/warehouse/*.vue` (whichever files render product rows — likely `index.vue` and a `WarehouseStockTable.vue` component)
+- Modify: files enumerated in Step 1
 
-- [ ] **Step 1: Locate every place a product is listed**
+- [ ] **Step 1: Enumerate every product surface under `/warehouse`**
 
-- [ ] **Step 2: Wrap the product name cell in `<NuxtLink :to="`/products/${row.product_id}`">`**
-
-- [ ] **Step 3: Commit**
+Run these greps from the repo root and paste the hit list into the commit message or a scratch note:
 
 ```bash
-git commit -am "feat(warehouse): product names link to detail page"
+# Templates that render a product row
+rg -l "product\.name|product_name|productName|\.product_id" management-frontend/app/pages/warehouse management-frontend/app/components | sort -u
+
+# Any existing NuxtLink pointing at products (avoid duplicates)
+rg "NuxtLink.*products" management-frontend/app/pages/warehouse management-frontend/app/components
+```
+
+For each hit, open the file and note (a) the element that renders the product name/image, (b) whether `product_id` is in scope, (c) any existing interactive children nearby. Produce a list: `[file, element, has_product_id, has_interactive_children]`. The implementer's checklist for Step 2 comes straight from this list.
+
+- [ ] **Step 2: Wrap the product name in `<NuxtLink>` in each enumerated file**
+
+```vue
+<NuxtLink
+  :to="`/products/${row.product_id}`"
+  class="hover:underline inline-flex items-center gap-2"
+>
+  <!-- image if present -->
+  <span>{{ row.product_name }}</span>
+</NuxtLink>
+```
+
+If the row itself has a click handler (unlikely in /warehouse given the button density but possible), add `@click.stop` to the link.
+
+- [ ] **Step 3: Re-run the first grep and confirm every original hit now has a `<NuxtLink>` to `/products/`**
+
+```bash
+# Should now list every wrapped surface
+rg "NuxtLink.*products/" management-frontend/app/pages/warehouse management-frontend/app/components
+```
+
+Diff this list against Step 1's list — they must match.
+
+- [ ] **Step 4: Commit, including the file list in the message**
+
+```bash
+git commit -am "feat(warehouse): product names link to detail page
+
+Wrapped in: <paste Step 1's file list>"
 ```
 
 ---
 
 ### Task 19: `/tour-history`
 
-Static rows — full item-row clickable.
+Static rows — full item-row clickable when `product_id` is available. Uses the Task 14 canonical `<component :is>` idiom for the conditional case.
 
 **Files:**
 - Modify: `management-frontend/app/pages/tour-history/index.vue`
 
-- [ ] **Step 1: Wrap per-item rows in `<NuxtLink>` where `product_id` is available**
+- [ ] **Step 1: Verify the tour-history query provides `product_id` on each line item**
 
-- [ ] **Step 2: Commit**
+If not, add it to the `.select(...)` in `useTourHistory` or wherever the data originates.
+
+- [ ] **Step 2: Import NuxtLink in script setup**
+
+```ts
+import { NuxtLink } from '#components'
+```
+
+- [ ] **Step 3: Conditionally wrap each item row**
+
+```vue
+<component
+  :is="item.product_id ? NuxtLink : 'div'"
+  :to="item.product_id ? `/products/${item.product_id}` : undefined"
+  :class="['block', item.product_id ? 'hover:bg-muted/50 cursor-pointer' : '']"
+>
+  <!-- existing item row content -->
+  <!-- any interactive child needs @click.stop -->
+</component>
+```
+
+- [ ] **Step 4: Grep the wrapped block for existing `<button` / `@click` / `<NuxtLink>` and add `@click.stop` to each**
+
+- [ ] **Step 5: Commit**
 
 ```bash
 git commit -am "feat(tour-history): items link to product detail page"
@@ -1510,25 +1663,75 @@ git commit -am "feat(tour-history): items link to product detail page"
 
 ### Task 20: `/reports`, `/cash-book`, `/deals`
 
-Some of these list products by name. Apply the same pattern: name/image becomes a `<NuxtLink>` when a `product_id` is available on the row.
+Some of these list products by name. Apply the Task 14 / Task 16 patterns depending on whether the surface has row-level actions.
 
 **Files:**
 - Survey: `management-frontend/app/pages/reports/**`, `management-frontend/app/pages/cash-book/**`, `management-frontend/app/pages/deals/**`
 - Modify only the files where a product actually appears.
 
-- [ ] **Step 1: Survey each directory and list the files that render product references**
+- [ ] **Step 1: Enumerate every product surface and write down the list as an artifact**
 
-- [ ] **Step 2: For each, wrap the product name/image in `<NuxtLink>` gated on `product_id`**
-
-- [ ] **Step 3: Leave `/refill` alone — deliberate**
-
-Confirm that no click-through is added to `management-frontend/app/pages/refill/**`.
-
-- [ ] **Step 4: Commit**
+Run:
 
 ```bash
-git commit -am "feat(reports,cash-book,deals): product names link to detail page"
+rg -l "product\.name|product_name|productName|\.product_id" \
+  management-frontend/app/pages/reports \
+  management-frontend/app/pages/cash-book \
+  management-frontend/app/pages/deals \
+  | sort -u
 ```
+
+For each hit file, note (a) the element rendering the product, (b) whether `product_id` is already in scope (grep the feeding composable / query), (c) whether `product_id` needs to be added to the `.select(...)`, (d) whether the row has existing interactive children. Paste this list into the commit message.
+
+- [ ] **Step 2: If any surface is missing `product_id`, add it to the feeding query**
+
+Commit the query change first, before the template change, so each commit is scoped.
+
+- [ ] **Step 3: Wrap each product name/image using the right pattern**
+
+- If the surface has **no** row-level click handler and no row-level interactive children: wrap the name/image cell in `<NuxtLink v-if="row.product_id">` (Task 16 pattern).
+- If the surface has a full-row interactive purpose and no action buttons: wrap the whole row with `<component :is>` (Task 14 pattern).
+- If the row already has action buttons: use Task 16 pattern and leave the row alone.
+
+- [ ] **Step 4: Positive verification that `/refill` was left alone**
+
+Run this grep — it must return **zero hits**:
+
+```bash
+rg "NuxtLink.*/products/|router.push.*products/" management-frontend/app/pages/refill
+```
+
+If there are hits, they were introduced in error; revert them. Paste the zero-result output into the commit message as proof.
+
+- [ ] **Step 5: Commit, with the Step 1 file list and Step 4 grep result in the message**
+
+```bash
+git commit -am "feat(reports,cash-book,deals): product names link to detail page
+
+Surfaces wrapped: <paste Step 1's list>
+Confirmed /refill untouched: <paste Step 4's empty grep output>"
+```
+
+---
+
+### Task 20.5: End-of-Chunk-3 verification
+
+A single step that mechanically confirms the chunk's two hard invariants.
+
+- [ ] **Step 1: Run both greps and paste the results into your notes**
+
+```bash
+# Invariant 1: /refill is not clickable
+rg "NuxtLink.*products/|router.push.*products/" management-frontend/app/pages/refill
+# Expected output: (empty — zero hits)
+
+# Invariant 2: every <button> inside a clickable row/card has @click.stop
+# (heuristic: any file changed in this chunk that contains NuxtLink to /products/
+#  and also contains <button should be spot-checked)
+git diff --name-only origin/main -- 'management-frontend/app/**/*.vue' | xargs -I{} sh -c 'echo "== {} =="; rg -A 2 "<button" {}'
+```
+
+For the second grep, manually scan the output for any `<button>` inside a row that now navigates. If found without `@click.stop`, add it and re-commit.
 
 ---
 
@@ -1539,26 +1742,155 @@ git commit -am "feat(reports,cash-book,deals): product names link to detail page
 **Files:**
 - Create: `management-frontend/app/composables/__tests__/useProductDetail.test.ts`
 
-- [ ] **Step 1: Write the test**
+Reference shape: `useMdbLog.test.ts` (195 LOC) or `useGeocoding.test.ts` (242 LOC) — both bigger than `useMachines.test.ts` and closer to the structural complexity needed here. Use one of them as the skeleton.
 
-Mirror the shape of `useMachines.test.ts`. Mock Supabase with chainable `.from().select().eq()...` returning preset data for each table, plus `.rpc()` returning preset KPI jsonb. Cover:
+- [ ] **Step 1: Build a per-table mock dispatcher**
 
-1. Happy path: product exists, RPC returns KPIs, batches+min-stock+trays+sales+transactions populate the refs correctly.
-2. Not-found: `products.maybeSingle()` returns `{ data: null }` → `notFound.value === true` and the other refs stay empty.
-3. User lookup: transactions have a `user_id` that resolves to `first_name + last_name`; one row with null `user_id` shows `'—'`.
-4. Chart bucketing: a sale 3 days ago lands in the correct bucket.
+The composable hits eight different tables and one RPC. The mock needs to return a different builder per table. Skeleton:
 
-Use `vi.fn()` for the `.from(table)` dispatcher so different tables return different query builders.
+```ts
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-- [ ] **Step 2: Run the test**
+// Per-table fixtures the tests will mutate
+const fixtures = {
+  products: { data: null as any, error: null as any },
+  product_barcodes: { data: [] as any[], error: null as any },
+  warehouse_stock_batches: { data: [] as any[], error: null as any },
+  product_min_stock: { data: [] as any[], error: null as any },
+  machine_trays: { data: [] as any[], error: null as any },
+  sales: { data: [] as any[], error: null as any },
+  warehouse_transactions: { data: [] as any[], error: null as any },
+  users: { data: [] as any[], error: null as any },
+  // chart re-fetches sales — use a separate fixture switched in by call order
+  sales_chart: { data: [] as any[], error: null as any },
+  rpc_kpis: { data: null as any, error: null as any },
+}
+
+let salesCallCount = 0  // first sales call = recentSales (limit 50), second = chart
+
+function makeBuilder(tableKey: keyof typeof fixtures) {
+  // chainable; resolves on the terminal method (.maybeSingle/.in/.gte/.order/.limit)
+  const builder: any = {}
+  const chain = ['select', 'eq', 'gt', 'gte', 'in', 'order', 'limit']
+  for (const m of chain) builder[m] = vi.fn(() => builder)
+  builder.maybeSingle = vi.fn(() => Promise.resolve(fixtures[tableKey]))
+  // For bare awaits (non-maybeSingle), make the builder thenable
+  builder.then = (resolve: any) => resolve(fixtures[tableKey])
+  return builder
+}
+
+const mockSupabase = {
+  from: vi.fn((table: string) => {
+    if (table === 'sales') {
+      salesCallCount++
+      return makeBuilder(salesCallCount === 1 ? 'sales' : 'sales_chart')
+    }
+    return makeBuilder(table as keyof typeof fixtures)
+  }),
+  rpc: vi.fn(() => Promise.resolve(fixtures.rpc_kpis)),
+}
+
+vi.mock('#imports', () => {
+  const { ref } = require('vue')
+  return { ref, useState: <T,>(_k: string, init?: () => T) => ref(init?.()), useSupabaseClient: () => mockSupabase }
+})
+
+vi.mock('../useProducts', () => ({ getProductImageUrl: (p: string) => `https://example.test/${p}` }))
+```
+
+- [ ] **Step 2: Write four test cases**
+
+```ts
+import { ref } from 'vue'
+import { useProductDetail } from '../useProductDetail'
+
+beforeEach(() => {
+  vi.clearAllMocks()
+  salesCallCount = 0
+  // reset all fixtures to empty/null
+  for (const k of Object.keys(fixtures) as (keyof typeof fixtures)[]) {
+    if (k === 'products' || k === 'rpc_kpis') fixtures[k] = { data: null, error: null }
+    else fixtures[k] = { data: [], error: null }
+  }
+})
+
+it('happy path: populates all refs from preset fixtures', async () => {
+  fixtures.products.data = { id: 'p1', name: 'Coke', sellprice: 2.5, description: null, category: 'c1', image_path: 'p1.jpg', discontinued: false, product_category: { name: 'Drinks' } }
+  fixtures.rpc_kpis.data = { warehouse_total_qty: 42, warehouse_count: 1, tray_total_stock: 5, tray_total_capacity: 10, machine_count: 2, sales_today_units: 3, sales_today_revenue: 7.5, sales_7d_units: 20, sales_7d_revenue: 50, velocity_units_per_day: 2.85, velocity_window_days: 7, top_machines: [{ machine_id: 'm1', machine_name: 'M1', units: 10, revenue: 25 }] }
+  fixtures.warehouse_stock_batches.data = [{ id: 'b1', warehouse_id: 'w1', batch_number: 'B1', expiration_date: '2026-12-31', quantity: 42, created_at: '2026-04-01T00:00:00Z', warehouses: { name: 'WH-1' } }]
+  fixtures.machine_trays.data = [{ id: 't1', machine_id: 'm1', item_number: 5, current_stock: 5, capacity: 10, fill_when_below: 3, vendingMachine: { name: 'M1' } }]
+  fixtures.sales.data = [{ id: 100, created_at: new Date().toISOString(), item_price: 2.5, channel: 'cashless', machine_id: 'm1', vendingMachine: { name: 'M1' } }]
+
+  const detail = useProductDetail(ref('p1'))
+  await detail.refresh()
+
+  expect(detail.notFound.value).toBe(false)
+  expect(detail.product.value?.name).toBe('Coke')
+  expect(detail.kpis.value?.warehouse_total_qty).toBe(42)
+  expect(detail.warehouseStock.value).toHaveLength(1)
+  expect(detail.warehouseStock.value[0].total_qty).toBe(42)
+  expect(detail.machineTrays.value[0].last_sale_at).not.toBeNull()  // backfilled from sales
+  expect(detail.recentSales.value).toHaveLength(1)
+})
+
+it('not-found: products.maybeSingle returns null', async () => {
+  fixtures.products.data = null
+  const detail = useProductDetail(ref('missing'))
+  await detail.refresh()
+  expect(detail.notFound.value).toBe(true)
+  expect(detail.product.value).toBeNull()
+  expect(detail.recentSales.value).toEqual([])
+})
+
+it('user lookup: builds display name from first_name + last_name; null user_id shows dash', async () => {
+  fixtures.products.data = { id: 'p1', name: 'X', sellprice: null, description: null, category: null, image_path: null, discontinued: false, product_category: null }
+  fixtures.rpc_kpis.data = { warehouse_total_qty: 0, warehouse_count: 0, tray_total_stock: 0, tray_total_capacity: 0, machine_count: 0, sales_today_units: 0, sales_today_revenue: 0, sales_7d_units: 0, sales_7d_revenue: 0, velocity_units_per_day: 0, velocity_window_days: 30, top_machines: [] }
+  fixtures.warehouse_transactions.data = [
+    { id: 't1', created_at: '2026-04-10T00:00:00Z', transaction_type: 'intake', quantity_change: 10, quantity_after: 10, warehouse_id: 'w1', user_id: 'u1', notes: null, warehouses: { name: 'WH-1' } },
+    { id: 't2', created_at: '2026-04-09T00:00:00Z', transaction_type: 'refill', quantity_change: -5, quantity_after: 5, warehouse_id: 'w1', user_id: null, notes: null, warehouses: { name: 'WH-1' } },
+  ]
+  fixtures.users.data = [{ id: 'u1', first_name: 'Anna', last_name: 'Berg', email: 'anna@example.com' }]
+
+  const detail = useProductDetail(ref('p1'))
+  await detail.refresh()
+  expect(detail.transactions.value[0].user_display).toBe('Anna Berg')
+  expect(detail.transactions.value[1].user_display).toBe('—')
+})
+
+it('chart bucketing: a sale 3 days ago lands in the correct bucket index', async () => {
+  fixtures.products.data = { id: 'p1', name: 'X', sellprice: null, description: null, category: null, image_path: null, discontinued: false, product_category: null }
+  fixtures.rpc_kpis.data = { warehouse_total_qty: 0, warehouse_count: 0, tray_total_stock: 0, tray_total_capacity: 0, machine_count: 0, sales_today_units: 0, sales_today_revenue: 0, sales_7d_units: 0, sales_7d_revenue: 0, velocity_units_per_day: 0, velocity_window_days: 30, top_machines: [] }
+  const threeDaysAgo = new Date()
+  threeDaysAgo.setDate(threeDaysAgo.getDate() - 3)
+  threeDaysAgo.setHours(12, 0, 0, 0)
+  fixtures.sales_chart.data = [{ created_at: threeDaysAgo.toISOString(), item_price: 4.0 }]
+
+  const detail = useProductDetail(ref('p1'))
+  await detail.refresh()
+
+  // Buckets are 30 days, oldest first. Index 26 is "3 days ago" (29 - 3 = 26).
+  expect(detail.chartUnits.value).toHaveLength(30)
+  expect(detail.chartUnits.value[26].total).toBe(1)
+  expect(detail.chartRevenue.value[26].total).toBe(4.0)
+  // All other buckets are zero
+  for (let i = 0; i < 30; i++) {
+    if (i === 26) continue
+    expect(detail.chartUnits.value[i].total).toBe(0)
+  }
+})
+```
+
+Note on the second sales call: the composable issues `sales` LIMIT-50 first, then later `sales` for the chart. The dispatcher in Step 1 disambiguates by call order. If the composable refactors to a single sales query, simplify the dispatcher accordingly.
+
+- [ ] **Step 3: Run the test**
 
 ```bash
 cd management-frontend && npx vitest run app/composables/__tests__/useProductDetail.test.ts
 ```
 
-Expected: all cases pass.
+Expected: 4 passed.
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
 git add management-frontend/app/composables/__tests__/useProductDetail.test.ts
@@ -1567,34 +1899,197 @@ git commit -m "test(products): unit-test useProductDetail composable"
 
 ---
 
-### Task 22: Deno test for `get_product_detail_kpis` RPC
+### Task 22: SQL integration test for `get_product_detail_kpis` RPC
+
+**Important framing:** This is an **integration test** that exercises the real `SECURITY DEFINER` function against a live local Supabase. The earlier `mqtt-webhook/mdb-log.test.ts` reference is for **file layout convention only** — that test mocks the Supabase client; this one does not. There is no existing DB-integration test in the repo, so this task creates the harness.
+
+**Why a plain-SQL test instead of HTTP+JWT:** The function uses `SECURITY DEFINER` and `public.my_company_id()` which reads from the JWT. Two paths exist:
+
+- **(A) Plain-SQL via `psql`** — call the function with `SET LOCAL` to inject a fake `request.jwt.claims`. Faster, no HTTP, no JWT-minting, no env vars needed beyond the local DB connection. **Preferred — use this.**
+- **(B) HTTP+JWT** — sign a JWT with `JWT_SECRET` and POST to PostgREST. More realistic but requires the test to mint JWTs and manage env. Skip unless (A) is somehow inadequate.
 
 **Files:**
-- Create: `Docker/supabase/tests/get_product_detail_kpis.test.ts` (mirror the pattern of `Docker/supabase/functions/mqtt-webhook/mdb-log.test.ts`)
+- Create: `Docker/supabase/tests/get_product_detail_kpis.test.sql`
+- Create: `Docker/supabase/tests/run-sql-tests.sh` (one-shot harness that any future SQL test can reuse)
 
-- [ ] **Step 1: Write the test**
-
-Stand up a local Supabase (`supabase start`), seed one company + one product + one warehouse + batches + trays + sales + transactions via SQL, then POST to `rpc/get_product_detail_kpis` with a user JWT that belongs to that company. Assert the returned jsonb has:
-- `warehouse_total_qty` sum matches seeded batches
-- `tray_total_stock` sum matches seeded trays
-- `sales_today_units` matches seeded sales inside today
-- `top_machines` ordered by units desc, with machine names
-
-Add a second test with a JWT from a *different* company — assert `RAISE EXCEPTION` surfaces as an error (PostgREST 400/500 depending on setup).
-
-- [ ] **Step 2: Run the test**
+- [ ] **Step 1: Make sure local Supabase is running**
 
 ```bash
-cd Docker/supabase && deno test --allow-all tests/get_product_detail_kpis.test.ts
+cd Docker/supabase && supabase status
 ```
 
-Expected: both cases pass.
+If not running: `supabase start`. **Do not** `supabase db reset` (project rule — kills dev data). Migrations applied via `supabase migration up` from Task 1 must already be in place.
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 2: Write the SQL test**
+
+`Docker/supabase/tests/get_product_detail_kpis.test.sql`:
+
+```sql
+-- Integration test for get_product_detail_kpis.
+-- Runs inside one transaction that is rolled back at the end → no dev data touched.
+-- Uses pgTAP-style RAISE NOTICE assertions (no extension required).
+
+BEGIN;
+
+-- Pin a stable "now" so today-window assertions are deterministic
+SET LOCAL TIMEZONE = 'UTC';
+
+DO $$
+DECLARE
+  v_company_a uuid := gen_random_uuid();
+  v_company_b uuid := gen_random_uuid();
+  v_user_a    uuid := gen_random_uuid();
+  v_user_b    uuid := gen_random_uuid();
+  v_product   uuid := gen_random_uuid();
+  v_machine   uuid := gen_random_uuid();
+  v_warehouse uuid := gen_random_uuid();
+  v_kpis      jsonb;
+  v_top_units bigint;
+BEGIN
+  -- ─── Seed company A ───────────────────────────────────────────────────────
+  INSERT INTO public.companies (id, name, velocity_days)
+    VALUES (v_company_a, 'TestCo A', 7);
+  INSERT INTO public.companies (id, name, velocity_days)
+    VALUES (v_company_b, 'TestCo B', 7);
+
+  -- Auth users + public.users + organization_members for both companies
+  INSERT INTO auth.users (id, instance_id, email)
+    VALUES (v_user_a, '00000000-0000-0000-0000-000000000000', 'a@test.local');
+  INSERT INTO auth.users (id, instance_id, email)
+    VALUES (v_user_b, '00000000-0000-0000-0000-000000000000', 'b@test.local');
+  INSERT INTO public.users (id, company, email)
+    VALUES (v_user_a, v_company_a, 'a@test.local');
+  INSERT INTO public.users (id, company, email)
+    VALUES (v_user_b, v_company_b, 'b@test.local');
+  INSERT INTO public.organization_members (company_id, user_id, role)
+    VALUES (v_company_a, v_user_a, 'admin');
+  INSERT INTO public.organization_members (company_id, user_id, role)
+    VALUES (v_company_b, v_user_b, 'admin');
+
+  -- Product, machine, warehouse, tray, batch, sales (today + 5d ago)
+  INSERT INTO public.products (id, name, company)
+    VALUES (v_product, 'Test Coke', v_company_a);
+  INSERT INTO public."vendingMachine" (id, name, company)
+    VALUES (v_machine, 'Test Machine', v_company_a);
+  INSERT INTO public.warehouses (id, name, company_id)
+    VALUES (v_warehouse, 'Test WH', v_company_a);
+  INSERT INTO public.machine_trays (machine_id, item_number, product_id, capacity, current_stock)
+    VALUES (v_machine, 1, v_product, 10, 7);
+  INSERT INTO public.warehouse_stock_batches
+    (warehouse_id, product_id, quantity, company_id)
+    VALUES (v_warehouse, v_product, 25, v_company_a);
+  INSERT INTO public.sales (machine_id, item_number, item_price, channel, created_at)
+    VALUES (v_machine, 1, 2.50, 'cashless', now());
+  INSERT INTO public.sales (machine_id, item_number, item_price, channel, created_at)
+    VALUES (v_machine, 1, 2.50, 'cashless', now() - interval '5 days');
+
+  -- ─── Test 1: caller from company A sees correct KPIs ─────────────────────
+  PERFORM set_config('request.jwt.claims',
+    json_build_object('sub', v_user_a::text, 'role', 'authenticated')::text,
+    true);
+
+  SELECT public.get_product_detail_kpis(v_product, 30) INTO v_kpis;
+
+  ASSERT (v_kpis->>'warehouse_total_qty')::bigint = 25,
+    format('expected warehouse_total_qty=25, got %s', v_kpis->>'warehouse_total_qty');
+  ASSERT (v_kpis->>'tray_total_stock')::bigint = 7,
+    format('expected tray_total_stock=7, got %s', v_kpis->>'tray_total_stock');
+  ASSERT (v_kpis->>'tray_total_capacity')::bigint = 10,
+    format('expected tray_total_capacity=10, got %s', v_kpis->>'tray_total_capacity');
+  ASSERT (v_kpis->>'machine_count')::int = 1,
+    format('expected machine_count=1, got %s', v_kpis->>'machine_count');
+  ASSERT (v_kpis->>'warehouse_count')::int = 1,
+    format('expected warehouse_count=1, got %s', v_kpis->>'warehouse_count');
+  ASSERT (v_kpis->>'sales_today_units')::bigint = 1,
+    format('expected sales_today_units=1, got %s', v_kpis->>'sales_today_units');
+  ASSERT (v_kpis->>'sales_7d_units')::bigint = 2,
+    format('expected sales_7d_units=2, got %s', v_kpis->>'sales_7d_units');
+
+  -- top_machines is a jsonb array; first element has units=2, name='Test Machine'
+  SELECT (v_kpis->'top_machines'->0->>'units')::bigint INTO v_top_units;
+  ASSERT v_top_units = 2,
+    format('expected top_machines[0].units=2, got %s', v_top_units);
+  ASSERT v_kpis->'top_machines'->0->>'machine_name' = 'Test Machine',
+    'expected top_machines[0].machine_name=Test Machine';
+
+  RAISE NOTICE 'Test 1 passed: KPIs for own-company product';
+
+  -- ─── Test 2: caller from company B is blocked ────────────────────────────
+  PERFORM set_config('request.jwt.claims',
+    json_build_object('sub', v_user_b::text, 'role', 'authenticated')::text,
+    true);
+
+  BEGIN
+    PERFORM public.get_product_detail_kpis(v_product, 30);
+    RAISE EXCEPTION 'Test 2 FAILED: expected exception was not raised';
+  EXCEPTION
+    WHEN OTHERS THEN
+      ASSERT SQLERRM LIKE '%product not found or access denied%',
+        format('Test 2 FAILED: wrong error message: %s', SQLERRM);
+      RAISE NOTICE 'Test 2 passed: cross-company call rejected with: %', SQLERRM;
+  END;
+
+END $$;
+
+ROLLBACK;
+```
+
+Notes:
+- The whole seed runs inside a single transaction. The final `ROLLBACK` ensures dev data is untouched even if assertions pass.
+- `set_config('request.jwt.claims', …, true)` sets the claim for the rest of the transaction so `public.my_company_id()` (which reads `auth.uid()` derived from the JWT) resolves to the seeded user.
+- If `companies` or `vendingMachine` schema differs from what's used here (extra NOT NULL columns), update the inserts accordingly. Run the test once and let any errors guide adjustments.
+
+- [ ] **Step 3: Write the runner script**
+
+`Docker/supabase/tests/run-sql-tests.sh`:
 
 ```bash
-git add Docker/supabase/tests/get_product_detail_kpis.test.ts
-git commit -m "test(db): Deno test for get_product_detail_kpis RPC"
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Run every *.test.sql in this directory against the local Supabase DB.
+# Requires `supabase start` to have been run first.
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DB_URL="${TEST_DB_URL:-postgresql://postgres:postgres@127.0.0.1:54322/postgres}"
+
+fail=0
+for f in "$DIR"/*.test.sql; do
+  echo "── Running $(basename "$f") ──"
+  if psql "$DB_URL" -v ON_ERROR_STOP=1 -f "$f"; then
+    echo "  PASS"
+  else
+    echo "  FAIL"
+    fail=1
+  fi
+done
+
+exit $fail
+```
+
+`chmod +x Docker/supabase/tests/run-sql-tests.sh`.
+
+- [ ] **Step 4: Run it**
+
+```bash
+./Docker/supabase/tests/run-sql-tests.sh
+```
+
+Expected: each `RAISE NOTICE 'Test N passed: …'` appears, then "PASS". Exit code 0.
+
+If schema-mismatch errors appear (missing required columns on `companies`, `vendingMachine`, etc.), update the seeds to satisfy NOT NULL constraints, then re-run.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add Docker/supabase/tests/get_product_detail_kpis.test.sql Docker/supabase/tests/run-sql-tests.sh
+git commit -m "test(db): SQL integration test for get_product_detail_kpis
+
+Plain-SQL integration test that runs inside a transaction with
+ROLLBACK at the end so dev data is never touched. Uses
+set_config('request.jwt.claims', …, true) to inject a fake JWT for
+SECURITY DEFINER + my_company_id() resolution. Reusable runner
+script picks up any future *.test.sql in the same directory."
 ```
 
 ---
@@ -1603,11 +2098,27 @@ git commit -m "test(db): Deno test for get_product_detail_kpis RPC"
 
 Not a commit — a manual confirmation before declaring done.
 
-- [ ] Visit every listed click-through surface (dashboard, machines detail sales+trays, products list, warehouse, tour-history, reports, cash-book, deals) and confirm navigation lands on `/products/[id]`.
-- [ ] Visit `/refill` and confirm product rows are **not** clickable.
-- [ ] Load a product with zero sales, zero stock, zero trays → every section shows its empty state; page does not error.
-- [ ] Load a product with heavy history → charts render, tables don't overflow; mobile viewport (375px) still usable.
-- [ ] Deep-link a `/products/[id]` URL; it loads correctly after full reload.
+- [ ] **Both dashboard cards individually:** click a product in `DashboardTopProducts` → lands on `/products/[id]`. Click a sale in `DashboardRecentSales` (one with a known `product_id`) → lands on `/products/[id]`.
+- [ ] Visit `/machines/[id]` sales tab → click a sales row → detail page. Click delete in another sales row → row deletes, no navigation.
+- [ ] Visit `/machines/[id]` trays tab → click product name → detail page. Click edit/refill on the same row → no navigation, action runs.
+- [ ] `/products` index → click a product name → detail page. Click anywhere else in the row → edit modal opens (does not navigate).
+- [ ] `/warehouse` (every page in that area) → product names link to detail; action buttons still work.
+- [ ] `/tour-history`, `/reports`, `/cash-book`, `/deals` → product references navigate as planned.
+- [ ] **Refill exclusion (positive check):** visit `/refill` and walk the wizard. Product rows must not hover-highlight, must not change cursor, and must not navigate. Then run:
+
+  ```bash
+  rg "NuxtLink.*products/|router.push.*products/" management-frontend/app/pages/refill
+  ```
+
+  Expected output: empty (zero hits).
+- [ ] **`product_id IS NULL` invisibility:** find a sale in dev DB with `product_id IS NULL` (or `UPDATE sales SET product_id=NULL WHERE id=…` on a throwaway row). Confirm:
+  - Detail page for the product whose tray that sale used to map to does NOT show the null-`product_id` sale in Recent Sales.
+  - Chart bucket for the day of that sale does NOT include it.
+  - In `DashboardRecentSales` and the machine sales tab, that row renders as non-clickable (no cursor, no nav).
+- [ ] **Empty product:** load a product with zero sales / zero stock / zero trays → every section shows its empty-state string in the active locale; page does not error.
+- [ ] **Heavy product:** load a product with many sales/transactions → charts render, tables scroll horizontally on mobile (test at 375px viewport); page stays responsive.
+- [ ] Deep-link a `/products/[id]` URL in a fresh browser tab; full page load works (not just SPA-internal nav).
+- [ ] Switch language `en ↔ de`; every string on the detail page swaps. No raw key paths visible.
 
 ---
 
