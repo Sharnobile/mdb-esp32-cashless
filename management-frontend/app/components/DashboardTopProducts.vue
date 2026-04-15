@@ -84,7 +84,12 @@ const rankColors = [
         {{ t('dashboard.noSalesData') }}
       </div>
       <div v-else class="space-y-4">
-        <div v-for="(product, index) in sorted" :key="product.product_id" class="space-y-1.5">
+        <NuxtLink
+          v-for="(product, index) in sorted"
+          :key="product.product_id"
+          :to="`/products/${product.product_id}`"
+          class="block space-y-1.5 rounded-md p-1 -m-1 hover:bg-muted/50 transition-colors"
+        >
           <div class="flex items-center gap-3">
             <span
               class="flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-bold"
@@ -110,7 +115,7 @@ const rankColors = [
               :style="{ width: barWidth(product) }"
             />
           </div>
-        </div>
+        </NuxtLink>
       </div>
     </CardContent>
   </Card>
