@@ -324,11 +324,12 @@ type ChartPoint = { date: Date; total: number }
 
 // Map item_number → product info from trays (used for tray display AND as fallback for old sales)
 const trayProductMap = computed(() => {
-  const map = new Map<number, { name: string; image_url: string | null; sellprice: number | null; discontinued: boolean }>()
+  const map = new Map<number, { product_id: string | null; name: string; image_url: string | null; sellprice: number | null; discontinued: boolean }>()
   for (const t of trays.value) {
     if (t.product_name) {
       const product = products.value.find(p => p.id === t.product_id)
       map.set(t.item_number, {
+        product_id: t.product_id ?? null,
         name: t.product_name,
         image_url: product?.image_url ?? null,
         // Prefer the tray-joined sellprice (always loaded with trays) and fall back
@@ -355,6 +356,13 @@ function saleProduct(sale: any): { name: string; image_url: string | null } | nu
   const tray = trayProductMap.value.get(sale.item_number)
   if (tray) return { name: tray.name, image_url: tray.image_url }
   return null
+}
+
+// Resolve product_id for a sale: prefer snapshotted product_id, fallback to tray.
+function saleProductId(sale: any): string | null {
+  if (sale.product_id) return sale.product_id
+  const tray = trayProductMap.value.get(sale.item_number)
+  return tray?.product_id ?? null
 }
 
 // ── Inline name editing ─────────────────────────────────────────────────────
@@ -1290,7 +1298,11 @@ async function handleAddSale() {
                         :disabled="!isAdmin"
                         @delete="confirmDeleteSale(sale)"
                       >
-                        <div class="group/sale flex items-start gap-3 px-4 py-3">
+                        <div
+                          class="group/sale flex items-start gap-3 px-4 py-3"
+                          :class="{ 'cursor-pointer hover:bg-muted/50 transition-colors': saleProductId(sale) }"
+                          @click="saleProductId(sale) && $router.push(`/products/${saleProductId(sale)}`)"
+                        >
                           <!-- Product image or amount badge -->
                           <img
                             v-if="saleProduct(sale)?.image_url"
@@ -1310,7 +1322,7 @@ async function handleAddSale() {
                                 <button
                                   v-if="isAdmin"
                                   class="hidden sm:inline-flex ml-1 align-middle rounded-md p-0.5 text-muted-foreground/0 transition-colors group-hover/sale:text-muted-foreground hover:!text-destructive"
-                                  @click="confirmDeleteSale(sale)"
+                                  @click.stop="confirmDeleteSale(sale)"
                                 >
                                   <IconTrash class="size-3.5" />
                                 </button>
