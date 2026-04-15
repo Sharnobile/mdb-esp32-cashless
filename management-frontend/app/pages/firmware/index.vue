@@ -478,15 +478,11 @@ function formatSize(bytes: number | null) {
               <tr
                 v-for="asset in release.assets.filter(a => a.name.endsWith('.bin'))"
                 :key="`${release.tag_name}-${asset.name}`"
-                class="border-b last:border-0 hover:bg-muted/30 transition-colors"
+                class="border-b last:border-0 hover:bg-muted/30 transition-colors cursor-pointer"
+                @click="openChangelogForRelease(release)"
               >
                 <td class="px-4 py-3">
-                  <a
-                    :href="release.html_url"
-                    target="_blank"
-                    rel="noopener"
-                    class="font-mono font-medium text-primary hover:underline"
-                  >{{ release.tag_name }}</a>
+                  <span class="font-mono font-medium">{{ release.tag_name }}</span>
                   <p v-if="release.name && release.name !== release.tag_name" class="text-xs text-muted-foreground truncate max-w-[200px]">
                     {{ release.name }}
                   </p>
@@ -501,6 +497,7 @@ function formatSize(bytes: number | null) {
                     v-if="isReleaseImported(release.tag_name)"
                     disabled
                     class="inline-flex h-7 items-center rounded-md border px-3 text-xs font-medium text-muted-foreground opacity-60"
+                    @click.stop
                   >
                     {{ t('firmware.imported') }}
                   </button>
@@ -508,7 +505,7 @@ function formatSize(bytes: number | null) {
                     v-else
                     class="inline-flex h-7 items-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 disabled:opacity-50"
                     :disabled="importLoading === release.tag_name"
-                    @click="handleImport(release.tag_name, asset.name)"
+                    @click.stop="handleImport(release.tag_name, asset.name)"
                   >
                     {{ importLoading === release.tag_name ? t('firmware.importing') : t('common.import') }}
                   </button>
