@@ -2,6 +2,14 @@ import { useSupabaseClient } from '#imports'
 import type { Ref } from 'vue'
 import { getProductImageUrl } from './useProducts'
 
+function localDayKey(d: Date): string {
+  // Returns YYYY-MM-DD in the user's local timezone (not UTC)
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
 export interface ProductDetail {
   id: string
   name: string
@@ -286,7 +294,7 @@ export function useProductDetail(productId: Ref<string>) {
         const d = new Date(now)
         d.setHours(0, 0, 0, 0)
         d.setDate(d.getDate() - i)
-        buckets.set(d.toISOString().slice(0, 10), { revenue: 0, units: 0 })
+        buckets.set(localDayKey(d), { revenue: 0, units: 0 })
       }
       // Use a wider fetch than recentSales (which is LIMIT 50) — separate query
       const since = new Date()
@@ -299,17 +307,24 @@ export function useProductDetail(productId: Ref<string>) {
         .gte('created_at', since.toISOString())
       if (chartErr) throw chartErr
       for (const row of (chartRows ?? []) as Array<{ created_at: string; item_price: number | null }>) {
-        const key = row.created_at.slice(0, 10)
+        const key = localDayKey(new Date(row.created_at))
         const b = buckets.get(key)
         if (!b) continue
         b.units += 1
         b.revenue += row.item_price ?? 0
       }
-      chartRevenue.value = [...buckets.entries()].map(([k, v]) => ({ date: new Date(k), total: v.revenue }))
-      chartUnits.value = [...buckets.entries()].map(([k, v]) => ({ date: new Date(k), total: v.units }))
+      const parseLocalDayKey = (k: string): Date => {
+        const parts = k.split('-')
+        const y = Number(parts[0])
+        const m = Number(parts[1])
+        const day = Number(parts[2])
+        return new Date(y, m - 1, day)
+      }
+      chartRevenue.value = [...buckets.entries()].map(([k, v]) => ({ date: parseLocalDayKey(k), total: v.revenue }))
+      chartUnits.value = [...buckets.entries()].map(([k, v]) => ({ date: parseLocalDayKey(k), total: v.units }))
     } catch (e: any) {
       error.value = e?.message ?? 'failed to load product detail'
-      throw e
+      // intentional: we set `error` for reactive consumers; do not re-throw
     } finally {
       loading.value = false
     }
