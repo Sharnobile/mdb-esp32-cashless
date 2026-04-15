@@ -120,6 +120,19 @@ function onEditSaved() {
       </Card>
     </div>
 
+    <div v-if="detail.product.value" class="grid gap-3 md:grid-cols-2">
+      <ChartAreaInteractive
+        :data="detail.chartRevenue.value"
+        :title="t('products.detail.chart.revenueTitle')"
+        :description="t('products.detail.chart.revenueDescription')"
+      />
+      <ChartAreaInteractive
+        :data="detail.chartUnits.value"
+        :title="t('products.detail.chart.unitsTitle')"
+        :description="t('products.detail.chart.unitsDescription')"
+      />
+    </div>
+
     <!-- Sections will be added in Chunk 2 -->
     <div v-if="detail.product.value" class="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
       Sections coming in the next chunk.
