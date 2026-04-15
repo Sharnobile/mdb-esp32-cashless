@@ -260,13 +260,15 @@ async function runImport() {
                     v-for="product in sortedProducts"
                     :key="product.id"
                     class="border-b last:border-0 hover:bg-muted/30 transition-colors"
+                    :class="{ 'cursor-pointer': isAdmin }"
+                    @click="isAdmin && openEditProduct(product)"
                   >
                     <td class="px-4 py-2">
                       <button
                         v-if="product.image_url"
                         type="button"
                         class="block"
-                        @click="fullscreenImage = { url: product.image_url, name: product.name }"
+                        @click.stop="fullscreenImage = { url: product.image_url, name: product.name }"
                       >
                         <img
                           :src="product.image_url"
@@ -282,15 +284,13 @@ async function runImport() {
                       </div>
                     </td>
                     <td class="px-4 py-3 font-medium max-w-[150px] truncate">
-                      <button
-                        v-if="isAdmin"
-                        type="button"
-                        class="text-left hover:underline sm:pointer-events-none sm:no-underline"
-                        @click="openEditProduct(product)"
+                      <NuxtLink
+                        :to="`/products/${product.id}`"
+                        class="text-left hover:underline"
+                        @click.stop
                       >
                         {{ product.name }}
-                      </button>
-                      <span v-else>{{ product.name }}</span>
+                      </NuxtLink>
                     </td>
                     <td class="hidden sm:table-cell px-4 py-3 text-muted-foreground">{{ product.category_name ?? '—' }}</td>
                     <td class="px-4 py-3">{{ formatCurrency(product.sellprice, locale) }}</td>
@@ -298,13 +298,13 @@ async function runImport() {
                       <div class="flex items-center gap-2">
                         <button
                           class="text-xs text-primary hover:underline"
-                          @click="openEditProduct(product)"
+                          @click.stop="openEditProduct(product)"
                         >
                           {{ t('common.edit') }}
                         </button>
                         <button
                           class="text-xs text-destructive hover:underline"
-                          @click="handleDeleteProduct(product.id)"
+                          @click.stop="handleDeleteProduct(product.id)"
                         >
                           {{ t('common.delete') }}
                         </button>
