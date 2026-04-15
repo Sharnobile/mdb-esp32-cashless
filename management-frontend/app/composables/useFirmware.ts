@@ -29,6 +29,11 @@ export interface GitHubAsset {
   browser_download_url: string
 }
 
+// Session-lifetime cache of GitHub releases fetched by tag, shared across all useFirmware() call sites.
+// Value `null` means "known missing on GitHub (404)" — cached to avoid repeat lookups.
+// Transient errors (network failure, rate-limit) are NOT cached so the next attempt re-tries.
+const releaseBodyCache = new Map<string, GitHubRelease | null>()
+
 export interface ChangelogSource {
   /** Which data source the body came from. */
   kind: 'github-release' | 'notes' | 'none'
@@ -60,10 +65,6 @@ export function useFirmware() {
   const githubRepo = computed(() => config.public.githubFirmwareRepo as string)
   const githubReleases = ref<GitHubRelease[]>([])
   const githubLoading = ref(false)
-
-  // Session cache for individual release lookups by tag (covers tags outside the 30-release default window).
-  // Stores `null` to remember 404s and avoid re-fetching known-missing releases.
-  const releaseBodyCache = ref<Map<string, GitHubRelease | null>>(new Map())
 
   async function fetchFirmwareVersions() {
     loading.value = true
@@ -195,8 +196,8 @@ export function useFirmware() {
     if (loaded) return loaded
 
     // 2) Cache hit (including negative cache)
-    if (releaseBodyCache.value.has(tag)) {
-      return releaseBodyCache.value.get(tag) ?? null
+    if (releaseBodyCache.has(tag)) {
+      return releaseBodyCache.get(tag) ?? null
     }
 
     // 3) On-demand fetch
@@ -205,11 +206,16 @@ export function useFirmware() {
         `https://api.github.com/repos/${githubRepo.value}/releases/tags/${encodeURIComponent(tag)}`,
         { headers: { Accept: 'application/vnd.github.v3+json' } },
       )
-      releaseBodyCache.value.set(tag, res)
+      releaseBodyCache.set(tag, res)
       return res
-    } catch (e) {
-      console.warn(`[useFirmware] Failed to fetch GitHub release for tag "${tag}":`, e)
-      releaseBodyCache.value.set(tag, null)
+    } catch (e: unknown) {
+      // Only cache genuine 404s. Transient errors (network, rate-limit, 5xx) should re-try on next open.
+      const status = (e as { statusCode?: number; status?: number })?.statusCode
+        ?? (e as { status?: number })?.status
+      if (status === 404) {
+        releaseBodyCache.set(tag, null)
+      }
+      console.warn(`[useFirmware] Failed to fetch GitHub release for tag "${tag}" (status=${status ?? 'unknown'}):`, e)
       return null
     }
   }
@@ -237,12 +243,13 @@ export function useFirmware() {
           externalUrl: release.html_url,
         }
       }
-      // Fall back to stored notes with a "fetch failed" banner
+      // Fall back to stored notes. Only flag fetchFailed when the repo is configured
+      // (i.e. a fetch was actually attempted) — otherwise the banner would be misleading.
       return {
         kind: fw.notes ? 'notes' : 'none',
         body: fw.notes ?? '',
         isMarkdown: false,
-        fetchFailed: true,
+        fetchFailed: Boolean(githubRepo.value),
         externalUrl: githubRepo.value
           ? `https://github.com/${githubRepo.value}/releases/tag/${encodeURIComponent(fw.source_tag)}`
           : undefined,
