@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { IconArrowLeft, IconPencil } from '@tabler/icons-vue'
-import { formatCurrency } from '~/lib/utils'
+import { formatCurrency, formatDate } from '~/lib/utils'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -132,6 +132,51 @@ function onEditSaved() {
         :description="t('products.detail.chart.unitsDescription')"
       />
     </div>
+
+    <section class="space-y-2" aria-labelledby="sec-warehouse">
+      <h2 id="sec-warehouse" class="text-lg font-semibold">{{ t('products.detail.sections.warehouseStock') }}</h2>
+      <p v-if="!detail.warehouseStock.value.length" class="text-sm text-muted-foreground">
+        {{ t('products.detail.empty.noStock') }}
+      </p>
+      <div v-else class="space-y-2">
+        <details
+          v-for="w in detail.warehouseStock.value"
+          :key="w.warehouse_id"
+          class="rounded-md border"
+        >
+          <summary class="flex cursor-pointer items-center justify-between px-3 py-2 text-sm">
+            <span class="font-medium">{{ w.warehouse_name }}</span>
+            <span class="flex items-center gap-2">
+              <span
+                v-if="w.min_quantity !== null && w.total_qty < w.min_quantity"
+                class="rounded-full bg-destructive/10 px-2 py-0.5 text-xs text-destructive"
+              >
+                {{ t('products.detail.warehouseStock.belowMin', { min: w.min_quantity }) }}
+              </span>
+              <span class="font-mono">{{ w.total_qty }}</span>
+            </span>
+          </summary>
+          <table class="w-full border-t text-sm">
+            <thead class="bg-muted/40 text-xs uppercase">
+              <tr>
+                <th class="px-3 py-1.5 text-left">{{ t('products.detail.warehouseStock.batchNumber') }}</th>
+                <th class="px-3 py-1.5 text-left">{{ t('products.detail.warehouseStock.expiry') }}</th>
+                <th class="px-3 py-1.5 text-left">{{ t('products.detail.warehouseStock.intake') }}</th>
+                <th class="px-3 py-1.5 text-right">{{ t('products.detail.warehouseStock.qty') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="b in w.batches" :key="b.id" class="border-t">
+                <td class="px-3 py-1.5 font-mono">{{ b.batch_number ?? '—' }}</td>
+                <td class="px-3 py-1.5">{{ b.expiration_date ?? '—' }}</td>
+                <td class="px-3 py-1.5">{{ formatDate(b.created_at) }}</td>
+                <td class="px-3 py-1.5 text-right font-mono">{{ b.quantity }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </details>
+      </div>
+    </section>
 
     <!-- Sections will be added in Chunk 2 -->
     <div v-if="detail.product.value" class="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
