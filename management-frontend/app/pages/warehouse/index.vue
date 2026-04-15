@@ -621,7 +621,7 @@ const incomingExpiration = ref('')
 const incomingBatch = ref('')
 const incomingLoading = ref(false)
 const incomingError = ref('')
-const recentBookings = ref<{ product_name: string; product_image: string | null; quantity: number; expiration: string | null }[]>([])
+const recentBookings = ref<{ product_id: string; product_name: string; product_image: string | null; quantity: number; expiration: string | null }[]>([])
 
 function productImagePath(productId: string): string | null {
   return products.value.find(p => p.id === productId)?.image_path ?? null
@@ -785,6 +785,7 @@ async function submitIncoming() {
     })
     const product = products.value.find(p => p.id === incomingProductId.value)
     recentBookings.value.unshift({
+      product_id: incomingProductId.value,
       product_name: product?.name ?? 'Unknown',
       product_image: product?.image_path ?? null,
       quantity: incomingQuantity.value,
@@ -1159,8 +1160,13 @@ async function onVelocityDaysChange(e: Event) {
                   <span :class="[expirationBadgeClass(p.expiration_status), 'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium']">
                     {{ expirationLabel(p.expiration_status) }}
                   </span>
-                  <img v-if="p.product_image_path" :src="getProductImageUrl(p.product_image_path)" class="size-5 rounded object-cover" alt="" />
-                  <span class="text-sm font-medium">{{ p.product_name }}</span>
+                  <NuxtLink
+                    :to="`/products/${p.product_id}`"
+                    class="flex items-center gap-2 hover:underline"
+                  >
+                    <img v-if="p.product_image_path" :src="getProductImageUrl(p.product_image_path)" class="size-5 rounded object-cover" alt="" />
+                    <span class="text-sm font-medium">{{ p.product_name }}</span>
+                  </NuxtLink>
                   <span class="text-xs text-muted-foreground">{{ t('warehouse.unitsCount', { count: p.total_quantity }) }}</span>
                 </div>
                 <span class="text-sm text-muted-foreground">{{ t('warehouse.mhd', { date: formatDate(p.earliest_expiration, locale.value) }) }}</span>
@@ -1237,7 +1243,10 @@ async function onVelocityDaysChange(e: Event) {
                   :class="{ 'opacity-50': p.discontinued, 'opacity-70': !p.discontinued && !isAssignedToMachine(p.product_id) }"
                 >
                   <td class="px-4 py-3">
-                    <div class="flex items-center gap-2">
+                    <NuxtLink
+                      :to="`/products/${p.product_id}`"
+                      class="flex items-center gap-2 hover:underline"
+                    >
                       <img
                         v-if="p.product_image_path"
                         :src="getProductImageUrl(p.product_image_path)"
@@ -1260,7 +1269,7 @@ async function onVelocityDaysChange(e: Event) {
                       >
                         {{ t('warehouse.notAssignedBadge') }}
                       </span>
-                    </div>
+                    </NuxtLink>
                   </td>
                   <td class="px-4 py-3 text-right tabular-nums">{{ p.total_quantity }}</td>
                   <td class="hidden px-4 py-3 text-right tabular-nums md:table-cell">{{ p.min_stock || '—' }}</td>
@@ -1410,28 +1419,37 @@ async function onVelocityDaysChange(e: Event) {
                     </td>
                     <td class="px-4 py-3">
                       <div class="flex items-center gap-2">
-                        <img
-                          v-if="p.product_image_path"
-                          :src="getProductImageUrl(p.product_image_path)"
-                          class="size-8 rounded object-cover"
-                          alt=""
-                        />
-                        <div v-else class="flex size-8 items-center justify-center rounded bg-muted text-xs font-medium text-muted-foreground">
-                          {{ p.product_name.charAt(0) }}
-                        </div>
-                        <div class="flex items-center gap-2">
-                          <span class="font-medium" :class="{ 'line-through': p.discontinued }">{{ p.product_name }}</span>
-                          <span v-if="p.discontinued" class="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400">
-                            {{ t('warehouse.discontinuedBadge') }}
-                          </span>
+                        <NuxtLink
+                          :to="`/products/${p.product_id}`"
+                          class="flex items-center gap-2 hover:underline"
+                          @click.stop
+                        >
+                          <img
+                            v-if="p.product_image_path"
+                            :src="getProductImageUrl(p.product_image_path)"
+                            class="size-8 rounded object-cover"
+                            alt=""
+                          />
+                          <div v-else class="flex size-8 items-center justify-center rounded bg-muted text-xs font-medium text-muted-foreground">
+                            {{ p.product_name.charAt(0) }}
+                          </div>
                           <span
-                            v-if="!p.discontinued && !isAssignedToMachine(p.product_id)"
-                            class="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-600 dark:bg-blue-950/30 dark:text-blue-400"
+                            class="font-medium"
+                            :class="{ 'line-through': p.discontinued }"
                           >
-                            {{ t('warehouse.notAssignedBadge') }}
+                            {{ p.product_name }}
                           </span>
-                          <span v-if="p.batch_count > 0" class="text-xs text-muted-foreground">{{ t('warehouse.batchCount', { count: p.batch_count }, p.batch_count) }}</span>
-                        </div>
+                        </NuxtLink>
+                        <span v-if="p.discontinued" class="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400">
+                          {{ t('warehouse.discontinuedBadge') }}
+                        </span>
+                        <span
+                          v-if="!p.discontinued && !isAssignedToMachine(p.product_id)"
+                          class="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-600 dark:bg-blue-950/30 dark:text-blue-400"
+                        >
+                          {{ t('warehouse.notAssignedBadge') }}
+                        </span>
+                        <span v-if="p.batch_count > 0" class="text-xs text-muted-foreground">{{ t('warehouse.batchCount', { count: p.batch_count }, p.batch_count) }}</span>
                       </div>
                     </td>
                     <td class="px-4 py-3 text-right tabular-nums font-medium">{{ p.total_quantity }}</td>
@@ -1631,11 +1649,14 @@ async function onVelocityDaysChange(e: Event) {
               :key="i"
               class="flex items-center justify-between rounded-md border bg-green-50 px-3 py-2 text-sm dark:bg-green-950/20"
             >
-              <div class="flex items-center gap-2">
+              <NuxtLink
+                :to="`/products/${item.product_id}`"
+                class="flex items-center gap-2 hover:underline"
+              >
                 <img v-if="item.product_image" :src="getProductImageUrl(item.product_image)" class="size-5 rounded object-cover" alt="" />
                 <div v-else class="flex size-5 items-center justify-center rounded bg-muted text-[10px] font-medium text-muted-foreground">{{ item.product_name.charAt(0) }}</div>
                 <span>{{ item.quantity }}x {{ item.product_name }}</span>
-              </div>
+              </NuxtLink>
               <span v-if="item.expiration" class="text-muted-foreground">{{ t('warehouse.mhd', { date: formatDate(item.expiration, locale.value) }) }}</span>
             </div>
           </div>
@@ -1701,9 +1722,17 @@ async function onVelocityDaysChange(e: Event) {
                     </span>
                   </td>
                   <td class="px-4 py-3">
-                    <div class="flex items-center gap-2">
+                    <NuxtLink
+                      v-if="t.product_id"
+                      :to="`/products/${t.product_id}`"
+                      class="flex items-center gap-2 hover:underline"
+                    >
                       <img v-if="productImagePath(t.product_id)" :src="getProductImageUrl(productImagePath(t.product_id)!)" class="size-6 rounded object-cover" alt="" />
                       <div v-else class="flex size-6 items-center justify-center rounded bg-muted text-[10px] font-medium text-muted-foreground">{{ (t.product_name ?? '?').charAt(0) }}</div>
+                      <span class="font-medium">{{ t.product_name ?? '—' }}</span>
+                    </NuxtLink>
+                    <div v-else class="flex items-center gap-2">
+                      <div class="flex size-6 items-center justify-center rounded bg-muted text-[10px] font-medium text-muted-foreground">{{ (t.product_name ?? '?').charAt(0) }}</div>
                       <span class="font-medium">{{ t.product_name ?? '—' }}</span>
                     </div>
                   </td>
@@ -1835,13 +1864,19 @@ async function onVelocityDaysChange(e: Event) {
                           :data-product-id="item.product_id"
                           class="flex items-center gap-2 border-t px-4 py-2 ml-2 hover:bg-muted/30 transition-colors"
                         >
-                          <button class="shrink-0" @click="toggleSelectProduct(item.product_id)">
+                          <button class="shrink-0" @click.stop="toggleSelectProduct(item.product_id)">
                             <component :is="selectedProducts.has(item.product_id) ? IconSquareCheck : IconSquare" class="size-4 text-muted-foreground" />
                           </button>
                           <IconGripVertical class="drag-handle size-3.5 text-muted-foreground/40 cursor-grab active:cursor-grabbing shrink-0 touch-none" />
-                          <img v-if="item.image_path" :src="getProductImageUrl(item.image_path)" class="size-7 shrink-0 rounded object-cover" alt="" />
-                          <div v-else class="flex size-7 shrink-0 items-center justify-center rounded bg-muted text-[10px] font-medium text-muted-foreground">{{ item.product_name.charAt(0) }}</div>
-                          <span class="min-w-0 flex-1 truncate text-xs font-medium">{{ item.product_name }}</span>
+                          <NuxtLink
+                            :to="`/products/${item.product_id}`"
+                            class="flex min-w-0 flex-1 items-center gap-2 hover:underline"
+                            @click.stop
+                          >
+                            <img v-if="item.image_path" :src="getProductImageUrl(item.image_path)" class="size-7 shrink-0 rounded object-cover" alt="" />
+                            <div v-else class="flex size-7 shrink-0 items-center justify-center rounded bg-muted text-[10px] font-medium text-muted-foreground">{{ item.product_name.charAt(0) }}</div>
+                            <span class="min-w-0 flex-1 truncate text-xs font-medium">{{ item.product_name }}</span>
+                          </NuxtLink>
                           <input type="text" :value="item.location_label ?? ''" :placeholder="t('warehouse.locationPlaceholder')" class="h-6 w-24 shrink-0 rounded border border-input bg-background px-1.5 text-[10px] sm:w-28" @input="updateLocationLabel(item, ($event.target as HTMLInputElement).value)" />
                           <button class="shrink-0 h-6 w-6 inline-flex items-center justify-center rounded border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950/20" @click="removeFromPositions(item)"><IconX class="size-3" /></button>
                         </div>
@@ -1857,15 +1892,21 @@ async function onVelocityDaysChange(e: Event) {
                       :data-product-id="item.product_id"
                       class="flex items-center gap-2 border-t px-3 py-2 hover:bg-muted/30 transition-colors"
                     >
-                      <button class="shrink-0" @click="toggleSelectProduct(item.product_id)">
+                      <button class="shrink-0" @click.stop="toggleSelectProduct(item.product_id)">
                         <component :is="selectedProducts.has(item.product_id) ? IconSquareCheck : IconSquare" class="size-4 text-muted-foreground" />
                       </button>
                       <IconGripVertical class="drag-handle size-4 text-muted-foreground/40 cursor-grab active:cursor-grabbing shrink-0 touch-none" />
-                      <img v-if="item.image_path" :src="getProductImageUrl(item.image_path)" class="size-8 shrink-0 rounded object-cover" alt="" />
-                      <div v-else class="flex size-8 shrink-0 items-center justify-center rounded bg-muted text-xs font-medium text-muted-foreground">{{ item.product_name.charAt(0) }}</div>
-                      <span class="min-w-0 flex-1 truncate text-sm font-medium">{{ item.product_name }}</span>
+                      <NuxtLink
+                        :to="`/products/${item.product_id}`"
+                        class="flex min-w-0 flex-1 items-center gap-2 hover:underline"
+                        @click.stop
+                      >
+                        <img v-if="item.image_path" :src="getProductImageUrl(item.image_path)" class="size-8 shrink-0 rounded object-cover" alt="" />
+                        <div v-else class="flex size-8 shrink-0 items-center justify-center rounded bg-muted text-xs font-medium text-muted-foreground">{{ item.product_name.charAt(0) }}</div>
+                        <span class="min-w-0 flex-1 truncate text-sm font-medium">{{ item.product_name }}</span>
+                      </NuxtLink>
                       <input type="text" :value="item.location_label ?? ''" :placeholder="t('warehouse.locationPlaceholder')" class="h-7 w-28 shrink-0 rounded-md border border-input bg-background px-2 text-xs sm:w-36" @input="updateLocationLabel(item, ($event.target as HTMLInputElement).value)" />
-                      <button class="shrink-0 inline-flex h-7 items-center rounded-md border border-red-200 px-2 text-xs text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950/20" @click="removeFromPositions(item)"><IconX class="size-3" /></button>
+                      <button class="shrink-0 inline-flex h-7 items-center rounded-md border border-red-200 px-2 text-xs text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950/20" @click.stop="removeFromPositions(item)"><IconX class="size-3" /></button>
                     </div>
                   </div>
 
@@ -1890,15 +1931,21 @@ async function onVelocityDaysChange(e: Event) {
                   :data-product-id="item.product_id"
                   class="flex items-center gap-2 border-t px-3 py-2 hover:bg-muted/30 transition-colors"
                 >
-                  <button class="shrink-0" @click="toggleSelectProduct(item.product_id)">
+                  <button class="shrink-0" @click.stop="toggleSelectProduct(item.product_id)">
                     <component :is="selectedProducts.has(item.product_id) ? IconSquareCheck : IconSquare" class="size-4 text-muted-foreground" />
                   </button>
                   <IconGripVertical class="drag-handle size-4 text-muted-foreground/40 cursor-grab active:cursor-grabbing shrink-0 touch-none" />
-                  <img v-if="item.image_path" :src="getProductImageUrl(item.image_path)" class="size-8 shrink-0 rounded object-cover" alt="" />
-                  <div v-else class="flex size-8 shrink-0 items-center justify-center rounded bg-muted text-xs font-medium text-muted-foreground">{{ item.product_name.charAt(0) }}</div>
-                  <span class="min-w-0 flex-1 truncate text-sm font-medium">{{ item.product_name }}</span>
+                  <NuxtLink
+                    :to="`/products/${item.product_id}`"
+                    class="flex min-w-0 flex-1 items-center gap-2 hover:underline"
+                    @click.stop
+                  >
+                    <img v-if="item.image_path" :src="getProductImageUrl(item.image_path)" class="size-8 shrink-0 rounded object-cover" alt="" />
+                    <div v-else class="flex size-8 shrink-0 items-center justify-center rounded bg-muted text-xs font-medium text-muted-foreground">{{ item.product_name.charAt(0) }}</div>
+                    <span class="min-w-0 flex-1 truncate text-sm font-medium">{{ item.product_name }}</span>
+                  </NuxtLink>
                   <input type="text" :value="item.location_label ?? ''" :placeholder="t('warehouse.locationPlaceholder')" class="h-7 w-28 shrink-0 rounded-md border border-input bg-background px-2 text-xs sm:w-36" @input="updateLocationLabel(item, ($event.target as HTMLInputElement).value)" />
-                  <button class="shrink-0 inline-flex h-7 items-center rounded-md border border-red-200 px-2 text-xs text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950/20" @click="removeFromPositions(item)"><IconX class="size-3" /></button>
+                  <button class="shrink-0 inline-flex h-7 items-center rounded-md border border-red-200 px-2 text-xs text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950/20" @click.stop="removeFromPositions(item)"><IconX class="size-3" /></button>
                 </div>
               </div>
             </div>
@@ -1912,10 +1959,16 @@ async function onVelocityDaysChange(e: Event) {
                   :key="item.product_id"
                   class="flex items-center gap-3 border-b border-dashed px-3 py-2.5 last:border-0 opacity-60 hover:opacity-100 transition-opacity"
                 >
-                  <img v-if="item.image_path" :src="getProductImageUrl(item.image_path)" class="size-8 shrink-0 rounded object-cover" alt="" />
-                  <div v-else class="flex size-8 shrink-0 items-center justify-center rounded bg-muted text-xs font-medium text-muted-foreground">{{ item.product_name.charAt(0) }}</div>
-                  <span class="min-w-0 flex-1 truncate text-sm">{{ item.product_name }}</span>
-                  <button class="inline-flex h-7 shrink-0 items-center gap-1 rounded-md border px-2 text-xs hover:bg-muted" @click="addToPositions(item)">
+                  <NuxtLink
+                    :to="`/products/${item.product_id}`"
+                    class="flex min-w-0 flex-1 items-center gap-3 hover:underline"
+                    @click.stop
+                  >
+                    <img v-if="item.image_path" :src="getProductImageUrl(item.image_path)" class="size-8 shrink-0 rounded object-cover" alt="" />
+                    <div v-else class="flex size-8 shrink-0 items-center justify-center rounded bg-muted text-xs font-medium text-muted-foreground">{{ item.product_name.charAt(0) }}</div>
+                    <span class="min-w-0 flex-1 truncate text-sm">{{ item.product_name }}</span>
+                  </NuxtLink>
+                  <button class="inline-flex h-7 shrink-0 items-center gap-1 rounded-md border px-2 text-xs hover:bg-muted" @click.stop="addToPositions(item)">
                     <IconPlus class="size-3" />
                     {{ t('warehouse.addToPositions') }}
                   </button>
@@ -2068,11 +2121,14 @@ async function onVelocityDaysChange(e: Event) {
                   >
                     <td class="px-4 py-3 font-mono text-xs">{{ b.barcode }}</td>
                     <td class="px-4 py-3">
-                      <div class="flex items-center gap-2">
+                      <NuxtLink
+                        :to="`/products/${b.product_id}`"
+                        class="flex items-center gap-2 hover:underline"
+                      >
                         <img v-if="productImagePath(b.product_id)" :src="getProductImageUrl(productImagePath(b.product_id)!)" class="size-6 rounded object-cover" alt="" />
                         <div v-else class="flex size-6 items-center justify-center rounded bg-muted text-[10px] font-medium text-muted-foreground">{{ (b.product_name ?? '?').charAt(0) }}</div>
                         <span>{{ b.product_name ?? '—' }}</span>
-                      </div>
+                      </NuxtLink>
                     </td>
                     <td class="hidden px-4 py-3 md:table-cell text-muted-foreground">{{ b.format }}</td>
                     <td class="px-4 py-3 text-right">
@@ -2134,11 +2190,14 @@ async function onVelocityDaysChange(e: Event) {
                     :class="{ 'opacity-50': p.discontinued }"
                   >
                     <td class="px-4 py-3">
-                      <div class="flex items-center gap-2">
+                      <NuxtLink
+                        :to="`/products/${p.id}`"
+                        class="flex items-center gap-2 hover:underline"
+                      >
                         <img v-if="p.image_path" :src="getProductImageUrl(p.image_path)" class="size-6 rounded object-cover" alt="" />
                         <div v-else class="flex size-6 items-center justify-center rounded bg-muted text-[10px] font-medium text-muted-foreground">{{ p.name.charAt(0) }}</div>
                         <span class="font-medium" :class="{ 'line-through': p.discontinued }">{{ p.name }}</span>
-                      </div>
+                      </NuxtLink>
                     </td>
                     <td class="px-4 py-3 tabular-nums">
                       {{ productSummaries.find(s => s.product_id === p.id)?.total_quantity ?? 0 }}
