@@ -6,10 +6,9 @@ import { formatCurrency } from '@/lib/utils'
 
 const { t, locale } = useI18n()
 const { organization, role } = useOrganization()
-const { products, categories, loading, fetchProducts, createProduct, updateProduct, deleteProduct, uploadProductImage, deleteProductImage, createCategory, updateCategory, deleteCategory } = useProducts()
+const { products, categories, loading, fetchProducts, deleteProduct, createCategory, updateCategory, deleteCategory } = useProducts()
 const { taxClasses, fetchTaxClasses, formatTaxClassLabel, categoriesWithoutTax } = useTaxSettings()
-const { barcodes: allBarcodes, fetchBarcodes, addBarcode, removeBarcode } = useWarehouse()
-const { images: suggestedImages, searching: searchingImages, searchDebounced, downloadImage: downloadSuggestedImage, clear: clearImageSearch } = useProductImageSearch()
+const { fetchBarcodes } = useWarehouse()
 const {
   products: importProducts,
   parsing: importParsing,
@@ -50,204 +49,22 @@ onMounted(async () => {
   await Promise.all([fetchProducts(), fetchBarcodes(), fetchTaxClasses()])
 })
 
-// ── Barcode management (per-product in modal) ──────────────────────────────
-const productBarcodes = computed(() => {
-  if (!editingProduct.value) return []
-  return allBarcodes.value.filter(b => b.product_id === editingProduct.value.id)
-})
-const newBarcodeInput = ref('')
-const barcodeAddError = ref('')
-const showProductScanner = ref(false)
-// Pending barcodes for new product creation (not yet saved to DB)
-const pendingBarcodes = ref<string[]>([])
-
-function onProductBarcodeDetected(barcode: string) {
-  showProductScanner.value = false
-  if (editingProduct.value) {
-    // Editing existing product — save directly
-    newBarcodeInput.value = barcode
-    addProductBarcode()
-  } else {
-    // Creating new product — queue for later
-    if (!pendingBarcodes.value.includes(barcode)) {
-      pendingBarcodes.value.push(barcode)
-    }
-  }
-}
-
-function addPendingBarcode() {
-  const val = newBarcodeInput.value.trim()
-  if (!val) return
-  if (!pendingBarcodes.value.includes(val)) {
-    pendingBarcodes.value.push(val)
-  }
-  newBarcodeInput.value = ''
-}
-
-function removePendingBarcode(barcode: string) {
-  pendingBarcodes.value = pendingBarcodes.value.filter(b => b !== barcode)
-}
-
-async function addProductBarcode() {
-  if (!newBarcodeInput.value.trim() || !editingProduct.value) return
-  barcodeAddError.value = ''
-  try {
-    await addBarcode({ product_id: editingProduct.value.id, barcode: newBarcodeInput.value.trim() })
-    newBarcodeInput.value = ''
-  } catch (err: any) {
-    barcodeAddError.value = err.message ?? t('common.failedTo', { action: 'add barcode' })
-  }
-}
-
-async function removeProductBarcode(id: string) {
-  await removeBarcode(id)
-}
-
 // Product modal state
 const showProductModal = ref(false)
 const editingProduct = ref<any>(null)
-const productForm = ref({ name: '', sellprice: null as number | null, description: '', category: '' })
-const productLoading = ref(false)
-const productError = ref('')
-
-// Image upload state
-const imageFile = ref<File | null>(null)
-const imagePreview = ref<string | null>(null)
-const removeImage = ref(false)
-const selectedImageUrl = ref<string | null>(null) // full-size URL from suggestion
-
-// Watch product name for image suggestions (when no image is set)
-watch(() => productForm.value.name, (name) => {
-  if (!imageFile.value && !selectedImageUrl.value && !imagePreview.value) {
-    searchDebounced(name)
-  }
-})
-
-function selectSuggestedImage(thumbnail: string, imageUrl: string) {
-  imagePreview.value = thumbnail
-  selectedImageUrl.value = imageUrl
-  imageFile.value = null
-  clearImageSearch()
-}
 
 function openAddProduct() {
   editingProduct.value = null
-  productForm.value = { name: '', sellprice: null, description: '', category: '' }
-  imageFile.value = null
-  imagePreview.value = null
-  removeImage.value = false
-  selectedImageUrl.value = null
-  clearImageSearch()
-  productError.value = ''
-  pendingBarcodes.value = []
-  newBarcodeInput.value = ''
-  barcodeAddError.value = ''
   showProductModal.value = true
 }
 
 function openEditProduct(product: any) {
   editingProduct.value = product
-  productForm.value = {
-    name: product.name ?? '',
-    sellprice: product.sellprice,
-    description: product.description ?? '',
-    category: product.category ?? '',
-  }
-  imageFile.value = null
-  imagePreview.value = product.image_url ?? null
-  removeImage.value = false
-  selectedImageUrl.value = null
-  clearImageSearch()
-  productError.value = ''
-  newBarcodeInput.value = ''
-  barcodeAddError.value = ''
   showProductModal.value = true
-  // Trigger image search if product has no image
-  if (!product.image_url && product.name) {
-    searchDebounced(product.name)
-  }
 }
 
-function onImageSelected(event: Event) {
-  const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (!file) return
-  imageFile.value = file
-  removeImage.value = false
-  const reader = new FileReader()
-  reader.onload = (e) => {
-    imagePreview.value = e.target?.result as string
-  }
-  reader.readAsDataURL(file)
-}
-
-function clearImage() {
-  imageFile.value = null
-  imagePreview.value = null
-  selectedImageUrl.value = null
-  if (editingProduct.value?.image_path) {
-    removeImage.value = true
-  }
-}
-
-async function submitProduct() {
-  if (!productForm.value.name.trim()) {
-    productError.value = t('products.nameRequired')
-    return
-  }
-  productLoading.value = true
-  productError.value = ''
-  try {
-    let productId: string
-    if (editingProduct.value) {
-      productId = editingProduct.value.id
-      await updateProduct(productId, {
-        name: productForm.value.name.trim(),
-        sellprice: productForm.value.sellprice,
-        description: productForm.value.description.trim() || null,
-        category: productForm.value.category || null,
-      })
-    } else {
-      productId = await createProduct({
-        name: productForm.value.name.trim(),
-        sellprice: productForm.value.sellprice,
-        description: productForm.value.description.trim() || null,
-        category: productForm.value.category || null,
-        company: organization.value!.id,
-      })
-    }
-
-    // Handle image changes
-    if (removeImage.value && editingProduct.value?.image_path) {
-      await deleteProductImage(productId, editingProduct.value.image_path)
-    }
-    // Download suggested image if selected
-    if (selectedImageUrl.value && !imageFile.value) {
-      const file = await downloadSuggestedImage(selectedImageUrl.value)
-      if (file) imageFile.value = file
-    }
-    if (imageFile.value) {
-      await uploadProductImage(productId, imageFile.value)
-    }
-
-    // Save pending barcodes (new product creation)
-    if (!editingProduct.value && pendingBarcodes.value.length > 0) {
-      for (const barcode of pendingBarcodes.value) {
-        try {
-          await addBarcode({ product_id: productId, barcode })
-        } catch {
-          // ignore duplicates or failures for individual barcodes
-        }
-      }
-      pendingBarcodes.value = []
-    }
-
-    showProductModal.value = false
-  } catch (err: unknown) {
-    productError.value = err instanceof Error ? err.message : t('products.failedToSave')
-  } finally {
-    productLoading.value = false
-  }
+function onProductSaved(_id: string) {
+  fetchProducts()
 }
 
 async function handleDeleteProduct(id: string) {
@@ -582,199 +399,11 @@ async function runImport() {
       </div>
 
       <!-- Product modal -->
-      <AppModal
+      <ProductFormModal
         v-model:open="showProductModal"
-        :title="editingProduct ? t('products.editProduct') : t('products.addProduct')"
-        size="sm"
-      >
-          <form class="space-y-4" @submit.prevent="submitProduct">
-            <div class="space-y-1">
-              <label class="text-sm font-medium" for="product-name">{{ t('common.name') }}</label>
-              <input
-                id="product-name"
-                v-model="productForm.name"
-                type="text"
-                required
-                :placeholder="t('products.productName')"
-                class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              />
-            </div>
-
-            <!-- Image upload -->
-            <div class="space-y-1">
-              <label class="text-sm font-medium">{{ t('products.image') }}</label>
-              <div v-if="imagePreview" class="relative inline-block">
-                <img :src="imagePreview" alt="Preview" class="h-24 w-24 rounded-lg object-cover border" />
-                <button
-                  type="button"
-                  class="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-destructive-foreground text-xs shadow"
-                  @click="clearImage"
-                >
-                  &times;
-                </button>
-              </div>
-              <div v-else>
-                <label
-                  for="product-image"
-                  class="flex h-24 w-full cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 text-sm text-muted-foreground transition-colors hover:border-muted-foreground/50 hover:bg-muted/30"
-                >
-                  <div class="text-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="mx-auto mb-1 h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
-                    <span>{{ t('products.clickToUpload') }}</span>
-                  </div>
-                </label>
-                <input
-                  id="product-image"
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp"
-                  class="hidden"
-                  @change="onImageSelected"
-                />
-              </div>
-              <!-- Image suggestions -->
-              <div v-if="!imagePreview && (searchingImages || suggestedImages.length > 0)" class="mt-2">
-                <p class="mb-1.5 text-xs text-muted-foreground">{{ searchingImages ? t('products.searchingImages') : t('products.imageSuggestions') }}</p>
-                <div v-if="searchingImages" class="flex items-center gap-2 text-xs text-muted-foreground">
-                  <svg class="size-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-                </div>
-                <div v-else class="grid grid-cols-4 gap-1.5">
-                  <button
-                    v-for="img in suggestedImages"
-                    :key="img.image"
-                    type="button"
-                    class="group relative aspect-square overflow-hidden rounded-md border hover:ring-2 hover:ring-primary"
-                    :title="img.title"
-                    @click="selectSuggestedImage(img.thumbnail, img.image)"
-                  >
-                    <img :src="img.thumbnail" :alt="img.title" class="h-full w-full object-cover" loading="lazy" />
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div class="space-y-1">
-              <label class="text-sm font-medium" for="product-price">{{ t('products.price') }}</label>
-              <input
-                id="product-price"
-                v-model.number="productForm.sellprice"
-                type="number"
-                step="0.01"
-                min="0"
-                :placeholder="t('products.pricePlaceholder')"
-                class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              />
-            </div>
-            <div class="space-y-1">
-              <label class="text-sm font-medium" for="product-category">{{ t('products.category') }}</label>
-              <select
-                id="product-category"
-                v-model="productForm.category"
-                class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              >
-                <option value="">—</option>
-                <option v-for="cat in categories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
-              </select>
-            </div>
-            <div class="space-y-1">
-              <label class="text-sm font-medium" for="product-description">{{ t('common.description') }}</label>
-              <textarea
-                id="product-description"
-                v-model="productForm.description"
-                rows="3"
-                :placeholder="t('products.optionalDescription')"
-                class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              />
-            </div>
-            <!-- Barcodes -->
-            <div v-if="isAdmin" class="space-y-2">
-              <label class="text-sm font-medium">{{ t('products.barcodes') }}</label>
-              <!-- Existing barcodes (edit mode) -->
-              <div v-if="editingProduct && productBarcodes.length > 0" class="flex flex-wrap gap-1.5">
-                <span
-                  v-for="b in productBarcodes"
-                  :key="b.id"
-                  class="inline-flex items-center gap-1 rounded-full border bg-muted/50 py-0.5 pl-2.5 pr-1 text-xs font-mono"
-                >
-                  {{ b.barcode }}
-                  <button
-                    type="button"
-                    class="ml-0.5 flex size-4 items-center justify-center rounded-full text-muted-foreground hover:bg-destructive hover:text-destructive-foreground"
-                    @click="removeProductBarcode(b.id)"
-                  >
-                    &times;
-                  </button>
-                </span>
-              </div>
-              <!-- Pending barcodes (add mode) -->
-              <div v-if="!editingProduct && pendingBarcodes.length > 0" class="flex flex-wrap gap-1.5">
-                <span
-                  v-for="bc in pendingBarcodes"
-                  :key="bc"
-                  class="inline-flex items-center gap-1 rounded-full border bg-muted/50 py-0.5 pl-2.5 pr-1 text-xs font-mono"
-                >
-                  {{ bc }}
-                  <button
-                    type="button"
-                    class="ml-0.5 flex size-4 items-center justify-center rounded-full text-muted-foreground hover:bg-destructive hover:text-destructive-foreground"
-                    @click="removePendingBarcode(bc)"
-                  >
-                    &times;
-                  </button>
-                </span>
-              </div>
-              <div class="flex gap-1.5">
-                <input
-                  v-model="newBarcodeInput"
-                  type="text"
-                  :placeholder="t('products.barcodePlaceholder')"
-                  class="flex h-8 flex-1 rounded-md border border-input bg-background px-2 text-xs font-mono shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  @keydown.enter.prevent="editingProduct ? addProductBarcode() : addPendingBarcode()"
-                />
-                <button
-                  type="button"
-                  class="h-8 rounded-md border px-2 text-xs font-medium hover:bg-muted"
-                  @click="editingProduct ? addProductBarcode() : addPendingBarcode()"
-                >
-                  {{ t('common.add') }}
-                </button>
-                <button
-                  type="button"
-                  class="flex h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium hover:bg-muted"
-                  @click="showProductScanner = true"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><line x1="7" x2="17" y1="12" y2="12"/><line x1="7" x2="17" y1="8" y2="8"/><line x1="7" x2="17" y1="16" y2="16"/></svg>
-                  {{ t('warehouse.scanBarcode') }}
-                </button>
-              </div>
-              <p v-if="barcodeAddError" class="text-xs text-destructive">{{ barcodeAddError }}</p>
-            </div>
-            <!-- Barcode Scanner overlay -->
-            <BarcodeScanner
-              v-if="showProductScanner"
-              @detected="(barcode: string) => onProductBarcodeDetected(barcode)"
-              @close="showProductScanner = false"
-            />
-
-            <FormError :message="productError" />
-            <div class="flex gap-2">
-              <button
-                type="button"
-                class="inline-flex h-9 flex-1 items-center justify-center rounded-md border px-4 text-sm font-medium shadow-sm transition-colors hover:bg-muted"
-                @click="showProductModal = false"
-              >
-                {{ t('common.cancel') }}
-              </button>
-              <button
-                type="submit"
-                :disabled="productLoading"
-                class="inline-flex h-9 flex-1 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90 disabled:opacity-50"
-              >
-                <span v-if="productLoading">{{ t('common.saving') }}</span>
-                <span v-else>{{ editingProduct ? t('common.save') : t('common.create') }}</span>
-              </button>
-            </div>
-          </form>
-      </AppModal>
+        :product-id="editingProduct?.id ?? null"
+        @saved="onProductSaved"
+      />
 
       <!-- Category modal -->
       <AppModal
