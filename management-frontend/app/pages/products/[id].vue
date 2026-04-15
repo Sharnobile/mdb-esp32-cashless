@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { IconArrowLeft, IconPencil } from '@tabler/icons-vue'
-import { timeAgo, formatCurrency, formatDate } from '~/lib/utils'
+import { timeAgo, formatCurrency, formatDate, formatDateTime } from '~/lib/utils'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -237,6 +237,42 @@ function onEditSaved() {
               </td>
               <td class="px-3 py-2 text-right font-mono">{{ m.units }}</td>
               <td class="px-3 py-2 text-right font-mono">{{ formatCurrency(m.revenue) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="space-y-2" aria-labelledby="sec-sales">
+      <h2 id="sec-sales" class="text-lg font-semibold">{{ t('products.detail.sections.recentSales') }}</h2>
+      <p v-if="!detail.recentSales.value.length" class="text-sm text-muted-foreground">
+        {{ t('products.detail.empty.noSales') }}
+      </p>
+      <div v-else class="overflow-x-auto rounded-md border">
+        <table class="w-full text-sm">
+          <thead class="bg-muted/40 text-xs uppercase">
+            <tr>
+              <th class="px-3 py-2 text-left">{{ t('products.detail.sales.time') }}</th>
+              <th class="px-3 py-2 text-left">{{ t('products.detail.sales.machine') }}</th>
+              <th class="px-3 py-2 text-left">{{ t('products.detail.sales.channel') }}</th>
+              <th class="px-3 py-2 text-right">{{ t('products.detail.sales.price') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="s in detail.recentSales.value" :key="s.id" class="border-t">
+              <td class="px-3 py-2 text-muted-foreground">{{ formatDateTime(s.created_at) }}</td>
+              <td class="px-3 py-2">
+                <NuxtLink
+                  v-if="s.machine_id"
+                  :to="`/machines/${s.machine_id}?tab=sales`"
+                  class="text-primary hover:underline"
+                >
+                  {{ s.machine_name ?? '—' }}
+                </NuxtLink>
+                <span v-else>—</span>
+              </td>
+              <td class="px-3 py-2">{{ s.channel ?? '—' }}</td>
+              <td class="px-3 py-2 text-right font-mono">{{ s.item_price !== null ? formatCurrency(s.item_price) : '—' }}</td>
             </tr>
           </tbody>
         </table>
