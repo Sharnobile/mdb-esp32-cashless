@@ -123,8 +123,8 @@ function clearImage() {
   }
 }
 
-// Reset form state when modal opens — initialise from editingProduct in edit mode
-watch(() => props.open, (open) => {
+// Reset form state when modal opens or productId changes — initialise from editingProduct in edit mode
+watch([() => props.open, () => props.productId], ([open]) => {
   if (!open) return
   const prod = editingProduct.value
   if (prod) {
