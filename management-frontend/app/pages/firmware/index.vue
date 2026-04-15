@@ -251,17 +251,25 @@ const showChangelogModal = ref(false)
 const changelogTitle = ref('')
 const changelogLoading = ref(false)
 const changelog = ref<ChangelogSource | null>(null)
+// Monotonic counter — only the most recent open call's await result is allowed to write state.
+let changelogRequestId = 0
 
 /** Open modal for an imported firmware row. */
 async function openChangelogForFirmware(fw: FirmwareVersion) {
+  const requestId = ++changelogRequestId
   changelogTitle.value = fw.version_label
   changelog.value = null
   changelogLoading.value = true
   showChangelogModal.value = true
   try {
-    changelog.value = await getChangelogForFirmware(fw)
+    const result = await getChangelogForFirmware(fw)
+    // Discard if a newer open call has happened since this one started.
+    if (requestId !== changelogRequestId) return
+    changelog.value = result
   } finally {
-    changelogLoading.value = false
+    if (requestId === changelogRequestId) {
+      changelogLoading.value = false
+    }
   }
 }
 
