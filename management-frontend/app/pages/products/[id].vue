@@ -214,6 +214,35 @@ function onEditSaved() {
       </div>
     </section>
 
+    <section class="space-y-2" aria-labelledby="sec-top">
+      <h2 id="sec-top" class="text-lg font-semibold">{{ t('products.detail.sections.topMachines') }}</h2>
+      <p v-if="!detail.kpis.value || !detail.kpis.value.top_machines.length" class="text-sm text-muted-foreground">
+        {{ t('products.detail.empty.noSales') }}
+      </p>
+      <div v-else class="overflow-x-auto rounded-md border">
+        <table class="w-full text-sm">
+          <thead class="bg-muted/40 text-xs uppercase">
+            <tr>
+              <th class="px-3 py-2 text-left">{{ t('products.detail.topMachines.machine') }}</th>
+              <th class="px-3 py-2 text-right">{{ t('products.detail.topMachines.units') }}</th>
+              <th class="px-3 py-2 text-right">{{ t('products.detail.topMachines.revenue') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="m in detail.kpis.value.top_machines" :key="m.machine_id" class="border-t">
+              <td class="px-3 py-2">
+                <NuxtLink :to="`/machines/${m.machine_id}?tab=sales`" class="text-primary hover:underline">
+                  {{ m.machine_name }}
+                </NuxtLink>
+              </td>
+              <td class="px-3 py-2 text-right font-mono">{{ m.units }}</td>
+              <td class="px-3 py-2 text-right font-mono">{{ formatCurrency(m.revenue) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
     <!-- Sections will be added in Chunk 2 -->
     <div v-if="detail.product.value" class="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
       Sections coming in the next chunk.
