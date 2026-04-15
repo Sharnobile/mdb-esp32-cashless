@@ -4,7 +4,9 @@ definePageMeta({ middleware: 'auth' })
 import { useProductDetail } from '~/composables/useProductDetail'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { IconArrowLeft, IconPencil } from '@tabler/icons-vue'
+import { formatCurrency } from '~/lib/utils'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -85,6 +87,37 @@ function onEditSaved() {
           {{ t('products.detail.header.edit') }}
         </Button>
       </template>
+    </div>
+
+    <div v-if="detail.kpis.value" class="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <Card>
+        <CardHeader class="pb-2"><CardTitle class="text-sm font-medium text-muted-foreground">{{ t('products.detail.kpi.warehouseStock') }}</CardTitle></CardHeader>
+        <CardContent>
+          <div class="text-2xl font-semibold">{{ detail.kpis.value.warehouse_total_qty }}</div>
+          <p class="text-xs text-muted-foreground">{{ t('products.detail.kpi.warehouseCount', { n: detail.kpis.value.warehouse_count }) }}</p>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader class="pb-2"><CardTitle class="text-sm font-medium text-muted-foreground">{{ t('products.detail.kpi.machineStock') }}</CardTitle></CardHeader>
+        <CardContent>
+          <div class="text-2xl font-semibold">{{ detail.kpis.value.tray_total_stock }} / {{ detail.kpis.value.tray_total_capacity }}</div>
+          <p class="text-xs text-muted-foreground">{{ t('products.detail.kpi.machineCount', { n: detail.kpis.value.machine_count }) }}</p>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader class="pb-2"><CardTitle class="text-sm font-medium text-muted-foreground">{{ t('products.detail.kpi.salesToday') }}</CardTitle></CardHeader>
+        <CardContent>
+          <div class="text-2xl font-semibold">{{ detail.kpis.value.sales_today_units }}</div>
+          <p class="text-xs text-muted-foreground">{{ formatCurrency(detail.kpis.value.sales_today_revenue) }}</p>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader class="pb-2"><CardTitle class="text-sm font-medium text-muted-foreground">{{ t('products.detail.kpi.velocity') }}</CardTitle></CardHeader>
+        <CardContent>
+          <div class="text-2xl font-semibold">{{ detail.kpis.value.velocity_units_per_day.toFixed(1) }}</div>
+          <p class="text-xs text-muted-foreground">{{ t('products.detail.kpi.velocitySubtitle', { n: detail.kpis.value.velocity_window_days }) }}</p>
+        </CardContent>
+      </Card>
     </div>
 
     <!-- Sections will be added in Chunk 2 -->
