@@ -744,7 +744,16 @@
     "progressSummary": "{sent}/{total} sent",
     "searchDevices": "Search devices…",
     "filterAll": "All devices",
-    "filterOnline": "Online only"
+    "filterOnline": "Online only",
+    "changelogTitle": "Changelog",
+    "viewOnGitHub": "View on GitHub",
+    "noChangelog": "No changelog provided.",
+    "loadingChangelog": "Loading changelog…",
+    "changelogFetchFailed": "Changelog could not be loaded from GitHub. Showing the stored notes instead.",
+    "changelogReleaseName": "Release",
+    "changelogPublished": "Published",
+    "changelogManualUpload": "Manual upload — no changelog from GitHub. Showing stored notes.",
+    "noNotes": "No notes."
   },
   "apiKeys": {
     "title": "API Keys",
