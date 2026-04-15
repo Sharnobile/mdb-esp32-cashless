@@ -4,6 +4,7 @@ definePageMeta({ middleware: 'auth' })
 import { timeAgo, formatDateTime } from '@/lib/utils'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
+import { renderMarkdown } from '@/lib/markdown'
 
 const { t } = useI18n()
 const { role } = useOrganization()
@@ -12,9 +13,10 @@ const {
   uploadFirmware, triggerOta, triggerOtaBatch, deleteFirmwareVersion,
   githubRepo, githubReleases, githubLoading,
   fetchGitHubReleases, importGitHubRelease, isReleaseImported,
+  getChangelogForFirmware,
 } = useFirmware()
 
-import type { OtaDeviceStatus } from '@/composables/useFirmware'
+import type { FirmwareVersion, GitHubRelease, ChangelogSource, OtaDeviceStatus } from '@/composables/useFirmware'
 const { machines, fetchMachines } = useMachines()
 
 const isAdmin = computed(() => role.value === 'admin')
@@ -244,6 +246,62 @@ async function handleDelete(fw: any) {
   }
 }
 
+// ── Changelog modal ──────────────────────────────────────────────────────────
+const showChangelogModal = ref(false)
+const changelogTitle = ref('')
+const changelogLoading = ref(false)
+const changelog = ref<ChangelogSource | null>(null)
+// Monotonic counter — only the most recent open call's await result is allowed to write state.
+let changelogRequestId = 0
+
+/** Open modal for an imported firmware row. */
+async function openChangelogForFirmware(fw: FirmwareVersion) {
+  const requestId = ++changelogRequestId
+  changelogTitle.value = fw.version_label
+  changelog.value = null
+  changelogLoading.value = true
+  showChangelogModal.value = true
+  try {
+    const result = await getChangelogForFirmware(fw)
+    // Discard if a newer open call has happened since this one started.
+    if (requestId !== changelogRequestId) return
+    changelog.value = result
+  } finally {
+    if (requestId === changelogRequestId) {
+      changelogLoading.value = false
+    }
+  }
+}
+
+/** Open modal for a GitHub release row (body already loaded in githubReleases). */
+function openChangelogForRelease(release: GitHubRelease) {
+  // Invalidate any in-flight async fetch so its result cannot overwrite this release content.
+  ++changelogRequestId
+  changelogTitle.value = release.tag_name
+  changelogLoading.value = false
+  showChangelogModal.value = true
+  changelog.value = {
+    kind: release.body ? 'github-release' : 'none',
+    body: release.body ?? '',
+    isMarkdown: true,
+    releaseName: release.name && release.name !== release.tag_name ? release.name : undefined,
+    publishedAt: release.published_at,
+    assets: release.assets,
+    externalUrl: release.html_url,
+  }
+}
+
+function closeChangelogModal() {
+  showChangelogModal.value = false
+}
+
+/** Rendered HTML of the changelog body, memoized per current body value. */
+const changelogHtml = computed(() => {
+  if (!changelog.value) return ''
+  if (!changelog.value.isMarkdown) return ''
+  return renderMarkdown(changelog.value.body)
+})
+
 // ── GitHub import ────────────────────────────────────────────────────────────
 const importLoading = ref<string | null>(null)
 const importError = ref('')
@@ -323,7 +381,8 @@ function formatSize(bytes: number | null) {
           <tr
             v-for="fw in sortedFirmwareVersions"
             :key="fw.id"
-            class="border-b last:border-0 hover:bg-muted/30 transition-colors"
+            class="border-b last:border-0 hover:bg-muted/30 transition-colors cursor-pointer"
+            @click="openChangelogForFirmware(fw)"
           >
             <td class="px-4 py-3 font-mono font-medium whitespace-nowrap">{{ fw.version_label }}</td>
             <td class="hidden sm:table-cell px-4 py-3">
@@ -350,14 +409,14 @@ function formatSize(bytes: number | null) {
               <div class="flex items-center gap-3">
                 <button
                   class="text-xs text-primary hover:underline"
-                  @click="openOtaModal(fw.id)"
+                  @click.stop="openOtaModal(fw.id)"
                 >
                   {{ t('common.deploy') }}
                 </button>
                 <button
                   class="text-xs text-destructive hover:underline"
                   :disabled="deleteLoading === fw.id"
-                  @click="handleDelete(fw)"
+                  @click.stop="handleDelete(fw)"
                 >
                   {{ deleteLoading === fw.id ? t('common.deleting') : t('common.delete') }}
                 </button>
@@ -421,15 +480,11 @@ function formatSize(bytes: number | null) {
               <tr
                 v-for="asset in release.assets.filter(a => a.name.endsWith('.bin'))"
                 :key="`${release.tag_name}-${asset.name}`"
-                class="border-b last:border-0 hover:bg-muted/30 transition-colors"
+                class="border-b last:border-0 hover:bg-muted/30 transition-colors cursor-pointer"
+                @click="openChangelogForRelease(release)"
               >
                 <td class="px-4 py-3">
-                  <a
-                    :href="release.html_url"
-                    target="_blank"
-                    rel="noopener"
-                    class="font-mono font-medium text-primary hover:underline"
-                  >{{ release.tag_name }}</a>
+                  <span class="font-mono font-medium">{{ release.tag_name }}</span>
                   <p v-if="release.name && release.name !== release.tag_name" class="text-xs text-muted-foreground truncate max-w-[200px]">
                     {{ release.name }}
                   </p>
@@ -444,6 +499,7 @@ function formatSize(bytes: number | null) {
                     v-if="isReleaseImported(release.tag_name)"
                     disabled
                     class="inline-flex h-7 items-center rounded-md border px-3 text-xs font-medium text-muted-foreground opacity-60"
+                    @click.stop
                   >
                     {{ t('firmware.imported') }}
                   </button>
@@ -451,7 +507,7 @@ function formatSize(bytes: number | null) {
                     v-else
                     class="inline-flex h-7 items-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 disabled:opacity-50"
                     :disabled="importLoading === release.tag_name"
-                    @click="handleImport(release.tag_name, asset.name)"
+                    @click.stop="handleImport(release.tag_name, asset.name)"
                   >
                     {{ importLoading === release.tag_name ? t('firmware.importing') : t('common.import') }}
                   </button>
@@ -746,6 +802,82 @@ function formatSize(bytes: number | null) {
           </button>
         </div>
       </div>
+    </template>
+  </AppModal>
+
+  <!-- Changelog modal -->
+  <AppModal
+    :open="showChangelogModal"
+    :title="t('firmware.changelogTitle') + ': ' + changelogTitle"
+    size="lg"
+    @update:open="(v: boolean) => { if (!v) closeChangelogModal() }"
+  >
+    <div class="space-y-4">
+      <!-- Loading state -->
+      <div v-if="changelogLoading" class="py-8 text-center text-sm text-muted-foreground">
+        {{ t('firmware.loadingChangelog') }}
+      </div>
+
+      <template v-else-if="changelog">
+        <!-- Fetch-failed banner -->
+        <div
+          v-if="changelog.fetchFailed"
+          class="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200"
+        >
+          {{ t('firmware.changelogFetchFailed') }}
+        </div>
+
+        <!-- Meta row: release name + published date + assets -->
+        <div v-if="changelog.releaseName || changelog.publishedAt" class="space-y-1 text-xs text-muted-foreground">
+          <p v-if="changelog.releaseName">
+            <span class="font-medium">{{ t('firmware.changelogReleaseName') }}:</span>
+            {{ changelog.releaseName }}
+          </p>
+          <p v-if="changelog.publishedAt">
+            <span class="font-medium">{{ t('firmware.changelogPublished') }}:</span>
+            <span :title="formatDateTime(changelog.publishedAt)">{{ timeAgo(changelog.publishedAt, t) }}</span>
+          </p>
+          <p v-if="changelog.assets && changelog.assets.length > 0" class="flex flex-wrap gap-1">
+            <span
+              v-for="asset in changelog.assets.filter(a => a.name.endsWith('.bin'))"
+              :key="asset.name"
+              class="inline-flex items-center rounded bg-muted px-1.5 py-0.5 font-mono"
+            >
+              {{ asset.name }} ({{ formatSize(asset.size) }})
+            </span>
+          </p>
+        </div>
+
+        <!-- Body -->
+        <div v-if="changelog.kind === 'none'" class="py-4 text-sm italic text-muted-foreground">
+          {{ t('firmware.noChangelog') }}
+        </div>
+        <div
+          v-else-if="changelog.isMarkdown"
+          class="prose prose-sm dark:prose-invert max-w-none"
+          v-html="changelogHtml"
+        />
+        <div v-else class="whitespace-pre-wrap text-sm">{{ changelog.body }}</div>
+      </template>
+    </div>
+
+    <template #footer>
+      <a
+        v-if="changelog?.externalUrl"
+        :href="changelog.externalUrl"
+        target="_blank"
+        rel="noopener"
+        class="inline-flex h-9 flex-1 items-center justify-center rounded-md border px-4 text-sm font-medium shadow-sm transition-colors hover:bg-muted"
+      >
+        {{ t('firmware.viewOnGitHub') }} ↗
+      </a>
+      <button
+        type="button"
+        class="inline-flex h-9 flex-1 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90"
+        @click="closeChangelogModal"
+      >
+        {{ t('common.close') }}
+      </button>
     </template>
   </AppModal>
 </template>

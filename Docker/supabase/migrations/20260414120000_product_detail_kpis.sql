@@ -24,12 +24,19 @@ DECLARE
   v_velocity_days int;
   v_result        jsonb;
 BEGIN
+  -- Clamp p_days to a sane range (1 day to 10 years)
+  p_days := GREATEST(1, LEAST(COALESCE(p_days, 30), 3650));
+
   -- Guard: product must belong to caller's company
   SELECT p.company INTO v_company_id
   FROM public.products p
   WHERE p.id = p_product_id;
 
-  IF v_company_id IS NULL OR v_company_id <> v_caller_co THEN
+  IF v_caller_co IS NULL THEN
+    RAISE EXCEPTION 'no authenticated caller';
+  END IF;
+
+  IF v_company_id IS NULL OR v_company_id IS DISTINCT FROM v_caller_co THEN
     RAISE EXCEPTION 'product not found or access denied';
   END IF;
 

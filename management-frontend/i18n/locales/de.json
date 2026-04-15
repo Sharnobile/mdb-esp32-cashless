@@ -468,7 +468,78 @@
     "productsWithoutImages": "Produkte wurden ohne Bilder erstellt",
     "withoutPrice": "{count} ohne Preis",
     "showErrorDetails": "{count} Fehlerdetails anzeigen",
-    "importing": "Wird importiert…"
+    "importing": "Wird importiert…",
+    "detail": {
+      "notFound": {
+        "title": "Produkt nicht gefunden",
+        "back": "Zurück zu Produkten"
+      },
+      "header": {
+        "discontinued": "Ausgelaufen",
+        "edit": "Bearbeiten"
+      },
+      "kpi": {
+        "warehouseStock": "Lagerbestand",
+        "warehouseCount": "in {n} Lager",
+        "machineStock": "Maschinenbestand",
+        "machineCount": "in {n} Automat(en)",
+        "salesToday": "Verkäufe heute",
+        "velocity": "Verkaufsgeschwindigkeit",
+        "velocitySubtitle": "Stück/Tag (letzte {n} Tage)"
+      },
+      "chart": {
+        "revenueTitle": "Umsatz (30 Tage)",
+        "revenueDescription": "Täglicher Umsatz in EUR",
+        "unitsTitle": "Verkäufe (30 Tage)",
+        "unitsDescription": "Verkaufte Stückzahl pro Tag"
+      },
+      "sections": {
+        "warehouseStock": "Lagerbestand",
+        "machineTrays": "Automaten-Slots",
+        "topMachines": "Top-Automaten (30 Tage)",
+        "recentSales": "Letzte Verkäufe",
+        "history": "Lagerbewegungen"
+      },
+      "warehouseStock": {
+        "batchNumber": "Charge",
+        "expiry": "Ablauf",
+        "intake": "Eingang",
+        "qty": "Menge",
+        "belowMin": "unter Mindestbestand ({min})"
+      },
+      "trays": {
+        "machine": "Automat",
+        "slot": "Slot",
+        "stock": "Bestand / Kapazität",
+        "fillWhenBelow": "Auffüllen ab",
+        "lastSale": "Letzter Verkauf"
+      },
+      "topMachines": {
+        "machine": "Automat",
+        "units": "Stück",
+        "revenue": "Umsatz"
+      },
+      "sales": {
+        "time": "Zeit",
+        "machine": "Automat",
+        "channel": "Kanal",
+        "price": "Preis"
+      },
+      "history": {
+        "time": "Zeit",
+        "warehouse": "Lager",
+        "type": "Typ",
+        "change": "Änderung",
+        "after": "Danach",
+        "user": "Benutzer"
+      },
+      "empty": {
+        "noStock": "In keinem Lager vorhanden.",
+        "noTrays": "In keinem Automaten gelistet.",
+        "noSales": "Noch keine Verkäufe.",
+        "noTransactions": "Noch keine Lagerbewegungen."
+      }
+    }
   },
   "warehouse": {
     "title": "Lager",
@@ -744,7 +815,14 @@
     "progressSummary": "{sent}/{total} gesendet",
     "searchDevices": "Geräte suchen…",
     "filterAll": "Alle Geräte",
-    "filterOnline": "Nur online"
+    "filterOnline": "Nur online",
+    "changelogTitle": "Changelog",
+    "viewOnGitHub": "Auf GitHub öffnen",
+    "noChangelog": "Kein Changelog verfügbar.",
+    "loadingChangelog": "Lade Changelog…",
+    "changelogFetchFailed": "Changelog konnte nicht von GitHub geladen werden. Stattdessen werden die gespeicherten Notizen angezeigt.",
+    "changelogReleaseName": "Release",
+    "changelogPublished": "Veröffentlicht"
   },
   "apiKeys": {
     "title": "API-Schlüssel",
