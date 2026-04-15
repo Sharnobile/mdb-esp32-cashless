@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { IconArrowLeft, IconPencil } from '@tabler/icons-vue'
-import { formatCurrency, formatDate } from '~/lib/utils'
+import { timeAgo, formatCurrency, formatDate } from '~/lib/utils'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -175,6 +175,42 @@ function onEditSaved() {
             </tbody>
           </table>
         </details>
+      </div>
+    </section>
+
+    <section class="space-y-2" aria-labelledby="sec-trays">
+      <h2 id="sec-trays" class="text-lg font-semibold">{{ t('products.detail.sections.machineTrays') }}</h2>
+      <p v-if="!detail.machineTrays.value.length" class="text-sm text-muted-foreground">
+        {{ t('products.detail.empty.noTrays') }}
+      </p>
+      <div v-else class="overflow-x-auto rounded-md border">
+        <table class="w-full text-sm">
+          <thead class="bg-muted/40 text-xs uppercase">
+            <tr>
+              <th class="px-3 py-2 text-left">{{ t('products.detail.trays.machine') }}</th>
+              <th class="px-3 py-2 text-left">{{ t('products.detail.trays.slot') }}</th>
+              <th class="px-3 py-2 text-right">{{ t('products.detail.trays.stock') }}</th>
+              <th class="px-3 py-2 text-right">{{ t('products.detail.trays.fillWhenBelow') }}</th>
+              <th class="px-3 py-2 text-right">{{ t('products.detail.trays.lastSale') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="t2 in detail.machineTrays.value" :key="t2.id" class="border-t">
+              <td class="px-3 py-2">
+                <NuxtLink
+                  :to="`/machines/${t2.machine_id}?tab=stock`"
+                  class="text-primary hover:underline"
+                >
+                  {{ t2.machine_name }}
+                </NuxtLink>
+              </td>
+              <td class="px-3 py-2 font-mono">{{ t2.item_number }}</td>
+              <td class="px-3 py-2 text-right font-mono">{{ t2.current_stock }} / {{ t2.capacity }}</td>
+              <td class="px-3 py-2 text-right font-mono">{{ t2.fill_when_below ?? '—' }}</td>
+              <td class="px-3 py-2 text-right text-muted-foreground">{{ t2.last_sale_at ? timeAgo(t2.last_sale_at) : '—' }}</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </section>
 
