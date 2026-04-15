@@ -751,9 +751,7 @@
     "loadingChangelog": "Lade Changelog…",
     "changelogFetchFailed": "Changelog konnte nicht von GitHub geladen werden. Stattdessen werden die gespeicherten Notizen angezeigt.",
     "changelogReleaseName": "Release",
-    "changelogPublished": "Veröffentlicht",
-    "changelogManualUpload": "Manueller Upload — kein Changelog von GitHub. Gespeicherte Notizen werden angezeigt.",
-    "noNotes": "Keine Notizen."
+    "changelogPublished": "Veröffentlicht"
   },
   "apiKeys": {
     "title": "API-Schlüssel",

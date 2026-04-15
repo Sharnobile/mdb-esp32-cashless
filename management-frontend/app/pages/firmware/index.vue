@@ -275,6 +275,8 @@ async function openChangelogForFirmware(fw: FirmwareVersion) {
 
 /** Open modal for a GitHub release row (body already loaded in githubReleases). */
 function openChangelogForRelease(release: GitHubRelease) {
+  // Invalidate any in-flight async fetch so its result cannot overwrite this release content.
+  ++changelogRequestId
   changelogTitle.value = release.tag_name
   changelogLoading.value = false
   showChangelogModal.value = true

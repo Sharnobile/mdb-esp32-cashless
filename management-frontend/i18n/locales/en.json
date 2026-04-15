@@ -751,9 +751,7 @@
     "loadingChangelog": "Loading changelog…",
     "changelogFetchFailed": "Changelog could not be loaded from GitHub. Showing the stored notes instead.",
     "changelogReleaseName": "Release",
-    "changelogPublished": "Published",
-    "changelogManualUpload": "Manual upload — no changelog from GitHub. Showing stored notes.",
-    "noNotes": "No notes."
+    "changelogPublished": "Published"
   },
   "apiKeys": {
     "title": "API Keys",
