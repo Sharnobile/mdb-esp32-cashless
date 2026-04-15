@@ -20,6 +20,10 @@ marked.setOptions({
  */
 export function renderMarkdown(source: string | null | undefined): string {
   if (!source) return ''
+  // DOMPurify needs a DOM window; on the server we return an empty string.
+  // The changelog modal is client-only (gated by user click), so SSR never hits this path in
+  // normal use — this guard is purely defensive against accidental server-side imports.
+  if (typeof window === 'undefined') return ''
   const raw = marked.parse(source) as string
   return DOMPurify.sanitize(raw, { USE_PROFILES: { html: true } })
 }
