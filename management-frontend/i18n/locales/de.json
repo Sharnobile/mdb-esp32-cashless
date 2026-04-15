@@ -31,7 +31,7 @@
     "lastMonth": "Letzter Monat",
     "revenue": "Umsatz",
     "search": "Suchen",
-    "noResults": "Keine passenden Ergebnisse.",
+    "noResults": "Keine Ergebnisse",
     "revoke": "Widerrufen",
     "deploy": "Bereitstellen",
     "send": "Senden",
@@ -41,8 +41,7 @@
     "required": "{field} ist erforderlich",
     "failedTo": "{action} fehlgeschlagen",
     "confirm": "Bestätigen",
-    "back": "Zurück",
-    "noResults": "Keine Ergebnisse"
+    "back": "Zurück"
   },
   "nav": {
     "dashboard": "Übersicht",
@@ -386,8 +385,7 @@
     "unstable": "Instabil",
     "critical": "Kritisch",
     "restartsLast24h": "{count} Neustart in 24h | {count} Neustarts in 24h",
-    "uptime": "Laufzeit",
-    "settings": "Einstellungen"
+    "uptime": "Laufzeit"
   },
   "machineSettings": {
     "title": "Automat-Einstellungen",
@@ -538,6 +536,10 @@
         "noTrays": "In keinem Automaten gelistet.",
         "noSales": "Noch keine Verkäufe.",
         "noTransactions": "Noch keine Lagerbewegungen."
+      },
+      "error": {
+        "title": "Produkt konnte nicht geladen werden",
+        "retry": "Erneut versuchen"
       }
     }
   },
@@ -1251,7 +1253,7 @@
     "reportProblem": "Problem melden",
     "reportProblemTitle": "Problem melden",
     "reportProblemDesc": "Teilen Sie dem Betreiber mit, was an diesem Automaten nicht stimmt.",
-    "reportProblemPlaceholder": "Beschreiben Sie das Problem (z.\u202fB. Automat nimmt keine Münzen, Produkt steckt fest, Display defekt)…",
+    "reportProblemPlaceholder": "Beschreiben Sie das Problem (z. B. Automat nimmt keine Münzen, Produkt steckt fest, Display defekt)…",
     "giveFeedback": "Feedback geben",
     "giveFeedbackTitle": "Feedback geben",
     "giveFeedbackDesc": "Teilen Sie dem Betreiber Ihre Meinung mit.",
@@ -1285,7 +1287,7 @@
     "title": "Mobile App Einrichtung",
     "description": "Verbinde die VMflow iOS App mit diesem Server.",
     "step1": "Lade die VMflow App herunter",
-    "step2": "Tippe auf \u201eSelf-hosted hinzuf\u00fcgen\u201c auf dem Login-Screen",
+    "step2": "Tippe auf „Self-hosted hinzufügen“ auf dem Login-Screen",
     "step3": "Scanne diesen QR-Code",
     "orManual": "Oder manuell eingeben",
     "supabaseUrl": "Supabase URL",

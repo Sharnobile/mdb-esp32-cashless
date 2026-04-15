@@ -31,7 +31,7 @@
     "lastMonth": "Last month",
     "revenue": "Revenue",
     "search": "Search",
-    "noResults": "No matching results.",
+    "noResults": "No results",
     "revoke": "Revoke",
     "deploy": "Deploy",
     "send": "Send",
@@ -41,8 +41,7 @@
     "required": "{field} is required",
     "failedTo": "Failed to {action}",
     "confirm": "Confirm",
-    "back": "Back",
-    "noResults": "No results"
+    "back": "Back"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -386,8 +385,7 @@
     "unstable": "Unstable",
     "critical": "Critical",
     "restartsLast24h": "{count} restart in 24h | {count} restarts in 24h",
-    "uptime": "Uptime",
-    "settings": "Settings"
+    "uptime": "Uptime"
   },
   "machineSettings": {
     "title": "Machine settings",
@@ -538,6 +536,10 @@
         "noTrays": "Not listed in any machine.",
         "noSales": "No sales yet.",
         "noTransactions": "No warehouse activity yet."
+      },
+      "error": {
+        "title": "Failed to load product",
+        "retry": "Retry"
       }
     }
   },

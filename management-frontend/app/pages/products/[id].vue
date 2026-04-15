@@ -46,6 +46,21 @@ function onEditSaved() {
 
 <template>
   <div class="container mx-auto max-w-6xl px-4 py-6 space-y-6">
+    <!-- Error banner -->
+    <div
+      v-if="detail.error.value"
+      class="flex items-start justify-between gap-3 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm"
+      role="alert"
+    >
+      <div>
+        <p class="font-medium text-destructive">{{ t('products.detail.error.title') }}</p>
+        <p class="mt-0.5 text-muted-foreground">{{ detail.error.value }}</p>
+      </div>
+      <Button variant="outline" size="sm" @click="detail.refresh()">
+        {{ t('products.detail.error.retry') }}
+      </Button>
+    </div>
+
     <!-- Header -->
     <div class="flex items-start gap-3">
       <Button variant="ghost" size="icon" @click="goBack">
