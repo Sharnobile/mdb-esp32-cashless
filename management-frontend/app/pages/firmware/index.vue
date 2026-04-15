@@ -4,6 +4,7 @@ definePageMeta({ middleware: 'auth' })
 import { timeAgo, formatDateTime } from '@/lib/utils'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
+import { renderMarkdown } from '@/lib/markdown'
 
 const { t } = useI18n()
 const { role } = useOrganization()
@@ -12,9 +13,10 @@ const {
   uploadFirmware, triggerOta, triggerOtaBatch, deleteFirmwareVersion,
   githubRepo, githubReleases, githubLoading,
   fetchGitHubReleases, importGitHubRelease, isReleaseImported,
+  getChangelogForFirmware,
 } = useFirmware()
 
-import type { OtaDeviceStatus } from '@/composables/useFirmware'
+import type { FirmwareVersion, GitHubRelease, ChangelogSource, OtaDeviceStatus } from '@/composables/useFirmware'
 const { machines, fetchMachines } = useMachines()
 
 const isAdmin = computed(() => role.value === 'admin')
@@ -243,6 +245,52 @@ async function handleDelete(fw: any) {
     deleteLoading.value = null
   }
 }
+
+// ── Changelog modal ──────────────────────────────────────────────────────────
+const showChangelogModal = ref(false)
+const changelogTitle = ref('')
+const changelogLoading = ref(false)
+const changelog = ref<ChangelogSource | null>(null)
+
+/** Open modal for an imported firmware row. */
+async function openChangelogForFirmware(fw: FirmwareVersion) {
+  changelogTitle.value = fw.version_label
+  changelog.value = null
+  changelogLoading.value = true
+  showChangelogModal.value = true
+  try {
+    changelog.value = await getChangelogForFirmware(fw)
+  } finally {
+    changelogLoading.value = false
+  }
+}
+
+/** Open modal for a GitHub release row (body already loaded in githubReleases). */
+function openChangelogForRelease(release: GitHubRelease) {
+  changelogTitle.value = release.tag_name
+  changelogLoading.value = false
+  showChangelogModal.value = true
+  changelog.value = {
+    kind: release.body ? 'github-release' : 'none',
+    body: release.body ?? '',
+    isMarkdown: true,
+    releaseName: release.name && release.name !== release.tag_name ? release.name : undefined,
+    publishedAt: release.published_at,
+    assets: release.assets,
+    externalUrl: release.html_url,
+  }
+}
+
+function closeChangelogModal() {
+  showChangelogModal.value = false
+}
+
+/** Rendered HTML of the changelog body, memoized per current body value. */
+const changelogHtml = computed(() => {
+  if (!changelog.value) return ''
+  if (!changelog.value.isMarkdown) return ''
+  return renderMarkdown(changelog.value.body)
+})
 
 // ── GitHub import ────────────────────────────────────────────────────────────
 const importLoading = ref<string | null>(null)
