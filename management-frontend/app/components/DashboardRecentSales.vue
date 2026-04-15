@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { NuxtLink } from '#components'
 import {
   Card,
   CardContent,
@@ -16,6 +17,7 @@ export interface RecentSale {
   item_number: number
   channel: string
   machine_name: string | null
+  product_id: string | null
   product_name: string | null
   product_image_url: string | null
 }
@@ -35,10 +37,15 @@ defineProps<{
         {{ t('dashboard.noRecentSales') }}
       </div>
       <div v-else class="divide-y divide-border">
-        <div
+        <component
+          :is="sale.product_id ? NuxtLink : 'div'"
           v-for="sale in sales"
           :key="sale.id"
-          class="flex items-center gap-2 sm:gap-3 px-3 sm:px-6 py-3"
+          :to="sale.product_id ? `/products/${sale.product_id}` : undefined"
+          :class="[
+            'flex items-center gap-2 sm:gap-3 px-3 sm:px-6 py-3',
+            sale.product_id ? 'hover:bg-muted/50 cursor-pointer transition-colors' : '',
+          ]"
         >
           <!-- Product image or price badge -->
           <img
@@ -70,7 +77,7 @@ defineProps<{
               {{ formatDateTime(sale.created_at, locale.value) }}
             </p>
           </div>
-        </div>
+        </component>
       </div>
     </CardContent>
   </Card>

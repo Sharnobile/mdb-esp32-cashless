@@ -144,6 +144,7 @@ onMounted(async () => {
           machine_name: sale.machine_id
             ? (dashboardMachines.value.find(dm => dm.id === sale.machine_id)?.name ?? null)
             : null,
+          product_id: sale.product_id ?? null,
           product_name: null,
           product_image_url: null,
         }
@@ -166,7 +167,7 @@ onMounted(async () => {
           // Fallback for old sales or edge cases where trigger didn't stamp product_id
           supabase
             .from('machine_trays')
-            .select('products(name, image_path)')
+            .select('product_id, products(name, image_path)')
             .eq('machine_id', sale.machine_id)
             .eq('item_number', sale.item_number)
             .maybeSingle()
@@ -175,6 +176,7 @@ onMounted(async () => {
               if (p) {
                 newSale.product_name = p.name
                 newSale.product_image_url = p.image_path ? getProductImageUrl(p.image_path) : null
+                newSale.product_id = (data as any)?.product_id ?? null
                 recentSales.value = [...recentSales.value]
               }
             })
@@ -485,14 +487,14 @@ async function loadDashboard() {
   // Fallback: resolve product via machine_trays only for old sales without product_id
   const salesWithoutProduct = rawSales.filter(s => !s.product_id && s.machine_id)
   const saleMachineIds = [...new Set(salesWithoutProduct.map(s => s.machine_id!))]
-  let trayProductMap = new Map<string, { name: string; image_path: string | null }>()
+  let trayProductMap = new Map<string, { product_id: string | null; name: string; image_path: string | null }>()
   if (saleMachineIds.length > 0) {
     const { data: trayData } = await supabase
       .from('machine_trays')
-      .select('machine_id, item_number, products(name, image_path)')
+      .select('machine_id, item_number, product_id, products(name, image_path)')
       .in('machine_id', saleMachineIds)
-    for (const t of (trayData ?? []) as { machine_id: string; item_number: number; products: { name: string; image_path: string | null } | null }[]) {
-      if (t.products) trayProductMap.set(`${t.machine_id}:${t.item_number}`, { name: t.products.name, image_path: t.products.image_path })
+    for (const t of (trayData ?? []) as { machine_id: string; item_number: number; product_id: string | null; products: { name: string; image_path: string | null } | null }[]) {
+      if (t.products) trayProductMap.set(`${t.machine_id}:${t.item_number}`, { product_id: t.product_id, name: t.products.name, image_path: t.products.image_path })
     }
   }
 
@@ -501,6 +503,7 @@ async function loadDashboard() {
     const trayFallback = !s.product_id && s.machine_id ? trayProductMap.get(`${s.machine_id}:${s.item_number}`) : null
     const productName = s.products?.name ?? trayFallback?.name ?? null
     const productImagePath = s.products?.image_path ?? trayFallback?.image_path ?? null
+    const productId = s.product_id ?? trayFallback?.product_id ?? null
     return {
       id: s.id,
       created_at: s.created_at,
@@ -508,6 +511,7 @@ async function loadDashboard() {
       item_number: s.item_number,
       channel: s.channel,
       machine_name: s.machine_id ? (machineNameMap.get(s.machine_id) ?? null) : null,
+      product_id: productId,
       product_name: productName,
       product_image_url: productImagePath ? getProductImageUrl(productImagePath) : null,
     }
