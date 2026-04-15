@@ -288,7 +288,16 @@ function formatPercent(rate: number | null): string {
             <td class="whitespace-nowrap px-3 py-2">{{ formatTime(sale.created_at) }}</td>
             <td class="px-3 py-2 max-w-[150px] truncate">{{ sale.machine_name }}</td>
             <td class="px-3 py-2 text-center">{{ sale.item_number }}</td>
-            <td class="px-3 py-2 max-w-[150px] truncate">{{ sale.product_name ?? '—' }}</td>
+            <td class="px-3 py-2 max-w-[150px] truncate">
+              <NuxtLink
+                v-if="sale.product_id && sale.product_name"
+                :to="`/products/${sale.product_id}`"
+                class="hover:underline"
+              >
+                {{ sale.product_name }}
+              </NuxtLink>
+              <span v-else>{{ sale.product_name ?? '—' }}</span>
+            </td>
             <td class="px-3 py-2 max-w-[120px] truncate">{{ sale.category_name ?? '—' }}</td>
             <td class="whitespace-nowrap px-3 py-2 text-right font-medium">{{ formatCurrency(sale.item_price) }}</td>
             <td class="whitespace-nowrap px-3 py-2 text-right">{{ formatPercent(sale.tax_rate_snapshot) }}</td>

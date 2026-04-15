@@ -6,6 +6,7 @@ export interface ReportSale {
   machine_name: string
   machine_id: string
   item_number: number
+  product_id: string | null
   product_name: string | null
   category_name: string | null
   item_price: number
@@ -124,6 +125,7 @@ export function useReports() {
           machine_name: s.vendingMachine?.name ?? '—',
           machine_id: s.machine_id ?? '',
           item_number: s.item_number,
+          product_id: s.product_id ?? null,
           product_name: s.products?.name ?? trayInfo?.product_name ?? null,
           category_name: s.products?.product_category?.name ?? trayInfo?.category_name ?? null,
           item_price: s.item_price,

@@ -515,7 +515,17 @@ function highlightTokens(text: string, tokens: string[] | null): { text: string;
               <div class="space-y-0.5">
                 <p class="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{{ t('deals.yourProduct') }}</p>
                 <p class="text-xs leading-snug">
-                  <template v-for="(seg, idx) in highlightTokens(selectedDeal.products?.name ?? '', selectedDeal.matched_tokens)" :key="idx">
+                  <NuxtLink
+                    v-if="selectedDeal.product_id"
+                    :to="`/products/${selectedDeal.product_id}`"
+                    class="hover:underline"
+                  >
+                    <template v-for="(seg, idx) in highlightTokens(selectedDeal.products?.name ?? '', selectedDeal.matched_tokens)" :key="idx">
+                      <mark v-if="seg.matched" class="rounded-sm bg-green-200 px-0.5 dark:bg-green-900">{{ seg.text }}</mark>
+                      <span v-else>{{ seg.text }}</span>
+                    </template>
+                  </NuxtLink>
+                  <template v-else v-for="(seg, idx) in highlightTokens(selectedDeal.products?.name ?? '', selectedDeal.matched_tokens)" :key="idx">
                     <mark v-if="seg.matched" class="rounded-sm bg-green-200 px-0.5 dark:bg-green-900">{{ seg.text }}</mark>
                     <span v-else>{{ seg.text }}</span>
                   </template>
