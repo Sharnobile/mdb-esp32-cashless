@@ -1,6 +1,7 @@
 <script setup lang="ts">
 definePageMeta({ middleware: 'auth' })
 
+import { NuxtLink } from '#components'
 import { IconChevronDown, IconCheck, IconPlayerSkipForward } from '@tabler/icons-vue'
 import { timeAgo, formatDateTime } from '@/lib/utils'
 import { useTourHistory } from '@/composables/useTourHistory'
@@ -120,13 +121,18 @@ onMounted(() => fetchTours())
 
             <!-- Product list -->
             <div v-if="machine.products.length > 0" class="mt-1.5 space-y-0.5">
-              <div
+              <component
+                :is="product.product_id ? NuxtLink : 'div'"
                 v-for="(product, idx) in machine.products"
                 :key="idx"
-                class="text-xs text-muted-foreground"
+                :to="product.product_id ? `/products/${product.product_id}` : undefined"
+                :class="[
+                  'block text-xs text-muted-foreground',
+                  product.product_id ? 'hover:text-foreground hover:underline cursor-pointer' : '',
+                ]"
               >
                 {{ product.quantity }}&times; {{ product.product_name }}
-              </div>
+              </component>
             </div>
           </div>
 

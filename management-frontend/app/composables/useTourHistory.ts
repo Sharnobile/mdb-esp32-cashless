@@ -4,7 +4,7 @@ export interface TourMachineEntry {
   skipped: boolean
   trays_refilled: number
   total_added: number
-  products: { product_name: string; quantity: number }[]
+  products: { product_id: string | null; product_name: string; quantity: number }[]
 }
 
 export interface TourHistoryEntry {
@@ -75,6 +75,7 @@ export function useTourHistory() {
         ? []
         : (Array.isArray(m.products)
             ? m.products.map((p: any) => ({
+                product_id: p.product_id ? String(p.product_id) : null,
                 product_name: String(p.product_name ?? ''),
                 quantity: Number(p.quantity ?? 0),
               }))
