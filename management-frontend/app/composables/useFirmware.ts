@@ -29,6 +29,25 @@ export interface GitHubAsset {
   browser_download_url: string
 }
 
+export interface ChangelogSource {
+  /** Which data source the body came from. */
+  kind: 'github-release' | 'notes' | 'none'
+  /** The raw markdown/plaintext body to render. Empty string when kind === 'none'. */
+  body: string
+  /** Whether to render as Markdown (true) or plain text with preserved whitespace (false). */
+  isMarkdown: boolean
+  /** Release name if different from tag (GitHub sources only). */
+  releaseName?: string
+  /** ISO timestamp the GitHub release was published (GitHub sources only). */
+  publishedAt?: string
+  /** Assets on the release (GitHub sources only). */
+  assets?: GitHubAsset[]
+  /** External URL (GitHub html_url for releases, null for manual uploads). */
+  externalUrl?: string
+  /** Populated when a GitHub fetch was attempted and failed; triggers a "fetch failed" banner. */
+  fetchFailed?: boolean
+}
+
 export function useFirmware() {
   const supabase = useSupabaseClient()
   const { organization } = useOrganization()
@@ -41,6 +60,10 @@ export function useFirmware() {
   const githubRepo = computed(() => config.public.githubFirmwareRepo as string)
   const githubReleases = ref<GitHubRelease[]>([])
   const githubLoading = ref(false)
+
+  // Session cache for individual release lookups by tag (covers tags outside the 30-release default window).
+  // Stores `null` to remember 404s and avoid re-fetching known-missing releases.
+  const releaseBodyCache = ref<Map<string, GitHubRelease | null>>(new Map())
 
   async function fetchFirmwareVersions() {
     loading.value = true
@@ -155,6 +178,85 @@ export function useFirmware() {
     }
   }
 
+  /**
+   * Return a GitHubRelease for the given tag, preferring:
+   *   1. the already-loaded `githubReleases` array,
+   *   2. the session cache,
+   *   3. a single on-demand GitHub API call.
+   *
+   * Returns `null` if the repo is not configured, the tag does not exist on GitHub,
+   * or the network fails. Null results are cached to avoid repeat 404s in the same session.
+   */
+  async function fetchReleaseByTag(tag: string): Promise<GitHubRelease | null> {
+    if (!githubRepo.value || !tag) return null
+
+    // 1) Already loaded via fetchGitHubReleases()
+    const loaded = githubReleases.value.find(r => r.tag_name === tag)
+    if (loaded) return loaded
+
+    // 2) Cache hit (including negative cache)
+    if (releaseBodyCache.value.has(tag)) {
+      return releaseBodyCache.value.get(tag) ?? null
+    }
+
+    // 3) On-demand fetch
+    try {
+      const res = await $fetch<GitHubRelease>(
+        `https://api.github.com/repos/${githubRepo.value}/releases/tags/${encodeURIComponent(tag)}`,
+        { headers: { Accept: 'application/vnd.github.v3+json' } },
+      )
+      releaseBodyCache.value.set(tag, res)
+      return res
+    } catch (e) {
+      console.warn(`[useFirmware] Failed to fetch GitHub release for tag "${tag}":`, e)
+      releaseBodyCache.value.set(tag, null)
+      return null
+    }
+  }
+
+  /**
+   * Resolve the changelog to display for a given firmware_versions row.
+   *
+   *  - GitHub-sourced firmware → try to find/fetch the release; on success return Markdown.
+   *    On failure (deleted release, rate-limited, offline), fall back to the stored `notes` field
+   *    (500-char truncation is acceptable as a fallback) and set `fetchFailed: true` so the UI can
+   *    render a banner above the body.
+   *  - Manual uploads → always plaintext `notes`.
+   */
+  async function getChangelogForFirmware(fw: FirmwareVersion): Promise<ChangelogSource> {
+    if (fw.source_type === 'github' && fw.source_tag) {
+      const release = await fetchReleaseByTag(fw.source_tag)
+      if (release) {
+        return {
+          kind: 'github-release',
+          body: release.body ?? '',
+          isMarkdown: true,
+          releaseName: release.name && release.name !== release.tag_name ? release.name : undefined,
+          publishedAt: release.published_at,
+          assets: release.assets,
+          externalUrl: release.html_url,
+        }
+      }
+      // Fall back to stored notes with a "fetch failed" banner
+      return {
+        kind: fw.notes ? 'notes' : 'none',
+        body: fw.notes ?? '',
+        isMarkdown: false,
+        fetchFailed: true,
+        externalUrl: githubRepo.value
+          ? `https://github.com/${githubRepo.value}/releases/tag/${encodeURIComponent(fw.source_tag)}`
+          : undefined,
+      }
+    }
+
+    // Manual upload (or anything else)
+    return {
+      kind: fw.notes ? 'notes' : 'none',
+      body: fw.notes ?? '',
+      isMarkdown: false,
+    }
+  }
+
   async function importGitHubRelease(
     tag: string,
     assetName: string,
@@ -190,5 +292,8 @@ export function useFirmware() {
     fetchGitHubReleases,
     importGitHubRelease,
     isReleaseImported,
+    // Changelog
+    fetchReleaseByTag,
+    getChangelogForFirmware,
   }
 }
