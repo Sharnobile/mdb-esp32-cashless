@@ -477,6 +477,67 @@
       "header": {
         "discontinued": "Ausgelaufen",
         "edit": "Bearbeiten"
+      },
+      "kpi": {
+        "warehouseStock": "Lagerbestand",
+        "warehouseCount": "in {n} Lager",
+        "machineStock": "Maschinenbestand",
+        "machineCount": "in {n} Automat(en)",
+        "salesToday": "Verkäufe heute",
+        "velocity": "Verkaufsgeschwindigkeit",
+        "velocitySubtitle": "Stück/Tag (letzte {n} Tage)"
+      },
+      "chart": {
+        "revenueTitle": "Umsatz (30 Tage)",
+        "revenueDescription": "Täglicher Umsatz in EUR",
+        "unitsTitle": "Verkäufe (30 Tage)",
+        "unitsDescription": "Verkaufte Stückzahl pro Tag"
+      },
+      "sections": {
+        "warehouseStock": "Lagerbestand",
+        "machineTrays": "Automaten-Slots",
+        "topMachines": "Top-Automaten (30 Tage)",
+        "recentSales": "Letzte Verkäufe",
+        "history": "Lagerbewegungen"
+      },
+      "warehouseStock": {
+        "batchNumber": "Charge",
+        "expiry": "Ablauf",
+        "intake": "Eingang",
+        "qty": "Menge",
+        "belowMin": "unter Mindestbestand ({min})"
+      },
+      "trays": {
+        "machine": "Automat",
+        "slot": "Slot",
+        "stock": "Bestand / Kapazität",
+        "fillWhenBelow": "Auffüllen ab",
+        "lastSale": "Letzter Verkauf"
+      },
+      "topMachines": {
+        "machine": "Automat",
+        "units": "Stück",
+        "revenue": "Umsatz"
+      },
+      "sales": {
+        "time": "Zeit",
+        "machine": "Automat",
+        "channel": "Kanal",
+        "price": "Preis"
+      },
+      "history": {
+        "time": "Zeit",
+        "warehouse": "Lager",
+        "type": "Typ",
+        "change": "Änderung",
+        "after": "Danach",
+        "user": "Benutzer"
+      },
+      "empty": {
+        "noStock": "In keinem Lager vorhanden.",
+        "noTrays": "In keinem Automaten gelistet.",
+        "noSales": "Noch keine Verkäufe.",
+        "noTransactions": "Noch keine Lagerbewegungen."
       }
     }
   },

@@ -477,6 +477,67 @@
       "header": {
         "discontinued": "Discontinued",
         "edit": "Edit"
+      },
+      "kpi": {
+        "warehouseStock": "Warehouse stock",
+        "warehouseCount": "in {n} warehouse(s)",
+        "machineStock": "Machine stock",
+        "machineCount": "in {n} machine(s)",
+        "salesToday": "Sales today",
+        "velocity": "Sales velocity",
+        "velocitySubtitle": "units/day (last {n} days)"
+      },
+      "chart": {
+        "revenueTitle": "Revenue (30 days)",
+        "revenueDescription": "Daily revenue in EUR",
+        "unitsTitle": "Units sold (30 days)",
+        "unitsDescription": "Daily units sold"
+      },
+      "sections": {
+        "warehouseStock": "Warehouse stock",
+        "machineTrays": "Machine trays",
+        "topMachines": "Top machines (30 days)",
+        "recentSales": "Recent sales",
+        "history": "Warehouse history"
+      },
+      "warehouseStock": {
+        "batchNumber": "Batch",
+        "expiry": "Expires",
+        "intake": "Received",
+        "qty": "Qty",
+        "belowMin": "below min ({min})"
+      },
+      "trays": {
+        "machine": "Machine",
+        "slot": "Slot",
+        "stock": "Stock / Capacity",
+        "fillWhenBelow": "Refill when below",
+        "lastSale": "Last sale"
+      },
+      "topMachines": {
+        "machine": "Machine",
+        "units": "Units",
+        "revenue": "Revenue"
+      },
+      "sales": {
+        "time": "Time",
+        "machine": "Machine",
+        "channel": "Channel",
+        "price": "Price"
+      },
+      "history": {
+        "time": "Time",
+        "warehouse": "Warehouse",
+        "type": "Type",
+        "change": "Change",
+        "after": "After",
+        "user": "User"
+      },
+      "empty": {
+        "noStock": "Not stocked in any warehouse.",
+        "noTrays": "Not listed in any machine.",
+        "noSales": "No sales yet.",
+        "noTransactions": "No warehouse activity yet."
       }
     }
   },
