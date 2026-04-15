@@ -379,7 +379,8 @@ function formatSize(bytes: number | null) {
           <tr
             v-for="fw in sortedFirmwareVersions"
             :key="fw.id"
-            class="border-b last:border-0 hover:bg-muted/30 transition-colors"
+            class="border-b last:border-0 hover:bg-muted/30 transition-colors cursor-pointer"
+            @click="openChangelogForFirmware(fw)"
           >
             <td class="px-4 py-3 font-mono font-medium whitespace-nowrap">{{ fw.version_label }}</td>
             <td class="hidden sm:table-cell px-4 py-3">
@@ -406,14 +407,14 @@ function formatSize(bytes: number | null) {
               <div class="flex items-center gap-3">
                 <button
                   class="text-xs text-primary hover:underline"
-                  @click="openOtaModal(fw.id)"
+                  @click.stop="openOtaModal(fw.id)"
                 >
                   {{ t('common.deploy') }}
                 </button>
                 <button
                   class="text-xs text-destructive hover:underline"
                   :disabled="deleteLoading === fw.id"
-                  @click="handleDelete(fw)"
+                  @click.stop="handleDelete(fw)"
                 >
                   {{ deleteLoading === fw.id ? t('common.deleting') : t('common.delete') }}
                 </button>
