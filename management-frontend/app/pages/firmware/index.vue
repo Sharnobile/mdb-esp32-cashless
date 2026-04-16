@@ -455,8 +455,8 @@ function formatSize(bytes: number | null) {
             </td>
             <td v-if="isAdmin" class="hidden sm:table-cell px-4 py-3">
               <Switch
-                :model-value="fw.is_public"
-                @update:model-value="togglePublic(fw)"
+                :checked="fw.is_public"
+                @update:checked="togglePublic(fw)"
                 @click.stop
               />
             </td>
