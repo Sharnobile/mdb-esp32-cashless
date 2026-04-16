@@ -127,22 +127,36 @@ Deno.serve(async (req) => {
 
     async function downloadOptionalAsset(assetName: string, storageSuffix: string): Promise<string | null> {
       const optAsset = release.assets?.find((a: { name: string; id: number }) => a.name === assetName)
-      if (!optAsset) return null
+      if (!optAsset) {
+        console.log(`[import-github-release] Optional asset "${assetName}" not found in release assets`)
+        return null
+      }
 
+      console.log(`[import-github-release] Downloading optional asset "${assetName}" (id=${optAsset.id})`)
       const optUrl = `https://api.github.com/repos/${repo}/releases/assets/${optAsset.id}`
       const optRes = await fetch(optUrl, {
         headers: { Accept: 'application/octet-stream', 'User-Agent': 'vmflow-edge-function' },
       })
-      if (!optRes.ok) return null
+      if (!optRes.ok) {
+        console.error(`[import-github-release] Failed to download "${assetName}": ${optRes.status} ${optRes.statusText}`)
+        return null
+      }
 
       const optData = new Uint8Array(await optRes.arrayBuffer())
+      console.log(`[import-github-release] Downloaded "${assetName}" (${optData.length} bytes), uploading to storage`)
       const optPath = `${companyId}/${label}${storageSuffix}.bin`
 
       const { error: optUploadErr } = await adminClient.storage
         .from('firmware')
         .upload(optPath, optData, { upsert: true, contentType: 'application/octet-stream' })
 
-      return optUploadErr ? null : optPath
+      if (optUploadErr) {
+        console.error(`[import-github-release] Storage upload failed for "${assetName}": ${optUploadErr.message}`)
+        return null
+      }
+
+      console.log(`[import-github-release] Stored "${assetName}" at ${optPath}`)
+      return optPath
     }
 
     bootloaderPath = await downloadOptionalAsset(bootloaderAssetName, '-bootloader')

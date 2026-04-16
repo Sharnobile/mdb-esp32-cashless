@@ -531,44 +531,44 @@ function formatSize(bytes: number | null) {
             </tr>
           </thead>
           <tbody>
-            <template v-for="release in githubReleases" :key="release.tag_name">
-              <tr
-                v-for="asset in release.assets.filter(a => a.name.endsWith('.bin'))"
-                :key="`${release.tag_name}-${asset.name}`"
-                class="border-b last:border-0 hover:bg-muted/30 transition-colors cursor-pointer"
-                @click="openChangelogForRelease(release)"
-              >
-                <td class="px-4 py-3">
-                  <span class="font-mono font-medium">{{ release.tag_name }}</span>
-                  <p v-if="release.name && release.name !== release.tag_name" class="text-xs text-muted-foreground truncate max-w-[200px]">
-                    {{ release.name }}
-                  </p>
-                </td>
-                <td class="hidden sm:table-cell px-4 py-3 font-mono text-xs text-muted-foreground truncate max-w-[200px]">{{ asset.name }}</td>
-                <td class="hidden md:table-cell px-4 py-3 text-muted-foreground">{{ formatSize(asset.size) }}</td>
-                <td class="px-4 py-3 text-muted-foreground">
-                  <span :title="formatDateTime(release.published_at)">{{ timeAgo(release.published_at, t) }}</span>
-                </td>
-                <td v-if="isAdmin" class="px-4 py-3">
-                  <button
-                    v-if="isReleaseImported(release.tag_name)"
-                    disabled
-                    class="inline-flex h-7 items-center rounded-md border px-3 text-xs font-medium text-muted-foreground opacity-60"
-                    @click.stop
-                  >
-                    {{ t('firmware.imported') }}
-                  </button>
-                  <button
-                    v-else
-                    class="inline-flex h-7 items-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 disabled:opacity-50"
-                    :disabled="importLoading === release.tag_name"
-                    @click.stop="handleImport(release.tag_name, asset.name)"
-                  >
-                    {{ importLoading === release.tag_name ? t('firmware.importing') : t('common.import') }}
-                  </button>
-                </td>
-              </tr>
-            </template>
+            <tr
+              v-for="release in githubReleases"
+              :key="release.tag_name"
+              class="border-b last:border-0 hover:bg-muted/30 transition-colors cursor-pointer"
+              @click="openChangelogForRelease(release)"
+            >
+              <td class="px-4 py-3">
+                <span class="font-mono font-medium">{{ release.tag_name }}</span>
+                <p v-if="release.name && release.name !== release.tag_name" class="text-xs text-muted-foreground truncate max-w-[200px]">
+                  {{ release.name }}
+                </p>
+              </td>
+              <td class="hidden sm:table-cell px-4 py-3">
+                <span class="text-xs text-muted-foreground">{{ release.assets.filter(a => a.name.endsWith('.bin')).length }} {{ release.assets.filter(a => a.name.endsWith('.bin')).length === 1 ? 'file' : 'files' }}</span>
+              </td>
+              <td class="hidden md:table-cell px-4 py-3 text-muted-foreground">{{ formatSize(release.assets.filter(a => a.name.endsWith('.bin')).reduce((s, a) => s + a.size, 0)) }}</td>
+              <td class="px-4 py-3 text-muted-foreground">
+                <span :title="formatDateTime(release.published_at)">{{ timeAgo(release.published_at, t) }}</span>
+              </td>
+              <td v-if="isAdmin" class="px-4 py-3">
+                <button
+                  v-if="isReleaseImported(release.tag_name)"
+                  disabled
+                  class="inline-flex h-7 items-center rounded-md border px-3 text-xs font-medium text-muted-foreground opacity-60"
+                  @click.stop
+                >
+                  {{ t('firmware.imported') }}
+                </button>
+                <button
+                  v-else
+                  class="inline-flex h-7 items-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 disabled:opacity-50"
+                  :disabled="importLoading === release.tag_name"
+                  @click.stop="handleImport(release.tag_name, release.assets.find(a => a.name.endsWith('.bin') && !a.name.includes('-bootloader') && !a.name.includes('-partitions'))?.name ?? '')"
+                >
+                  {{ importLoading === release.tag_name ? t('firmware.importing') : t('common.import') }}
+                </button>
+              </td>
+            </tr>
           </tbody>
         </table>
       </div>
