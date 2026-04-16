@@ -376,12 +376,19 @@ void write_9(uint16_t nth9) {
 
 // Function to transmit the payload via bit-banging (using MDB protocol)
 // Switches TX pin to output for the entire payload, then back to high-Z.
+// The outer critical section keeps interrupts disabled for the entire
+// response — write_9's inner portENTER/EXIT_CRITICAL nests harmlessly.
+// Without this, WiFi/MQTT interrupts firing between bytes can stretch
+// inter-byte gaps beyond the VMC's tolerance, causing checksum errors
+// (NAK) on longer responses like REQUEST_ID (30+ bytes ≈ 32ms).
 void write_payload_9(uint8_t *mdb_payload, uint8_t length) {
 
 	gpio_set_direction(PIN_MDB_TX, GPIO_MODE_OUTPUT);
 	gpio_set_level(PIN_MDB_TX, 1);  // idle HIGH before first start bit
 
 	uint8_t checksum = 0x00;
+
+	portENTER_CRITICAL(&mdb_mux);
 
 	// Calculate checksum
 	for (int x = 0; x < length; x++) {
@@ -392,6 +399,8 @@ void write_payload_9(uint8_t *mdb_payload, uint8_t length) {
 
 	// CHK* ACK*
 	write_9(BIT_MODE_SET | checksum);
+
+	portEXIT_CRITICAL(&mdb_mux);
 
 	// Release the bus — back to high-Z so we don't interfere with other peripherals
 	gpio_set_direction(PIN_MDB_TX, GPIO_MODE_INPUT);
@@ -531,13 +540,20 @@ void vTaskMdbEvent(void *pvParameters) {
 						// a bit-flipped byte could persistently set a wrong level until the next
 						// SETUP cycle, causing the firmware to send a 10-byte Level 2/3
 						// BEGIN_SESSION to a Level 1 VMC (protocol desync).
-						vmc_feature_level = vmcFeatureLevel > 0 ? vmcFeatureLevel : 1;
+						// Store actual VMC level for logging, but always declare Level 1
+						// for peripheral responses. Level 3 was introduced in c7d2bca but
+						// breaks SandenVendo VMCs (and possibly others): the VMC sends
+						// Level 1 REQUEST_ID format despite reporting L3, rejects our L3
+						// Peripheral ID, and doesn't display credit from L3 BEGIN_SESSION.
+						// Original Level 1 code (pre-c7d2bca) worked with send-credit.
+						uint8_t vmc_reported_level = vmcFeatureLevel > 0 ? vmcFeatureLevel : 1;
+						vmc_feature_level = 1;
 
 						machine_state = DISABLED_STATE;
 						mdb_last_cmd = "SETUP:CONFIG_DATA";
 
                         mdb_payload[0] = 0x01;                                  // Reader Config Data
-                        mdb_payload[1] = vmc_feature_level <= 3 ? vmc_feature_level : 3; // Report up to Level 3
+                        mdb_payload[1] = 0x01;                                  // Reader Feature Level 1
 						mdb_payload[2] = CONFIG_MDB_CURRENCY_CODE >> 8;         // Country Code High
 						mdb_payload[3] = CONFIG_MDB_CURRENCY_CODE & 0xff;       // Country Code Low
 						mdb_payload[4] = CONFIG_MDB_SCALE_FACTOR;               // Scale Factor
@@ -548,7 +564,7 @@ void vTaskMdbEvent(void *pvParameters) {
 
 						// idf.py menuconfig -> "MDB Cashless Device"
 
-						ESP_LOGI( TAG, "CONFIG_DATA");
+						ESP_LOGI( TAG, "CONFIG_DATA (vmcLevel=%u, ourLevel=1, cols=%u, rows=%u)", vmc_reported_level, vmcColumnsOnDisplay, vmcRowsOnDisplay);
 						break;
 					}
 					case MAX_MIN_PRICES: {
@@ -629,13 +645,13 @@ void vTaskMdbEvent(void *pvParameters) {
 							mdb_payload[6] = 0xFF;
 							mdb_payload[7] = 0xFF;
 							mdb_payload[8] = 0xFF;
-							mdb_payload[9] = 0x00;                          // Payment Type
-							mdb_payload[10] = 0xFF;                         // Payment Data (n/a)
-							mdb_payload[11] = 0xFF;
-							mdb_payload[12] = 0xFF;                         // User Language (no pref)
-							mdb_payload[13] = 0xFF;
-							mdb_payload[14] = 0xFF;                         // User Currency Code (no pref)
-							mdb_payload[15] = 0xFF;
+							mdb_payload[9] = 0x00;                          // Payment Type (normal vend)
+							mdb_payload[10] = 0x00;                         // Payment Data (n/a for type 0)
+							mdb_payload[11] = 0x00;
+							mdb_payload[12] = 0x00;                         // User Language (no preference)
+							mdb_payload[13] = 0x00;
+							mdb_payload[14] = 0x00;                         // User Currency Code (no preference)
+							mdb_payload[15] = 0x00;
 							available_tx = 16;
 						} else if (vmc_feature_level >= 2) {
 							// Level 2: 16-bit Funds Available + Media ID + Payment Type + Payment Data.
@@ -937,48 +953,38 @@ void vTaskMdbEvent(void *pvParameters) {
 				}
 				case EXPANSION: {
 
-					switch (read_9(&checksum)) {
+					uint8_t exp_sub = read_9(&checksum);
+					switch (exp_sub) {
 					case REQUEST_ID: {
+                        // SandenVendo rejects our Peripheral ID response regardless of
+                        // Level 1 or 2+ format (retry 5x → RESET). The original firmware
+                        // (pre-c7d2bca) had the same issue: the checksum read consumed a
+                        // wrong byte because of Level 1/3 format mismatch, so the device
+                        // never responded. The VMC gave up and moved on to
+                        // OPTIONAL_FEATURE_ENABLED → READER_ENABLE, which worked.
+                        // Replicate that behavior: drain without responding (NAK).
+                        mdb_drain_bus();
+                        mdb_last_cmd = "EXPANSION:REQUEST_ID";
+                        ESP_LOGI(TAG, "REQUEST_ID: drain (VMC will skip after retries)");
+                        continue;  // skip response — `continue` not `break`!
+					}
+					case 0x04: {
+						// OPTIONAL_FEATURE_ENABLED — VMC tells us which optional features
+						// it supports. Standard format: 4 bytes of feature bits + checksum.
+						// Note: VMC→Peripheral checksum does NOT have mode bit set,
+						// so we must read a fixed byte count, not scan for mode bit.
+						for (uint8_t x = 0; x < 4; x++) read_9(&checksum);
 
-                        // VMC sends: ManufacturerCode(3) + SerialNumber(12) + ModelNumber(12) + SoftwareVersion(2) = 29 bytes
-                        // Level 2+: adds Optional Feature Bits (4 bytes) = 33 bytes total
-                        // Always read the guaranteed 29 bytes first.
-					    for(uint8_t x = 0; x < 29; x++) read_9(&checksum);
+						if (read_9(NULL) != checksum) {
+							mdb_checksum_errors++;
+							ESP_LOGW(TAG, "EXPANSION:OPT_FEATURE checksum FAIL");
+							mdb_drain_bus();
+							continue;
+						}
 
-                        // Level 2+: try to read 4 additional Optional Feature Bytes.
-                        // Use timeout so we don't hang if vmc_feature_level was misdetected.
-                        uint8_t extra_bytes_read = 0;
-                        if (vmc_feature_level >= 2) {
-                            for (uint8_t x = 0; x < 4; x++) {
-                                int32_t b = read_9_timeout(&checksum, 2000); // 2ms timeout per byte
-                                if (b < 0) break; // no more data — VMC is actually Level 1
-                                extra_bytes_read++;
-                            }
-                        }
-
-				        if (read_9(NULL) != checksum) { mdb_checksum_errors++; mdb_drain_bus(); continue; }
-
-						mdb_last_cmd = "EXPANSION:REQUEST_ID";
-
-                        mdb_payload[ 0 ] = 0x09;                        // Peripheral ID
-
-                        memcpy( &mdb_payload[1], "VMF", 3);             // Manufacture code
-                        memcpy( &mdb_payload[4], "            ", 12);   // Serial number
-                        memcpy( &mdb_payload[16], "            ", 12);  // Model number
-                        memcpy( &mdb_payload[28], "03", 2);             // Software version
-
-                        if (extra_bytes_read == 4) {
-                            // VMC actually sent Level 2+ data — respond with Optional Feature Bits
-                            mdb_payload[30] = 0x00;
-                            mdb_payload[31] = 0x00;
-                            mdb_payload[32] = 0x00;
-                            mdb_payload[33] = 0x00;
-                            available_tx = 34;
-                        } else {
-                            available_tx = 30;
-                        }
-
-                        ESP_LOGI( TAG, "REQUEST_ID (L%u, extra=%u)", vmc_feature_level, extra_bytes_read);
+						mdb_last_cmd = "EXPANSION:OPT_FEATURE";
+						ESP_LOGI(TAG, "OPTIONAL_FEATURE_ENABLED");
+						// ACK with no data (available_tx stays 0)
 						break;
 					}
 					default: {
@@ -986,7 +992,7 @@ void vTaskMdbEvent(void *pvParameters) {
 						// bus goes idle to prevent desynchronization.
 						mdb_drain_bus();
 						mdb_last_cmd = "EXPANSION:UNKNOWN";
-						ESP_LOGW(TAG, "EXPANSION: unhandled subcommand, drained bus");
+						ESP_LOGW(TAG, "EXPANSION: unhandled subcommand 0x%02X, drained bus", exp_sub);
 						break;
 					}
 					}
