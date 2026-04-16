@@ -1335,7 +1335,7 @@
     "afterStep6Title": "Fertig!",
     "afterStep6": "Das Gerät verbindet sich mit deinem Netzwerk und erscheint im Management Dashboard.",
     "provisioningHint": "So erstellst du einen Provisioning-Code",
-    "provisioningHintDetail": "Öffne das Management Dashboard, gehe zur Geräte-Seite und klicke auf „Neues Gerät registrieren". Ein 8-stelliger Code wird generiert, der 24 Stunden gültig ist.",
+    "provisioningHintDetail": "Öffne das Management Dashboard, gehe zur Geräte-Seite und klicke auf 'Neues Gerät registrieren'. Ein 8-stelliger Code wird generiert, der 24 Stunden gültig ist.",
     "footerText": "Brauchst du Hilfe?",
     "footerGithub": "GitHub Repository",
     "footerDashboard": "Management Dashboard",
