@@ -1323,7 +1323,7 @@
     "afterStep1Title": "Connect to the device hotspot",
     "afterStep1": "The device restarts and creates a WiFi hotspot named",
     "afterStep1Ssid": "VMflow",
-    "afterStep1Detail": "No password is required — it's an open network.",
+    "afterStep1Detail": "The password is 12345678.",
     "afterStep2Title": "Open the captive portal",
     "afterStep2": "Connect to this hotspot with your phone or laptop. A captive portal will open automatically.",
     "afterStep3Title": "Configure WiFi",

@@ -1323,7 +1323,7 @@
     "afterStep1Title": "Mit dem Geräte-Hotspot verbinden",
     "afterStep1": "Das Gerät startet neu und erstellt einen WLAN-Hotspot namens",
     "afterStep1Ssid": "VMflow",
-    "afterStep1Detail": "Kein Passwort erforderlich — offenes Netzwerk.",
+    "afterStep1Detail": "Das Passwort lautet 12345678.",
     "afterStep2Title": "Captive Portal öffnen",
     "afterStep2": "Verbinde dich mit dem Hotspot über dein Handy oder Laptop. Ein Captive Portal öffnet sich automatisch.",
     "afterStep3Title": "WLAN konfigurieren",
