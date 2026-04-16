@@ -59,6 +59,8 @@ async function togglePublic(fw: FirmwareVersion) {
 
 // ── Upload modal ─────────────────────────────────────────────────────────────
 const uploadFile = ref<File | null>(null)
+const bootloaderFile = ref<File | null>(null)
+const partitionsFile = ref<File | null>(null)
 
 const {
   open: showUploadModal,
@@ -75,8 +77,20 @@ function onFileChange(e: Event) {
   uploadFile.value = input.files?.[0] ?? null
 }
 
+function onBootloaderFileChange(e: Event) {
+  const input = e.target as HTMLInputElement
+  bootloaderFile.value = input.files?.[0] ?? null
+}
+
+function onPartitionsFileChange(e: Event) {
+  const input = e.target as HTMLInputElement
+  partitionsFile.value = input.files?.[0] ?? null
+}
+
 function handleOpenUploadModal() {
   uploadFile.value = null
+  bootloaderFile.value = null
+  partitionsFile.value = null
   openUploadModal()
 }
 
@@ -90,7 +104,13 @@ async function submitUpload() {
     return
   }
   await submitUploadForm(async () => {
-    await uploadFirmware(uploadFile.value!, uploadForm.value.versionLabel.trim(), uploadForm.value.notes.trim() || undefined)
+    await uploadFirmware(
+      uploadFile.value!,
+      uploadForm.value.versionLabel.trim(),
+      uploadForm.value.notes.trim() || undefined,
+      bootloaderFile.value,
+      partitionsFile.value,
+    )
   })
 }
 
@@ -584,6 +604,26 @@ function formatSize(bytes: number | null) {
           @change="onFileChange"
         />
         <p class="text-xs text-muted-foreground">{{ t('firmware.maxSize') }}</p>
+      </div>
+      <div class="space-y-1">
+        <label class="text-sm font-medium text-muted-foreground" for="fw-bootloader">{{ t('firmware.bootloaderFile') }} ({{ t('common.optional') }})</label>
+        <input
+          id="fw-bootloader"
+          type="file"
+          accept=".bin,application/octet-stream"
+          class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          @change="onBootloaderFileChange"
+        />
+      </div>
+      <div class="space-y-1">
+        <label class="text-sm font-medium text-muted-foreground" for="fw-partitions">{{ t('firmware.partitionsFile') }} ({{ t('common.optional') }})</label>
+        <input
+          id="fw-partitions"
+          type="file"
+          accept=".bin,application/octet-stream"
+          class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          @change="onPartitionsFileChange"
+        />
       </div>
       <div class="space-y-1">
         <label class="text-sm font-medium" for="fw-notes">{{ t('firmware.notesCol') }}</label>

@@ -84,19 +84,50 @@ export function useFirmware() {
     }
   }
 
-  async function uploadFirmware(file: File, versionLabel: string, notes?: string) {
+  async function uploadFirmware(
+    file: File,
+    versionLabel: string,
+    notes?: string,
+    bootloaderFile?: File | null,
+    partitionsFile?: File | null,
+  ) {
     if (!organization.value) throw new Error('No organization')
 
     const filePath = `${organization.value.id}/${versionLabel}.bin`
+    let bootloaderPath: string | null = null
+    let partitionTablePath: string | null = null
 
-    // Upload binary to storage
+    // Upload app binary
     const { error: uploadError } = await supabase.storage
       .from('firmware')
-      .upload(filePath, file, {
-        upsert: true,
-        contentType: 'application/octet-stream',
-      })
+      .upload(filePath, file, { upsert: true, contentType: 'application/octet-stream' })
     if (uploadError) throw uploadError
+
+    // Upload optional bootloader
+    if (bootloaderFile) {
+      bootloaderPath = `${organization.value.id}/${versionLabel}-bootloader.bin`
+      const { error } = await supabase.storage
+        .from('firmware')
+        .upload(bootloaderPath, bootloaderFile, { upsert: true, contentType: 'application/octet-stream' })
+      if (error) {
+        await supabase.storage.from('firmware').remove([filePath])
+        throw error
+      }
+    }
+
+    // Upload optional partition table
+    if (partitionsFile) {
+      partitionTablePath = `${organization.value.id}/${versionLabel}-partitions.bin`
+      const { error } = await supabase.storage
+        .from('firmware')
+        .upload(partitionTablePath, partitionsFile, { upsert: true, contentType: 'application/octet-stream' })
+      if (error) {
+        const cleanup = [filePath]
+        if (bootloaderPath) cleanup.push(bootloaderPath)
+        await supabase.storage.from('firmware').remove(cleanup)
+        throw error
+      }
+    }
 
     // Create database record
     const { error: insertError } = await supabase
@@ -107,10 +138,14 @@ export function useFirmware() {
         file_path: filePath,
         file_size: file.size,
         notes: notes || null,
+        bootloader_path: bootloaderPath,
+        partition_table_path: partitionTablePath,
       })
     if (insertError) {
-      // Clean up the uploaded file if DB insert fails
-      await supabase.storage.from('firmware').remove([filePath])
+      const cleanup = [filePath]
+      if (bootloaderPath) cleanup.push(bootloaderPath)
+      if (partitionTablePath) cleanup.push(partitionTablePath)
+      await supabase.storage.from('firmware').remove(cleanup)
       throw insertError
     }
 
