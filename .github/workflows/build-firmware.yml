@@ -44,6 +44,16 @@ jobs:
           cp "${{ steps.project.outputs.dir }}/build/${{ steps.project.outputs.name }}.bin" \
              "${{ steps.project.outputs.name }}-${{ steps.project.outputs.version }}.bin"
 
+      - name: Rename bootloader artifact
+        run: |
+          cp "${{ steps.project.outputs.dir }}/build/bootloader/bootloader.bin" \
+             "${{ steps.project.outputs.name }}-${{ steps.project.outputs.version }}-bootloader.bin"
+
+      - name: Rename partition table artifact
+        run: |
+          cp "${{ steps.project.outputs.dir }}/build/partition_table/partition-table.bin" \
+             "${{ steps.project.outputs.name }}-${{ steps.project.outputs.version }}-partitions.bin"
+
       - name: Determine cliff config
         id: cliff
         run: |
@@ -75,5 +85,7 @@ jobs:
             Built with ESP-IDF v5.5.1 targeting ESP32-S3.
           files: |
             ${{ steps.project.outputs.name }}-${{ steps.project.outputs.version }}.bin
+            ${{ steps.project.outputs.name }}-${{ steps.project.outputs.version }}-bootloader.bin
+            ${{ steps.project.outputs.name }}-${{ steps.project.outputs.version }}-partitions.bin
           draft: false
           prerelease: false
