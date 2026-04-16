@@ -5,7 +5,9 @@
 
 ## Overview
 
-Add a public `/install` page to the Nuxt management frontend that lets users flash ESP32-S3 firmware directly from their browser using [ESP Web Tools](https://github.com/esphome/esp-web-tools). The page requires no login and includes step-by-step guides for before and after flashing. Admins control which firmware versions are publicly visible via an opt-out `public` flag on the existing `/firmware` page.
+Add a public `/install` page to the Nuxt management frontend that lets users flash ESP32-S3 firmware directly from their browser using [ESP Web Tools](https://github.com/esphome/esp-web-tools). The page requires no login and includes step-by-step guides for before and after flashing. Admins control which firmware versions are publicly visible via an opt-out `is_public` flag on the existing `/firmware` page. The column name `is_public` is used instead of `public` to avoid conflicts with the Postgres reserved schema name.
+
+**Network constraint:** The `/install` page fetches firmware binaries from Supabase Storage via the browser. Users must be able to reach the Supabase URL. For self-hosted LAN deployments, this means the user's device must be on the same network. For cloud-hosted deployments, the public Supabase URL is used. The manifest endpoint constructs Storage URLs dynamically from `useRuntimeConfig()` — no hardcoded URLs.
 
 ## Goals
 
@@ -32,22 +34,33 @@ New migration file: `YYYYMMDDHHMMSS_firmware_web_flash.sql`
 Add three columns to `firmware_versions`:
 
 ```sql
-ALTER TABLE firmware_versions ADD COLUMN IF NOT EXISTS public boolean NOT NULL DEFAULT true;
+ALTER TABLE firmware_versions ADD COLUMN IF NOT EXISTS is_public boolean NOT NULL DEFAULT true;
 ALTER TABLE firmware_versions ADD COLUMN IF NOT EXISTS bootloader_path text;
 ALTER TABLE firmware_versions ADD COLUMN IF NOT EXISTS partition_table_path text;
+
+-- Allow anonymous (anon) role to read public firmware versions
+GRANT SELECT ON public.firmware_versions TO anon;
+
+-- Allow authenticated role to update the is_public toggle (and other new columns)
+GRANT UPDATE ON public.firmware_versions TO authenticated;
 ```
 
-### 1.2 RLS Policy
+### 1.2 RLS Policies
 
-Add an anonymous read policy for public firmware versions:
+Add an anonymous read policy for public firmware versions, and an update policy for admins:
 
 ```sql
 CREATE POLICY "Anyone can read public firmware versions"
-  ON firmware_versions FOR SELECT
-  USING (public = true);
+  ON firmware_versions FOR SELECT TO anon
+  USING (is_public = true);
+
+CREATE POLICY "Admins can update own firmware versions"
+  ON firmware_versions FOR UPDATE TO authenticated
+  USING (company_id = my_company_id() AND i_am_admin())
+  WITH CHECK (company_id = my_company_id() AND i_am_admin());
 ```
 
-The existing authenticated policies remain unchanged.
+The existing authenticated SELECT/INSERT/DELETE policies remain unchanged.
 
 ### 1.3 Storage Access
 
@@ -95,7 +108,15 @@ In the release step, add the two new files to the `files` list:
     # ... rest unchanged
 ```
 
-Before the release step, add rename steps for the new binaries (same pattern as existing app binary rename).
+Before the release step, add rename steps for the new binaries. Source paths must use the full project directory prefix (same as the existing app binary rename):
+
+```yaml
+- name: Rename bootloader artifact
+  run: cp ${{ steps.project.outputs.dir }}/build/bootloader/bootloader.bin ${{ steps.project.outputs.dir }}/build/${{ env.ARTIFACT_NAME }}-bootloader.bin
+
+- name: Rename partition table artifact
+  run: cp ${{ steps.project.outputs.dir }}/build/partition_table/partition-table.bin ${{ steps.project.outputs.dir }}/build/${{ env.ARTIFACT_NAME }}-partitions.bin
+```
 
 ---
 
@@ -147,10 +168,26 @@ Public endpoint (no auth). Returns an ESP Web Tools manifest for a given firmwar
 ```
 
 **Behavior:**
-- Queries `firmware_versions` where `id = ?` AND `public = true`
+- Creates a Supabase client using `@supabase/supabase-js` with credentials from `useRuntimeConfig(event)` (private `supabaseUrl` and `supabaseServiceKey` — NOT the public runtime config, to avoid exposing the service key to the browser)
+- Queries `firmware_versions` where `id = ?` AND `is_public = true`
 - Returns 404 if version not found or not public
+- Constructs Storage URLs dynamically using the **public** Supabase URL from `useRuntimeConfig(event).public.supabase.url` (this is the URL the user's browser can reach)
 - If `bootloader_path` or `partition_table_path` is null, includes only the app binary part at offset `0x20000` (131072)
-- Uses Supabase anon key for the DB query (RLS handles access control)
+
+**Server-side Supabase access pattern:** Both server routes use `createClient()` from `@supabase/supabase-js` directly (not the Nuxt module's `useSupabaseClient()` which is Vue-only). Credentials are provided via Nuxt's private `runtimeConfig`:
+
+```typescript
+// server/utils/supabase.ts — shared helper
+import { createClient } from '@supabase/supabase-js'
+import type { H3Event } from 'h3'
+
+export function useServerSupabase(event: H3Event) {
+  const config = useRuntimeConfig(event)
+  return createClient(config.supabaseUrl, config.supabaseServiceKey)
+}
+```
+
+The `supabaseUrl` and `supabaseServiceKey` keys must be added to `runtimeConfig` in `nuxt.config.ts` (reading from `SUPABASE_URL` and `SUPABASE_SERVICE_KEY` env vars). These are private (not under `public`) and never sent to the browser.
 
 ### 4.2 Public Versions Endpoint
 
@@ -174,9 +211,11 @@ Public endpoint (no auth). Returns all publicly available firmware versions for 
 ```
 
 **Behavior:**
-- Queries `firmware_versions` where `public = true`, ordered by `created_at` desc
+- Uses the same `useServerSupabase()` helper as the manifest endpoint
+- Queries `firmware_versions` where `is_public = true`, ordered by `created_at` desc
 - `has_full_flash` is computed: `bootloader_path IS NOT NULL AND partition_table_path IS NOT NULL`
 - No company filter — returns all public versions across all companies (the public page is not company-scoped)
+- **Privacy note:** All firmware versions default to `is_public = true`. Admins of any company must opt-out via the toggle before importing firmware if they do not want it listed publicly. The admin UI should show a brief reminder of this when importing.
 
 ---
 
@@ -185,6 +224,8 @@ Public endpoint (no auth). Returns all publicly available firmware versions for 
 ### 5.1 Route Configuration
 
 Add `/install` to the public routes list in `app/middleware/auth.ts` so it does not require authentication.
+
+The page uses `definePageMeta({ layout: false })` to avoid rendering the authenticated app shell (sidebar, bottom tab bar). It renders its own minimal layout (header with logo + language switcher, footer).
 
 ### 5.2 Page Structure
 
@@ -250,8 +291,8 @@ Initially placeholder images; replaced with real screenshots later.
 ### 6.1 Public Toggle
 
 Add a toggle switch in each firmware version table row:
-- Bound to `firmware_versions.public` column
-- Calls `updateFirmwareVersion(id, { public: value })` on toggle
+- Bound to `firmware_versions.is_public` column
+- Calls `updateFirmwareVersion(id, { is_public: value })` on toggle
 - Default: on (opt-out model)
 
 ### 6.2 Full Flash Indicator
@@ -264,9 +305,10 @@ Add a small badge/icon per row indicating whether all three binaries are present
 ### 6.3 Composable Changes
 
 Extend `useFirmware.ts`:
-- Add `public`, `bootloader_path`, `partition_table_path` to the `FirmwareVersion` interface
+- Add `is_public`, `bootloader_path`, `partition_table_path` to the `FirmwareVersion` interface
 - Add `updateFirmwareVersion(id: string, updates: Partial<FirmwareVersion>)` function for the public toggle
 - Add `has_full_flash` computed helper
+- **Update `deleteFirmwareVersion()`** to also remove `bootloader_path` and `partition_table_path` storage objects when non-null (prevents orphaned files in the firmware bucket)
 
 ### 6.4 Manual Upload Extension
 
@@ -335,6 +377,8 @@ onMounted(() => {
 
 If not supported, show a notice listing compatible browsers (Chrome 89+, Edge 89+) instead of the flash button.
 
+**Note:** The `esp-web-tools` npm package is a thin wrapper — the actual flashing engine (improv-wifi, esptool-js) is loaded from a CDN at runtime by the web component. This means the user's browser needs internet access for flashing to work, even when the management app is self-hosted on a local LAN.
+
 ---
 
 ## 8. Flash Offsets
@@ -365,7 +409,7 @@ GitHub Actions (tag push)
 Admin: /firmware page
   ├─ "Import from GitHub" → import-github-release edge function
   │   ├─ Downloads all 3 assets → Supabase Storage
-  │   └─ Creates firmware_versions row (public=true by default)
+  │   └─ Creates firmware_versions row (is_public=true by default)
   ├─ OR: Manual upload (app binary required, bootloader+partitions optional)
   ├─ Public toggle per version (opt-out)
   │
@@ -395,6 +439,7 @@ Post-Flash: User follows on-page setup guide
 | `management-frontend/app/pages/install.vue` | Public flash page |
 | `management-frontend/server/api/firmware/manifest.get.ts` | ESP Web Tools manifest endpoint |
 | `management-frontend/server/api/firmware/public.get.ts` | Public firmware versions endpoint |
+| `management-frontend/server/utils/supabase.ts` | Server-side Supabase client helper |
 | `Docker/supabase/migrations/YYYYMMDDHHMMSS_firmware_web_flash.sql` | DB migration |
 | `public/images/install/*.png` | Placeholder screenshots (5 files) |
 | `i18n/en/install.json` or inline i18n keys | English translations |
@@ -408,5 +453,5 @@ Post-Flash: User follows on-page setup guide
 | `management-frontend/app/composables/useFirmware.ts` | Extended types, updateFirmwareVersion(), has_full_flash |
 | `management-frontend/app/pages/firmware/index.vue` | Public toggle, full flash badge, optional upload fields |
 | `management-frontend/app/middleware/auth.ts` | Add `/install` to public routes |
-| `management-frontend/nuxt.config.ts` | `vue.compilerOptions.isCustomElement` for `esp-*` |
+| `management-frontend/nuxt.config.ts` | `vue.compilerOptions.isCustomElement` for `esp-*`, private `runtimeConfig` for server Supabase access |
 | `management-frontend/package.json` | Add `esp-web-tools` dependency |
