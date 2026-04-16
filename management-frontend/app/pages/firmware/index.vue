@@ -4,13 +4,14 @@ definePageMeta({ middleware: 'auth' })
 import { timeAgo, formatDateTime } from '@/lib/utils'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
+import { Switch } from '@/components/ui/switch'
 import { renderMarkdown } from '@/lib/markdown'
 
 const { t } = useI18n()
 const { role } = useOrganization()
 const {
   firmwareVersions, loading, fetchFirmwareVersions,
-  uploadFirmware, triggerOta, triggerOtaBatch, deleteFirmwareVersion,
+  uploadFirmware, triggerOta, triggerOtaBatch, deleteFirmwareVersion, updateFirmwareVersion,
   githubRepo, githubReleases, githubLoading,
   fetchGitHubReleases, importGitHubRelease, isReleaseImported,
   getChangelogForFirmware,
@@ -46,6 +47,15 @@ onMounted(async () => {
     fetchGitHubReleases(),
   ])
 })
+
+// ── Public toggle ───────────────────────────────────────────────────────────
+async function togglePublic(fw: FirmwareVersion) {
+  try {
+    await updateFirmwareVersion(fw.id, { is_public: !fw.is_public })
+  } catch (e) {
+    console.error('Failed to toggle public status:', e)
+  }
+}
 
 // ── Upload modal ─────────────────────────────────────────────────────────────
 const uploadFile = ref<File | null>(null)
@@ -367,6 +377,7 @@ function formatSize(bytes: number | null) {
               <SortHeader :icon="fwSortIcon('version')">{{ t('firmware.versionCol') }}</SortHeader>
             </th>
             <th class="hidden sm:table-cell px-4 py-3 font-medium">{{ t('firmware.sourceCol') }}</th>
+            <th class="hidden lg:table-cell px-4 py-3 font-medium">{{ t('firmware.typeCol') }}</th>
             <th class="hidden sm:table-cell px-4 py-3 font-medium cursor-pointer select-none hover:text-foreground" @click="toggleFwSort('size')">
               <SortHeader :icon="fwSortIcon('size')">{{ t('firmware.sizeCol') }}</SortHeader>
             </th>
@@ -374,6 +385,7 @@ function formatSize(bytes: number | null) {
             <th class="px-4 py-3 font-medium cursor-pointer select-none hover:text-foreground" @click="toggleFwSort('uploaded')">
               <SortHeader :icon="fwSortIcon('uploaded')">{{ t('firmware.uploadedCol') }}</SortHeader>
             </th>
+            <th v-if="isAdmin" class="hidden sm:table-cell px-4 py-3 font-medium">{{ t('firmware.publicCol') }}</th>
             <th v-if="isAdmin" class="px-4 py-3 font-medium">{{ t('common.actions') }}</th>
           </tr>
         </thead>
@@ -400,10 +412,33 @@ function formatSize(bytes: number | null) {
                 {{ t('firmware.uploadSource') }}
               </span>
             </td>
+            <td class="hidden lg:table-cell px-4 py-3">
+              <span
+                v-if="fw.bootloader_path && fw.partition_table_path"
+                class="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-300"
+                :title="t('firmware.fullFlashTooltip')"
+              >
+                {{ t('firmware.fullFlash') }}
+              </span>
+              <span
+                v-else
+                class="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400"
+                :title="t('firmware.fullFlashTooltip')"
+              >
+                {{ t('firmware.appOnly') }}
+              </span>
+            </td>
             <td class="hidden sm:table-cell px-4 py-3 text-muted-foreground">{{ formatSize(fw.file_size) }}</td>
             <td class="hidden md:table-cell px-4 py-3 text-muted-foreground truncate max-w-xs">{{ fw.notes ?? '—' }}</td>
             <td class="px-4 py-3 text-muted-foreground">
               <span :title="formatDateTime(fw.created_at)">{{ timeAgo(fw.created_at, t) }}</span>
+            </td>
+            <td v-if="isAdmin" class="hidden sm:table-cell px-4 py-3">
+              <Switch
+                :model-value="fw.is_public"
+                @update:model-value="togglePublic(fw)"
+                @click.stop
+              />
             </td>
             <td v-if="isAdmin" class="px-4 py-3">
               <div class="flex items-center gap-3">

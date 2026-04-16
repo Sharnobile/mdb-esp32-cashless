@@ -824,7 +824,14 @@
     "loadingChangelog": "Lade Changelog…",
     "changelogFetchFailed": "Changelog konnte nicht von GitHub geladen werden. Stattdessen werden die gespeicherten Notizen angezeigt.",
     "changelogReleaseName": "Release",
-    "changelogPublished": "Veröffentlicht"
+    "changelogPublished": "Veröffentlicht",
+    "typeCol": "Typ",
+    "publicCol": "Öffentlich",
+    "fullFlash": "Vollständig",
+    "appOnly": "Nur App",
+    "fullFlashTooltip": "Vollständiger Flash unterstützt die Erstinstallation über den Web-Installer. Nur App ist für OTA-Updates geeignet.",
+    "bootloaderFile": "Bootloader-Binary (.bin)",
+    "partitionsFile": "Partitionstabelle-Binary (.bin)"
   },
   "apiKeys": {
     "title": "API-Schlüssel",

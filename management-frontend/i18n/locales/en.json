@@ -824,7 +824,14 @@
     "loadingChangelog": "Loading changelog…",
     "changelogFetchFailed": "Changelog could not be loaded from GitHub. Showing the stored notes instead.",
     "changelogReleaseName": "Release",
-    "changelogPublished": "Published"
+    "changelogPublished": "Published",
+    "typeCol": "Type",
+    "publicCol": "Public",
+    "fullFlash": "Full Flash",
+    "appOnly": "App Only",
+    "fullFlashTooltip": "Full Flash supports first-time installation via the web installer. App Only is suitable for OTA updates.",
+    "bootloaderFile": "Bootloader binary (.bin)",
+    "partitionsFile": "Partition table binary (.bin)"
   },
   "apiKeys": {
     "title": "API Keys",
