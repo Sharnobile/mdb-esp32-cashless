@@ -1,13 +1,22 @@
-import { defineEventHandler } from 'h3'
+import { defineEventHandler, getQuery } from 'h3'
 
 export default defineEventHandler(async (event) => {
   const supabase = useServerSupabaseAnon(event)
 
-  const { data, error } = await supabase
+  const query = getQuery(event)
+  const fullFlashOnly = query.full_flash === 'true'
+
+  let q = supabase
     .from('firmware_versions')
     .select('id, version_label, notes, created_at, bootloader_path, partition_table_path')
     .eq('is_public', true)
     .order('created_at', { ascending: false })
+
+  if (fullFlashOnly) {
+    q = q.not('bootloader_path', 'is', null).not('partition_table_path', 'is', null)
+  }
+
+  const { data, error } = await q
 
   if (error) {
     throw createError({ statusCode: 500, statusMessage: 'Failed to fetch firmware versions' })

@@ -4,7 +4,7 @@ definePageMeta({ layout: false })
 const { t } = useI18n()
 
 // Fetch public firmware versions
-const { data: versions, status } = await useFetch('/api/firmware/public')
+const { data: versions, status } = await useFetch('/api/firmware/public?full_flash=true')
 const selectedId = ref<string | null>(null)
 
 // Auto-select the newest version
