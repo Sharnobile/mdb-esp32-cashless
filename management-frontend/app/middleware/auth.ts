@@ -13,6 +13,10 @@ export default defineNuxtRouteMiddleware(async (to) => {
   if (to.path === '/m' || to.path.startsWith('/m/')) {
     return
   }
+  // Public install page
+  if (to.path === '/install') {
+    return
+  }
 
   const user = useSupabaseUser()
   if (!user.value) {

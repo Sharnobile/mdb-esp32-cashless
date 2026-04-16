@@ -5,6 +5,11 @@ export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   modules: ['@nuxtjs/supabase', '@nuxtjs/tailwindcss', 'shadcn-nuxt', '@vite-pwa/nuxt', '@nuxtjs/i18n'],
   devtools: { enabled: true },
+  vue: {
+    compilerOptions: {
+      isCustomElement: (tag: string) => tag.startsWith('esp-'),
+    },
+  },
   app: {
     head: {
       meta: [
