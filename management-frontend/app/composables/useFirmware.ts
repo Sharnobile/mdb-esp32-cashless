@@ -12,6 +12,9 @@ export interface FirmwareVersion {
   uploaded_by: string | null
   source_type: string | null
   source_tag: string | null
+  is_public: boolean
+  bootloader_path: string | null
+  partition_table_path: string | null
 }
 
 export interface GitHubRelease {
@@ -148,13 +151,30 @@ export function useFirmware() {
   }
 
   async function deleteFirmwareVersion(id: string, filePath: string) {
-    await supabase.storage.from('firmware').remove([filePath])
+    const fw = firmwareVersions.value.find(v => v.id === id)
+    const filesToRemove = [filePath]
+    if (fw?.bootloader_path) filesToRemove.push(fw.bootloader_path)
+    if (fw?.partition_table_path) filesToRemove.push(fw.partition_table_path)
+
+    await supabase.storage.from('firmware').remove(filesToRemove)
     const { error } = await supabase
       .from('firmware_versions')
       .delete()
       .eq('id', id)
     if (error) throw error
     await fetchFirmwareVersions()
+  }
+
+  async function updateFirmwareVersion(id: string, updates: Partial<Pick<FirmwareVersion, 'is_public'>>) {
+    const { error } = await supabase
+      .from('firmware_versions')
+      .update(updates)
+      .eq('id', id)
+    if (error) throw error
+    const idx = firmwareVersions.value.findIndex(fw => fw.id === id)
+    if (idx !== -1) {
+      firmwareVersions.value[idx] = { ...firmwareVersions.value[idx], ...updates }
+    }
   }
 
   // ── GitHub release integration ─────────────────────────────────────────
@@ -292,6 +312,7 @@ export function useFirmware() {
     triggerOta,
     triggerOtaBatch,
     deleteFirmwareVersion,
+    updateFirmwareVersion,
     // GitHub integration
     githubRepo,
     githubReleases,
