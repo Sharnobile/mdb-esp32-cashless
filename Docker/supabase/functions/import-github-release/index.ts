@@ -117,6 +117,37 @@ Deno.serve(async (req) => {
     const binaryData = new Uint8Array(await downloadRes.arrayBuffer())
     const filePath = `${companyId}/${label}.bin`
 
+    // ── Download bootloader and partition table if available ─────────────
+    const baseName = asset_name.replace(/\.bin$/, '')
+    const bootloaderAssetName = `${baseName}-bootloader.bin`
+    const partitionsAssetName = `${baseName}-partitions.bin`
+
+    let bootloaderPath: string | null = null
+    let partitionTablePath: string | null = null
+
+    async function downloadOptionalAsset(assetName: string, storageSuffix: string): Promise<string | null> {
+      const optAsset = release.assets?.find((a: { name: string; id: number }) => a.name === assetName)
+      if (!optAsset) return null
+
+      const optUrl = `https://api.github.com/repos/${repo}/releases/assets/${optAsset.id}`
+      const optRes = await fetch(optUrl, {
+        headers: { Accept: 'application/octet-stream', 'User-Agent': 'vmflow-edge-function' },
+      })
+      if (!optRes.ok) return null
+
+      const optData = new Uint8Array(await optRes.arrayBuffer())
+      const optPath = `${companyId}/${label}${storageSuffix}.bin`
+
+      const { error: optUploadErr } = await adminClient.storage
+        .from('firmware')
+        .upload(optPath, optData, { upsert: true, contentType: 'application/octet-stream' })
+
+      return optUploadErr ? null : optPath
+    }
+
+    bootloaderPath = await downloadOptionalAsset(bootloaderAssetName, '-bootloader')
+    partitionTablePath = await downloadOptionalAsset(partitionsAssetName, '-partitions')
+
     // ── Upload to Supabase storage ───────────────────────────────────────
     const { error: uploadError } = await adminClient.storage
       .from('firmware')
@@ -143,19 +174,27 @@ Deno.serve(async (req) => {
         uploaded_by: user.id,
         source_type: 'github',
         source_tag: tag,
+        bootloader_path: bootloaderPath,
+        partition_table_path: partitionTablePath,
       })
       .select()
       .single()
 
     if (insertError) {
-      // Clean up storage on DB failure
-      await adminClient.storage.from('firmware').remove([filePath])
+      // Clean up all uploaded storage objects on DB failure
+      const filesToRemove = [filePath]
+      if (bootloaderPath) filesToRemove.push(bootloaderPath)
+      if (partitionTablePath) filesToRemove.push(partitionTablePath)
+      await adminClient.storage.from('firmware').remove(filesToRemove)
       return new Response(JSON.stringify({ error: `DB insert failed: ${insertError.message}` }), {
         status: 500, headers: { 'Content-Type': 'application/json' },
       })
     }
 
-    return new Response(JSON.stringify(newVersion), {
+    return new Response(JSON.stringify({
+      ...newVersion,
+      has_full_flash: Boolean(bootloaderPath && partitionTablePath),
+    }), {
       status: 200, headers: { 'Content-Type': 'application/json' },
     })
   } catch (err: unknown) {
