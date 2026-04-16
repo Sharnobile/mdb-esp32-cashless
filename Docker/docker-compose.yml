@@ -36,7 +36,7 @@ services:
     image: eclipse-mosquitto:2.1.2-alpine
     restart: unless-stopped
     ports:
-      - "1883:1883"
+      - "${MQTT_PUBLIC_PORT:-1883}:1883"
       - "9001:9001"
     volumes:
       - ./mqtt/config:/mosquitto/config
