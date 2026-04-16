@@ -168,26 +168,26 @@ Public endpoint (no auth). Returns an ESP Web Tools manifest for a given firmwar
 ```
 
 **Behavior:**
-- Creates a Supabase client using `@supabase/supabase-js` with credentials from `useRuntimeConfig(event)` (private `supabaseUrl` and `supabaseServiceKey` — NOT the public runtime config, to avoid exposing the service key to the browser)
+- Creates a Supabase client using `@supabase/supabase-js` with the **anon key** from `useRuntimeConfig(event).public.supabase` (URL + anon key). Both are already available in the frontend container — no new env vars needed. The anon key is safe to use server-side here because RLS restricts access to `is_public = true` rows only.
 - Queries `firmware_versions` where `id = ?` AND `is_public = true`
 - Returns 404 if version not found or not public
 - Constructs Storage URLs dynamically using the **public** Supabase URL from `useRuntimeConfig(event).public.supabase.url` (this is the URL the user's browser can reach)
 - If `bootloader_path` or `partition_table_path` is null, includes only the app binary part at offset `0x20000` (131072)
 
-**Server-side Supabase access pattern:** Both server routes use `createClient()` from `@supabase/supabase-js` directly (not the Nuxt module's `useSupabaseClient()` which is Vue-only). Credentials are provided via Nuxt's private `runtimeConfig`:
+**Server-side Supabase access pattern:** Both server routes use `createClient()` from `@supabase/supabase-js` directly (not the Nuxt module's `useSupabaseClient()` which is Vue-only). They use the **anon key** (not the service key) because these endpoints only need public read access, and the anon RLS policy covers exactly this use case:
 
 ```typescript
-// server/utils/supabase.ts — shared helper
+// server/utils/supabase.ts — shared helper for public-read endpoints
 import { createClient } from '@supabase/supabase-js'
 import type { H3Event } from 'h3'
 
-export function useServerSupabase(event: H3Event) {
+export function useServerSupabaseAnon(event: H3Event) {
   const config = useRuntimeConfig(event)
-  return createClient(config.supabaseUrl, config.supabaseServiceKey)
+  return createClient(config.public.supabase.url, config.public.supabase.key)
 }
 ```
 
-The `supabaseUrl` and `supabaseServiceKey` keys must be added to `runtimeConfig` in `nuxt.config.ts` (reading from `SUPABASE_URL` and `SUPABASE_SERVICE_KEY` env vars). These are private (not under `public`) and never sent to the browser.
+No new env vars or Docker changes needed — `NUXT_PUBLIC_SUPABASE_URL` and `NUXT_PUBLIC_SUPABASE_KEY` are already injected into the frontend container.
 
 ### 4.2 Public Versions Endpoint
 
@@ -211,7 +211,7 @@ Public endpoint (no auth). Returns all publicly available firmware versions for 
 ```
 
 **Behavior:**
-- Uses the same `useServerSupabase()` helper as the manifest endpoint
+- Uses the same `useServerSupabaseAnon()` helper as the manifest endpoint
 - Queries `firmware_versions` where `is_public = true`, ordered by `created_at` desc
 - `has_full_flash` is computed: `bootloader_path IS NOT NULL AND partition_table_path IS NOT NULL`
 - No company filter — returns all public versions across all companies (the public page is not company-scoped)
@@ -239,6 +239,7 @@ Top-to-bottom layout:
 
 3. **Prerequisites Checklist**
    - Compatible browser (Chrome 89+ or Edge 89+) with Web Serial API
+   - Internet access (the flashing engine is loaded from a CDN at runtime)
    - USB-C cable
    - ESP32-S3 development board
 
@@ -453,5 +454,5 @@ Post-Flash: User follows on-page setup guide
 | `management-frontend/app/composables/useFirmware.ts` | Extended types, updateFirmwareVersion(), has_full_flash |
 | `management-frontend/app/pages/firmware/index.vue` | Public toggle, full flash badge, optional upload fields |
 | `management-frontend/app/middleware/auth.ts` | Add `/install` to public routes |
-| `management-frontend/nuxt.config.ts` | `vue.compilerOptions.isCustomElement` for `esp-*`, private `runtimeConfig` for server Supabase access |
+| `management-frontend/nuxt.config.ts` | `vue.compilerOptions.isCustomElement` for `esp-*` |
 | `management-frontend/package.json` | Add `esp-web-tools` dependency |
