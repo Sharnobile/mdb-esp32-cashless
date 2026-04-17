@@ -225,6 +225,33 @@ services:
           allow:
             - admin
 
+  ## Public REST API (api-v1 gateway)
+  - name: api-v1
+    _comment: 'API Gateway: /api/v1/* -> http://functions:9000/api-v1/*'
+    url: http://functions:9000/api-v1
+    routes:
+      - name: api-v1-all
+        strip_path: true
+        paths:
+          - /api/v1
+    plugins:
+      - name: cors
+        config:
+          origins:
+            - '*'
+          methods:
+            - GET
+            - POST
+            - PATCH
+            - DELETE
+            - OPTIONS
+          headers:
+            - Content-Type
+            - X-API-Key
+          exposed_headers:
+            - X-Total-Count
+          max_age: 3600
+
   ## Protected Dashboard - catch all remaining routes
   - name: dashboard
     _comment: 'Studio: /* -> http://studio:3000/*'

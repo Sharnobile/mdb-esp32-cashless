@@ -99,24 +99,35 @@ Deno.serve(async (req) => {
     }
 
     const token = authHeader.replace('Bearer ', '')
-    const { data: { user }, error: userError } = await adminClient.auth.getUser(token)
-    if (userError || !user) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401, headers: { 'Content-Type': 'application/json' },
-      })
-    }
+    const companyIdHeader = req.headers.get('X-Company-Id')
+    let companyId: string | null = null
+    let userId: string | null = null
 
-    // ── Verify admin role ───────────────────────────────────────────────────
-    const { data: membership } = await adminClient
-      .from('organization_members')
-      .select('company_id, role')
-      .eq('user_id', user.id)
-      .maybeSingle()
+    // Path 1: Service-role call from API gateway
+    if (token === Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') && companyIdHeader) {
+      companyId = companyIdHeader
+    } else {
+      // Path 2: Normal user JWT
+      const { data: { user }, error: userError } = await adminClient.auth.getUser(token)
+      if (userError || !user) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401, headers: { 'Content-Type': 'application/json' },
+        })
+      }
+      userId = user.id
 
-    if (!membership || membership.role !== 'admin') {
-      return new Response(JSON.stringify({ error: 'Admin role required' }), {
-        status: 403, headers: { 'Content-Type': 'application/json' },
-      })
+      const { data: membership } = await adminClient
+        .from('organization_members')
+        .select('company_id, role')
+        .eq('user_id', user.id)
+        .maybeSingle()
+
+      if (!membership || membership.role !== 'admin') {
+        return new Response(JSON.stringify({ error: 'Admin role required' }), {
+          status: 403, headers: { 'Content-Type': 'application/json' },
+        })
+      }
+      companyId = membership.company_id
     }
 
     // ── Look up device (with passkey for XOR encryption) ────────────────────
@@ -124,7 +135,7 @@ Deno.serve(async (req) => {
       .from('embeddeds')
       .select('id, company, status, passkey')
       .eq('id', device_id)
-      .eq('company', membership.company_id)
+      .eq('company', companyId)
       .maybeSingle()
 
     if (deviceError || !device) {
@@ -165,7 +176,7 @@ Deno.serve(async (req) => {
     try {
       await adminClient.from('activity_log').insert({
         company_id: device.company,
-        user_id: user.id,
+        user_id: userId,
         entity_type: 'device',
         entity_id: device.id,
         action: 'config_updated',

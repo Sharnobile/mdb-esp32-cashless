@@ -1,0 +1,619 @@
+openapi: '3.0.3'
+info:
+  title: VMflow API
+  version: '1.0'
+  description: |
+    Public REST API for VMflow vending machine management.
+
+    ## Authentication
+    All endpoints (except `/api/v1/docs`) require an API key via the `X-API-Key` header.
+    Create API keys in the management dashboard under **Settings > API Keys**.
+
+    ## Query Syntax (PostgREST)
+    CRUD endpoints support PostgREST query parameters:
+
+    | Operator | Example | Description |
+    |----------|---------|-------------|
+    | `eq` | `?status=eq.online` | Equals |
+    | `neq` | `?status=neq.offline` | Not equals |
+    | `gt` / `gte` | `?created_at=gte.2026-01-01` | Greater than (or equal) |
+    | `lt` / `lte` | `?item_price=lt.5` | Less than (or equal) |
+    | `like` | `?name=like.*cola*` | Pattern match (case-sensitive) |
+    | `ilike` | `?name=ilike.*cola*` | Pattern match (case-insensitive) |
+    | `in` | `?status=in.(online,offline)` | In list |
+    | `is` | `?revoked_at=is.null` | IS NULL / IS NOT NULL |
+
+    **Ordering:** `?order=created_at.desc`
+    **Pagination:** `?limit=20&offset=40`
+    **Column selection:** `?select=id,name,price`
+
+    ## Rate Limiting
+    Default: 100 requests per minute per API key. When exceeded, the API returns
+    `429 Too Many Requests` with a `retry_after` field (seconds).
+
+servers:
+  - url: '{baseUrl}/api/v1'
+    variables:
+      baseUrl:
+        default: 'http://localhost:8000'
+        description: Your VMflow server URL
+
+security:
+  - ApiKeyAuth: []
+
+paths:
+  /machines:
+    get:
+      summary: List machines
+      tags: [Machines]
+      parameters:
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/offset'
+        - $ref: '#/components/parameters/order'
+        - $ref: '#/components/parameters/select'
+      responses:
+        '200':
+          description: Array of machines
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Machine'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+    post:
+      summary: Create a machine
+      tags: [Machines]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MachineCreate'
+      responses:
+        '201':
+          description: Created
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /machines/{id}:
+    get:
+      summary: Get a single machine
+      tags: [Machines]
+      parameters:
+        - $ref: '#/components/parameters/resourceId'
+      responses:
+        '200':
+          description: Machine object
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Machine'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /sales:
+    get:
+      summary: List sales (read-only)
+      tags: [Sales]
+      description: Sales records are read-only. They are created automatically when a vending machine reports a sale via MQTT.
+      parameters:
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/offset'
+        - $ref: '#/components/parameters/order'
+        - $ref: '#/components/parameters/select'
+      responses:
+        '200':
+          description: Array of sales
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Sale'
+
+  /products:
+    get:
+      summary: List products
+      tags: [Products]
+      parameters:
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/offset'
+        - $ref: '#/components/parameters/order'
+        - $ref: '#/components/parameters/select'
+      responses:
+        '200':
+          description: Array of products
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Product'
+    post:
+      summary: Create a product
+      tags: [Products]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductCreate'
+      responses:
+        '201':
+          description: Created
+
+  /categories:
+    get:
+      summary: List product categories
+      tags: [Products]
+      responses:
+        '200':
+          description: Array of categories
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Category'
+
+  /devices:
+    get:
+      summary: List devices (read-only)
+      tags: [Devices]
+      description: |
+        Returns registered embedded devices. Sensitive fields (passkey, MQTT credentials)
+        are hidden. Devices are read-only via the API — they are provisioned via the
+        management dashboard.
+      parameters:
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/offset'
+      responses:
+        '200':
+          description: Array of devices
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Device'
+
+  /trays:
+    get:
+      summary: List machine trays/slots
+      tags: [Trays]
+      parameters:
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/offset'
+      responses:
+        '200':
+          description: Array of trays
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Tray'
+    post:
+      summary: Create a tray
+      tags: [Trays]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TrayCreate'
+      responses:
+        '201':
+          description: Created
+
+  /warehouses:
+    get:
+      summary: List warehouses
+      tags: [Warehouse]
+      responses:
+        '200':
+          description: Array of warehouses
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Warehouse'
+
+  /stock-batches:
+    get:
+      summary: List stock batches (FIFO)
+      tags: [Warehouse]
+      responses:
+        '200':
+          description: Array of stock batches
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StockBatch'
+
+  /paxcounter:
+    get:
+      summary: List paxcounter data (read-only)
+      tags: [Analytics]
+      description: Visitor traffic counts from ESP32 paxcounter sensors.
+      parameters:
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/offset'
+        - $ref: '#/components/parameters/order'
+      responses:
+        '200':
+          description: Array of paxcounter entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PaxCounter'
+
+  /activity-log:
+    get:
+      summary: List activity log (read-only)
+      tags: [Analytics]
+      parameters:
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/offset'
+        - $ref: '#/components/parameters/order'
+      responses:
+        '200':
+          description: Array of activity log entries
+
+  /actions/send-credit:
+    post:
+      summary: Send credit to a device
+      tags: [Actions]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [device_id, amount]
+              properties:
+                device_id:
+                  type: string
+                  format: uuid
+                amount:
+                  type: number
+                  description: Credit amount in EUR
+                  example: 1.50
+      responses:
+        '200':
+          description: Credit sent
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /actions/trigger-ota:
+    post:
+      summary: Trigger OTA firmware update
+      tags: [Actions]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [device_id, firmware_id]
+              properties:
+                device_id:
+                  type: string
+                  format: uuid
+                firmware_id:
+                  type: string
+                  format: uuid
+      responses:
+        '200':
+          description: OTA triggered
+
+  /actions/send-config:
+    post:
+      summary: Send device configuration
+      tags: [Actions]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [device_id, config]
+              properties:
+                device_id:
+                  type: string
+                  format: uuid
+                config:
+                  type: object
+                  properties:
+                    restart:
+                      type: boolean
+                      description: Remote restart the device
+                    mdb_address:
+                      type: integer
+                      enum: [1, 2]
+                      description: MDB address (1 or 2)
+                    mdb_reset:
+                      type: boolean
+                      description: Soft MDB reset
+      responses:
+        '200':
+          description: Config sent
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API key created in the management dashboard
+
+  parameters:
+    resourceId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        default: 20
+      description: Max rows to return
+    offset:
+      name: offset
+      in: query
+      schema:
+        type: integer
+        default: 0
+      description: Number of rows to skip
+    order:
+      name: order
+      in: query
+      schema:
+        type: string
+      description: 'Sort order, e.g. `created_at.desc`'
+    select:
+      name: select
+      in: query
+      schema:
+        type: string
+      description: 'Comma-separated column list, e.g. `id,name,price`'
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid API key
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    RateLimited:
+      description: Rate limit exceeded
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Error'
+              - type: object
+                properties:
+                  retry_after:
+                    type: integer
+                    description: Seconds until next request is allowed
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+
+    Machine:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        company:
+          type: string
+          format: uuid
+        name:
+          type: string
+        location:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    MachineCreate:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        location:
+          type: string
+
+    Sale:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        embedded_id:
+          type: string
+          format: uuid
+        item_price:
+          type: number
+          description: Price in EUR (not cents)
+        item_number:
+          type: integer
+        channel:
+          type: string
+        product_id:
+          type: string
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+
+    Product:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        company:
+          type: string
+          format: uuid
+        name:
+          type: string
+        price:
+          type: number
+        image_path:
+          type: string
+        discontinued:
+          type: boolean
+
+    ProductCreate:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        price:
+          type: number
+        category:
+          type: string
+          format: uuid
+
+    Category:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        company:
+          type: string
+          format: uuid
+        name:
+          type: string
+
+    Device:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        company:
+          type: string
+          format: uuid
+        subdomain:
+          type: integer
+        mac_address:
+          type: string
+        status:
+          type: string
+        status_at:
+          type: string
+          format: date-time
+        online_since:
+          type: string
+          format: date-time
+
+    Tray:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        machine_id:
+          type: string
+          format: uuid
+        item_number:
+          type: integer
+        product_id:
+          type: string
+          format: uuid
+        capacity:
+          type: integer
+        current_stock:
+          type: integer
+
+    TrayCreate:
+      type: object
+      required: [machine_id, item_number]
+      properties:
+        machine_id:
+          type: string
+          format: uuid
+        item_number:
+          type: integer
+        product_id:
+          type: string
+          format: uuid
+        capacity:
+          type: integer
+
+    Warehouse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        company_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+
+    StockBatch:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        warehouse_id:
+          type: string
+          format: uuid
+        product_id:
+          type: string
+          format: uuid
+        quantity:
+          type: integer
+        expires_at:
+          type: string
+          format: date-time
+
+    PaxCounter:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        embedded_id:
+          type: string
+          format: uuid
+        count:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
