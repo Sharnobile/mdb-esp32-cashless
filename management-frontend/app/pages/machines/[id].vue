@@ -1332,7 +1332,7 @@ async function handleAddSale() {
                                 <button
                                   v-if="isAdmin"
                                   class="hidden sm:inline-flex ml-1 align-middle rounded-md p-0.5 text-muted-foreground/0 transition-colors group-hover/sale:text-muted-foreground hover:!text-destructive"
-                                  @click.stop="confirmDeleteSale(sale)"
+                                  @click.stop.prevent="confirmDeleteSale(sale)"
                                 >
                                   <IconTrash class="size-3.5" />
                                 </button>
