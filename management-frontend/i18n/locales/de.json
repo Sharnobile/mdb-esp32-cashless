@@ -1288,7 +1288,9 @@
     "operatorEmpty": "Dieser Operator hat noch keine öffentlichen Automaten",
     "backToAll": "Alle Automaten",
     "machinesBy": "Automaten von {name}",
-    "yourLocation": "Dein Standort"
+    "yourLocation": "Dein Standort",
+    "layerSatellite": "Satellit",
+    "layerStreet": "Straße"
   },
   "mobileApp": {
     "title": "Mobile App Einrichtung",

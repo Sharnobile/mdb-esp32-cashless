@@ -82,10 +82,36 @@ async function initMap() {
 
   map = L.map(mapContainer.value).setView(initialCenter, initialZoom)
 
-  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  // Base layers: Esri hybrid satellite (imagery + roads + place labels, default)
+  // and OSM street. Esri is free to use with attribution; no API key required.
+  const streetLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
     attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>',
-  }).addTo(map)
+  })
+
+  const esriAttribution = 'Tiles &copy; <a href="https://www.esri.com/" target="_blank" rel="noopener">Esri</a> &mdash; Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community'
+
+  const hybridLayer = L.layerGroup([
+    L.tileLayer(
+      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      { attribution: esriAttribution, maxZoom: 19 },
+    ),
+    L.tileLayer(
+      'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',
+      { maxZoom: 19 },
+    ),
+    L.tileLayer(
+      'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+      { maxZoom: 19 },
+    ),
+  ])
+
+  hybridLayer.addTo(map)
+
+  L.control.layers({
+    [t('publicMap.layerSatellite')]: hybridLayer,
+    [t('publicMap.layerStreet')]: streetLayer,
+  }, undefined, { position: 'topright' }).addTo(map)
 
   if (hasCoords) {
     placePin(props.modelValue.location_lat!, props.modelValue.location_lon!)

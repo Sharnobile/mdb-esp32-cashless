@@ -1288,7 +1288,9 @@
     "operatorEmpty": "This operator has no public machines yet",
     "backToAll": "All machines",
     "machinesBy": "Machines by {name}",
-    "yourLocation": "Your location"
+    "yourLocation": "Your location",
+    "layerSatellite": "Satellite",
+    "layerStreet": "Street"
   },
   "mobileApp": {
     "title": "Mobile App Setup",
