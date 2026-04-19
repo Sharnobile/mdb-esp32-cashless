@@ -10,6 +10,10 @@ final class WarehouseViewModel: ObservableObject {
     @Published var selectedWarehouseId: UUID?
     @Published var productSummaries: [WarehouseProductSummary] = []
     @Published var recentIntakes: [IntakeEntry] = []
+    // Batch drilldown state (for ProductBatchesView)
+    @Published var drilldownBatches: [WarehouseStockBatch] = []
+    @Published var isLoadingBatches = false
+    @Published var isAdjustingBatch = false
     @Published var products: [Product] = []  // All non-discontinued products for intake picker
     @Published var isLoading = false
     @Published var error: String?
@@ -334,7 +338,11 @@ final class WarehouseViewModel: ObservableObject {
                 userId: userId,
                 batchId: batchId,
                 notes: batchNumber.flatMap { $0.isEmpty ? nil : "Batch: \($0)" },
-                companyId: companyId
+                companyId: companyId,
+                quantityBefore: nil,
+                quantityAfter: nil,
+                batchNumber: batchNumber,
+                expirationDate: expirationDate
             )
 
             try await client
@@ -360,5 +368,128 @@ final class WarehouseViewModel: ObservableObject {
         }
 
         isBookingIntake = false
+    }
+
+    // MARK: - Batch drilldown
+
+    /// Loads all non-empty batches for a specific product in the current warehouse,
+    /// ordered by expiration date ascending (oldest first).
+    /// Reuses the existing `WarehouseStockBatch` model from `Models/Warehouse.swift`.
+    func loadBatchesForProduct(_ productId: UUID) async {
+        guard let warehouseId = selectedWarehouseId else {
+            drilldownBatches = []
+            return
+        }
+
+        isLoadingBatches = true
+        defer { isLoadingBatches = false }
+
+        do {
+            let batches: [WarehouseStockBatch] = try await client
+                .from("warehouse_stock_batches")
+                .select("id, warehouse_id, product_id, quantity, batch_number, expiration_date")
+                .eq("warehouse_id", value: warehouseId.uuidString)
+                .eq("product_id", value: productId.uuidString)
+                .gt("quantity", value: 0)
+                .order("expiration_date", ascending: true)
+                .execute()
+                .value
+
+            drilldownBatches = batches
+        } catch is CancellationError {
+            // SwiftUI cancels refreshable tasks routinely — ignore
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    /// Adjust the quantity of a specific batch by a signed delta.
+    /// `reason` MUST be one of: `adjustment_refill_return`, `adjustment_correction`,
+    /// `adjustment_damage`, `adjustment_expired` — do NOT pass `intake` or `incoming`
+    /// (those remain reserved for the Wareneingang flow).
+    ///
+    /// Quantity is clamped at zero so concurrent sales can't produce negative stock.
+    /// On success, reloads batches + product summaries so callers see fresh data.
+    func adjustBatch(
+        batchId: UUID,
+        quantityChange: Int,
+        reason: String,
+        notes: String?
+    ) async {
+        guard let warehouseId = selectedWarehouseId,
+              let companyId = warehouses.first(where: { $0.id == warehouseId })?.companyId else {
+            return
+        }
+
+        isAdjustingBatch = true
+        error = nil
+        defer { isAdjustingBatch = false }
+
+        do {
+            // 1. Fetch current batch to get quantity_before + product_id
+            struct CurrentBatch: Decodable {
+                let productId: UUID
+                let quantity: Int
+                let batchNumber: String?
+                let expirationDate: String?
+
+                enum CodingKeys: String, CodingKey {
+                    case quantity
+                    case productId = "product_id"
+                    case batchNumber = "batch_number"
+                    case expirationDate = "expiration_date"
+                }
+            }
+
+            let current: CurrentBatch = try await client
+                .from("warehouse_stock_batches")
+                .select("product_id, quantity, batch_number, expiration_date")
+                .eq("id", value: batchId.uuidString)
+                .single()
+                .execute()
+                .value
+
+            let quantityBefore = current.quantity
+            let quantityAfter = max(0, quantityBefore + quantityChange)
+
+            // 2. Update batch quantity
+            struct BatchUpdate: Encodable { let quantity: Int }
+            try await client
+                .from("warehouse_stock_batches")
+                .update(BatchUpdate(quantity: quantityAfter))
+                .eq("id", value: batchId.uuidString)
+                .execute()
+
+            // 3. Insert transaction row (web-parity: includes before/after + batch metadata)
+            let userId = try await client.auth.session.user.id
+            let transaction = InsertWarehouseTransaction(
+                warehouseId: warehouseId,
+                productId: current.productId,
+                transactionType: reason,
+                quantityChange: quantityChange,
+                userId: userId,
+                batchId: batchId,
+                notes: (notes?.isEmpty ?? true) ? nil : notes,
+                companyId: companyId,
+                quantityBefore: quantityBefore,
+                quantityAfter: quantityAfter,
+                batchNumber: current.batchNumber,
+                expirationDate: current.expirationDate
+            )
+
+            try await client
+                .from("warehouse_transactions")
+                .insert(transaction)
+                .execute()
+
+            // 4. Reload affected state
+            async let batchesTask: () = loadBatchesForProduct(current.productId)
+            async let summariesTask: () = loadProductSummaries()
+            _ = await (batchesTask, summariesTask)
+        } catch is CancellationError {
+            // ignore
+        } catch {
+            self.error = error.localizedDescription
+        }
     }
 }

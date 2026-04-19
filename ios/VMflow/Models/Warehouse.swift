@@ -98,6 +98,11 @@ struct InsertWarehouseTransaction: Codable {
     let batchId: UUID?
     let notes: String?
     let companyId: UUID
+    // Web-parity columns — optional so existing `bookIntake` call sites work unchanged.
+    let quantityBefore: Int?
+    let quantityAfter: Int?
+    let batchNumber: String?
+    let expirationDate: String?
 
     enum CodingKeys: String, CodingKey {
         case notes
@@ -108,6 +113,10 @@ struct InsertWarehouseTransaction: Codable {
         case userId = "user_id"
         case batchId = "batch_id"
         case companyId = "company_id"
+        case quantityBefore = "quantity_before"
+        case quantityAfter = "quantity_after"
+        case batchNumber = "batch_number"
+        case expirationDate = "expiration_date"
     }
 }
 
