@@ -641,7 +641,7 @@
     "adjustDirectionAdd": "Einbuchen",
     "refillReturn": "Rückgabe aus Refill",
     "refillReturnDescription": "Beim Refill zu viel entnommen — wieder eingebucht",
-    "addStock": "Bestand einbuchen",
+    "addStockSubmit": "Bestand einbuchen",
     "quantityToAdd": "Einzubuchende Menge",
     "refillReturnFilter": "Rückgabe aus Refill",
     "addBarcodeTitle": "Barcode hinzufügen",
