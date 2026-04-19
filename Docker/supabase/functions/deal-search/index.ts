@@ -684,17 +684,40 @@ Deno.serve(async (req) => {
       .delete()
       .eq('company_id', companyId)
 
-    if (allDeals.length > 0) {
-      await adminClient.from('deal_cache').upsert(allDeals, {
+    const productRows = allDeals.filter((d) => d.product_id !== null && d.product_id !== undefined)
+    const keywordRows = allDeals.filter((d) => d.keyword_id !== null && d.keyword_id !== undefined)
+
+    if (productRows.length > 0) {
+      const { error: puErr } = await adminClient.from('deal_cache').upsert(productRows, {
         onConflict: 'company_id,product_id,retailer,offer_id',
         ignoreDuplicates: true,
       })
+      if (puErr) console.error('[deal-search] product upsert failed:', puErr)
     }
+
+    if (keywordRows.length > 0) {
+      const { error: kuErr } = await adminClient.from('deal_cache').upsert(keywordRows, {
+        onConflict: 'company_id,keyword_id,retailer,offer_id',
+        ignoreDuplicates: true,
+      })
+      if (kuErr) console.error('[deal-search] keyword upsert failed:', kuErr)
+    }
+
+    console.log(`[deal-search] wrote ${productRows.length} product + ${keywordRows.length} keyword deals`)
 
     // Read back with product joins for the response
     const { data: result } = await adminClient
       .from('deal_cache')
-      .select('*, products(name, image_path, sellprice)')
+      .select(`
+        *,
+        products(id, name, image_path, sellprice),
+        deal_keywords(
+          id,
+          label,
+          terms,
+          deal_keyword_products(products(id, name, image_path, sellprice))
+        )
+      `)
       .eq('company_id', companyId)
       .gte('confidence', minConfidence)
       .order('discount_pct', { ascending: false, nullsFirst: false })
