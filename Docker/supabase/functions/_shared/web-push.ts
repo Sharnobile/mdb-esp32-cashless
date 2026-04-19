@@ -585,6 +585,15 @@ export async function sendPushToUsers(
   companyId: string,
   notificationType: string,
   payload: PushPayload,
+  options?: {
+    /**
+     * Skip users who also have this OTHER notification type enabled. Useful
+     * to avoid redundant alerts when the current push duplicates info
+     * already delivered via a different channel (e.g. low_stock when sale
+     * already shows the stock count).
+     */
+    suppressIfAlsoEnabled?: string
+  },
 ): Promise<{ sent: number; expired: number }> {
   // VAPID config for web push
   const publicKey = Deno.env.get('VAPID_PUBLIC_KEY')
@@ -658,8 +667,34 @@ export async function sendPushToUsers(
 
   const disabledUserIds = new Set((disabledPrefs ?? []).map((p: { user_id: string }) => p.user_id))
 
+  // Users who have an "alternate" type enabled should not receive this push.
+  // Semantics: "enabled" = member AND no explicit row with enabled=false for
+  // that type (absence = enabled, matching the disabledPrefs semantics above).
+  const suppressedUserIds = new Set<string>()
+  if (options?.suppressIfAlsoEnabled) {
+    const { data: altDisabledPrefs } = await adminClient
+      .from('notification_preferences')
+      .select('user_id')
+      .eq('notification_type', options.suppressIfAlsoEnabled)
+      .eq('enabled', false)
+
+    const altDisabledUserIds = new Set(
+      (altDisabledPrefs ?? []).map((p: { user_id: string }) => p.user_id),
+    )
+
+    for (const memberId of memberIds) {
+      if (!altDisabledUserIds.has(memberId)) {
+        // This member has the other type enabled → suppress current push.
+        suppressedUserIds.add(memberId)
+      }
+    }
+  }
+
   const subscriptions = allSubs.filter(
-    (s: { user_id: string }) => memberIds.has(s.user_id) && !disabledUserIds.has(s.user_id),
+    (s: { user_id: string }) =>
+      memberIds.has(s.user_id) &&
+      !disabledUserIds.has(s.user_id) &&
+      !suppressedUserIds.has(s.user_id),
   ) as PushSubscription[]
 
   if (subscriptions.length === 0) {
