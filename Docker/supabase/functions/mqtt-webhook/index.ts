@@ -1,6 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { decodeBase64 } from 'https://deno.land/std@0.224.0/encoding/base64.ts'
 import { sendPushToUsers } from '../_shared/web-push.ts'
+import { stockUrgency } from './stock-urgency.ts'
 
 function fromScaleFactor(p: number, x: number, y: number): number {
   return p * x * Math.pow(10, -y);
@@ -321,7 +322,7 @@ Deno.serve(async (req) => {
         if (machine) {
           const { data: tray } = await adminClient
             .from('machine_trays')
-            .select('product_id, current_stock, min_stock, capacity')
+            .select('product_id, current_stock, min_stock, capacity, fill_when_below')
             .eq('machine_id', machine.id)
             .eq('item_number', itemNumber)
             .maybeSingle();
@@ -335,7 +336,14 @@ Deno.serve(async (req) => {
 
             if (product?.name) productName = product.name;
             if (product?.image_path) {
-              const supabaseUrl = Deno.env.get('SUPABASE_PUBLIC_URL') ?? Deno.env.get('SUPABASE_URL');
+              // Env-var names differ between prod (SUPABASE_PUBLIC_URL) and
+              // local dev (PUBLIC_SUPABASE_URL). Fall back to SUPABASE_URL
+              // last — that is the internal kong:8000 address in Docker and
+              // not reachable from mobile devices.
+              const supabaseUrl =
+                Deno.env.get('SUPABASE_PUBLIC_URL') ??
+                Deno.env.get('PUBLIC_SUPABASE_URL') ??
+                Deno.env.get('SUPABASE_URL');
               productImageUrl = `${supabaseUrl}/storage/v1/object/public/product-images/${product.image_path}`;
             }
           }
@@ -345,13 +353,27 @@ Deno.serve(async (req) => {
           }
         }
 
-        // 1. Sale notification
+        // 1. Sale notification — three-line layout on iOS (title / subtitle /
+        //    body), merged on Android+web (subtitle\nbody).
         const itemLabel = productName ?? `Item #${itemNumber}`;
         const machineLabel = machine?.name ? ` · ${machine.name}` : '';
-        const saleBody = `${itemLabel} — €${salePrice.toFixed(2)} (${channel})${machineLabel}`;
+        const saleTitle = `🛒 New Sale${machineLabel}`;
+        const saleSubtitle = `${itemLabel} — €${salePrice.toFixed(2)}`;
+
+        let saleBody: string;
+        if (tray && typeof tray.current_stock === 'number' && typeof tray.capacity === 'number' && tray.capacity > 0) {
+          const emoji = stockUrgency(tray.current_stock, tray.fill_when_below ?? 0);
+          const refillHint = (tray.fill_when_below ?? 0) > 0
+            ? ` — refill at ${tray.fill_when_below}`
+            : '';
+          saleBody = `${emoji}${tray.current_stock}/${tray.capacity} left${refillHint}`;
+        } else {
+          saleBody = 'No stock info';
+        }
 
         await sendPushToUsers(adminClient, embedded.company, 'sale', {
-          title: 'New Sale',
+          title: saleTitle,
+          subtitle: saleSubtitle,
           body: saleBody,
           image: productImageUrl,
           data: { type: 'sale', embedded_id: embedded.id },
