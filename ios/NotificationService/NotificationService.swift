@@ -18,6 +18,7 @@ final class NotificationService: UNNotificationServiceExtension {
     private var contentHandler: ((UNNotificationContent) -> Void)?
     private var bestAttemptContent: UNMutableNotificationContent?
     private var downloadTask: URLSessionDownloadTask?
+    private let deliveryLock = NSLock()
 
     override func didReceive(
         _ request: UNNotificationRequest,
@@ -29,25 +30,24 @@ final class NotificationService: UNNotificationServiceExtension {
         guard let bestAttemptContent = bestAttemptContent else {
             // `mutableCopy` effectively always succeeds on a valid content
             // object, but if it ever doesn't we must still deliver.
-            contentHandler(request.content)
+            deliverOnce(request.content)
             return
         }
 
         guard let imageURL = Self.imageURL(from: request.content.userInfo) else {
             // No image in payload (e.g. inbox / low_stock today) — deliver as-is.
-            contentHandler(bestAttemptContent)
+            deliverOnce(bestAttemptContent)
             return
         }
 
         downloadTask = URLSession.shared.downloadTask(with: imageURL) { [weak self] tempURL, response, error in
             guard let self = self,
-                  let bestAttemptContent = self.bestAttemptContent,
-                  let handler = self.contentHandler else {
+                  let bestAttemptContent = self.bestAttemptContent else {
                 return
             }
 
             // Deliver no matter what happens below.
-            defer { handler(bestAttemptContent) }
+            defer { self.deliverOnce(bestAttemptContent) }
 
             if let error = error {
                 os_log(
@@ -99,9 +99,21 @@ final class NotificationService: UNNotificationServiceExtension {
     override func serviceExtensionTimeWillExpire() {
         // iOS gives us ~30 s. On timeout, cancel and deliver whatever we have.
         downloadTask?.cancel()
-        if let handler = contentHandler, let content = bestAttemptContent {
-            handler(content)
+        if let content = bestAttemptContent {
+            deliverOnce(content)
         }
+    }
+
+    /// Call `contentHandler` at most once, even under concurrent calls from
+    /// the URLSession delegate queue (download completion) and the main
+    /// thread (`serviceExtensionTimeWillExpire`). Apple's contract is that
+    /// calling the handler more than once is undefined behavior.
+    private func deliverOnce(_ content: UNNotificationContent) {
+        deliveryLock.lock()
+        let handler = contentHandler
+        contentHandler = nil
+        deliveryLock.unlock()
+        handler?(content)
     }
 
     // MARK: - Pure helpers
