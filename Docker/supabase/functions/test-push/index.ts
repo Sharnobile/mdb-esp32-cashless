@@ -79,7 +79,7 @@ Deno.serve(async (req) => {
     // stock numbers to hit the 🟡 warning bucket.
     const dummyProductName = testProductName ?? 'Sample Product'
     const dummyPrice = 2.50
-    const dummyCurrentStock = 3
+    const dummyCurrentStock = 6
     const dummyCapacity = 10
     const dummyFillWhenBelow = 5
     const emoji = stockUrgency(dummyCurrentStock, dummyFillWhenBelow)
