@@ -73,10 +73,39 @@ static uint32_t s_last_seq = 0;
 static uint32_t s_fast_path_count = 0;
 
 // msg_id of the sale currently in flight to the broker via the SLOW path
-// (0 = none).  Fast-path publishes are fire-and-forget and never tracked
-// here — their PUBACKs are intentionally ignored.
-// Cleared on slow-path PUBACK or on MQTT disconnect.
+// (0 = none). Cleared on slow-path PUBACK or on MQTT disconnect.
 static int s_in_flight_msg_id = 0;
+
+// In-flight tracking for FAST-path publishes.
+//
+// Fast-path publish is fire-and-forget from the *caller's* perspective, but
+// we keep a small RAM-only record of each (msg_id, sale_record_t) pair until
+// PUBACK arrives. This gives us two essential safety properties:
+//
+//   1. PUBACK identification: when MQTT_EVENT_PUBLISHED fires we can
+//      distinguish fast-path acks (clear the entry) from slow-path acks
+//      (advance the NVS head pointer).
+//
+//   2. Disconnect recovery: when MQTT_EVENT_DISCONNECTED fires we DEMOTE
+//      every still-tracked entry into the NVS slow-path queue. This way
+//      a reconnect (or even the watchdog hard-reboot at 10min offline)
+//      cannot lose a fast-path sale that was in flight at the moment of
+//      the network drop. The drain task will republish from NVS after
+//      reconnect; backend idempotency on (embedded_id, sale_seq) absorbs
+//      any duplicates that the broker had actually received.
+//
+// 16 slots is well above realistic in-flight count (typically 0-2): each
+// publish gets PUBACK in milliseconds when the network is healthy. If the
+// array fills up that's a strong signal of network trouble — we then fall
+// back to the slow path for new sales until things recover.
+#define FAST_PATH_TRACK_MAX 16
+
+typedef struct {
+    sale_record_t rec;
+    int           msg_id;  // 0 = slot empty
+} fast_path_slot_t;
+
+static fast_path_slot_t s_fast_tracked[FAST_PATH_TRACK_MAX];
 
 static void load_u32(nvs_handle_t h, const char *key, uint32_t *out) {
     if (nvs_get_u32(h, key, out) != ESP_OK) *out = 0;
@@ -143,6 +172,89 @@ static bool can_fast_path_locked(void) {
         && s_in_flight_msg_id == 0;
 }
 
+// Caller must hold s_lock. Records a fast-path publish so its PUBACK can be
+// matched and so it can be demoted to NVS on disconnect. Returns false if
+// the tracking array is full — caller should fall through to the slow path
+// in that case (signal of slow PUBACKs / network trouble).
+static bool fast_path_track_locked(int msg_id, const sale_record_t *rec) {
+    for (int i = 0; i < FAST_PATH_TRACK_MAX; i++) {
+        if (s_fast_tracked[i].msg_id == 0) {
+            s_fast_tracked[i].msg_id = msg_id;
+            s_fast_tracked[i].rec    = *rec;
+            return true;
+        }
+    }
+    return false;
+}
+
+// Caller must hold s_lock. Returns true and clears the slot if a fast-path
+// entry with this msg_id exists. Used by sale_queue_on_published to absorb
+// fast-path PUBACKs without touching NVS.
+static bool fast_path_ack_locked(int msg_id) {
+    for (int i = 0; i < FAST_PATH_TRACK_MAX; i++) {
+        if (s_fast_tracked[i].msg_id == msg_id) {
+            s_fast_tracked[i].msg_id = 0;
+            return true;
+        }
+    }
+    return false;
+}
+
+// Caller must hold s_lock. Writes one record into the slow-path NVS queue
+// (blob + tail commit). Returns true on success. Caller is responsible for
+// overflow accounting.
+static bool nvs_persist_record_locked(const sale_record_t *rec) {
+    uint32_t slot = s_tail % SALE_QUEUE_CAPACITY;
+    char key[8];
+    snprintf(key, sizeof(key), SLOT_KEY_FMT, (unsigned)slot);
+
+    nvs_handle_t h;
+    if (nvs_open(NS, NVS_READWRITE, &h) != ESP_OK) return false;
+
+    bool ok = true;
+    if (nvs_set_blob(h, key, rec, sizeof(*rec)) != ESP_OK) ok = false;
+    if (ok && nvs_set_u32(h, K_TAIL, s_tail + 1) != ESP_OK) ok = false;
+    if (ok && nvs_commit(h)                      != ESP_OK) ok = false;
+    nvs_close(h);
+
+    if (!ok) return false;
+    s_tail++;
+    return true;
+}
+
+// Caller must hold s_lock. Demotes every still-tracked fast-path entry to
+// the NVS queue. Per-entry commit so a power loss mid-demote (e.g. watchdog
+// hard reboot racing with the disconnect handler) leaves earlier entries
+// safely persisted. Idempotency at the backend means it's harmless if the
+// broker had actually delivered some of these before the disconnect — the
+// drain task republishes, backend returns 23505 duplicate, head advances.
+static void fast_path_demote_all_locked(void) {
+    int demoted = 0, lost = 0;
+    for (int i = 0; i < FAST_PATH_TRACK_MAX; i++) {
+        if (s_fast_tracked[i].msg_id == 0) continue;
+
+        if (s_tail - s_head >= SALE_QUEUE_CAPACITY) {
+            // Queue is full — record the loss but clear the tracking slot
+            // so we don't keep retrying forever.
+            s_overflow++;
+            lost++;
+        } else if (nvs_persist_record_locked(&s_fast_tracked[i].rec)) {
+            demoted++;
+        } else {
+            ESP_LOGE(TAG, "demote: NVS write failed for seq=%u",
+                     (unsigned)s_fast_tracked[i].rec.sale_seq);
+            lost++;
+        }
+        s_fast_tracked[i].msg_id = 0;
+    }
+
+    if (demoted || lost) {
+        ESP_LOGW(TAG, "disconnect: demoted %d fast-path sales to NVS (%d lost)",
+                 demoted, lost);
+        if (demoted) xSemaphoreGive(s_wake);
+    }
+}
+
 bool sale_queue_enqueue(uint8_t cmd, uint16_t item_price, uint16_t item_number) {
     if (s_lock == NULL) {
         ESP_LOGE(TAG, "enqueue before init — dropping sale");
@@ -192,12 +304,16 @@ bool sale_queue_enqueue(uint8_t cmd, uint16_t item_price, uint16_t item_number) 
     };
 
     // ---- FAST PATH -----------------------------------------------------
-    // Broker is online and queue is idle: publish directly with no NVS
-    // blob write. Idempotency is preserved via the already-persisted seq
-    // reservation, so a reboot cannot reuse the same sale_seq. Fire-and-
-    // forget — we intentionally do not wait for PUBACK nor track the
-    // msg_id. The ~ms window between publish() and TCP-send is the
-    // accepted loss risk documented in the design.
+    // Broker is online and queue is idle: publish directly with no NVS blob
+    // write. Idempotency is preserved via the already-persisted seq
+    // reservation, so a reboot cannot reuse the same sale_seq. The publish
+    // is tracked in a small RAM array so that:
+    //   - PUBACK is matched and the slot freed (no NVS work)
+    //   - on disconnect, the still-untracked entries are demoted to NVS so
+    //     a subsequent watchdog reboot cannot lose them
+    // Only the few microseconds between mqtt_publish_safe() returning and
+    // fast_path_track_locked() registering the slot are unprotected — the
+    // accepted loss window.
     if (can_fast_path_locked()) {
         uint8_t payload[19];
         build_v2_payload(&rec, payload);
@@ -207,49 +323,34 @@ bool sale_queue_enqueue(uint8_t cmd, uint16_t item_price, uint16_t item_number) 
 
         int msg_id = mqtt_publish_safe(s_client, topic, (const char *)payload,
                                        sizeof(payload), 1 /*QoS*/, 0);
-        if (msg_id > 0) {
+        if (msg_id > 0 && fast_path_track_locked(msg_id, &rec)) {
             s_fast_path_count++;
             ESP_LOGI(TAG, "fast-path seq=%u msg_id=%d time_uncertain=%u",
                      (unsigned)seq, msg_id, (unsigned)rec.time_uncertain);
             xSemaphoreGive(s_lock);
             return true;
         }
-        ESP_LOGW(TAG, "fast-path publish failed (msg_id=%d) — falling through to slow path",
-                 msg_id);
+        if (msg_id > 0) {
+            ESP_LOGW(TAG, "fast-path tracking full — falling through to slow path "
+                          "(network healthy? %d in flight)", FAST_PATH_TRACK_MAX);
+        } else {
+            ESP_LOGW(TAG, "fast-path publish failed (msg_id=%d) — falling through to slow path",
+                     msg_id);
+        }
     }
 
     // ---- SLOW PATH -----------------------------------------------------
     // Queue the sale to NVS so the drain task can publish with strict
-    // FIFO + PUBACK tracking.
+    // FIFO + PUBACK tracking. K_LAST_SEQ is NOT written here — the seq
+    // was already persisted by alloc_seq_locked() via the reservation.
     uint32_t slot = s_tail % SALE_QUEUE_CAPACITY;
-    char key[8];
-    snprintf(key, sizeof(key), SLOT_KEY_FMT, (unsigned)slot);
-
-    nvs_handle_t h;
-    esp_err_t err = nvs_open(NS, NVS_READWRITE, &h);
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "nvs_open failed: %s — sale seq=%u NOT persisted",
-                 esp_err_to_name(err), (unsigned)seq);
-        xSemaphoreGive(s_lock);
-        return false;
-    }
-
-    // Blob + tail committed atomically. K_LAST_SEQ is NOT written here — the
-    // seq was already persisted by alloc_seq_locked() via the reservation.
-    bool ok = true;
-    if (nvs_set_blob(h, key, &rec, sizeof(rec)) != ESP_OK) ok = false;
-    if (ok && nvs_set_u32(h, K_TAIL, s_tail + 1) != ESP_OK) ok = false;
-    if (ok && nvs_commit(h)                      != ESP_OK) ok = false;
-    nvs_close(h);
-
-    if (!ok) {
+    if (!nvs_persist_record_locked(&rec)) {
         ESP_LOGE(TAG, "NVS write failed for seq=%u — sale NOT persisted",
                  (unsigned)seq);
         xSemaphoreGive(s_lock);
         return false;
     }
 
-    s_tail++;
     ESP_LOGI(TAG, "slow-path enqueued seq=%u slot=%u price=%u item=%u time_uncertain=%u (pending=%u)",
              (unsigned)seq, (unsigned)slot,
              (unsigned)item_price, (unsigned)item_number,
@@ -340,13 +441,21 @@ static void build_v2_payload(const sale_record_t *rec, uint8_t *payload) {
 void sale_queue_on_published(int msg_id) {
     if (msg_id == 0) return;
     xSemaphoreTake(s_lock, portMAX_DELAY);
+
+    // Fast-path PUBACK: just clear the RAM tracking slot. No NVS work,
+    // because fast-path sales were never written to the queue.
+    if (fast_path_ack_locked(msg_id)) {
+        xSemaphoreGive(s_lock);
+        return;
+    }
+
     if (msg_id != s_in_flight_msg_id) {
         // Ack for some other publish (status, paxcounter, mdb-log) — ignore.
         xSemaphoreGive(s_lock);
         return;
     }
 
-    // Advance head: the oldest sale is now confirmed on the broker.
+    // Slow-path PUBACK: advance head, the oldest queued sale is confirmed.
     uint32_t new_head = s_head + 1;
     nvs_handle_t h;
     if (nvs_open(NS, NVS_READWRITE, &h) == ESP_OK) {
@@ -366,6 +475,13 @@ void sale_queue_on_published(int msg_id) {
 void sale_queue_on_disconnect(void) {
     xSemaphoreTake(s_lock, portMAX_DELAY);
     s_in_flight_msg_id = 0; // drain task will re-publish on reconnect
+
+    // Rescue any in-flight fast-path publishes whose PUBACK never made it
+    // back. Without this, a watchdog hard-reboot at 10min offline would
+    // wipe the ESP-IDF outbox and lose them. Backend dedup absorbs any
+    // entries that the broker had actually delivered before the drop.
+    fast_path_demote_all_locked();
+
     xSemaphoreGive(s_lock);
 }
 
