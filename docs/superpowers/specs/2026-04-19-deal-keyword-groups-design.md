@@ -68,7 +68,7 @@ immutable per project convention.
 ### `deal_keywords`
 
 ```sql
-CREATE TABLE public.deal_keywords (
+CREATE TABLE IF NOT EXISTS public.deal_keywords (
   id          uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id  uuid        NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   label       text        NULL,                         -- optional display name, e.g. "Haribo"
@@ -79,27 +79,94 @@ CREATE TABLE public.deal_keywords (
     CHECK (array_length(terms, 1) >= 1)
 );
 
-CREATE INDEX idx_deal_keywords_company ON public.deal_keywords(company_id);
-```
+CREATE INDEX IF NOT EXISTS idx_deal_keywords_company ON public.deal_keywords(company_id);
 
-RLS: read/write for members of the company via `my_company_id()`.
+-- updated_at maintenance
+CREATE OR REPLACE FUNCTION public.tg_deal_keywords_set_updated_at()
+  RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  NEW.updated_at := now();
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS deal_keywords_set_updated_at ON public.deal_keywords;
+CREATE TRIGGER deal_keywords_set_updated_at
+  BEFORE UPDATE ON public.deal_keywords
+  FOR EACH ROW EXECUTE FUNCTION public.tg_deal_keywords_set_updated_at();
+
+-- RLS (uses existing SECURITY DEFINER helper my_company_id())
+ALTER TABLE public.deal_keywords ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "deal_keywords_select" ON public.deal_keywords;
+CREATE POLICY "deal_keywords_select" ON public.deal_keywords
+  FOR SELECT TO authenticated
+  USING (company_id = public.my_company_id());
+
+DROP POLICY IF EXISTS "deal_keywords_insert" ON public.deal_keywords;
+CREATE POLICY "deal_keywords_insert" ON public.deal_keywords
+  FOR INSERT TO authenticated
+  WITH CHECK (company_id = public.my_company_id());
+
+DROP POLICY IF EXISTS "deal_keywords_update" ON public.deal_keywords;
+CREATE POLICY "deal_keywords_update" ON public.deal_keywords
+  FOR UPDATE TO authenticated
+  USING (company_id = public.my_company_id())
+  WITH CHECK (company_id = public.my_company_id());
+
+DROP POLICY IF EXISTS "deal_keywords_delete" ON public.deal_keywords;
+CREATE POLICY "deal_keywords_delete" ON public.deal_keywords
+  FOR DELETE TO authenticated
+  USING (company_id = public.my_company_id());
+```
 
 ### `deal_keyword_products`
 
 ```sql
-CREATE TABLE public.deal_keyword_products (
+CREATE TABLE IF NOT EXISTS public.deal_keyword_products (
   keyword_id  uuid NOT NULL REFERENCES public.deal_keywords(id) ON DELETE CASCADE,
   product_id  uuid NOT NULL REFERENCES public.products(id)      ON DELETE CASCADE,
   created_at  timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (keyword_id, product_id)
 );
 
-CREATE INDEX idx_deal_keyword_products_product ON public.deal_keyword_products(product_id);
+CREATE INDEX IF NOT EXISTS idx_deal_keyword_products_product ON public.deal_keyword_products(product_id);
+
+-- RLS: join is kept normalized (no direct company_id), company isolation is
+-- enforced via the parent deal_keywords row. Both USING and WITH CHECK use the
+-- same predicate so INSERT/UPDATE cannot cross-link to another company's keyword.
+ALTER TABLE public.deal_keyword_products ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "deal_keyword_products_select" ON public.deal_keyword_products;
+CREATE POLICY "deal_keyword_products_select" ON public.deal_keyword_products
+  FOR SELECT TO authenticated
+  USING (EXISTS (
+    SELECT 1 FROM public.deal_keywords k
+    WHERE k.id = deal_keyword_products.keyword_id
+      AND k.company_id = public.my_company_id()
+  ));
+
+DROP POLICY IF EXISTS "deal_keyword_products_insert" ON public.deal_keyword_products;
+CREATE POLICY "deal_keyword_products_insert" ON public.deal_keyword_products
+  FOR INSERT TO authenticated
+  WITH CHECK (EXISTS (
+    SELECT 1 FROM public.deal_keywords k
+    WHERE k.id = deal_keyword_products.keyword_id
+      AND k.company_id = public.my_company_id()
+  ));
+
+DROP POLICY IF EXISTS "deal_keyword_products_delete" ON public.deal_keyword_products;
+CREATE POLICY "deal_keyword_products_delete" ON public.deal_keyword_products
+  FOR DELETE TO authenticated
+  USING (EXISTS (
+    SELECT 1 FROM public.deal_keywords k
+    WHERE k.id = deal_keyword_products.keyword_id
+      AND k.company_id = public.my_company_id()
+  ));
 ```
 
-RLS: read/write for members of the company. The policy can be derived via
-`EXISTS (SELECT 1 FROM deal_keywords k WHERE k.id = keyword_id AND k.company_id = my_company_id())`
-so there is no direct `company_id` column on the join (kept normalized).
+No UPDATE policy — the join is immutable (compound PK); edits are delete +
+insert via `setKeywordProducts()`.
 
 ### `deal_cache` additive changes
 
@@ -112,15 +179,21 @@ ALTER TABLE public.deal_cache
   ADD COLUMN IF NOT EXISTS keyword_id    uuid NULL REFERENCES public.deal_keywords(id) ON DELETE CASCADE,
   ADD COLUMN IF NOT EXISTS matched_term  text NULL;
 
--- product_id becomes nullable
+-- product_id becomes nullable (DROP NOT NULL is a no-op if already nullable — idempotent)
 ALTER TABLE public.deal_cache ALTER COLUMN product_id DROP NOT NULL;
 
--- XOR: exactly one of product_id / keyword_id is set
+-- XOR: exactly one of product_id / keyword_id is set.
+-- PostgreSQL does NOT support ADD CONSTRAINT IF NOT EXISTS for CHECK, so the
+-- idempotent pattern is DROP IF EXISTS + ADD.
+ALTER TABLE public.deal_cache DROP CONSTRAINT IF EXISTS deal_cache_product_xor_keyword;
 ALTER TABLE public.deal_cache
   ADD CONSTRAINT deal_cache_product_xor_keyword
   CHECK ((product_id IS NOT NULL) <> (keyword_id IS NOT NULL));
 
--- Replace UNIQUE with two partial unique indexes
+-- Replace UNIQUE with two partial unique indexes (dedup per match type).
+-- These are NOT used as ON CONFLICT targets; the edge function uses the
+-- DELETE-then-INSERT refresh pattern (see Edge Function Changes). The indexes
+-- act as a defensive guard against accidental in-batch duplicates.
 CREATE UNIQUE INDEX IF NOT EXISTS uq_deal_cache_product
   ON public.deal_cache (company_id, product_id, retailer, offer_id)
   WHERE product_id IS NOT NULL;
@@ -149,34 +222,91 @@ have `product_id` set and `keyword_id` is `NULL` by default.
 
 Files touched: `Docker/supabase/functions/deal-search/index.ts`.
 
+### Cache refresh pattern (existing, preserved)
+
+The edge function today wipes and rewrites the company's cache on every run:
+
+```ts
+await adminClient.from('deal_cache').delete().eq('company_id', companyId)
+// ...build allDeals...
+await adminClient.from('deal_cache').upsert(allDeals, {
+  onConflict: 'company_id,product_id,retailer,offer_id',
+  ignoreDuplicates: true,
+})
+```
+
+Because the cache is fully rewritten, **stale keyword-match rows are not a
+concern** — the next refresh starts from an empty slate. No extra invalidation
+hooks on `updateKeyword` / `deleteKeyword` are required.
+
+The `onConflict` target on the upsert changes to accommodate nullable
+`product_id`. Since the Supabase client does not support partial conflict
+targets, the simplest correct approach is to **split the upsert** into two
+calls (one for product rows, one for keyword rows):
+
+```ts
+const productRows = allDeals.filter(d => d.product_id !== null)
+const keywordRows = allDeals.filter(d => d.keyword_id !== null)
+
+if (productRows.length > 0) {
+  await adminClient.from('deal_cache').upsert(productRows, {
+    onConflict: 'company_id,product_id,retailer,offer_id',
+    ignoreDuplicates: true,
+  })
+}
+if (keywordRows.length > 0) {
+  await adminClient.from('deal_cache').upsert(keywordRows, {
+    onConflict: 'company_id,keyword_id,retailer,offer_id',
+    ignoreDuplicates: true,
+  })
+}
+```
+
+The two partial unique indexes (`uq_deal_cache_product`, `uq_deal_cache_keyword`)
+back the two conflict targets exactly.
+
 ### Matching order
 
 1. **Fetch offers** from Marktguru (unchanged).
-2. **Fetch keyword groups** for the company:
-   `SELECT id, label, terms, array_agg(product_id) AS product_ids FROM deal_keywords LEFT JOIN deal_keyword_products ON ... GROUP BY id`.
+2. **Fetch keyword groups** for the company with their linked product IDs.
+   Runs with `service_role` (RLS bypassed), so we filter explicitly:
+
+   ```sql
+   SELECT k.id, k.label, k.terms,
+          COALESCE(array_agg(kp.product_id) FILTER (WHERE kp.product_id IS NOT NULL), '{}') AS product_ids
+   FROM public.deal_keywords k
+   LEFT JOIN public.deal_keyword_products kp ON kp.keyword_id = k.id
+   WHERE k.company_id = $1
+   GROUP BY k.id;
+   ```
 3. **Keyword matching pass**, per offer:
-   - For each `deal_keywords` row: evaluate every `term` in `terms` against the
-     offer using the **existing** `matchProductToOffer()` helper (token fuzzy +
-     brand bonus + wildcard boost), treating the `term` as the "product name".
-   - Take the highest-confidence term; if `>= min_confidence`, record a keyword
-     match: `(offer, keyword_id, matched_term, confidence, matched_tokens)`.
-   - Also track the set of `product_ids` covered by this keyword hit →
-     `keyword_covered_products` (per-offer set).
-4. **Product matching pass**, per offer (existing logic):
+   - For each keyword group: evaluate every `term` in `terms` using the
+     **existing** `matchConfidence(term, offer.description, offer.brand?.name ?? '', dealConfig)`.
+     No refactor needed — `matchConfidence` already accepts the reference
+     string as a parameter (see `Docker/supabase/functions/deal-search/index.ts:243`).
+   - Take the highest-confidence term across `terms`; if `>= min_confidence`,
+     record a keyword match row. Write `product_id = NULL, keyword_id = <id>,
+     matched_by = 'keyword_fuzzy', matched_term = <winning term>,
+     matched_tokens = <winning result's tokens>`.
+   - Build a per-offer set **`keyword_covered_products[offer.id]`** = union of
+     all `product_ids` across keyword groups that matched this offer. "Covered"
+     means "covered by **any** keyword match on this offer", so a product linked
+     to multiple matching keywords is still covered once.
+4. **Product matching pass**, per offer (existing logic — both the
+   query-driven pass and the cross-match-all-products pass at
+   `index.ts:525-563`):
    - Fuzzy-match against `products.name`.
-   - **Before writing**, skip any `(offer, product_id)` where `product_id` is in
-     `keyword_covered_products[offer_id]`. This enforces "keyword wins" dedup.
-5. **Upsert** to `deal_cache` using the matching partial unique index. Keyword
-   matches write `product_id = NULL, keyword_id = <id>, matched_by = 'keyword_fuzzy', matched_term = <term>`.
-   Product matches behave as today.
+   - **Before pushing to `allDeals`**, skip any `(offer, product)` where
+     `product.id ∈ keyword_covered_products[offer.id]`. This enforces the
+     "keyword wins" dedup rule at write time.
+5. **Write** via the split-upsert pattern above.
 
 ### Reused helpers
 
-No parallel implementation of matching logic. The current
-`matchProductToOffer(productName, offer, config)` function is generic over the
-reference string — we just feed it `term` instead of `product.name`. If the
-function today reads `product.name` directly rather than taking a string param,
-a light refactor extracts the string-to-offer comparator.
+No parallel implementation of matching logic. `matchConfidence(productName,
+offerDescription, offerBrand, config)` at `deal-search/index.ts:243` already
+takes the reference string as its first parameter — we call it with a keyword
+`term` instead of `product.name`. Zero signature changes.
 
 ### Config
 
@@ -185,8 +315,9 @@ Reuses `companies.deals_config` (JSONB): `min_confidence`, `generic_terms`,
 
 ### Logging
 
-Debug logs prefix `[keyword:<id>]` on match so the existing cache-hit analysis
-telemetry distinguishes keyword vs product matches.
+Debug logs prefix `[keyword:<id>]` on match. Also log per-offer
+`suppressed_by_keyword_count` so telemetry can verify the dedup rule is firing
+as expected.
 
 ## Frontend
 
@@ -235,16 +366,26 @@ all deals stay in one sortable/filterable list.
 
 ### Components
 
-- **New**: `MultiProductCombobox.vue` — duplicate-and-adapt of
-  `ProductCombobox.vue` (single-select today, lines 28-60). Changes:
-  - `modelValue: string[]` instead of `string | null`
-  - Clicking an item toggles it instead of closing the popover
-  - Selected chips render inside the trigger with a click-to-remove X
-  - Keeps the existing `CommandInput` search (already filters by product.name)
+- **New**: `MultiProductCombobox.vue` — new sibling component to
+  `ProductCombobox.vue`. Structural differences vs the single-select version:
+  - `modelValue: string[]` (vs `string | null`) — different emit contract
+  - Selection toggles an item instead of closing the popover on select
+  - Trigger renders a wrap of removable chips (one per selected product) instead
+    of a single label with one image
+  - No `selectProduct(null)` "none" option (selection is the array itself)
+  - Keeps the existing `Command` + `CommandInput` search (already filters the
+    `v-for` list by `product.name`, so ~50–500 products remain navigable)
 
-  Rationale for a new component over a `multiple` prop: the rendering model
-  differs enough (chips vs single label, no close-on-select) that conditional
-  logic would muddy both paths. Keep `ProductCombobox` single-purpose.
+  Rationale for a separate component over extending `ProductCombobox` with a
+  `multiple: true` prop: the emit contract changes type (`string | null` vs
+  `string[]`), the trigger slot changes layout (single vs chip stack), and the
+  item-click handler changes behavior (commit-and-close vs toggle). A single
+  component covering both modes would need a discriminated-union `modelValue`
+  type and conditional logic in three places — the trigger, the item handler,
+  and the emit — which obscures both paths. Keeping `ProductCombobox` single-
+  purpose also avoids a sweeping update of every existing call site (it is
+  used across product forms, machine trays, refill wizard) to prove no
+  behavior regressed.
 
 - **New**: `DealKeywordModal.vue` — the Create/Edit modal described above.
 - **New**: `DealKeywordList.vue` — the "Schlagwörter" tab list.
@@ -324,9 +465,11 @@ Frontend renders ONE card:
 ## Error handling & edge cases
 
 - **No products linked to a keyword:** allowed (user might define the group
-  before adding products). Matches still produce a deal_cache row with
-  `product_ids = []`; UI shows the card with an empty "0 Produkte verknüpft"
-  note so the user sees their group is incomplete.
+  before adding products). Matches still produce a `deal_cache` row with just
+  `keyword_id` set (there is no `product_ids` column on `deal_cache` — the
+  product list is always derived at read time via the `deal_keyword_products`
+  join). UI shows the card with an empty "0 Produkte verknüpft" note so the
+  user sees their group is incomplete.
 - **Product deleted while linked:** `ON DELETE CASCADE` on
   `deal_keyword_products` removes the link. Existing deal_cache rows keep the
   `keyword_id` and are still displayable (the product list is derived at
@@ -352,16 +495,27 @@ Frontend renders ONE card:
   (pattern already established in `__tests__/`).
 - **Component**: `MultiProductCombobox` — select/deselect, chip removal, search
   filters list.
-- **Migration**: fresh-install + migrate-from-previous path verified by running
-  `supabase db reset` on a local branch (NOT the user's main dev DB —
-  ABSOLUTE RULE per memory).
+- **Migration**: verify both fresh-install and migrate-from-previous paths.
+  - **Do NOT use `supabase db reset` against the project's dev DB** — this is
+    an ABSOLUTE RULE per project memory.
+  - Instead, spin up a throwaway Postgres container (e.g. `docker run
+    --rm postgres:15.8`) or a separate fresh Supabase CLI project in a
+    scratch directory, run all migrations in order, then run this migration on
+    top of a snapshot that stops at the previous migration to exercise the
+    "upgrade existing deal_cache" path.
+  - Pay specific attention to: existing `deal_cache` rows survive (XOR check
+    passes), `deal_cache_unique` is cleanly replaced by the two partial
+    indexes, and the RLS policies evaluate correctly with a real JWT.
 
 ## Rollout
 
-- Feature is gated by the existing `companies.deals_enabled` toggle; no new
-  flag needed.
-- Users who never create a keyword group see no change.
-- Edge function is idempotent and handles empty keyword lists cleanly.
+- Feature is gated by the existing `companies.deals_enabled` boolean column
+  (added in migration `20260413000000_deal_search_infrastructure.sql`, line 18).
+  No new flag needed.
+- Users who never create a keyword group see no change: the keyword-matching
+  pass runs against an empty list and is a no-op.
+- `deal-search` handles empty keyword result sets cleanly (the two split
+  upserts both run under `if (rows.length > 0)` guards).
 
 ## Open questions / follow-ups (out of scope here)
 
