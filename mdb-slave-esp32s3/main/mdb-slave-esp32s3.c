@@ -834,8 +834,20 @@ void vTaskMdbEvent(void *pvParameters) {
 						 * to the VMC.  Even a crash or power-loss after this point
 						 * leaves the sale durably recorded; the drain task will
 						 * publish it (or re-publish after reboot) with broker QoS 1
-						 * + backend idempotency protecting against duplicates. */
-						sale_queue_enqueue(0x24, itemPrice, itemNumber);
+						 * + backend idempotency protecting against duplicates.
+						 *
+						 * Fallback: if the queue is unavailable (NVS error, init
+						 * failure, or capacity exhausted) fall back to the legacy
+						 * direct-publish path so behaviour never degrades below
+						 * the pre-queue firmware. */
+						if (!sale_queue_enqueue(0x24, itemPrice, itemNumber)) {
+							uint8_t payload_mqtt[19];
+							xorEncodeWithPasskey(0x24, itemPrice, itemNumber, 0, (uint8_t*) &payload_mqtt);
+							char topic_sale[128];
+							snprintf(topic_sale, sizeof(topic_sale), "/%s/%s/sale", my_company_id, my_device_id);
+							mqtt_publish_safe(mqttClient, topic_sale, (char*) &payload_mqtt, sizeof(payload_mqtt), 1, 0);
+							ESP_LOGW(TAG, "sale_queue fallback: direct publish (v1) for VEND_SUCCESS");
+						}
 
 						ESP_LOGI( TAG, "VEND_SUCCESS price=%u item=%u", itemPrice, itemNumber);
 
@@ -889,7 +901,14 @@ void vTaskMdbEvent(void *pvParameters) {
 						mdb_last_cmd = "CASH_SALE";
 
                         /* Persistent queue handles publish + retry — see VEND_SUCCESS */
-                        sale_queue_enqueue(0x21, itemPrice, itemNumber);
+                        if (!sale_queue_enqueue(0x21, itemPrice, itemNumber)) {
+                            uint8_t payload[19];
+                            xorEncodeWithPasskey(0x21, itemPrice, itemNumber, 0, (uint8_t*) &payload);
+                            char topic[128];
+                            snprintf(topic, sizeof(topic), "/%s/%s/sale", my_company_id, my_device_id);
+                            mqtt_publish_safe(mqttClient, topic, (char*) &payload, sizeof(payload), 1, 0);
+                            ESP_LOGW(TAG, "sale_queue fallback: direct publish (v1) for CASH_SALE");
+                        }
 
                         ESP_LOGI( TAG, "CASH_SALE");
 						break;
@@ -1042,7 +1061,14 @@ void vTaskMdbEvent(void *pvParameters) {
 						ESP_LOGI(TAG, "SNIFF CARD_SALE price=%u item=%u", sniff_itemPrice, sniff_itemNumber);
 
 						/* Persistent queue handles publish + retry — see VEND_SUCCESS */
-						sale_queue_enqueue(0x23, sniff_itemPrice, sniff_itemNumber);
+						if (!sale_queue_enqueue(0x23, sniff_itemPrice, sniff_itemNumber)) {
+							uint8_t payload[19];
+							xorEncodeWithPasskey(0x23, sniff_itemPrice, sniff_itemNumber, 0, (uint8_t*) &payload);
+							char topic[128];
+							snprintf(topic, sizeof(topic), "/%s/%s/sale", my_company_id, my_device_id);
+							mqtt_publish_safe(mqttClient, topic, (char*) &payload, sizeof(payload), 1, 0);
+							ESP_LOGW(TAG, "sale_queue fallback: direct publish (v1) for SNIFF CARD_SALE");
+						}
 
 						// Clear after enqueue to prevent stale data
 						sniff_itemPrice = 0;
