@@ -4,6 +4,7 @@ import SwiftUI
 struct RefillWizardView: View {
     @StateObject private var viewModel = RefillWizardViewModel()
     @EnvironmentObject private var realtime: RealtimeService
+    @Environment(\.scenePhase) private var scenePhase
     @State private var showResumeAlert = false
 
     /// Bumps whenever a sale is inserted, a tray is mutated, or warehouse
@@ -84,6 +85,15 @@ struct RefillWizardView: View {
             // Dispatcher picks the right per-step refresh (packing: rebuild
             // list; refill: display-only stock update). Review/summary
             // intentionally do nothing.
+            Task { await viewModel.refreshFromRealtime() }
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            // When the app returns from background, the Supabase realtime
+            // websocket was disconnected. postgres_changes events that fired
+            // during suspension are NOT replayed on reconnect — so a sale
+            // that happened while the user drove to the machine would stay
+            // invisible. Pull fresh DB state directly on resume.
+            guard newPhase == .active else { return }
             Task { await viewModel.refreshFromRealtime() }
         }
     }

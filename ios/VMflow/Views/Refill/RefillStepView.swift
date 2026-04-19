@@ -52,6 +52,13 @@ struct RefillStepView: View {
                     .padding(.horizontal)
                     .padding(.bottom, 120) // Space for bottom buttons
                 }
+                .refreshable {
+                    // Explicit way to pull the latest tray stock — the
+                    // Supabase realtime websocket may have missed sales
+                    // that happened while the app was suspended
+                    // (driving between machines, phone locked).
+                    await viewModel.refreshFromRealtime()
+                }
 
                 // Bottom Action Bar
                 bottomActionBar(machine)
