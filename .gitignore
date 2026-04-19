@@ -24,6 +24,9 @@ Docker/vuejs/package-lock.json
 
 .claude
 
+# Git worktrees (superpowers workflow)
+.worktrees/
+
 # Docker runtime data (secrets)
 Docker/.env
 Docker/supabase/.env
