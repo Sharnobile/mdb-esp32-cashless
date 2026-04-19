@@ -209,6 +209,12 @@ CREATE INDEX IF NOT EXISTS idx_deal_cache_keyword ON public.deal_cache(keyword_i
 `'keyword_fuzzy'`. Existing rows all satisfy the new XOR constraint because they
 have `product_id` set and `keyword_id` is `NULL` by default.
 
+**`matched_tokens` semantics per match type:** for product rows the tokens are
+derived from the product name (unchanged); for keyword rows they are derived
+from the winning keyword **term** (via `extractTokens(term)` inside
+`matchConfidence`). Downstream consumers of `matched_tokens` that assume
+product-derived tokens need to branch on `matched_by`.
+
 ### Backward compatibility
 
 - Existing `deal_cache` rows satisfy the XOR (`product_id` NOT NULL, `keyword_id`
@@ -292,14 +298,33 @@ back the two conflict targets exactly.
      all `product_ids` across keyword groups that matched this offer. "Covered"
      means "covered by **any** keyword match on this offer", so a product linked
      to multiple matching keywords is still covered once.
-4. **Product matching pass**, per offer (existing logic — both the
-   query-driven pass and the cross-match-all-products pass at
-   `index.ts:525-563`):
-   - Fuzzy-match against `products.name`.
-   - **Before pushing to `allDeals`**, skip any `(offer, product)` where
-     `product.id ∈ keyword_covered_products[offer.id]`. This enforces the
-     "keyword wins" dedup rule at write time.
-5. **Write** via the split-upsert pattern above.
+4. **Product matching pass**, per offer. The existing code has **two** product
+   loops that both push to `allDeals`:
+   - The query-driven pass at `index.ts:525-542`
+   - The cross-match-all-products pass at `index.ts:546-563`
+   The suppression rule applies to **both** loops: before pushing any
+   `(offer, product)` to `allDeals`, skip it if `product.id ∈
+   keyword_covered_products[offer.id]`. Implement once at the push site (or
+   wrap `allDeals.push(buildDeal(...))` in a helper that checks the set) so
+   there is exactly one suppression gate.
+5. **Read-back query extension.** The current response read-back at
+   `index.ts:583-589` does `.select('*, products(name, image_path, sellprice)')`
+   — that only hydrates product rows. Extend the select to also hydrate
+   keyword rows in a single round-trip:
+   ```ts
+   .select(`
+     *,
+     products(id, name, image_path, sellprice),
+     deal_keywords(
+       id,
+       label,
+       deal_keyword_products(products(id, name, image_path, sellprice))
+     )
+   `)
+   ```
+   Frontend treats `products` as the primary when non-null, otherwise uses
+   `deal_keywords.label` + the joined product list.
+6. **Write** via the split-upsert pattern above.
 
 ### Reused helpers
 
