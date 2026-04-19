@@ -2318,27 +2318,75 @@ async function onVelocityDaysChange(e: Event) {
         {{ t('warehouse.adjustBatchInfo', { product: adjustBatch?.product_name ?? '', batch: adjustBatch?.batch_number || t('warehouse.noBatchId'), quantity: adjustBatch?.quantity ?? 0 }) }}
       </p>
       <form class="flex flex-col gap-3" @submit.prevent="submitAdjust">
+        <!-- Direction toggle -->
+        <div class="inline-flex rounded-md border bg-muted/40 p-0.5">
+          <button
+            type="button"
+            class="flex-1 rounded px-3 py-1.5 text-sm font-medium transition-colors"
+            :class="adjustDirection === 'remove' ? 'bg-red-600 text-white shadow-sm' : 'text-muted-foreground hover:text-foreground'"
+            @click="adjustDirection = 'remove'; onAdjustDirectionChange()"
+          >
+            − {{ t('warehouse.adjustDirectionRemove') }}
+          </button>
+          <button
+            type="button"
+            class="flex-1 rounded px-3 py-1.5 text-sm font-medium transition-colors"
+            :class="adjustDirection === 'add' ? 'bg-green-600 text-white shadow-sm' : 'text-muted-foreground hover:text-foreground'"
+            @click="adjustDirection = 'add'; onAdjustDirectionChange()"
+          >
+            + {{ t('warehouse.adjustDirectionAdd') }}
+          </button>
+        </div>
+
         <div>
           <label class="mb-1 block text-sm font-medium">{{ t('warehouse.reason') }} *</label>
           <select v-model="adjustReason" class="h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
-            <option value="adjustment_damage">{{ t('warehouse.damaged') }}</option>
-            <option value="adjustment_expired">{{ t('warehouse.expiredDisposed') }}</option>
-            <option value="adjustment_correction">{{ t('warehouse.inventoryCorrection') }}</option>
+            <template v-if="adjustDirection === 'remove'">
+              <option value="adjustment_damage">{{ t('warehouse.damaged') }}</option>
+              <option value="adjustment_expired">{{ t('warehouse.expiredDisposed') }}</option>
+              <option value="adjustment_correction">{{ t('warehouse.inventoryCorrection') }}</option>
+            </template>
+            <template v-else>
+              <option value="adjustment_refill_return">{{ t('warehouse.refillReturn') }}</option>
+              <option value="adjustment_correction">{{ t('warehouse.inventoryCorrection') }}</option>
+            </template>
           </select>
+          <p v-if="adjustDirection === 'add' && adjustReason === 'adjustment_refill_return'" class="mt-1 text-xs text-muted-foreground">
+            {{ t('warehouse.refillReturnDescription') }}
+          </p>
         </div>
+
         <div>
-          <label class="mb-1 block text-sm font-medium">{{ t('warehouse.quantityToRemove') }} *</label>
-          <input v-model.number="adjustQuantity" type="number" min="1" :max="adjustBatch?.quantity" class="h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" />
+          <label class="mb-1 block text-sm font-medium">
+            {{ adjustDirection === 'remove' ? t('warehouse.quantityToRemove') : t('warehouse.quantityToAdd') }} *
+          </label>
+          <input
+            v-model.number="adjustQuantity"
+            type="number"
+            min="1"
+            :max="adjustDirection === 'remove' ? (adjustBatch?.quantity ?? undefined) : undefined"
+            class="h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          />
         </div>
+
         <div>
           <label class="mb-1 block text-sm font-medium">{{ t('common.notes') }}</label>
           <textarea v-model="adjustNotes" rows="2" class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" :placeholder="t('warehouse.optionalDetails')"></textarea>
         </div>
+
         <FormError :message="adjustError" />
+
         <div class="flex justify-end gap-2">
           <button type="button" class="h-9 rounded-md border px-4 text-sm hover:bg-muted" @click="showAdjustModal = false">{{ t('common.cancel') }}</button>
-          <button type="submit" class="h-9 rounded-md bg-red-600 px-4 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50" :disabled="adjustLoading">
-            {{ adjustLoading ? t('warehouse.adjusting') : t('warehouse.removeStock') }}
+          <button
+            type="submit"
+            class="h-9 rounded-md px-4 text-sm font-medium text-white disabled:opacity-50"
+            :class="adjustDirection === 'remove' ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'"
+            :disabled="adjustLoading"
+          >
+            {{ adjustLoading
+                ? t('warehouse.adjusting')
+                : (adjustDirection === 'remove' ? t('warehouse.removeStock') : t('warehouse.addStockSubmit')) }}
           </button>
         </div>
       </form>
