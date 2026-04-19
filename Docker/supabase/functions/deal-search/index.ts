@@ -687,20 +687,20 @@ Deno.serve(async (req) => {
     const productDealRows = allDeals.filter((d) => d.product_id !== null && d.product_id !== undefined)
     const keywordDealRows = allDeals.filter((d) => d.keyword_id !== null && d.keyword_id !== undefined)
 
+    // Plain INSERT (not upsert): the cache was DELETEd for this company at
+    // the top of the refresh, so nothing exists to conflict with. In-batch
+    // duplicates are already prevented by the `seen` set. Partial unique
+    // indexes (uq_deal_cache_product / uq_deal_cache_keyword) aren't usable
+    // as PostgREST onConflict targets because they require the WHERE
+    // predicate, which the supabase-js client can't pass through.
     if (productDealRows.length > 0) {
-      const { error: puErr } = await adminClient.from('deal_cache').upsert(productDealRows, {
-        onConflict: 'company_id,product_id,retailer,offer_id',
-        ignoreDuplicates: true,
-      })
-      if (puErr) console.error('[deal-search] product upsert failed:', puErr)
+      const { error: piErr } = await adminClient.from('deal_cache').insert(productDealRows)
+      if (piErr) console.error('[deal-search] product insert failed:', piErr)
     }
 
     if (keywordDealRows.length > 0) {
-      const { error: kuErr } = await adminClient.from('deal_cache').upsert(keywordDealRows, {
-        onConflict: 'company_id,keyword_id,retailer,offer_id',
-        ignoreDuplicates: true,
-      })
-      if (kuErr) console.error('[deal-search] keyword upsert failed:', kuErr)
+      const { error: kiErr } = await adminClient.from('deal_cache').insert(keywordDealRows)
+      if (kiErr) console.error('[deal-search] keyword insert failed:', kiErr)
     }
 
     console.log(`[deal-search] wrote ${productDealRows.length} product + ${keywordDealRows.length} keyword deals`)
