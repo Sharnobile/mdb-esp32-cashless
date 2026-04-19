@@ -372,6 +372,16 @@ final class WarehouseViewModel: ObservableObject {
 
     // MARK: - Batch drilldown
 
+    /// Allowed reasons for `adjustBatch`. String-backed so the raw value maps directly to
+    /// the `warehouse_transactions.transaction_type` column. Mirrors the TypeScript
+    /// reason union in `management-frontend/app/composables/useWarehouse.ts:439`.
+    enum AdjustReason: String {
+        case refillReturn = "adjustment_refill_return"
+        case correction = "adjustment_correction"
+        case damage = "adjustment_damage"
+        case expired = "adjustment_expired"
+    }
+
     /// Loads all non-empty batches for a specific product in the current warehouse,
     /// ordered by expiration date ascending (oldest first).
     /// Reuses the existing `WarehouseStockBatch` model from `Models/Warehouse.swift`.
@@ -404,16 +414,18 @@ final class WarehouseViewModel: ObservableObject {
     }
 
     /// Adjust the quantity of a specific batch by a signed delta.
-    /// `reason` MUST be one of: `adjustment_refill_return`, `adjustment_correction`,
-    /// `adjustment_damage`, `adjustment_expired` — do NOT pass `intake` or `incoming`
-    /// (those remain reserved for the Wareneingang flow).
+    ///
+    /// `reason` is constrained to the `AdjustReason` enum so the transaction_type
+    /// column only ever gets one of the four adjustment_* strings. `intake`
+    /// (iOS Wareneingang) and `incoming` (web legacy) are deliberately excluded
+    /// from this enum — they belong to the Wareneingang flow, not adjustments.
     ///
     /// Quantity is clamped at zero so concurrent sales can't produce negative stock.
     /// On success, reloads batches + product summaries so callers see fresh data.
     func adjustBatch(
         batchId: UUID,
         quantityChange: Int,
-        reason: String,
+        reason: AdjustReason,
         notes: String?
     ) async {
         guard let warehouseId = selectedWarehouseId,
@@ -465,7 +477,7 @@ final class WarehouseViewModel: ObservableObject {
             let transaction = InsertWarehouseTransaction(
                 warehouseId: warehouseId,
                 productId: current.productId,
-                transactionType: reason,
+                transactionType: reason.rawValue,
                 quantityChange: quantityChange,
                 userId: userId,
                 batchId: batchId,
