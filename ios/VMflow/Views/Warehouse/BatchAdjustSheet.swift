@@ -101,7 +101,7 @@ struct BatchAdjustSheet: View {
                     .pickerStyle(.menu)
 
                     if direction == .add && reason == .refillReturn {
-                        Text("Items returned after a refill took too much")
+                        Text(String(localized: "Items returned after a refill took too much"))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -142,6 +142,10 @@ struct BatchAdjustSheet: View {
                     TextField("Optional", text: $notes, axis: .vertical)
                         .lineLimit(2...4)
                 }
+            }
+            .onAppear {
+                // Auto-focus the quantity field so the user can start typing immediately.
+                quantityFieldFocused = true
             }
             .navigationTitle(String(localized: "Adjust stock"))
             .navigationBarTitleDisplayMode(.inline)
