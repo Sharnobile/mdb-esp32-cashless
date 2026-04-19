@@ -338,6 +338,14 @@ async function sendApnsNotification(
     }
   }
 
+  // Image URL goes at the top level so the Notification Service Extension
+  // can read it from `userInfo["image"]`, download it, and attach it as a
+  // rich-media thumbnail. `mutable-content: 1` (set above) triggers the
+  // extension. Without this, direct-APNs pushes drop the image silently.
+  if (payload.image) {
+    apnsPayload.image = payload.image
+  }
+
   const resp = await fetch(`https://${host}/3/device/${deviceToken}`, {
     method: 'POST',
     headers: {
