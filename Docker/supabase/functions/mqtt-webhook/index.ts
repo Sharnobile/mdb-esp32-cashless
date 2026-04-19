@@ -381,13 +381,19 @@ Deno.serve(async (req) => {
           data: { type: 'sale', embedded_id: embedded.id },
         });
 
-        // 2. Low stock notification (if applicable)
+        // 2. Low stock notification — only for users who explicitly want
+        //    low-stock alerts AND don't already receive sale notifications
+        //    (sale pushes already carry stock info, so double-alerting is
+        //    noisy). Users who turned sale off but kept low_stock on still
+        //    get this.
         if (machine && lowTray) {
           await sendPushToUsers(adminClient, embedded.company, 'low_stock', {
             title: 'Low Stock Alert',
             body: `${productName ?? `Item #${itemNumber}`} in ${machine.name}: ${lowTray.current_stock}/${lowTray.capacity} remaining`,
             image: productImageUrl,
             data: { type: 'low_stock', machine_id: machine.id },
+          }, {
+            suppressIfAlsoEnabled: 'sale',
           });
         }
       } catch (pushErr) {
