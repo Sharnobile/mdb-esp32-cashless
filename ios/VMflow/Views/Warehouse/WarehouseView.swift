@@ -184,7 +184,16 @@ struct WarehouseView: View {
             } else {
                 List {
                     ForEach(viewModel.filteredSummaries) { summary in
-                        StockSummaryRow(summary: summary)
+                        NavigationLink {
+                            ProductBatchesView(
+                                productId: summary.productId,
+                                productName: summary.productName,
+                                productImagePath: summary.imagePath
+                            )
+                            .environmentObject(viewModel)
+                        } label: {
+                            StockSummaryRow(summary: summary)
+                        }
                     }
                 }
                 .listStyle(.plain)

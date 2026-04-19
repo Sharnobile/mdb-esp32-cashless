@@ -59,6 +59,8 @@
 		C2A2406A5D534A262F1CB0BA /* Sale.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79D8F4403556EBD0620DEECF /* Sale.swift */; };
 		C8CFA483AB0C273F0B8009B0 /* AppNavigation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BEBD09944FEF671809C2788 /* AppNavigation.swift */; };
 		D26A6A4A55DF5DC1587BAD9A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 70B6B1A9D2611C8B7EE53EDC /* Assets.xcassets */; };
+		A8DFD0BE9DBB44DBB0D097EE /* ProductBatchesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200ABB7F1224A66AFCDE528 /* ProductBatchesView.swift */; };
+		F18408699F3A44EA8E8BFFDB /* BatchAdjustSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86FD436149A447F099ABC782 /* BatchAdjustSheet.swift */; };
 		D87208736751BB897289C9B6 /* WarehouseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEABE7DE0463DA34A9DB9FB9 /* WarehouseView.swift */; };
 		D88E0EB43AF2F7FE4977B3C9 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 285CDF78E1AA2017C62282F8 /* NotificationService.swift */; };
 		DA9D08029AED0D27882468AF /* Inbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09910CF5FF28B2094BC5AEB1 /* Inbox.swift */; };
@@ -143,6 +145,8 @@
 		F5AEF7E62775F83FFCD0149A /* MachinesSplitView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MachinesSplitView.swift; sourceTree = "<group>"; };
 		F6D19B501E340C90B0032C32 /* DealCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DealCard.swift; sourceTree = "<group>"; };
 		F7F1BF54F8FA6B86DA5380F6 /* ProductsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductsViewModel.swift; sourceTree = "<group>"; };
+		A200ABB7F1224A66AFCDE528 /* ProductBatchesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductBatchesView.swift; sourceTree = "<group>"; };
+		86FD436149A447F099ABC782 /* BatchAdjustSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchAdjustSheet.swift; sourceTree = "<group>"; };
 		FEABE7DE0463DA34A9DB9FB9 /* WarehouseView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WarehouseView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -339,6 +343,8 @@
 		D4C20ED2ED4AA5617E345840 /* Warehouse */ = {
 			isa = PBXGroup;
 			children = (
+				86FD436149A447F099ABC782 /* BatchAdjustSheet.swift */,
+				A200ABB7F1224A66AFCDE528 /* ProductBatchesView.swift */,
 				FEABE7DE0463DA34A9DB9FB9 /* WarehouseView.swift */,
 			);
 			path = Warehouse;
@@ -562,6 +568,8 @@
 				98DBB72485FA6701994E86A6 /* VMflowApp.swift in Sources */,
 				9AC610D3D52ECEEAF701A011 /* VendingMachine.swift in Sources */,
 				A1BB4CD6BAE18CF2A1E2FB3C /* Warehouse.swift in Sources */,
+				F18408699F3A44EA8E8BFFDB /* BatchAdjustSheet.swift in Sources */,
+				A8DFD0BE9DBB44DBB0D097EE /* ProductBatchesView.swift in Sources */,
 				D87208736751BB897289C9B6 /* WarehouseView.swift in Sources */,
 				227347A89BC32144B6544F1C /* WarehouseViewModel.swift in Sources */,
 			);
