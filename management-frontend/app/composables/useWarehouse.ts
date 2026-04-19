@@ -436,7 +436,7 @@ export function useWarehouse() {
     warehouse_id: string
     product_id: string
     quantity_change: number
-    reason: 'adjustment_damage' | 'adjustment_expired' | 'adjustment_correction'
+    reason: 'adjustment_damage' | 'adjustment_expired' | 'adjustment_correction' | 'adjustment_refill_return'
     notes?: string
   }) {
     const companyId = organization.value?.id
@@ -656,6 +656,7 @@ export function useWarehouse() {
       case 'adjustment_damage': return 'Damaged'
       case 'adjustment_expired': return 'Expired'
       case 'adjustment_correction': return 'Correction'
+      case 'adjustment_refill_return': return 'Refill return'
       case 'transfer_out': return 'Transfer out'
       case 'transfer_in': return 'Transfer in'
       default: return type
@@ -669,6 +670,7 @@ export function useWarehouse() {
       case 'adjustment_damage': return 'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-400'
       case 'adjustment_expired': return 'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-400'
       case 'adjustment_correction': return 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400'
+      case 'adjustment_refill_return': return 'bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-400'
       case 'transfer_out': return 'bg-purple-100 text-purple-700 dark:bg-purple-950/40 dark:text-purple-400'
       case 'transfer_in': return 'bg-purple-100 text-purple-700 dark:bg-purple-950/40 dark:text-purple-400'
       default: return 'bg-muted text-muted-foreground'
