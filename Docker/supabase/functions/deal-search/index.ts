@@ -425,6 +425,30 @@ Deno.serve(async (req) => {
       })
     }
 
+    // Fetch keyword groups for this company
+    interface DealKeyword {
+      id: string
+      label: string | null
+      terms: string[]
+      product_ids: string[]
+    }
+
+    const { data: keywordRows, error: keywordErr } = await adminClient
+      .from('deal_keywords')
+      .select('id, label, terms, deal_keyword_products(product_id)')
+      .eq('company_id', companyId)
+
+    if (keywordErr) {
+      console.error('[deal-search] failed to load keywords:', keywordErr)
+    }
+
+    const keywords: DealKeyword[] = (keywordRows ?? []).map((row: any) => ({
+      id: row.id,
+      label: row.label,
+      terms: row.terms ?? [],
+      product_ids: (row.deal_keyword_products ?? []).map((kp: any) => kp.product_id),
+    }))
+
     // Get marktguru API keys
     let keys: MarktguruKeys
     try {
