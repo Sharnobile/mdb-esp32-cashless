@@ -8,3 +8,6 @@ SUPABASE_ANON_KEY = sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH
 // Debug bundle suffix — allows installing Debug + Release side by side
 PRODUCT_BUNDLE_IDENTIFIER = de.kerl-handel.app.debug
 ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon-Debug
+
+// Notification Service Extension bundle ID (must be suffix of host app ID)
+EXTENSION_BUNDLE_IDENTIFIER = de.kerl-handel.app.debug.NotificationService

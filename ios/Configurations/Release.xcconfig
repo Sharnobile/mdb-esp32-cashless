@@ -8,3 +8,6 @@ SUPABASE_ANON_KEY = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsIml
 // Release bundle ID and icon
 PRODUCT_BUNDLE_IDENTIFIER = de.kerl-handel.app
 ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon
+
+// Notification Service Extension bundle ID (must be suffix of host app ID)
+EXTENSION_BUNDLE_IDENTIFIER = de.kerl-handel.app.NotificationService
