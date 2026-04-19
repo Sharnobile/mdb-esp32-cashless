@@ -43,12 +43,36 @@ Deno.serve(async (req) => {
       })
     }
 
+    // Pick any product in the caller's company with an image so the push
+    // carries an `image` field for the iOS Notification Service Extension
+    // and the web/Android native image renderers to display. If no product
+    // has an image yet, the payload stays text-only — still a valid test.
+    let testImageUrl: string | undefined
+    try {
+      const { data: product } = await adminClient
+        .from('products')
+        .select('image_path')
+        .eq('company_id', membership.company_id)
+        .not('image_path', 'is', null)
+        .limit(1)
+        .maybeSingle()
+
+      if (product?.image_path) {
+        const supabaseUrl = Deno.env.get('SUPABASE_PUBLIC_URL') ?? Deno.env.get('SUPABASE_URL')
+        testImageUrl = `${supabaseUrl}/storage/v1/object/public/product-images/${product.image_path}`
+      }
+    } catch (err) {
+      console.warn('[test-push] product image lookup failed:', err)
+      // proceed without image
+    }
+
     // Send a test notification — use type '_test' which is never in the
     // disabled preferences list, so it always reaches the device regardless
     // of which notification types the user has toggled off.
     const result = await sendPushToUsers(adminClient, membership.company_id, '_test', {
       title: '🔔 Test Notification',
       body: 'Push notifications are working! This is a test from VMflow.',
+      image: testImageUrl,
       data: { type: 'test' },
     })
 
