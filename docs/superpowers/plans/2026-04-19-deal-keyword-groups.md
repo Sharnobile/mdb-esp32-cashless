@@ -580,8 +580,14 @@ const mockSupabase = {
 vi.mock('#imports', () => ({
   useSupabaseClient: () => mockSupabase,
   useSupabaseUser: () => ({ value: { id: 'user-1' } }),
-  useOrganization: () => ({ organization: { value: { id: 'company-1' } } }),
   useState: (_key: string, init: () => unknown) => ({ value: init() }),
+}))
+
+// Nuxt auto-imports don't always route through the `#imports` alias at test
+// time, so mock useOrganization directly as well. Mirrors the known-working
+// pattern in `useWarehouse.test.ts`.
+vi.mock('../useOrganization', () => ({
+  useOrganization: () => ({ organization: { value: { id: 'company-1' } } }),
 }))
 
 import { useDeals } from '../useDeals'
@@ -1561,7 +1567,7 @@ git commit -m "feat(deals): render keyword-matched cards with badge + linked pro
 
 - [ ] **Step 2: Trigger a fresh deal-search run**
 
-Click the "Aktualisieren" / refresh button on `/deals` (or call the edge function via curl as in Task 2.3 step 4 with `force_refresh: true`).
+Click the "Aktualisieren" / refresh button on `/deals` (or call the edge function via curl as in Task 2.3 step 4 with `{"forceRefresh": true}`).
 
 - [ ] **Step 3: Inspect `deal_cache` rows**
 
