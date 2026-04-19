@@ -530,6 +530,21 @@ final class RefillWizardViewModel: ObservableObject {
         }
     }
 
+    /// Products to display in the Pack step: `combinedPackingList` filtered
+    /// so rows the user can't act on (no warehouse stock for the product,
+    /// nothing packed yet) are hidden instead of rendered greyed out —
+    /// they just waste screen space. Partially-packed products stay visible
+    /// so the user can still uncheck or adjust their own commitments.
+    var visibleCombinedPackingList: [CombinedPackingItem] {
+        combinedPackingList.filter { item in
+            let anyPacked = item.machineNeeds.contains { need in
+                isMachinePacked(machineId: need.machineId, productId: item.productId)
+            }
+            if anyPacked { return true }
+            return !isOutOfWarehouseStock(productId: item.productId)
+        }
+    }
+
     /// Whether a specific product is packed for a specific machine.
     func isMachinePacked(machineId: UUID, productId: UUID) -> Bool {
         packedItems[machineId]?.contains(productId) ?? false

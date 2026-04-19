@@ -18,11 +18,13 @@ struct PackingStepView: View {
                     summaryHeader
 
                     // No machines needing refill
-                    if viewModel.combinedPackingList.isEmpty && !viewModel.isLoading {
+                    if viewModel.visibleCombinedPackingList.isEmpty && !viewModel.isLoading {
                         emptyState
                     } else {
-                        // Product list (grouped across machines)
-                        ForEach(viewModel.combinedPackingList) { item in
+                        // Product list (grouped across machines) — already
+                        // filtered so cards for out-of-stock products the user
+                        // hasn't touched are hidden rather than greyed out.
+                        ForEach(viewModel.visibleCombinedPackingList) { item in
                             productCard(item)
                         }
                     }
@@ -63,7 +65,7 @@ struct PackingStepView: View {
     private var summaryHeader: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text("\(viewModel.combinedPackingList.count) products to pack")
+                Text("\(viewModel.visibleCombinedPackingList.count) products to pack")
                     .font(.subheadline.weight(.medium))
                 Text("\(viewModel.packedMachines.count) of \(viewModel.machines.count) machines ready")
                     .font(.caption)
