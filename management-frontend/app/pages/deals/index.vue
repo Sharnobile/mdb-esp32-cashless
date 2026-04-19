@@ -390,7 +390,7 @@ const highlightedProductTokens = computed(() =>
                       </li>
                     </ul>
                     <p v-else class="text-sm italic text-muted-foreground">
-                      {{ t('deals.keywords.emptyHint') }}
+                      {{ t('deals.keywords.noLinkedProducts') }}
                     </p>
                   </div>
                 </template>
@@ -540,7 +540,8 @@ const highlightedProductTokens = computed(() =>
           </div>
 
           <!-- ─── Match Validation (compact) ────────────────────── -->
-          <div class="rounded-xl border bg-card p-4 space-y-3">
+          <!-- Hidden for keyword-matched deals: selectedDeal.products is null, so product-side comparison and highlightedProductTokens have nothing useful to render. -->
+          <div v-if="!selectedDeal.keyword_id" class="rounded-xl border bg-card p-4 space-y-3">
             <div class="flex items-center justify-between">
               <h4 class="text-xs font-semibold">{{ t('deals.matchValidation') }}</h4>
               <span :class="confidenceLevel(selectedDeal.confidence).cls" class="text-xs font-medium">

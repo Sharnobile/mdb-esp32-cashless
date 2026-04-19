@@ -1096,6 +1096,7 @@
       "modalHint": "When any of the search terms appears in an offer, one deal card is shown covering all linked products.",
       "emptyTitle": "No keyword groups yet",
       "emptyHint": "Example: a \"Haribo\" group with terms \"Haribo Fruchtgummis\", \"Haribo versch. Sorten\" linked to every Haribo product — brand-wide offers then show up as a single card.",
+      "noLinkedProducts": "No products linked to this group yet — edit the group to add products.",
       "deleteConfirm": "Delete keyword group \"{label}\"?"
     }
   },

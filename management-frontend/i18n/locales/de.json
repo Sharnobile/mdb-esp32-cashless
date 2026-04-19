@@ -1096,6 +1096,7 @@
       "modalHint": "Wenn einer der Suchbegriffe in einem Angebot auftaucht, wird eine Deal-Karte für alle verknüpften Produkte angezeigt.",
       "emptyTitle": "Noch keine Schlagwort-Gruppen",
       "emptyHint": "Beispiel: Gruppe „Haribo\" mit Begriffen „Haribo Fruchtgummis\", „Haribo versch. Sorten\" und allen Haribo-Produkten verknüpfen — Angebote über alle Haribo-Sorten erscheinen dann als eine Karte.",
+      "noLinkedProducts": "Noch keine Produkte verknüpft — Gruppe bearbeiten, um Produkte hinzuzufügen.",
       "deleteConfirm": "Schlagwort-Gruppe \"{label}\" wirklich löschen?"
     }
   },
