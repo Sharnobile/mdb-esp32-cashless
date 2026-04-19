@@ -684,26 +684,26 @@ Deno.serve(async (req) => {
       .delete()
       .eq('company_id', companyId)
 
-    const productRows = allDeals.filter((d) => d.product_id !== null && d.product_id !== undefined)
-    const keywordRows = allDeals.filter((d) => d.keyword_id !== null && d.keyword_id !== undefined)
+    const productDealRows = allDeals.filter((d) => d.product_id !== null && d.product_id !== undefined)
+    const keywordDealRows = allDeals.filter((d) => d.keyword_id !== null && d.keyword_id !== undefined)
 
-    if (productRows.length > 0) {
-      const { error: puErr } = await adminClient.from('deal_cache').upsert(productRows, {
+    if (productDealRows.length > 0) {
+      const { error: puErr } = await adminClient.from('deal_cache').upsert(productDealRows, {
         onConflict: 'company_id,product_id,retailer,offer_id',
         ignoreDuplicates: true,
       })
       if (puErr) console.error('[deal-search] product upsert failed:', puErr)
     }
 
-    if (keywordRows.length > 0) {
-      const { error: kuErr } = await adminClient.from('deal_cache').upsert(keywordRows, {
+    if (keywordDealRows.length > 0) {
+      const { error: kuErr } = await adminClient.from('deal_cache').upsert(keywordDealRows, {
         onConflict: 'company_id,keyword_id,retailer,offer_id',
         ignoreDuplicates: true,
       })
       if (kuErr) console.error('[deal-search] keyword upsert failed:', kuErr)
     }
 
-    console.log(`[deal-search] wrote ${productRows.length} product + ${keywordRows.length} keyword deals`)
+    console.log(`[deal-search] wrote ${productDealRows.length} product + ${keywordDealRows.length} keyword deals`)
 
     // Read back with product joins for the response
     const { data: result } = await adminClient
