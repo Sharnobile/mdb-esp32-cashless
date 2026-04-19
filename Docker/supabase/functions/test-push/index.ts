@@ -89,7 +89,7 @@ Deno.serve(async (req) => {
     const dummyBody = `${emoji}${dummyCurrentStock}/${dummyCapacity} left${refillHint}`
 
     const result = await sendPushToUsers(adminClient, membership.company_id, '_test', {
-      title: '🛒 New Sale · Test Machine',
+      title: '💵 Sale · Test Machine',
       subtitle: `${dummyProductName} — €${dummyPrice.toFixed(2)}`,
       body: dummyBody,
       image: testImageUrl,

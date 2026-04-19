@@ -359,7 +359,7 @@ Deno.serve(async (req) => {
         //    body), merged on Android+web (subtitle\nbody).
         const itemLabel = productName ?? `Item #${itemNumber}`;
         const machineLabel = machine?.name ? ` · ${machine.name}` : '';
-        const saleTitle = `🛒 New Sale${machineLabel}`;
+        const saleTitle = `💵 Sale${machineLabel}`;
         const saleSubtitle = `${itemLabel} — €${salePrice.toFixed(2)}`;
 
         let saleBody: string;
