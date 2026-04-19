@@ -812,19 +812,39 @@ async function submitIncoming() {
 
 const showAdjustModal = ref(false)
 const adjustBatch = ref<StockBatch | null>(null)
+const adjustDirection = ref<'remove' | 'add'>('remove')
 const adjustQuantity = ref<number | null>(null)
-const adjustReason = ref<'adjustment_damage' | 'adjustment_expired' | 'adjustment_correction'>('adjustment_damage')
+const adjustReason = ref<
+  'adjustment_damage' | 'adjustment_expired' | 'adjustment_correction' | 'adjustment_refill_return'
+>('adjustment_damage')
 const adjustNotes = ref('')
 const adjustLoading = ref(false)
 const adjustError = ref('')
 
+/** Default reason per direction — must be a valid option for the active direction. */
+function defaultReasonFor(direction: 'remove' | 'add') {
+  return direction === 'remove' ? 'adjustment_damage' : 'adjustment_refill_return'
+}
+
 function openAdjust(batch: StockBatch) {
   adjustBatch.value = batch
+  adjustDirection.value = 'remove'
   adjustQuantity.value = null
-  adjustReason.value = 'adjustment_damage'
+  adjustReason.value = defaultReasonFor('remove')
   adjustNotes.value = ''
   adjustError.value = ''
   showAdjustModal.value = true
+}
+
+/**
+ * Called when the direction toggle flips. Always resets to the default reason
+ * for the new direction, even though `adjustment_correction` is valid in both
+ * — this prevents stale negative-only reasons (Damaged/Expired) leaking into
+ * the Add flow. A future polish could be "only reset when current reason is
+ * not valid for the new direction."
+ */
+function onAdjustDirectionChange() {
+  adjustReason.value = defaultReasonFor(adjustDirection.value)
 }
 
 async function submitAdjust() {
@@ -835,11 +855,13 @@ async function submitAdjust() {
   adjustLoading.value = true
   adjustError.value = ''
   try {
+    const magnitude = Math.abs(adjustQuantity.value)
+    const signed = adjustDirection.value === 'remove' ? -magnitude : magnitude
     await adjustStock({
       batch_id: adjustBatch.value.id,
       warehouse_id: adjustBatch.value.warehouse_id,
       product_id: adjustBatch.value.product_id,
-      quantity_change: -Math.abs(adjustQuantity.value),
+      quantity_change: signed,
       reason: adjustReason.value,
       notes: adjustNotes.value.trim() || undefined,
     })
