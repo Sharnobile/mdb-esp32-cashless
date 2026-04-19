@@ -736,15 +736,6 @@ export async function sendPushToUsers(
   }
 
   // Send iOS push notifications (APNs direct)
-  console.log('[web-push][DEBUG] platform split', {
-    totalSubs: subscriptions.length,
-    webSubs: webSubs.length,
-    iosSubs: iosSubs.length,
-    androidSubs: androidSubs.length,
-    apnsConfigured: !!apnsConfig,
-    vapidConfigured: !!vapid,
-    fcmConfigured: !!fcmServiceAccount,
-  })
   if (apnsConfig && iosSubs.length > 0) {
     await Promise.allSettled(
       iosSubs.map(async (sub) => {
@@ -753,14 +744,7 @@ export async function sendPushToUsers(
           const perSubConfig = sub.apns_topic
             ? { ...apnsConfig!, topic: sub.apns_topic }
             : apnsConfig!
-          console.log('[web-push][DEBUG] APNs send', {
-            topic: perSubConfig.topic,
-            production: perSubConfig.production,
-            tokenPrefix: sub.fcm_token?.slice(0, 12),
-            hasImage: !!payload.image,
-          })
           const result = await sendApnsNotification(sub.fcm_token!, payload, perSubConfig)
-          console.log('[web-push][DEBUG] APNs result', { ok: result.ok, expired: result.expired })
           if (result.ok) {
             sent++
           } else if (result.expired) {

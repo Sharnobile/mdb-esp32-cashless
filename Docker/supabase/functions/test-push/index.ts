@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { sendPushToUsers } from '../_shared/web-push.ts'
+import { stockUrgency } from '../mqtt-webhook/stock-urgency.ts'
 
 Deno.serve(async (req) => {
   // CORS preflight
@@ -48,30 +49,49 @@ Deno.serve(async (req) => {
     // and the web/Android native image renderers to display. If no product
     // has an image yet, the payload stays text-only — still a valid test.
     let testImageUrl: string | undefined
+    let testProductName: string | undefined
     try {
+      // `products` table uses `company` (not `company_id`) — see schema.
       const { data: product } = await adminClient
         .from('products')
-        .select('image_path')
-        .eq('company_id', membership.company_id)
+        .select('image_path, name')
+        .eq('company', membership.company_id)
         .not('image_path', 'is', null)
         .limit(1)
         .maybeSingle()
 
       if (product?.image_path) {
-        const supabaseUrl = Deno.env.get('SUPABASE_PUBLIC_URL') ?? Deno.env.get('SUPABASE_URL')
+        const supabaseUrl =
+          Deno.env.get('SUPABASE_PUBLIC_URL') ??
+          Deno.env.get('PUBLIC_SUPABASE_URL') ??
+          Deno.env.get('SUPABASE_URL')
         testImageUrl = `${supabaseUrl}/storage/v1/object/public/product-images/${product.image_path}`
       }
+      testProductName = product?.name ?? undefined
     } catch (err) {
       console.warn('[test-push] product image lookup failed:', err)
       // proceed without image
     }
 
-    // Send a test notification — use type '_test' which is never in the
-    // disabled preferences list, so it always reaches the device regardless
-    // of which notification types the user has toggled off.
+    // Simulate a sale-shaped notification so the user can verify the new
+    // layout (title / subtitle / body) end-to-end, including rich-media
+    // image on iOS. Uses real product name + image for realism; dummy
+    // stock numbers to hit the 🟡 warning bucket.
+    const dummyProductName = testProductName ?? 'Sample Product'
+    const dummyPrice = 2.50
+    const dummyCurrentStock = 3
+    const dummyCapacity = 10
+    const dummyFillWhenBelow = 5
+    const emoji = stockUrgency(dummyCurrentStock, dummyFillWhenBelow)
+    const refillHint = dummyFillWhenBelow > 0
+      ? ` — refill at ${dummyFillWhenBelow}`
+      : ''
+    const dummyBody = `${emoji}${dummyCurrentStock}/${dummyCapacity} left${refillHint}`
+
     const result = await sendPushToUsers(adminClient, membership.company_id, '_test', {
-      title: '🔔 Test Notification',
-      body: 'Push notifications are working! This is a test from VMflow.',
+      title: '🛒 New Sale · Test Machine',
+      subtitle: `${dummyProductName} — €${dummyPrice.toFixed(2)}`,
+      body: dummyBody,
       image: testImageUrl,
       data: { type: 'test' },
     })
