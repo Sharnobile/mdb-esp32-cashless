@@ -98,3 +98,10 @@ uint32_t sale_queue_overflow_count(void);
  * Last assigned sale_seq, for diagnostics.
  */
 uint32_t sale_queue_last_seq(void);
+
+/*
+ * Count of sales that took the zero-NVS-write fast path since boot, for
+ * diagnostics. A healthy device running online should see this counter
+ * growing roughly in lockstep with last_seq.
+ */
+uint32_t sale_queue_fast_path_count(void);

@@ -24,11 +24,21 @@
 #define K_HEAD      "head"      // u32: next slot to publish
 #define K_TAIL      "tail"      // u32: next slot to write
 #define K_OVERFLOW  "overflow"  // u32: count of dropped sales
-#define K_LAST_SEQ  "last_seq"  // u32: last assigned sale_seq
+#define K_LAST_SEQ  "last_seq"  // u32: highest sale_seq that has been RESERVED in NVS
 
 // Per-slot key prefix. Keys are "s" + decimal index (max "s511" = 4 chars +
 // NUL = 5 chars, well under the 15-char NVS limit).
 #define SLOT_KEY_FMT "s%u"
+
+// Chunk size for sale_seq reservations. We commit a new high-water mark to
+// NVS every this many sales, and serve allocations from RAM in between. A
+// reboot may waste up to (chunk - 1) sale_seqs as gaps in the sequence,
+// which is harmless — the backend UNIQUE index does not require contiguity.
+//
+// Trade-off:
+//   smaller chunk → more NVS commits (less flash savings)
+//   larger chunk  → bigger gaps after reboots (cosmetic only)
+#define SALE_SEQ_RESERVATION_CHUNK 100
 
 // Device identity — filled from globals during publish; we do not store
 // them in the queue records because they're constants per device and
@@ -51,10 +61,21 @@ static SemaphoreHandle_t s_wake = NULL;   // drain task wakeup
 static uint32_t s_head = 0;
 static uint32_t s_tail = 0;
 static uint32_t s_overflow = 0;
+// Highest sale_seq already reserved (= persisted) in NVS. After boot this
+// is taken as the conservative estimate of "highest possibly assigned",
+// so next alloc always starts > any pre-reboot assignment.
+static uint32_t s_seq_reserved_to = 0;
+// Highest sale_seq handed out by alloc_seq so far in this boot. Increments
+// in RAM for each enqueue and is flushed to NVS lazily in chunks.
 static uint32_t s_last_seq = 0;
+// Count of fast-path direct publishes since boot, surfaced via diagnostics
+// so operators can confirm the flash-sparing optimisation is active.
+static uint32_t s_fast_path_count = 0;
 
-// msg_id of the sale currently in flight to the broker (0 = none).
-// Cleared on PUBACK or on MQTT disconnect.
+// msg_id of the sale currently in flight to the broker via the SLOW path
+// (0 = none).  Fast-path publishes are fire-and-forget and never tracked
+// here — their PUBACKs are intentionally ignored.
+// Cleared on slow-path PUBACK or on MQTT disconnect.
 static int s_in_flight_msg_id = 0;
 
 static void load_u32(nvs_handle_t h, const char *key, uint32_t *out) {
@@ -73,13 +94,53 @@ void sale_queue_init(void) {
     load_u32(h, K_HEAD,     &s_head);
     load_u32(h, K_TAIL,     &s_tail);
     load_u32(h, K_OVERFLOW, &s_overflow);
-    load_u32(h, K_LAST_SEQ, &s_last_seq);
+    load_u32(h, K_LAST_SEQ, &s_seq_reserved_to);
     nvs_close(h);
 
+    // Conservative: assume every reserved seq might have been assigned in the
+    // previous boot (fast path does not persist the running counter). The first
+    // alloc_seq() therefore triggers a new reservation, guaranteeing no
+    // pre-reboot seq is reused — at the cost of up to (chunk - 1) wasted
+    // numbers per reboot.
+    s_last_seq = s_seq_reserved_to;
+
     uint32_t pending = s_tail - s_head;
-    ESP_LOGI(TAG, "queue restored: head=%u tail=%u pending=%u overflow=%u last_seq=%u",
+    ESP_LOGI(TAG, "queue restored: head=%u tail=%u pending=%u overflow=%u reserved_to=%u",
              (unsigned)s_head, (unsigned)s_tail, (unsigned)pending,
-             (unsigned)s_overflow, (unsigned)s_last_seq);
+             (unsigned)s_overflow, (unsigned)s_seq_reserved_to);
+}
+
+// Forward declaration — the definition lives further down alongside the
+// drain task so the fast path in sale_queue_enqueue can call it.
+static void build_v2_payload(const sale_record_t *rec, uint8_t *payload);
+
+// Caller must hold s_lock. Allocates a fresh sale_seq, lazily committing a
+// new reservation chunk to NVS when the current reservation is exhausted.
+// Returns 0 on NVS failure so the caller can fall back to direct-publish.
+static uint32_t alloc_seq_locked(void) {
+    if (s_last_seq + 1 > s_seq_reserved_to) {
+        uint32_t new_high = s_seq_reserved_to + SALE_SEQ_RESERVATION_CHUNK;
+        nvs_handle_t h;
+        if (nvs_open(NS, NVS_READWRITE, &h) != ESP_OK) return 0;
+        bool ok = (nvs_set_u32(h, K_LAST_SEQ, new_high) == ESP_OK);
+        if (ok) ok = (nvs_commit(h) == ESP_OK);
+        nvs_close(h);
+        if (!ok) return 0;
+        s_seq_reserved_to = new_high;
+    }
+    return ++s_last_seq;
+}
+
+// Caller must hold s_lock. The fast path skips the NVS blob write entirely
+// when we are reasonably certain the publish will reach the broker promptly:
+//   - MQTT session is connected
+//   - No pending sales waiting to be drained (FIFO ordering)
+//   - No slow-path publish currently waiting on PUBACK (single-writer)
+static bool can_fast_path_locked(void) {
+    return s_client != NULL
+        && mqtt_started
+        && s_tail == s_head
+        && s_in_flight_msg_id == 0;
 }
 
 bool sale_queue_enqueue(uint8_t cmd, uint16_t item_price, uint16_t item_number) {
@@ -89,9 +150,6 @@ bool sale_queue_enqueue(uint8_t cmd, uint16_t item_price, uint16_t item_number) 
     }
     xSemaphoreTake(s_lock, portMAX_DELAY);
 
-    // Capacity check: reject only if the queue is completely full. We
-    // prefer to overflow (count) rather than block the MDB response —
-    // even a lost sale is better than hanging the bus.
     uint32_t pending = s_tail - s_head;
     if (pending >= SALE_QUEUE_CAPACITY) {
         s_overflow++;
@@ -107,16 +165,21 @@ bool sale_queue_enqueue(uint8_t cmd, uint16_t item_price, uint16_t item_number) 
         return false;
     }
 
-    // Clock sync check: if SNTP has never locked we don't have a reliable
-    // wall clock. Record the sale anyway with occurred_at=0 + time_uncertain,
-    // server will substitute its receive time.
+    // SNTP clock sync: if never locked we record occurred_at=0 + flag, the
+    // webhook substitutes server receive time rather than rejecting.
     sntp_sync_status_t sync = sntp_get_sync_status();
     bool time_ok = (sync == SNTP_SYNC_STATUS_COMPLETED);
     time_t now_sec = time_ok ? time(NULL) : 0;
-    // Extra guard: plausible unix time ≥ 2023-01-01
-    if (time_ok && now_sec < 1672531200) {
+    if (time_ok && now_sec < 1672531200) { // plausible unix time ≥ 2023-01-01
         time_ok = false;
         now_sec = 0;
+    }
+
+    uint32_t seq = alloc_seq_locked();
+    if (seq == 0) {
+        ESP_LOGE(TAG, "alloc_seq failed (NVS error) — caller must fall back");
+        xSemaphoreGive(s_lock);
+        return false;
     }
 
     sale_record_t rec = {
@@ -124,10 +187,40 @@ bool sale_queue_enqueue(uint8_t cmd, uint16_t item_price, uint16_t item_number) 
         .item_price     = item_price,
         .item_number    = item_number,
         .occurred_at    = (uint32_t)now_sec,
-        .sale_seq       = ++s_last_seq,
+        .sale_seq       = seq,
         .time_uncertain = time_ok ? 0 : 1,
     };
 
+    // ---- FAST PATH -----------------------------------------------------
+    // Broker is online and queue is idle: publish directly with no NVS
+    // blob write. Idempotency is preserved via the already-persisted seq
+    // reservation, so a reboot cannot reuse the same sale_seq. Fire-and-
+    // forget — we intentionally do not wait for PUBACK nor track the
+    // msg_id. The ~ms window between publish() and TCP-send is the
+    // accepted loss risk documented in the design.
+    if (can_fast_path_locked()) {
+        uint8_t payload[19];
+        build_v2_payload(&rec, payload);
+
+        char topic[128];
+        snprintf(topic, sizeof(topic), "/%s/%s/sale", my_company_id, my_device_id);
+
+        int msg_id = mqtt_publish_safe(s_client, topic, (const char *)payload,
+                                       sizeof(payload), 1 /*QoS*/, 0);
+        if (msg_id > 0) {
+            s_fast_path_count++;
+            ESP_LOGI(TAG, "fast-path seq=%u msg_id=%d time_uncertain=%u",
+                     (unsigned)seq, msg_id, (unsigned)rec.time_uncertain);
+            xSemaphoreGive(s_lock);
+            return true;
+        }
+        ESP_LOGW(TAG, "fast-path publish failed (msg_id=%d) — falling through to slow path",
+                 msg_id);
+    }
+
+    // ---- SLOW PATH -----------------------------------------------------
+    // Queue the sale to NVS so the drain task can publish with strict
+    // FIFO + PUBACK tracking.
     uint32_t slot = s_tail % SALE_QUEUE_CAPACITY;
     char key[8];
     snprintf(key, sizeof(key), SLOT_KEY_FMT, (unsigned)slot);
@@ -135,38 +228,35 @@ bool sale_queue_enqueue(uint8_t cmd, uint16_t item_price, uint16_t item_number) 
     nvs_handle_t h;
     esp_err_t err = nvs_open(NS, NVS_READWRITE, &h);
     if (err != ESP_OK) {
-        ESP_LOGE(TAG, "nvs_open failed: %s — dropping sale seq=%u",
-                 esp_err_to_name(err), (unsigned)rec.sale_seq);
-        s_last_seq--; // roll back the allocation so we don't leave gaps
+        ESP_LOGE(TAG, "nvs_open failed: %s — sale seq=%u NOT persisted",
+                 esp_err_to_name(err), (unsigned)seq);
         xSemaphoreGive(s_lock);
         return false;
     }
 
-    // Write record + new tail + new last_seq, commit ONCE. If the commit
-    // fails (power loss), none of the three is persisted — consistent.
+    // Blob + tail committed atomically. K_LAST_SEQ is NOT written here — the
+    // seq was already persisted by alloc_seq_locked() via the reservation.
     bool ok = true;
     if (nvs_set_blob(h, key, &rec, sizeof(rec)) != ESP_OK) ok = false;
-    if (ok && nvs_set_u32(h, K_LAST_SEQ, s_last_seq)    != ESP_OK) ok = false;
-    if (ok && nvs_set_u32(h, K_TAIL,     s_tail + 1)    != ESP_OK) ok = false;
-    if (ok && nvs_commit(h)                             != ESP_OK) ok = false;
+    if (ok && nvs_set_u32(h, K_TAIL, s_tail + 1) != ESP_OK) ok = false;
+    if (ok && nvs_commit(h)                      != ESP_OK) ok = false;
     nvs_close(h);
 
     if (!ok) {
         ESP_LOGE(TAG, "NVS write failed for seq=%u — sale NOT persisted",
-                 (unsigned)rec.sale_seq);
-        s_last_seq--;
+                 (unsigned)seq);
         xSemaphoreGive(s_lock);
         return false;
     }
 
     s_tail++;
-    ESP_LOGI(TAG, "enqueued seq=%u slot=%u price=%u item=%u time_uncertain=%u (pending=%u)",
-             (unsigned)rec.sale_seq, (unsigned)slot,
-             (unsigned)rec.item_price, (unsigned)rec.item_number,
+    ESP_LOGI(TAG, "slow-path enqueued seq=%u slot=%u price=%u item=%u time_uncertain=%u (pending=%u)",
+             (unsigned)seq, (unsigned)slot,
+             (unsigned)item_price, (unsigned)item_number,
              (unsigned)rec.time_uncertain, (unsigned)(s_tail - s_head));
 
     xSemaphoreGive(s_lock);
-    xSemaphoreGive(s_wake); // nudge drain task
+    xSemaphoreGive(s_wake);
     return true;
 }
 
@@ -289,6 +379,10 @@ uint32_t sale_queue_overflow_count(void) {
 
 uint32_t sale_queue_last_seq(void) {
     return s_last_seq;
+}
+
+uint32_t sale_queue_fast_path_count(void) {
+    return s_fast_path_count;
 }
 
 static void sale_queue_publish_task(void *arg) {

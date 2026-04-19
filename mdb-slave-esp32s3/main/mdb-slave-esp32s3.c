@@ -1849,9 +1849,9 @@ static void publish_mdb_diag(void) {
     char topic[128];
     snprintf(topic, sizeof(topic), "/%s/%s/mdb-log", my_company_id, my_device_id);
 
-    char msg[384];
+    char msg[448];
     snprintf(msg, sizeof(msg),
-        "{\"state\":\"%s\",\"addr\":\"0x%02X\",\"polls\":%lu,\"chkErr\":%lu,\"lastCmd\":\"%s\",\"vmcLevel\":%u,\"saleQueue\":{\"pending\":%lu,\"overflow\":%lu,\"lastSeq\":%lu}}",
+        "{\"state\":\"%s\",\"addr\":\"0x%02X\",\"polls\":%lu,\"chkErr\":%lu,\"lastCmd\":\"%s\",\"vmcLevel\":%u,\"saleQueue\":{\"pending\":%lu,\"overflow\":%lu,\"lastSeq\":%lu,\"fastPath\":%lu}}",
         machine_state_name(machine_state),
         cashless_device_address,
         mdb_poll_count,
@@ -1860,7 +1860,8 @@ static void publish_mdb_diag(void) {
         vmc_feature_level,
         (unsigned long) sale_queue_pending_count(),
         (unsigned long) sale_queue_overflow_count(),
-        (unsigned long) sale_queue_last_seq());
+        (unsigned long) sale_queue_last_seq(),
+        (unsigned long) sale_queue_fast_path_count());
 
     mqtt_publish_safe(mqttClient, topic, msg, 0, 0, 0);
 }
