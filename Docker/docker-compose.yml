@@ -60,6 +60,13 @@ services:
       MQTT_ADMIN_PASS: ${MQTT_ADMIN_PASS}
       SUPABASE_URL: ${SUPABASE_PUBLIC_URL}
       MQTT_WEBHOOK_SECRET: ${MQTT_WEBHOOK_SECRET}
+      DLQ_PATH: /data/dlq.db
+    volumes:
+      # Persistent dead-letter queue. Survives forwarder restarts and buffers
+      # failed webhook calls for the length of the drain loop's retry window
+      # (capped at 500 attempts / ~1 week), so Supabase outages longer than
+      # the broker's retention do not lose sales.
+      - forwarder_dlq:/data
 
   # ==========================================================================
   # Supabase Studio
@@ -412,3 +419,4 @@ services:
 volumes:
   db-config:
   deno-cache:
+  forwarder_dlq:

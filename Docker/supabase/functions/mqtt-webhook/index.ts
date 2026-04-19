@@ -2,8 +2,57 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { decodeBase64 } from 'https://deno.land/std@0.224.0/encoding/base64.ts'
 import { sendPushToUsers } from '../_shared/web-push.ts'
 
+// Sale payload format version carried in byte 1 of the 19-byte XOR-encrypted
+// payload. v2 adds per-device monotonic sale_seq (bytes 14-17) + time_uncertain
+// flag (byte 12 bit 0) so replays from the firmware queue or broker retention
+// can be de-duplicated at the DB layer.
+const SALE_PAYLOAD_V2 = 0x02;
+
 function fromScaleFactor(p: number, x: number, y: number): number {
   return p * x * Math.pow(10, -y);
+}
+
+// --- DEX / EVA-DTS audit parser -------------------------------------------
+// Extracts per-slot cumulative vend counters from a DEX audit stream. We only
+// look at PA1 records: `PA1*<item_number>*<price>*<historical_vends>*<historical_value>*...`
+// where fields are delimited by `*` and records by newline/CR. This is enough
+// for sales reconciliation; deeper parsing (PA2, EA*, MA*) can be added later.
+interface DexParseResult {
+  slot_counters: Record<string, { vends: number; value_cents: number }>;
+  total_vends: number;
+  total_value: number;
+}
+
+function parseDexAudit(bytes: Uint8Array): DexParseResult {
+  const text = new TextDecoder('latin1').decode(bytes);
+  const slot_counters: Record<string, { vends: number; value_cents: number }> = {};
+  let total_vends = 0;
+  let total_value_cents = 0;
+
+  // DEX records are separated by CR/LF; split tolerantly.
+  for (const rawLine of text.split(/[\r\n]+/)) {
+    const line = rawLine.trim();
+    if (!line.startsWith('PA1')) continue;
+
+    const fields = line.split('*');
+    if (fields.length < 5) continue;
+
+    const itemNumber = fields[1]?.trim();
+    const vends = Number.parseInt(fields[3] ?? '', 10);
+    const valueCents = Number.parseInt(fields[4] ?? '', 10);
+
+    if (!itemNumber || !Number.isFinite(vends) || !Number.isFinite(valueCents)) continue;
+
+    slot_counters[itemNumber] = { vends, value_cents: valueCents };
+    total_vends += vends;
+    total_value_cents += valueCents;
+  }
+
+  return {
+    slot_counters,
+    total_vends,
+    total_value: total_value_cents / 100,
+  };
 }
 
 Deno.serve(async (req) => {
@@ -19,7 +68,7 @@ Deno.serve(async (req) => {
     const { topic, payload: payloadB64 } = body;
 
     // Parse topic: /{company_id}/{device_id}/{event_type}
-    const match = topic.match(/^\/([^/]+)\/([^/]+)\/(sale|status|paxcounter|mdb-log|restart)$/);
+    const match = topic.match(/^\/([^/]+)\/([^/]+)\/(sale|status|paxcounter|mdb-log|restart|dex)$/);
     if (!match) {
       return new Response(JSON.stringify({ error: 'invalid topic' }), { status: 400 });
     }
@@ -231,14 +280,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Sale and paxcounter: encrypted payload
-    const payload = new Uint8Array(decodeBase64(payloadB64));
-
-    if (payload.length !== 19) {
-      return new Response(JSON.stringify({ error: 'invalid payload length' }), { status: 400 });
-    }
-
-    // Look up device
+    // DEX / sale / paxcounter: look up device first (all three need passkey or embedded_id)
     const { data: embeddedData, error: lookupError } = await adminClient
       .from('embeddeds')
       .select('passkey, id, owner_id, company')
@@ -250,6 +292,35 @@ Deno.serve(async (req) => {
     }
 
     const embedded = embeddedData[0];
+
+    // DEX telemetry: raw audit bytes, no XOR / no checksum / variable length.
+    // Stored for belt-and-suspenders sales reconciliation (see dex_snapshots
+    // + dex_reconcile_gaps migration).
+    if (eventType === 'dex') {
+      const dexBytes = decodeBase64(payloadB64);
+      const parsed = parseDexAudit(dexBytes);
+
+      const { error: insertErr } = await adminClient
+        .from('dex_snapshots')
+        .insert({
+          embedded_id: embedded.id,
+          raw: `\\x${Array.from(dexBytes).map((b) => b.toString(16).padStart(2, '0')).join('')}`,
+          slot_counters: parsed.slot_counters,
+          total_vends: parsed.total_vends,
+          total_value: parsed.total_value,
+        });
+
+      if (insertErr) throw insertErr;
+      return new Response(JSON.stringify({ ok: true, slots: Object.keys(parsed.slot_counters).length }), { status: 200 });
+    }
+
+    // Sale and paxcounter: encrypted payload
+    const payload = new Uint8Array(decodeBase64(payloadB64));
+
+    if (payload.length !== 19) {
+      return new Response(JSON.stringify({ error: 'invalid payload length' }), { status: 400 });
+    }
+
     const passkey: number[] = [...embedded.passkey].map((c: string) => c.charCodeAt(0));
 
     // XOR decrypt bytes 1-18 with passkey
@@ -262,6 +333,8 @@ Deno.serve(async (req) => {
     if (payload[payload.length - 1] !== (chk & 0xff)) {
       return new Response(JSON.stringify({ error: 'checksum mismatch' }), { status: 400 });
     }
+
+    const payloadVersion = payload[1];
 
     // Extract timestamp (bytes 8-11, big-endian) for use as sale timestamp
     const timestampSec =
@@ -289,9 +362,30 @@ Deno.serve(async (req) => {
 
       const salePrice = fromScaleFactor(itemPrice >>> 0, 1, 2);
 
-      // Use the device's timestamp so queued messages get the correct sale time
-      const saleTime = new Date(timestampUnsigned * 1000).toISOString();
+      // Older v1 payloads have no idempotency info — those stay best-effort.
+      let saleSeq: number | null = null;
+      let timeUncertain = false;
+      if (payloadVersion === SALE_PAYLOAD_V2) {
+        const flags = payload[12];
+        timeUncertain = (flags & 0x01) !== 0;
+        saleSeq =
+          (payload[14] * 0x1000000) +
+          ((payload[15] << 16) | (payload[16] << 8) | payload[17]);
+      }
 
+      // Sale time: prefer device clock; if the device flagged `time_uncertain`
+      // (SNTP had not synced when the vend happened) fall back to the server
+      // receive time. Better to record the sale with a ~outage-length drift
+      // than to drop it.
+      const saleTime = timeUncertain || timestampUnsigned === 0
+        ? new Date().toISOString()
+        : new Date(timestampUnsigned * 1000).toISOString();
+
+      // Idempotency: replays from the device queue / broker retention /
+      // forwarder DLQ hit the UNIQUE(embedded_id, sale_seq) index and raise
+      // 23505. Treat that as a successful duplicate — the row already
+      // exists and the BEFORE INSERT trigger for stock decrement only fires
+      // once on the original insert.
       const { error: insertError } = await adminClient
         .from('sales')
         .insert([{
@@ -301,9 +395,17 @@ Deno.serve(async (req) => {
           item_price: salePrice,
           channel,
           created_at: saleTime,
+          sale_seq: saleSeq,
+          time_uncertain: timeUncertain,
         }]);
 
-      if (insertError) throw insertError;
+      if (insertError) {
+        const code = (insertError as { code?: string }).code;
+        if (code === '23505') {
+          return new Response(JSON.stringify({ ok: true, duplicate: true }), { status: 200 });
+        }
+        throw insertError;
+      }
 
       // ── Push notification dispatch (best-effort, never blocks sale recording) ──
       try {
