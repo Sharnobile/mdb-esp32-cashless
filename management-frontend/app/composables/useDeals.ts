@@ -1,6 +1,17 @@
+export interface DealKeyword {
+  id: string
+  label: string | null
+  terms: string[]
+  product_ids: string[]
+  created_at: string
+  updated_at: string
+}
+
 export interface Deal {
   id: string
-  product_id: string
+  product_id: string | null
+  keyword_id: string | null
+  matched_term: string | null
   retailer: string
   deal_title: string
   deal_price: number | null
@@ -19,10 +30,19 @@ export interface Deal {
   fetched_at: string
   offer_id: string
   products: {
+    id: string
     name: string
     image_path: string | null
     sellprice: number | null
-  }
+  } | null
+  deal_keywords: {
+    id: string
+    label: string | null
+    terms: string[]
+    deal_keyword_products: Array<{
+      products: { id: string; name: string; image_path: string | null; sellprice: number | null }
+    }>
+  } | null
 }
 
 interface DealSearchResponse {
@@ -264,6 +284,114 @@ export function useDeals() {
     return Math.round(withDiscount.reduce((sum, d) => sum + (d.discount_pct ?? 0), 0) / withDiscount.length)
   })
 
+  // ── Keyword groups ─────────────────────────────────────────────────────────
+
+  const keywords = useState<DealKeyword[]>('deal-keywords', () => [])
+
+  async function fetchKeywords() {
+    const { data, error: err } = await supabase
+      .from('deal_keywords')
+      .select('id, label, terms, created_at, updated_at, deal_keyword_products(product_id)')
+      .order('label', { ascending: true, nullsFirst: false })
+
+    if (err) {
+      console.error('[useDeals] fetchKeywords failed:', err)
+      keywords.value = []
+      return
+    }
+    keywords.value = (data ?? []).map((row: any) => ({
+      id: row.id,
+      label: row.label,
+      terms: row.terms ?? [],
+      product_ids: (row.deal_keyword_products ?? []).map((kp: any) => kp.product_id),
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+    }))
+  }
+
+  async function createKeyword(input: {
+    label?: string | null
+    terms: string[]
+    product_ids: string[]
+  }): Promise<DealKeyword | null> {
+    // Reuse the already-captured `organization` ref at the top of `useDeals()` —
+    // do NOT call useOrganization() again inside this function (existing pattern
+    // in this composable is to destructure once at the top).
+    if (!organization.value) return null
+
+    const { data, error: err } = await supabase
+      .from('deal_keywords')
+      .insert({
+        company_id: organization.value.id,
+        label: input.label ?? null,
+        terms: input.terms,
+      })
+      .select('id, label, terms, created_at, updated_at')
+      .single()
+
+    if (err || !data) {
+      console.error('[useDeals] createKeyword failed:', err)
+      return null
+    }
+
+    if (input.product_ids.length > 0) {
+      const { error: linkErr } = await supabase
+        .from('deal_keyword_products')
+        .insert(input.product_ids.map((pid) => ({ keyword_id: data.id, product_id: pid })))
+      if (linkErr) console.error('[useDeals] createKeyword link failed:', linkErr)
+    }
+
+    await fetchKeywords()
+    return keywords.value.find((k) => k.id === data.id) ?? null
+  }
+
+  async function updateKeyword(
+    id: string,
+    patch: { label?: string | null; terms?: string[] },
+  ) {
+    const { error: err } = await supabase
+      .from('deal_keywords')
+      .update(patch)
+      .eq('id', id)
+    if (err) {
+      console.error('[useDeals] updateKeyword failed:', err)
+      return
+    }
+    await fetchKeywords()
+  }
+
+  async function setKeywordProducts(id: string, productIds: string[]) {
+    // Simple strategy: delete all + insert fresh. deal_keyword_products is
+    // a PK-only junction, so no lost metadata.
+    const { error: delErr } = await supabase
+      .from('deal_keyword_products')
+      .delete()
+      .eq('keyword_id', id)
+    if (delErr) {
+      console.error('[useDeals] setKeywordProducts delete failed:', delErr)
+      return
+    }
+    if (productIds.length > 0) {
+      const { error: insErr } = await supabase
+        .from('deal_keyword_products')
+        .insert(productIds.map((pid) => ({ keyword_id: id, product_id: pid })))
+      if (insErr) console.error('[useDeals] setKeywordProducts insert failed:', insErr)
+    }
+    await fetchKeywords()
+  }
+
+  async function deleteKeyword(id: string) {
+    const { error: err } = await supabase
+      .from('deal_keywords')
+      .delete()
+      .eq('id', id)
+    if (err) {
+      console.error('[useDeals] deleteKeyword failed:', err)
+      return
+    }
+    await fetchKeywords()
+  }
+
   return {
     deals,
     loading,
@@ -287,5 +415,11 @@ export function useDeals() {
     totalDeals,
     uniqueRetailers,
     avgDiscount,
+    keywords,
+    fetchKeywords,
+    createKeyword,
+    updateKeyword,
+    setKeywordProducts,
+    deleteKeyword,
   }
 }

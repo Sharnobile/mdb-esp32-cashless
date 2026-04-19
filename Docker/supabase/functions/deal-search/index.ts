@@ -425,6 +425,30 @@ Deno.serve(async (req) => {
       })
     }
 
+    // Fetch keyword groups for this company
+    interface DealKeyword {
+      id: string
+      label: string | null
+      terms: string[]
+      product_ids: string[]
+    }
+
+    const { data: keywordRows, error: keywordErr } = await adminClient
+      .from('deal_keywords')
+      .select('id, label, terms, deal_keyword_products(product_id)')
+      .eq('company_id', companyId)
+
+    if (keywordErr) {
+      console.error('[deal-search] failed to load keywords:', keywordErr)
+    }
+
+    const keywords: DealKeyword[] = (keywordRows ?? []).map((row: any) => ({
+      id: row.id,
+      label: row.label,
+      terms: row.terms ?? [],
+      product_ids: (row.deal_keyword_products ?? []).map((kp: any) => kp.product_id),
+    }))
+
     // Get marktguru API keys
     let keys: MarktguruKeys
     try {
@@ -440,6 +464,10 @@ Deno.serve(async (req) => {
     // Search for each product and collect matches
     const allDeals: any[] = []
     const seen = new Set<string>() // dedup by offer_id + product_id
+
+    // Per-offer set of products covered by a keyword-group hit. Populated inside
+    // the queries loop (Step 2) and read by the suppression gate (Step 3).
+    const keywordCovered = new Map<string | number, Set<string>>()
 
     // Build search queries: use both the full product name AND shorter
     // brand-level queries (first 1–2 words). This ensures we find generic
@@ -478,6 +506,83 @@ Deno.serve(async (req) => {
     for (const [query, matchProducts] of queries) {
       try {
         const offers = await searchMarktguru(query, zipCode, keys, 10)
+
+        // Helper: build a keyword-match deal row for upsert.
+        function buildKeywordDeal(
+          offer: MarktguruOffer,
+          keyword: DealKeyword,
+          winning: { term: string; match: MatchResult },
+        ) {
+          const retailerSlug = offer.advertisers?.[0]?.uniqueName ?? 'unknown'
+          const retailerName = offer.advertisers?.[0]?.name ?? retailerSlug
+          const validFrom = offer.validityDates?.[0]?.from ?? null
+          const validUntil = offer.validityDates?.[0]?.to ?? null
+          const discountPct = offer.oldPrice && offer.price
+            ? Math.round((1 - offer.price / offer.oldPrice) * 100)
+            : null
+          const imageUrlLarge = `https://mg2de.b-cdn.net/api/v1/offers/${offer.id}/images/default/0/large.jpg`
+          const prospektUrl = dealConfig.retailer_prospekt_urls[retailerSlug]
+            ?? `https://www.marktguru.de/rp/${retailerSlug}-prospekte`
+          const retailerPageUrl = `https://www.marktguru.de/r/${retailerSlug}`
+
+          return {
+            company_id: companyId,
+            product_id: null,
+            keyword_id: keyword.id,
+            matched_term: winning.term,
+            retailer: retailerName,
+            deal_title: offer.description,
+            deal_price: offer.price,
+            regular_price: offer.oldPrice,
+            discount_pct: discountPct,
+            valid_from: validFrom,
+            valid_until: validUntil,
+            image_url: offer.images?.urls?.medium ?? null,
+            image_url_large: imageUrlLarge,
+            source_url: prospektUrl,
+            external_url: retailerPageUrl,
+            matched_by: 'keyword_fuzzy',
+            confidence: winning.match.confidence,
+            matched_tokens: winning.match.matchedTokens,
+            requires_app: offer.requiresLoyalityMembership
+              || detectAppRequirement(offer.description, dealConfig.app_detection_patterns),
+            fetched_at: new Date().toISOString(),
+            offer_id: String(offer.id),
+          }
+        }
+
+        // Keyword matching pass — one row per (offer, keyword_group).
+        for (const offer of offers) {
+          for (const keyword of keywords) {
+            let best: { term: string; match: MatchResult } | null = null
+            for (const term of keyword.terms) {
+              const m = matchConfidence(
+                term,
+                offer.description,
+                offer.brand?.name ?? '',
+                dealConfig,
+              )
+              if (m.confidence >= minConfidence && (!best || m.confidence > best.match.confidence)) {
+                best = { term, match: m }
+              }
+            }
+            if (!best) continue
+
+            // Prefix the dedup key with `kw-` so it cannot collide with the existing
+            // product-pass dedup keys (`${offer.id}-${product.id}`).
+            const dedup = `kw-${offer.id}-${keyword.id}`
+            if (seen.has(dedup)) continue
+            seen.add(dedup)
+
+            allDeals.push(buildKeywordDeal(offer, keyword, best))
+
+            // Mark the keyword's products as covered for this offer. Union with any
+            // existing set so repeated offer IDs across query batches accumulate.
+            const covered = keywordCovered.get(offer.id) ?? new Set<string>()
+            for (const pid of keyword.product_ids) covered.add(pid)
+            keywordCovered.set(offer.id, covered)
+          }
+        }
 
         // Helper to build a deal record from an offer + product match
         function buildDeal(offer: MarktguruOffer, product: any, match: MatchResult) {
@@ -537,6 +642,9 @@ Deno.serve(async (req) => {
             if (seen.has(dedup)) continue
             seen.add(dedup)
 
+            const coveredByKeyword = keywordCovered.get(offer.id)
+            if (coveredByKeyword?.has(product.id)) continue
+
             allDeals.push(buildDeal(offer, product, match))
           }
         }
@@ -558,6 +666,9 @@ Deno.serve(async (req) => {
             if (match.confidence < minConfidence) continue
             seen.add(dedup)
 
+            const coveredByKeyword = keywordCovered.get(offer.id)
+            if (coveredByKeyword?.has(product.id)) continue
+
             allDeals.push(buildDeal(offer, product, match))
           }
         }
@@ -573,17 +684,40 @@ Deno.serve(async (req) => {
       .delete()
       .eq('company_id', companyId)
 
-    if (allDeals.length > 0) {
-      await adminClient.from('deal_cache').upsert(allDeals, {
+    const productRows = allDeals.filter((d) => d.product_id !== null && d.product_id !== undefined)
+    const keywordRows = allDeals.filter((d) => d.keyword_id !== null && d.keyword_id !== undefined)
+
+    if (productRows.length > 0) {
+      const { error: puErr } = await adminClient.from('deal_cache').upsert(productRows, {
         onConflict: 'company_id,product_id,retailer,offer_id',
         ignoreDuplicates: true,
       })
+      if (puErr) console.error('[deal-search] product upsert failed:', puErr)
     }
+
+    if (keywordRows.length > 0) {
+      const { error: kuErr } = await adminClient.from('deal_cache').upsert(keywordRows, {
+        onConflict: 'company_id,keyword_id,retailer,offer_id',
+        ignoreDuplicates: true,
+      })
+      if (kuErr) console.error('[deal-search] keyword upsert failed:', kuErr)
+    }
+
+    console.log(`[deal-search] wrote ${productRows.length} product + ${keywordRows.length} keyword deals`)
 
     // Read back with product joins for the response
     const { data: result } = await adminClient
       .from('deal_cache')
-      .select('*, products(name, image_path, sellprice)')
+      .select(`
+        *,
+        products(id, name, image_path, sellprice),
+        deal_keywords(
+          id,
+          label,
+          terms,
+          deal_keyword_products(products(id, name, image_path, sellprice))
+        )
+      `)
       .eq('company_id', companyId)
       .gte('confidence', minConfidence)
       .order('discount_pct', { ascending: false, nullsFirst: false })

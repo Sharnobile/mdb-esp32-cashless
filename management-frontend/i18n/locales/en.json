@@ -1079,7 +1079,26 @@
     "yourPrice": "Your price",
     "matchedTokens": "Matched terms",
     "matchMethod": "Method",
-    "fuzzyNameMatch": "Fuzzy name matching"
+    "fuzzyNameMatch": "Fuzzy name matching",
+    "keywords": {
+      "title": "Keywords",
+      "tabLabel": "Keywords",
+      "newGroup": "New keyword group",
+      "editGroup": "Edit keyword group",
+      "label": "Label",
+      "labelPlaceholder": "e.g. Haribo",
+      "terms": "Search terms",
+      "termsHint": "Press Enter or comma to add",
+      "products": "Linked products",
+      "productsPlaceholder": "Select products…",
+      "productsCount": "{n} linked products",
+      "matchedVia": "matched via \"{term}\"",
+      "modalHint": "When any of the search terms appears in an offer, one deal card is shown covering all linked products.",
+      "emptyTitle": "No keyword groups yet",
+      "emptyHint": "Example: a \"Haribo\" group with terms \"Haribo Fruchtgummis\", \"Haribo versch. Sorten\" linked to every Haribo product — brand-wide offers then show up as a single card.",
+      "noLinkedProducts": "No products linked to this group yet — edit the group to add products.",
+      "deleteConfirm": "Delete keyword group \"{label}\"?"
+    }
   },
   "reports": {
     "title": "Reports",
