@@ -25,10 +25,20 @@ batch row because the iOS flow does not match on batch number + MHD).
 
 - Smart-matching in the iOS Wareneingang (intake) form — the duplicate-batch
   behavior is a pre-existing issue and is out of scope for this change
+- Harmonizing the pre-existing `intake` (iOS) vs `incoming` (web)
+  `transaction_type` drift — iOS `bookIntake` keeps writing `intake`, web
+  `bookIncoming` keeps writing `incoming`. A future cleanup can align them;
+  this PR must not touch either code path so transaction-history filters and
+  existing analytics queries stay stable.
 - A shortcut directly from the refill-wizard summary
-- Surfacing fully depleted (quantity = 0) batches for resurrection — the
-  existing intake flow already re-uses a matching batch row when web operators
-  book incoming against an existing (batch-nr + expiration) pair
+- Surfacing fully depleted (quantity = 0) batches for resurrection. The web
+  intake flow already matches on `(warehouse + product + batch_nr +
+  expiration)` and re-uses a zero-qty batch row, so depleted batches can be
+  revived from the web. **On iOS the same scenario is not covered** — the
+  depleted batch disappears from `ProductBatchesView` because the query
+  filters `gt("quantity", 0)`, and the iOS intake form creates a new batch
+  row instead of matching. Operators who hit this edge case must use the web
+  UI; fixing it requires the out-of-scope iOS intake smart-matching change.
 
 ## Shared data model
 
@@ -102,7 +112,8 @@ New keys in `management-frontend/i18n/locales/en.json` and `de.json` under
   filter)
 
 The existing `adjustBatchInfo` placeholder copy continues to work unchanged
-for both directions.
+for both directions. The Einbuchen "Inventurkorrektur" option reuses the
+existing `warehouse.inventoryCorrection` key — no new label needed.
 
 ## iOS changes
 
@@ -149,37 +160,41 @@ Opens via `NavigationLink` when the user taps a row in the Stock tab.
 
 Adds:
 
-- `loadBatchesForProduct(_ productId: UUID) async -> [StockBatch]`
+- `loadBatchesForProduct(_ productId: UUID) async -> [WarehouseStockBatch]`
   - Queries `warehouse_stock_batches` filtered by warehouse + product,
     `gt("quantity", 0)`, ordered by `expiration_date`
-  - Returns a new `StockBatch` struct (id, batchNumber, expirationDate,
-    quantity) — define in `Models/Warehouse.swift`
+  - Returns the **existing** `WarehouseStockBatch` type already defined in
+    `Models/Warehouse.swift` (no new model needed — fields `id`,
+    `warehouseId`, `productId`, `quantity`, `batchNumber`, `expirationDate`
+    already match exactly)
 - `adjustBatch(batchId: UUID, quantityChange: Int, reason: String, notes: String?) async`
-  - Fetches current batch row to get `quantity_before`,
-    `batch_number`, `expiration_date`
-  - Computes `quantity_after = max(0, quantity_before + quantity_change)`
+  - Fetches the current batch row (`quantity`, `batch_number`,
+    `expiration_date`)
+  - Computes `quantityAfter = max(0, quantityBefore + quantityChange)`
   - Updates `warehouse_stock_batches.quantity`
-  - Inserts a `warehouse_transactions` row with the same shape the web
-    composable uses (including `_user_email` metadata from the session)
+  - Inserts a `warehouse_transactions` row with
+    `transaction_type = reason` — where `reason` is one of the new adjust
+    types (`adjustment_refill_return`, `adjustment_correction`,
+    `adjustment_damage`, `adjustment_expired`). **Must not** use `intake`
+    or `incoming` — those remain reserved for the existing Wareneingang
+    flow.
+  - `companyId` is looked up from the currently selected warehouse (the
+    `warehouses` array already carries `companyId` on each row). Required
+    for RLS and matches the existing `InsertWarehouseTransaction` struct
+    (`Models/Warehouse.swift` line 100).
+  - `userId` from `client.auth.session.user.id`, same as `bookIntake`
+  - Passes notes through as-is (nil if empty)
   - Reloads affected state (stock summaries + the drilldown batches list
     if still visible)
+  - On conflict / missing batch row (e.g. batch deleted between list fetch
+    and submit), surfaces a user-facing error via the existing `error`
+    published property; no retry logic needed — the user can re-open the
+    list
 
-### Model: `StockBatch`
+### Model changes
 
-Added to `ios/VMflow/Models/Warehouse.swift`:
-
-```swift
-struct StockBatch: Identifiable, Codable {
-    let id: UUID
-    let productId: UUID
-    let batchNumber: String?
-    let expirationDate: String?
-    let quantity: Int
-}
-```
-
-Uses String for `expirationDate` to match web-side string handling and the
-existing `isWithin30Days`/`formatExpirationDate` helpers.
+None. The existing `WarehouseStockBatch` and `InsertWarehouseTransaction`
+structs in `ios/VMflow/Models/Warehouse.swift` cover all required fields.
 
 ### Navigation wiring
 
@@ -217,11 +232,30 @@ The iOS project has no automated test target. Verify manually:
 1. Open a warehouse with at least one product having multiple batches
 2. Tap product → see batch list → tap batch → sheet opens
 3. Einbuchen +5 → quantity increases by 5, transaction appears in web
-   transaction history as "Rückgabe aus Refill"
+   transaction history as "Rückgabe aus Refill" (this requires the web
+   transaction-type filter dropdown update from §Web — verify both sides
+   of the PR are deployed together)
 4. Abbuchen −3 with reason "Beschädigt" → quantity decreases, transaction
    shows as "Damaged"
 5. Empty batch (quantity goes to 0) → disappears from list per
    `gt("quantity", 0)` filter; intake flow still works unchanged
+
+## Error handling & race conditions
+
+- **Batch deleted between fetch and submit**: the update `UPDATE ... WHERE id
+  = :batch_id` is a no-op, and the subsequent transaction insert succeeds but
+  points at a missing batch. Acceptable — the web UI surfaces no error, the
+  iOS UI surfaces the generic `error` banner. Operators are expected to
+  refresh.
+- **Concurrent sale drains the batch**: the `Math.max(0, quantity_before +
+  quantity_change)` clamp in `adjustStock` (web) and `adjustBatch` (iOS)
+  prevents negative stock. The transaction row still records the intended
+  `quantity_change` but `quantity_after` is clamped — the history shows what
+  the operator did and what the final state was, which is the correct
+  behavior for an audit log.
+- **No optimistic locking.** The last writer wins. This matches the existing
+  `adjustStock` semantics and is acceptable because warehouse writes are
+  rare, human-driven, and local to a single operator per warehouse.
 
 ## Backward compatibility
 
