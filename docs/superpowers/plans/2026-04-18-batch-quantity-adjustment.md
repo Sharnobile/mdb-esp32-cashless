@@ -334,7 +334,7 @@ In `management-frontend/i18n/locales/en.json`, inside the `"warehouse": { ... }`
     "adjustDirectionAdd": "Add",
     "refillReturn": "Refill return",
     "refillReturnDescription": "Items returned after a refill took too much",
-    "addStock": "Add stock",
+    "addStockSubmit": "Add stock",
     "quantityToAdd": "Quantity to add",
     "refillReturnFilter": "Refill returns",
 ```
@@ -553,7 +553,7 @@ Find the `<!-- Adjustment modal -->` block. Replace the entire `<AppModal>` elem
           >
             {{ adjustLoading
                 ? t('warehouse.adjusting')
-                : (adjustDirection === 'remove' ? t('warehouse.removeStock') : t('warehouse.addStock')) }}
+                : (adjustDirection === 'remove' ? t('warehouse.removeStock') : t('warehouse.addStockSubmit')) }}
           </button>
         </div>
       </form>
