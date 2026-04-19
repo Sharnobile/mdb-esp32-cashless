@@ -391,6 +391,9 @@ final class WarehouseViewModel: ObservableObject {
             return
         }
 
+        // Clear previous drilldown state so re-visiting a different product
+        // doesn't briefly render stale rows while the new query runs.
+        drilldownBatches = []
         isLoadingBatches = true
         defer { isLoadingBatches = false }
 

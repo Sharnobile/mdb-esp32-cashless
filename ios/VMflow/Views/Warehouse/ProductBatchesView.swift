@@ -13,14 +13,14 @@ struct ProductBatchesView: View {
     var body: some View {
         Group {
             if viewModel.isLoadingBatches && viewModel.drilldownBatches.isEmpty {
-                ProgressView("Loading batches...")
+                ProgressView(String(localized: "Loading batches..."))
             } else if viewModel.drilldownBatches.isEmpty {
                 VStack(spacing: 12) {
                     Spacer()
                     Image(systemName: "shippingbox")
                         .font(.system(size: 40))
                         .foregroundStyle(.secondary)
-                    Text("No batches in stock")
+                    Text(String(localized: "No batches in stock"))
                         .foregroundStyle(.secondary)
                     Spacer()
                 }
@@ -93,10 +93,19 @@ private struct BatchRow: View {
         .contentShape(Rectangle())
     }
 
+    /// Shared parser for `yyyy-MM-dd` DB strings, pinned to Gregorian / POSIX
+    /// so non-Gregorian user locales don't silently fail to parse.
+    private static let isoFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.calendar = Calendar(identifier: .gregorian)
+        f.timeZone = TimeZone(secondsFromGMT: 0)
+        return f
+    }()
+
     private func expirationColor(_ dateString: String) -> Color {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        guard let date = formatter.date(from: dateString) else { return .secondary }
+        guard let date = Self.isoFormatter.date(from: dateString) else { return .secondary }
         let days = Calendar.current.dateComponents([.day], from: Date(), to: date).day ?? 0
         if days < 7 { return .red }
         if days <= 30 { return .orange }
