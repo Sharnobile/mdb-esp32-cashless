@@ -8,6 +8,8 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
+import DealKeywordList from '@/components/DealKeywordList.vue'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { Deal } from '@/composables/useDeals'
 import { timeAgo } from '@/lib/utils'
 
@@ -245,6 +247,13 @@ const highlightedProductTokens = computed(() =>
 
     <!-- Enabled: show deals -->
     <template v-else>
+      <Tabs default-value="deals" class="w-full">
+        <TabsList>
+          <TabsTrigger value="deals">{{ t('deals.title') }}</TabsTrigger>
+          <TabsTrigger value="keywords">{{ t('deals.keywords.tabLabel') }}</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="deals" class="space-y-6">
       <!-- Error -->
       <div v-if="error" class="flex items-center gap-2 rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
         <IconAlertCircle class="size-4 shrink-0" />
@@ -386,6 +395,12 @@ const highlightedProductTokens = computed(() =>
           </div>
         </div>
       </div>
+        </TabsContent>
+
+        <TabsContent value="keywords">
+          <DealKeywordList />
+        </TabsContent>
+      </Tabs>
     </template>
 
     <!-- ─── Detail Sheet ────────────────────────────────────────────── -->
