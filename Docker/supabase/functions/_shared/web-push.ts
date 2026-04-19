@@ -31,6 +31,13 @@ interface VapidConfig {
 interface PushPayload {
   title: string
   body: string
+  /**
+   * Optional second line of the notification. On iOS, rendered as
+   * `aps.alert.subtitle` (three-line layout). On Android/FCM and web
+   * push (VAPID), merged into the body with a `\n` separator because
+   * those surfaces don't expose a subtitle field.
+   */
+  subtitle?: string
   icon?: string
   image?: string
   data?: Record<string, unknown>
@@ -317,12 +324,17 @@ async function sendApnsNotification(
     ? 'api.push.apple.com'
     : 'api.sandbox.push.apple.com'
 
+  const alertDict: Record<string, unknown> = {
+    title: payload.title,
+    body: payload.body,
+  }
+  if (payload.subtitle) {
+    alertDict.subtitle = payload.subtitle
+  }
+
   // Build aps separately so we can add the optional badge field cleanly.
   const aps: Record<string, unknown> = {
-    alert: {
-      title: payload.title,
-      body: payload.body,
-    },
+    alert: alertDict,
     sound: 'default',
     'mutable-content': 1,
   }
@@ -459,11 +471,16 @@ async function sendFcmNotification(
 ): Promise<{ ok: boolean; expired: boolean }> {
   const accessToken = await getFcmAccessToken(sa)
 
+  // FCM has no subtitle field — fold it into body so the content is preserved.
+  const mergedBody = payload.subtitle
+    ? `${payload.subtitle}\n${payload.body}`
+    : payload.body
+
   const message: Record<string, unknown> = {
     token: fcmToken,
     notification: {
       title: payload.title,
-      body: payload.body,
+      body: mergedBody,
       ...(payload.image ? { image: payload.image } : {}),
     },
     data: payload.data
@@ -527,7 +544,13 @@ async function sendPushNotification(
   payload: PushPayload,
   vapid: VapidConfig,
 ): Promise<Response> {
-  const payloadBytes = new TextEncoder().encode(JSON.stringify(payload))
+  // Web push has no subtitle field in the payload the service worker sees —
+  // fold it into body so the content is preserved.
+  const wirePayload: PushPayload = payload.subtitle
+    ? { ...payload, body: `${payload.subtitle}\n${payload.body}` }
+    : payload
+
+  const payloadBytes = new TextEncoder().encode(JSON.stringify(wirePayload))
   const subscriberPubKey = base64urlToUint8Array(subscription.p256dh)
   const authSecret = base64urlToUint8Array(subscription.auth)
   const vapidPrivateKey = base64urlToUint8Array(vapid.privateKey)
@@ -678,6 +701,15 @@ export async function sendPushToUsers(
   }
 
   // Send iOS push notifications (APNs direct)
+  console.log('[web-push][DEBUG] platform split', {
+    totalSubs: subscriptions.length,
+    webSubs: webSubs.length,
+    iosSubs: iosSubs.length,
+    androidSubs: androidSubs.length,
+    apnsConfigured: !!apnsConfig,
+    vapidConfigured: !!vapid,
+    fcmConfigured: !!fcmServiceAccount,
+  })
   if (apnsConfig && iosSubs.length > 0) {
     await Promise.allSettled(
       iosSubs.map(async (sub) => {
@@ -686,7 +718,14 @@ export async function sendPushToUsers(
           const perSubConfig = sub.apns_topic
             ? { ...apnsConfig!, topic: sub.apns_topic }
             : apnsConfig!
+          console.log('[web-push][DEBUG] APNs send', {
+            topic: perSubConfig.topic,
+            production: perSubConfig.production,
+            tokenPrefix: sub.fcm_token?.slice(0, 12),
+            hasImage: !!payload.image,
+          })
           const result = await sendApnsNotification(sub.fcm_token!, payload, perSubConfig)
+          console.log('[web-push][DEBUG] APNs result', { ok: result.ok, expired: result.expired })
           if (result.ok) {
             sent++
           } else if (result.expired) {
