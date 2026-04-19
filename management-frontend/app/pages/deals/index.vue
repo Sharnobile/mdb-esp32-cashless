@@ -51,18 +51,27 @@ function openDetail(deal: Deal) {
 const filteredDeals = computed(() => {
   if (!searchQuery.value.trim()) return deals.value
   const q = searchQuery.value.toLowerCase()
-  return deals.value.filter(
-    (d) =>
-      d.deal_title.toLowerCase().includes(q) ||
-      d.retailer.toLowerCase().includes(q) ||
-      d.products?.name?.toLowerCase().includes(q),
-  )
+  return deals.value.filter((d) => {
+    const hay = [
+      d.deal_title,
+      d.retailer,
+      d.products?.name ?? '',
+      d.deal_keywords?.label ?? '',
+      ...(d.deal_keywords?.terms ?? []),
+      ...(d.deal_keywords?.deal_keyword_products?.map((kp) => kp.products.name) ?? []),
+    ].join(' ').toLowerCase()
+    return hay.includes(q)
+  })
 })
 
 const groupedFiltered = computed(() => {
   const grouped = new Map<string, typeof filteredDeals.value>()
   for (const deal of filteredDeals.value) {
-    const key = groupBy.value === 'retailer' ? deal.retailer : (deal.products?.name ?? deal.product_id)
+    const key = groupBy.value === 'retailer'
+      ? deal.retailer
+      : (deal.keyword_id
+          ? (deal.deal_keywords?.label ?? deal.deal_keywords?.terms?.[0] ?? 'keyword')
+          : (deal.products?.name ?? deal.product_id ?? 'product'))
     const existing = grouped.get(key) ?? []
     existing.push(deal)
     grouped.set(key, existing)
@@ -359,10 +368,37 @@ const highlightedProductTokens = computed(() =>
                   </Badge>
                 </div>
 
-                <!-- Matched product -->
-                <p class="mt-1 text-xs text-muted-foreground">
-                  {{ groupBy === 'retailer' ? deal.products?.name : deal.retailer }}
-                </p>
+                <!-- Matched product / keyword group -->
+                <template v-if="deal.keyword_id && deal.deal_keywords">
+                  <Badge variant="secondary" class="mt-1 gap-1">
+                    <IconTag class="size-3" />
+                    {{ deal.deal_keywords.label ?? deal.deal_keywords.terms[0] }}
+                  </Badge>
+                  <p v-if="deal.matched_term" class="mt-1 text-xs text-muted-foreground">
+                    {{ t('deals.keywords.matchedVia', { term: deal.matched_term }) }}
+                  </p>
+                  <div class="mt-2 space-y-1">
+                    <p class="text-xs font-medium">
+                      {{ t('deals.keywords.productsCount', { n: deal.deal_keywords.deal_keyword_products.length }) }}
+                    </p>
+                    <ul
+                      v-if="deal.deal_keywords.deal_keyword_products.length > 0"
+                      class="text-sm text-muted-foreground"
+                    >
+                      <li v-for="kp in deal.deal_keywords.deal_keyword_products" :key="kp.products.id">
+                        {{ kp.products.name }}
+                      </li>
+                    </ul>
+                    <p v-else class="text-sm italic text-muted-foreground">
+                      {{ t('deals.keywords.emptyHint') }}
+                    </p>
+                  </div>
+                </template>
+                <template v-else>
+                  <p class="mt-1 text-xs text-muted-foreground">
+                    {{ groupBy === 'retailer' ? deal.products?.name : deal.retailer }}
+                  </p>
+                </template>
 
                 <!-- Price row -->
                 <div class="mt-2 flex items-center gap-2">
