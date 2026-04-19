@@ -1702,6 +1702,7 @@ async function onVelocityDaysChange(e: Event) {
               <option value="adjustment_damage">{{ t('warehouse.damagedFilter') }}</option>
               <option value="adjustment_expired">{{ t('warehouse.expiredFilter') }}</option>
               <option value="adjustment_correction">{{ t('warehouse.correctionFilter') }}</option>
+              <option value="adjustment_refill_return">{{ t('warehouse.refillReturnFilter') }}</option>
             </select>
             <select
               v-model="historyFilterProduct"
