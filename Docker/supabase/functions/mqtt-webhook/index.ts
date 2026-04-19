@@ -318,14 +318,16 @@ Deno.serve(async (req) => {
         let productName: string | undefined;
         let productImageUrl: string | undefined;
         let lowTray: { current_stock: number; capacity: number } | undefined;
+        let tray: { product_id: string | null; current_stock: number; min_stock: number; capacity: number; fill_when_below: number } | null = null;
 
         if (machine) {
-          const { data: tray } = await adminClient
+          const { data: trayRow } = await adminClient
             .from('machine_trays')
             .select('product_id, current_stock, min_stock, capacity, fill_when_below')
             .eq('machine_id', machine.id)
             .eq('item_number', itemNumber)
             .maybeSingle();
+          tray = trayRow;
 
           if (tray?.product_id) {
             const { data: product } = await adminClient
