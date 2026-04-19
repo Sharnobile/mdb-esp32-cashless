@@ -10,6 +10,7 @@
 		009EBF498DA30943CF9B822D /* ReviewStepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C374A772F98B97BE6F2EE986 /* ReviewStepView.swift */; };
 		01DA0CBC6A7F8197F2EA4208 /* DealDetailSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 262B82892D49D5104059509A /* DealDetailSheet.swift */; };
 		03840B5283B50C3D3193477A /* MachinesSplitView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5AEF7E62775F83FFCD0149A /* MachinesSplitView.swift */; };
+		0BEB2E18E56CCAF0DE150DF8 /* BatchAdjustSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B044726A1D09F334DDB0851 /* BatchAdjustSheet.swift */; };
 		0C7698AD6ED222844A1255F5 /* Tray.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D260DBBBEC69D0AD7B73C46 /* Tray.swift */; };
 		123DDC46EFE39435A5A69CB5 /* RefillWizardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52A29D496BDB69F848C60674 /* RefillWizardView.swift */; };
 		1254787CC883CE8605189B4B /* PackingStepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90BC01B0752A47A20DF699E7 /* PackingStepView.swift */; };
@@ -24,6 +25,7 @@
 		2ED6B05952A4F22FECE56431 /* InboxViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85E188D4F38B0B3DB63805E7 /* InboxViewModel.swift */; };
 		301C227EBDC0E72136F542CD /* MachineCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = C78B6E7FAFE28A4523530D02 /* MachineCard.swift */; };
 		38D6B1CBC8EAA38E361D13CB /* Product.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA94DE3092E2B07986626697 /* Product.swift */; };
+		401CB3D07548694B7E517E3B /* NotificationService.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 640C0F6F1E6E4CBDF96B7F39 /* NotificationService.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		4317985673B05FA56A45069B /* StatusBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC27FF5E0A1C34BCE4ACCDBE /* StatusBadge.swift */; };
 		44BE3D1E439FE91E3A5D1932 /* QRScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FAA61B154F7ABC2401C2CCA /* QRScannerView.swift */; };
 		45167E803ECFB29F00DA502F /* DashboardViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16E021E42CD9C7C92936F706 /* DashboardViewModel.swift */; };
@@ -51,6 +53,7 @@
 		A36AE2752621D3854B40CCE2 /* RefillWizardViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D17D5562BFC75116621B04A /* RefillWizardViewModel.swift */; };
 		A7761D7EC67B223B1E28E056 /* InboxView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F42986C118001765E3A6920B /* InboxView.swift */; };
 		AD28437ACBB0F0A443AA458E /* RegisterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 813681CDE6C321A49F84A20B /* RegisterView.swift */; };
+		AFD4D9E541002B8B1DFE6386 /* ProductBatchesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9467ACC9B6971BEDE1EEDED4 /* ProductBatchesView.swift */; };
 		B274325852BED5CF815DDA42 /* Organization.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7F443AA9AA51CCB3B6A7C75 /* Organization.swift */; };
 		BA2A1DA46A8F97997C993449 /* RefillStepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B84F596B8E26B3A5377BCAA0 /* RefillStepView.swift */; };
 		BB47F1A487862AA410FF9E58 /* ServerStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81E4EBBB3677A660B6E57BD2 /* ServerStore.swift */; };
@@ -58,9 +61,8 @@
 		BEE87BCF91FBF732036F5D34 /* ProductsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B17A2CD3A0F549B76FAFF29 /* ProductsView.swift */; };
 		C2A2406A5D534A262F1CB0BA /* Sale.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79D8F4403556EBD0620DEECF /* Sale.swift */; };
 		C8CFA483AB0C273F0B8009B0 /* AppNavigation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BEBD09944FEF671809C2788 /* AppNavigation.swift */; };
+		CF28029DE37E256E1554DA8D /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79D0846AC36BBA1BBDC87E68 /* NotificationService.swift */; };
 		D26A6A4A55DF5DC1587BAD9A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 70B6B1A9D2611C8B7EE53EDC /* Assets.xcassets */; };
-		A8DFD0BE9DBB44DBB0D097EE /* ProductBatchesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200ABB7F1224A66AFCDE528 /* ProductBatchesView.swift */; };
-		F18408699F3A44EA8E8BFFDB /* BatchAdjustSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86FD436149A447F099ABC782 /* BatchAdjustSheet.swift */; };
 		D87208736751BB897289C9B6 /* WarehouseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEABE7DE0463DA34A9DB9FB9 /* WarehouseView.swift */; };
 		D88E0EB43AF2F7FE4977B3C9 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 285CDF78E1AA2017C62282F8 /* NotificationService.swift */; };
 		DA9D08029AED0D27882468AF /* Inbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09910CF5FF28B2094BC5AEB1 /* Inbox.swift */; };
@@ -76,6 +78,30 @@
 		FE4C794519B8D88EA6886C0A /* StockBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204427FECDDE3A1BB3CB316C /* StockBar.swift */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		3DCB07D158719116ACE92769 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = C39325D98C9AAD78241F928A /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = BCEC60B9A13CA9D51150CC0F;
+			remoteInfo = NotificationService;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		C10109D18CCF8E523E31F1B0 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				401CB3D07548694B7E517E3B /* NotificationService.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
 		01C39E8B27FCFB5B0EED36FA /* TrayListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrayListView.swift; sourceTree = "<group>"; };
 		045C58B5757C2E8C18819C83 /* DealsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DealsViewModel.swift; sourceTree = "<group>"; };
@@ -83,6 +109,7 @@
 		0AE2420C36DFAC7C4394E774 /* HapticFeedback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HapticFeedback.swift; sourceTree = "<group>"; };
 		0C4757F332F815A5F5300AC8 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		0DCE1D189B536C04A31EB746 /* ProductEditSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductEditSheet.swift; sourceTree = "<group>"; };
+		1487CE4298A40E1151C3AB21 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		16E021E42CD9C7C92936F706 /* DashboardViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardViewModel.swift; sourceTree = "<group>"; };
 		1C6D6D60C1508A2B07975E1F /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		204427FECDDE3A1BB3CB316C /* StockBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StockBar.swift; sourceTree = "<group>"; };
@@ -106,9 +133,11 @@
 		55B32C8EEFABC9DADF2C73DD /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 		5AE7FC95E2E89DD0AC7A6981 /* RealtimeService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RealtimeService.swift; sourceTree = "<group>"; };
 		5BEBD09944FEF671809C2788 /* AppNavigation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppNavigation.swift; sourceTree = "<group>"; };
+		640C0F6F1E6E4CBDF96B7F39 /* NotificationService.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = NotificationService.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		64E2C159F72B60828783FDAE /* DealsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DealsView.swift; sourceTree = "<group>"; };
 		70B6B1A9D2611C8B7EE53EDC /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		70E364431AFD63E8DE1238E3 /* SupabaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseService.swift; sourceTree = "<group>"; };
+		79D0846AC36BBA1BBDC87E68 /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
 		79D8F4403556EBD0620DEECF /* Sale.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sale.swift; sourceTree = "<group>"; };
 		7E9A5023EED5804698A679E6 /* TrayViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrayViewModel.swift; sourceTree = "<group>"; };
 		813681CDE6C321A49F84A20B /* RegisterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegisterView.swift; sourceTree = "<group>"; };
@@ -117,9 +146,11 @@
 		84AF9FDF2E1ADB75E706F23A /* WarehouseViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WarehouseViewModel.swift; sourceTree = "<group>"; };
 		85E188D4F38B0B3DB63805E7 /* InboxViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InboxViewModel.swift; sourceTree = "<group>"; };
 		8AEDEC41AB195897D4F6BC89 /* VMflow.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = VMflow.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		8B044726A1D09F334DDB0851 /* BatchAdjustSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchAdjustSheet.swift; sourceTree = "<group>"; };
 		8ED1159C55CAF705215AD130 /* VMflowApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VMflowApp.swift; sourceTree = "<group>"; };
 		8F302EE40A7DDA1135B7A9D7 /* MachineDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MachineDetailView.swift; sourceTree = "<group>"; };
 		90BC01B0752A47A20DF699E7 /* PackingStepView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PackingStepView.swift; sourceTree = "<group>"; };
+		9467ACC9B6971BEDE1EEDED4 /* ProductBatchesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductBatchesView.swift; sourceTree = "<group>"; };
 		9690B8B0412F05E68303EA15 /* RefillSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefillSummaryView.swift; sourceTree = "<group>"; };
 		994B0EDA9D03328A131F4664 /* SidebarNavigationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarNavigationView.swift; sourceTree = "<group>"; };
 		9C98118B90638CE2F176B419 /* Deal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Deal.swift; sourceTree = "<group>"; };
@@ -145,8 +176,6 @@
 		F5AEF7E62775F83FFCD0149A /* MachinesSplitView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MachinesSplitView.swift; sourceTree = "<group>"; };
 		F6D19B501E340C90B0032C32 /* DealCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DealCard.swift; sourceTree = "<group>"; };
 		F7F1BF54F8FA6B86DA5380F6 /* ProductsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductsViewModel.swift; sourceTree = "<group>"; };
-		A200ABB7F1224A66AFCDE528 /* ProductBatchesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductBatchesView.swift; sourceTree = "<group>"; };
-		86FD436149A447F099ABC782 /* BatchAdjustSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchAdjustSheet.swift; sourceTree = "<group>"; };
 		FEABE7DE0463DA34A9DB9FB9 /* WarehouseView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WarehouseView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -271,6 +300,7 @@
 		7A6705F8C8A1E13AC410D72D /* Products */ = {
 			isa = PBXGroup;
 			children = (
+				640C0F6F1E6E4CBDF96B7F39 /* NotificationService.appex */,
 				8AEDEC41AB195897D4F6BC89 /* VMflow.app */,
 			);
 			name = Products;
@@ -322,6 +352,15 @@
 			path = ViewModels;
 			sourceTree = "<group>";
 		};
+		BE14217CB6C99484F615C697 /* NotificationService */ = {
+			isa = PBXGroup;
+			children = (
+				1487CE4298A40E1151C3AB21 /* Info.plist */,
+				79D0846AC36BBA1BBDC87E68 /* NotificationService.swift */,
+			);
+			path = NotificationService;
+			sourceTree = "<group>";
+		};
 		C0C9A4E98467B62E7FE1AFBD /* Views */ = {
 			isa = PBXGroup;
 			children = (
@@ -343,8 +382,8 @@
 		D4C20ED2ED4AA5617E345840 /* Warehouse */ = {
 			isa = PBXGroup;
 			children = (
-				86FD436149A447F099ABC782 /* BatchAdjustSheet.swift */,
-				A200ABB7F1224A66AFCDE528 /* ProductBatchesView.swift */,
+				8B044726A1D09F334DDB0851 /* BatchAdjustSheet.swift */,
+				9467ACC9B6971BEDE1EEDED4 /* ProductBatchesView.swift */,
 				FEABE7DE0463DA34A9DB9FB9 /* WarehouseView.swift */,
 			);
 			path = Warehouse;
@@ -391,6 +430,7 @@
 			isa = PBXGroup;
 			children = (
 				1633A09D8C71104301B729CB /* Configurations */,
+				BE14217CB6C99484F615C697 /* NotificationService */,
 				E910D6221FB91EB26FA5969A /* VMflow */,
 				7A6705F8C8A1E13AC410D72D /* Products */,
 			);
@@ -418,10 +458,12 @@
 				CF37A3A9F0065BB67F3BEE95 /* Sources */,
 				674EE546BCC9074FF2AC9C96 /* Resources */,
 				CD4D26070950CCEFF183670D /* Frameworks */,
+				C10109D18CCF8E523E31F1B0 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				820470393E1D3720A1FEEF2B /* PBXTargetDependency */,
 			);
 			name = VMflow;
 			packageProductDependencies = (
@@ -430,6 +472,24 @@
 			productName = VMflow;
 			productReference = 8AEDEC41AB195897D4F6BC89 /* VMflow.app */;
 			productType = "com.apple.product-type.application";
+		};
+		BCEC60B9A13CA9D51150CC0F /* NotificationService */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 8B01E174516790830A434488 /* Build configuration list for PBXNativeTarget "NotificationService" */;
+			buildPhases = (
+				6FE562345F820A8173D948B4 /* Auto-increment extension build number from git */,
+				4B3EBA3CFD23CD0EB01C415E /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = NotificationService;
+			packageProductDependencies = (
+			);
+			productName = NotificationService;
+			productReference = 640C0F6F1E6E4CBDF96B7F39 /* NotificationService.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -441,6 +501,10 @@
 				LastUpgradeCheck = 1600;
 				TargetAttributes = {
 					896CD9A61911762E88A22E98 = {
+						DevelopmentTeam = 4JT3V7XVXM;
+						ProvisioningStyle = Automatic;
+					};
+					BCEC60B9A13CA9D51150CC0F = {
 						DevelopmentTeam = 4JT3V7XVXM;
 						ProvisioningStyle = Automatic;
 					};
@@ -464,6 +528,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
+				BCEC60B9A13CA9D51150CC0F /* NotificationService */,
 				896CD9A61911762E88A22E98 /* VMflow */,
 			);
 		};
@@ -482,6 +547,25 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		6FE562345F820A8173D948B4 /* Auto-increment extension build number from git */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Auto-increment extension build number from git";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "BUILD_NUM=$(git -C \"${SRCROOT}/..\" rev-list --count HEAD)\n/usr/libexec/PlistBuddy -c \"Set :CFBundleVersion $BUILD_NUM\" \"${SRCROOT}/NotificationService/Info.plist\"\n";
+		};
 		D8695835E12245D68B90C6BF /* Auto-increment build number from git */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
@@ -504,6 +588,14 @@
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		4B3EBA3CFD23CD0EB01C415E /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				CF28029DE37E256E1554DA8D /* NotificationService.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		CF37A3A9F0065BB67F3BEE95 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -514,6 +606,7 @@
 				C8CFA483AB0C273F0B8009B0 /* AppNavigation.swift in Sources */,
 				FDA63D4358CC508737E8C10F /* AuthService.swift in Sources */,
 				BE954A375ED01316E322C570 /* BarcodeScannerView.swift in Sources */,
+				0BEB2E18E56CCAF0DE150DF8 /* BatchAdjustSheet.swift in Sources */,
 				DB59F86A2E67E4D7B603D1E7 /* CompactTabView.swift in Sources */,
 				1813377797812B72A25F0959 /* DashboardView.swift in Sources */,
 				45167E803ECFB29F00DA502F /* DashboardViewModel.swift in Sources */,
@@ -539,6 +632,7 @@
 				B274325852BED5CF815DDA42 /* Organization.swift in Sources */,
 				1254787CC883CE8605189B4B /* PackingStepView.swift in Sources */,
 				38D6B1CBC8EAA38E361D13CB /* Product.swift in Sources */,
+				AFD4D9E541002B8B1DFE6386 /* ProductBatchesView.swift in Sources */,
 				6051E236873980E4ABAF7E4B /* ProductEditSheet.swift in Sources */,
 				E49EF3FACFF4F910A4F7AA1F /* ProductImage.swift in Sources */,
 				BEE87BCF91FBF732036F5D34 /* ProductsView.swift in Sources */,
@@ -568,8 +662,6 @@
 				98DBB72485FA6701994E86A6 /* VMflowApp.swift in Sources */,
 				9AC610D3D52ECEEAF701A011 /* VendingMachine.swift in Sources */,
 				A1BB4CD6BAE18CF2A1E2FB3C /* Warehouse.swift in Sources */,
-				F18408699F3A44EA8E8BFFDB /* BatchAdjustSheet.swift in Sources */,
-				A8DFD0BE9DBB44DBB0D097EE /* ProductBatchesView.swift in Sources */,
 				D87208736751BB897289C9B6 /* WarehouseView.swift in Sources */,
 				227347A89BC32144B6544F1C /* WarehouseViewModel.swift in Sources */,
 			);
@@ -577,7 +669,34 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		820470393E1D3720A1FEEF2B /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = BCEC60B9A13CA9D51150CC0F /* NotificationService */;
+			targetProxy = 3DCB07D158719116ACE92769 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		2406383C34D5A7953A6ECC74 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = "";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 4JT3V7XVXM;
+				INFOPLIST_FILE = NotificationService/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "$(EXTENSION_BUNDLE_IDENTIFIER)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = NO;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 		382B1ABF0694BE3BE485013F /* Debug */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 215EDEE2A21B82EE7D2ED841 /* Debug.xcconfig */;
@@ -741,6 +860,25 @@
 			};
 			name = Release;
 		};
+		E504907F6D92E125BC830BF0 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = "";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 4JT3V7XVXM;
+				INFOPLIST_FILE = NotificationService/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "$(EXTENSION_BUNDLE_IDENTIFIER)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = NO;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -749,6 +887,15 @@
 			buildConfigurations = (
 				47D683708BFD2B7EC2F3258E /* Debug */,
 				721C31EF76FFEFD13903BF0D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		8B01E174516790830A434488 /* Build configuration list for PBXNativeTarget "NotificationService" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E504907F6D92E125BC830BF0 /* Debug */,
+				2406383C34D5A7953A6ECC74 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
