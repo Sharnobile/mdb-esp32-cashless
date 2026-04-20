@@ -35,6 +35,7 @@ final class AuthService: ObservableObject {
                 case .signedIn:
                     self.isAuthenticated = true
                     await self.fetchOrganization()
+                    Task { await self.syncLocaleToServer() }
                 case .signedOut:
                     self.isAuthenticated = false
                     self.organization = nil
@@ -61,6 +62,7 @@ final class AuthService: ObservableObject {
             isAuthenticated = true
             _ = session
             await fetchOrganization()
+            Task { await self.syncLocaleToServer() }
         } catch {
             isAuthenticated = false
         }
@@ -77,6 +79,7 @@ final class AuthService: ObservableObject {
             try await client.auth.signIn(email: email, password: password)
             isAuthenticated = true
             await fetchOrganization()
+            Task { await self.syncLocaleToServer() }
         } catch {
             self.error = error.localizedDescription
         }
@@ -118,6 +121,37 @@ final class AuthService: ObservableObject {
         isAuthenticated = false
         organization = nil
         role = nil
+    }
+
+    // MARK: - Locale sync
+
+    /// Read the device's primary language code and persist it to
+    /// `public.users.locale` (clamped to "en" / "de"). Idempotent: caches
+    /// the last-synced value in UserDefaults and skips the write if
+    /// unchanged. Best-effort — failures log but never surface to the user.
+    ///
+    /// Call on: successful login, scene phase `.active`, and on the
+    /// `NSLocale.currentLocaleDidChangeNotification`.
+    func syncLocaleToServer() async {
+        let deviceCode = Locale.current.language.languageCode?.identifier ?? "en"
+        let locale = (deviceCode.lowercased() == "de") ? "de" : "en"
+
+        let cacheKey = "vmflow-last-synced-locale"
+        if UserDefaults.standard.string(forKey: cacheKey) == locale {
+            return
+        }
+
+        do {
+            let userId = try await client.auth.session.user.id
+            try await client.from("users")
+                .update(["locale": locale])
+                .eq("id", value: userId)
+                .execute()
+            UserDefaults.standard.set(locale, forKey: cacheKey)
+            print("[Locale] Synced user locale to \(locale)")
+        } catch {
+            print("[Locale] Sync failed (best-effort): \(error)")
+        }
     }
 
     // MARK: - Organization
