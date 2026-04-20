@@ -6,7 +6,6 @@ import {
   CommandEmpty,
   CommandGroup,
   CommandInput,
-  CommandItem,
   CommandList,
 } from '@/components/ui/command'
 import {
@@ -15,6 +14,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover'
 import Badge from '@/components/ui/badge/Badge.vue'
+import MultiProductCommandItem from './MultiProductCommandItem.vue'
 import { cn } from '@/lib/utils'
 
 const { t } = useI18n()
@@ -106,7 +106,7 @@ function removeAt(id: string, event: Event) {
             <span class="text-muted-foreground text-sm">{{ t('common.noResults') }}</span>
           </CommandEmpty>
           <CommandGroup>
-            <CommandItem
+            <MultiProductCommandItem
               v-for="product in products"
               :key="product.id"
               :value="product.name"
@@ -123,7 +123,7 @@ function removeAt(id: string, event: Event) {
               />
               <div v-else class="mr-2 h-6 w-6 shrink-0 rounded bg-muted" />
               {{ product.name }}
-            </CommandItem>
+            </MultiProductCommandItem>
           </CommandGroup>
         </CommandList>
       </Command>
