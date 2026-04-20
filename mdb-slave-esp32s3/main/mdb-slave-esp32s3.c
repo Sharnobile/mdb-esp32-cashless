@@ -33,6 +33,7 @@
 
 #include "nimble.h"
 #include "webui_server.h"
+#include "sale_queue.h"
 
 #include "esp_system.h"
 #include "esp_http_client.h"
@@ -97,10 +98,12 @@ enum BIT_EVENTS {
 
 EventGroupHandle_t xLedEventGroup;
 
-static bool mqtt_started = false;
+// Visible to sale_queue.c — it needs to know whether the broker is currently
+// reachable before pulling a pending sale off the queue.
+bool mqtt_started = false;
 static bool sntp_started = false;
 static bool ota_in_progress = false;
-static SemaphoreHandle_t mqtt_publish_mutex = NULL;
+SemaphoreHandle_t mqtt_publish_mutex = NULL;
 static esp_timer_handle_t mqtt_watchdog_timer = NULL;
 static TickType_t mqtt_last_connected_tick = 0;
 #define MQTT_WATCHDOG_INTERVAL_SEC  120    // check every 2min
@@ -218,9 +221,9 @@ static machine_state_t mdb_prev_state = INACTIVE_STATE;
 static void publish_mdb_diag(void); // forward declaration
 
 // Thread-safe MQTT publish wrapper — protects esp_mqtt_client_publish()
-// which is called from multiple FreeRTOS tasks (MDB, BLE, timers).
-static int mqtt_publish_safe(esp_mqtt_client_handle_t client, const char *topic,
-                             const char *data, int len, int qos, int retain) {
+// which is called from multiple FreeRTOS tasks (MDB, BLE, timers, sale drain).
+int mqtt_publish_safe(esp_mqtt_client_handle_t client, const char *topic,
+                      const char *data, int len, int qos, int retain) {
     int msg_id = -1;
     if (mqtt_publish_mutex && xSemaphoreTake(mqtt_publish_mutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
         msg_id = esp_mqtt_client_publish(client, topic, data, len, qos, retain);
@@ -821,20 +824,30 @@ void vTaskMdbEvent(void *pvParameters) {
 
 						machine_state = IDLE_STATE;
 
-						/* PIPE_BLE */
+						/* PIPE_BLE — immediate notify to companion app */
 						uint8_t payload_ble[19];
 						xorEncodeWithPasskey(0x0b, itemPrice, itemNumber, 0, (uint8_t*) &payload_ble);
 
                         ble_notify_send((char*) &payload_ble, sizeof(payload_ble));
 
-						/* PIPE_MQTT — publish cashless sale for telemetry */
-						uint8_t payload_mqtt[19];
-						xorEncodeWithPasskey(0x24, itemPrice, itemNumber, 0, (uint8_t*) &payload_mqtt);
-
-						char topic_sale[128];
-						snprintf(topic_sale, sizeof(topic_sale), "/%s/%s/sale", my_company_id, my_device_id);
-
-						mqtt_publish_safe(mqttClient, topic_sale, (char*) &payload_mqtt, sizeof(payload_mqtt), 1, 0);
+						/* PIPE_MQTT — persist to NVS-backed queue BEFORE responding
+						 * to the VMC.  Even a crash or power-loss after this point
+						 * leaves the sale durably recorded; the drain task will
+						 * publish it (or re-publish after reboot) with broker QoS 1
+						 * + backend idempotency protecting against duplicates.
+						 *
+						 * Fallback: if the queue is unavailable (NVS error, init
+						 * failure, or capacity exhausted) fall back to the legacy
+						 * direct-publish path so behaviour never degrades below
+						 * the pre-queue firmware. */
+						if (!sale_queue_enqueue(0x24, itemPrice, itemNumber)) {
+							uint8_t payload_mqtt[19];
+							xorEncodeWithPasskey(0x24, itemPrice, itemNumber, 0, (uint8_t*) &payload_mqtt);
+							char topic_sale[128];
+							snprintf(topic_sale, sizeof(topic_sale), "/%s/%s/sale", my_company_id, my_device_id);
+							mqtt_publish_safe(mqttClient, topic_sale, (char*) &payload_mqtt, sizeof(payload_mqtt), 1, 0);
+							ESP_LOGW(TAG, "sale_queue fallback: direct publish (v1) for VEND_SUCCESS");
+						}
 
 						ESP_LOGI( TAG, "VEND_SUCCESS price=%u item=%u", itemPrice, itemNumber);
 
@@ -887,13 +900,15 @@ void vTaskMdbEvent(void *pvParameters) {
 
 						mdb_last_cmd = "CASH_SALE";
 
-                        uint8_t payload[19];
-                        xorEncodeWithPasskey(0x21, itemPrice, itemNumber, 0, (uint8_t*) &payload);
-
-                        char topic[128];
-                        snprintf(topic, sizeof(topic), "/%s/%s/sale", my_company_id, my_device_id);
-
-                        mqtt_publish_safe(mqttClient, topic, (char*) &payload, sizeof(payload), 1, 0);
+                        /* Persistent queue handles publish + retry — see VEND_SUCCESS */
+                        if (!sale_queue_enqueue(0x21, itemPrice, itemNumber)) {
+                            uint8_t payload[19];
+                            xorEncodeWithPasskey(0x21, itemPrice, itemNumber, 0, (uint8_t*) &payload);
+                            char topic[128];
+                            snprintf(topic, sizeof(topic), "/%s/%s/sale", my_company_id, my_device_id);
+                            mqtt_publish_safe(mqttClient, topic, (char*) &payload, sizeof(payload), 1, 0);
+                            ESP_LOGW(TAG, "sale_queue fallback: direct publish (v1) for CASH_SALE");
+                        }
 
                         ESP_LOGI( TAG, "CASH_SALE");
 						break;
@@ -1045,14 +1060,17 @@ void vTaskMdbEvent(void *pvParameters) {
 
 						ESP_LOGI(TAG, "SNIFF CARD_SALE price=%u item=%u", sniff_itemPrice, sniff_itemNumber);
 
-						uint8_t payload[19];
-						xorEncodeWithPasskey(0x23, sniff_itemPrice, sniff_itemNumber, 0, (uint8_t*) &payload);
+						/* Persistent queue handles publish + retry — see VEND_SUCCESS */
+						if (!sale_queue_enqueue(0x23, sniff_itemPrice, sniff_itemNumber)) {
+							uint8_t payload[19];
+							xorEncodeWithPasskey(0x23, sniff_itemPrice, sniff_itemNumber, 0, (uint8_t*) &payload);
+							char topic[128];
+							snprintf(topic, sizeof(topic), "/%s/%s/sale", my_company_id, my_device_id);
+							mqtt_publish_safe(mqttClient, topic, (char*) &payload, sizeof(payload), 1, 0);
+							ESP_LOGW(TAG, "sale_queue fallback: direct publish (v1) for SNIFF CARD_SALE");
+						}
 
-						char topic[128];
-						snprintf(topic, sizeof(topic), "/%s/%s/sale", my_company_id, my_device_id);
-						mqtt_publish_safe(mqttClient, topic, (char*) &payload, sizeof(payload), 1, 0);
-
-						// Clear after publish to prevent stale data
+						// Clear after enqueue to prevent stale data
 						sniff_itemPrice = 0;
 						sniff_itemNumber = 0;
 
@@ -1619,7 +1637,10 @@ static void telemetry_task(void *arg) {
 		char topic[128];
 		snprintf(topic, sizeof(topic), "/%s/%s/dex", my_company_id, my_device_id);
 
-		mqtt_publish_safe(mqttClient, topic, (char*) dex, dex_size, 0, 0);
+		// QoS 1: DEX snapshots feed sales reconciliation, so losing one means
+		// a gap in the cross-check window. Broker session is persistent so
+		// transient forwarder outages don't drop the audit.
+		mqtt_publish_safe(mqttClient, topic, (char*) dex, dex_size, 1, 0);
 		ESP_LOGI(TAG, "DEX telemetry published (%d bytes)", (int)dex_size);
 
 		vRingbufferReturnItem(dexRingbuf, (void*) dex);
@@ -1828,15 +1849,19 @@ static void publish_mdb_diag(void) {
     char topic[128];
     snprintf(topic, sizeof(topic), "/%s/%s/mdb-log", my_company_id, my_device_id);
 
-    char msg[256];
+    char msg[448];
     snprintf(msg, sizeof(msg),
-        "{\"state\":\"%s\",\"addr\":\"0x%02X\",\"polls\":%lu,\"chkErr\":%lu,\"lastCmd\":\"%s\",\"vmcLevel\":%u}",
+        "{\"state\":\"%s\",\"addr\":\"0x%02X\",\"polls\":%lu,\"chkErr\":%lu,\"lastCmd\":\"%s\",\"vmcLevel\":%u,\"saleQueue\":{\"pending\":%lu,\"overflow\":%lu,\"lastSeq\":%lu,\"fastPath\":%lu}}",
         machine_state_name(machine_state),
         cashless_device_address,
         mdb_poll_count,
         mdb_checksum_errors,
         mdb_last_cmd,
-        vmc_feature_level);
+        vmc_feature_level,
+        (unsigned long) sale_queue_pending_count(),
+        (unsigned long) sale_queue_overflow_count(),
+        (unsigned long) sale_queue_last_seq(),
+        (unsigned long) sale_queue_fast_path_count());
 
     mqtt_publish_safe(mqttClient, topic, msg, 0, 0, 0);
 }
@@ -1922,6 +1947,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 	case MQTT_EVENT_DISCONNECTED:
 		ESP_LOGW(TAG, "MQTT: disconnected from broker");
         mqtt_started = false;
+        sale_queue_on_disconnect();
         xEventGroupClearBits(xLedEventGroup, BIT_EVT_INTERNET);
         xEventGroupSetBits(xLedEventGroup, BIT_EVT_TRIGGER);
 
@@ -1934,6 +1960,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 		break;
 	case MQTT_EVENT_PUBLISHED:
 		ESP_LOGI(TAG, "MQTT: published, msg_id=%d", event->msg_id);
+		sale_queue_on_published(event->msg_id);
 		break;
 	case MQTT_EVENT_DATA:
 
@@ -2509,16 +2536,21 @@ void app_main(void) {
     // ---
     dexRingbuf = xRingbufferCreate(8 * 1024 /*8Kb*/, RINGBUF_TYPE_BYTEBUF);
 
-    const double INTERVAL_12H_US = 12ULL * 60 * 60 * 1000000; // 12h in microseconds
+    // DEX audit polled hourly. The backend compares consecutive snapshots
+    // against `sales` counts to detect any vend that escaped the MQTT
+    // pipeline (see dex_reconcile_gaps migration). 12h was too coarse to
+    // catch short outages; 1h trades flash + UART time for meaningful
+    // reconciliation resolution.
+    const double INTERVAL_1H_US = 60ULL * 60 * 1000000; // 1h in microseconds
 
 	const esp_timer_create_args_t periodic_timer_args = {
 		.callback = &requestTelemetryData,
-		.name = "task_dex_12h"
+		.name = "task_dex_1h"
 	};
 
 	esp_timer_handle_t periodic_timer;
 	esp_timer_create(&periodic_timer_args, &periodic_timer);
-	esp_timer_start_periodic(periodic_timer, INTERVAL_12H_US);
+	esp_timer_start_periodic(periodic_timer, INTERVAL_1H_US);
 
 	//-------------------- NETWORK STACK -----------------------//
 	//----------------------------------------------------------//
@@ -2735,6 +2767,13 @@ void app_main(void) {
 	mqtt_publish_mutex = xSemaphoreCreateMutex();
 	mqttClient = esp_mqtt_client_init(&mqttCfg);
 	esp_mqtt_client_register_event(mqttClient, ESP_EVENT_ANY_ID, mqtt_event_handler, NULL);
+
+	/* Offline-safe sales queue: restore pending entries from NVS and start
+	 * the drain task. Must happen after mqttClient is created but before
+	 * MDB event loop runs, so enqueued sales are tracked from the first
+	 * vend. */
+	sale_queue_init();
+	sale_queue_start(mqttClient);
 
 	//-- Start WiFi now that MQTT client is ready for events ---//
 	//----------------------------------------------------------//
