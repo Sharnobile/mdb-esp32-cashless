@@ -535,10 +535,38 @@ Deno.serve(async (req) => {
       + `${productEntries.length} product-only (caps ${KEYWORD_QUERY_CAP}/${PRODUCT_QUERY_CAP})`,
     )
 
-    for (const [query, matchProducts] of queries) {
-      try {
-        const offers = await searchMarktguru(query, zipCode, keys, 10)
+    // Phase A: parallel Marktguru fetches in bounded batches. Phase B (matching)
+    // stays sequential because it mutates shared allDeals / seen / keywordCovered
+    // — the keyword pass marks products as covered for an offer, which the later
+    // product pass reads to dedupe. Concurrency 10 keeps us below plausible
+    // Marktguru abuse thresholds while cutting wall-clock by ~10× on large
+    // catalogs.
+    const FETCH_CONCURRENCY = 10
+    type FetchResult = { query: string; matchProducts: typeof products; offers: MarktguruOffer[] }
+    const fetchResults: FetchResult[] = []
+    for (let i = 0; i < queries.length; i += FETCH_CONCURRENCY) {
+      const batch = queries.slice(i, i + FETCH_CONCURRENCY)
+      const batchResults = await Promise.all(
+        batch.map(async ([query, matchProducts]): Promise<FetchResult> => {
+          try {
+            const offers = await searchMarktguru(query, zipCode, keys, 10)
+            return { query, matchProducts, offers }
+          } catch (err) {
+            console.error(`Search failed for "${query}":`, err)
+            return { query, matchProducts, offers: [] as MarktguruOffer[] }
+          }
+        }),
+      )
+      fetchResults.push(...batchResults)
+    }
+    console.log(
+      `[deal-search] fetched offers for ${fetchResults.length} queries `
+      + `(concurrency ${FETCH_CONCURRENCY})`,
+    )
 
+    // Phase B: sequential matching over pre-fetched offers.
+    for (const { query, matchProducts, offers } of fetchResults) {
+      try {
         // Helper: build a keyword-match deal row for upsert.
         function buildKeywordDeal(
           offer: MarktguruOffer,
@@ -705,8 +733,7 @@ Deno.serve(async (req) => {
           }
         }
       } catch (err) {
-        console.error(`Search failed for "${query}":`, err)
-        // Continue with next product
+        console.error(`Matching failed for "${query}":`, err)
       }
     }
 
