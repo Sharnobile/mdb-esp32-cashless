@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>VMflow Brand — Prod vs Dev</title>
+  <style>
+    *{box-sizing:border-box}
+    body{margin:0;padding:40px;font:14px/1.5 -apple-system,BlinkMacSystemFont,system-ui,sans-serif;background:#fafaf9;color:#0f172a}
+    .wrap{max-width:1080px;margin:0 auto}
+    h1{margin:0 0 4px;font-size:22px;font-weight:700}
+    .sub{color:#64748b;margin:0 0 28px}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+    .card{background:#fff;border:1px solid #e5e7eb;border-radius:14px;overflow:hidden}
+    .card h2{margin:0;padding:14px 18px;font-size:13px;font-weight:600;border-bottom:1px solid #e5e7eb;background:#f5f5f4;display:flex;justify-content:space-between;align-items:center}
+    .card h2 small{color:#64748b;font-weight:500;font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:11px}
+    .sizes{padding:24px;display:flex;align-items:flex-end;gap:22px;justify-content:center;background:#fff}
+    .sizes figure{margin:0;text-align:center;display:flex;flex-direction:column;align-items:center;gap:6px}
+    .sizes figure img{display:block}
+    .sizes figure figcaption{font-size:10px;color:#94a3b8;font-family:ui-monospace,"SF Mono",Menlo,monospace}
+    .note{margin:24px 0 0;padding:14px 18px;border-radius:10px;background:#f5f5f4;border:1px solid #e5e7eb;color:#475569}
+    .bleed{background:repeating-conic-gradient(#e5e7eb 0 25%,#f5f5f4 0 50%) 0 0/14px 14px}
+    code{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:12px;background:#eef2ff;padding:1px 5px;border-radius:4px;color:#4338ca}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <h1>VMflow Brand — Prod vs Dev</h1>
+  <p class="sub">Left: production mark. Right: debug/dev variant with orange "DEV" ribbon in the top-left corner.</p>
+
+  <div class="row">
+    <div class="card">
+      <h2>Prod (rounded)<small>logo-mark.svg</small></h2>
+      <div class="sizes">
+        <figure><img src="logo-mark.svg" width="120" height="120"/><figcaption>120</figcaption></figure>
+        <figure><img src="logo-mark.svg" width="64" height="64"/><figcaption>64</figcaption></figure>
+        <figure><img src="logo-mark.svg" width="32" height="32"/><figcaption>32</figcaption></figure>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Dev (rounded)<small>logo-mark-dev.svg</small></h2>
+      <div class="sizes">
+        <figure><img src="logo-mark-dev.svg" width="120" height="120"/><figcaption>120</figcaption></figure>
+        <figure><img src="logo-mark-dev.svg" width="64" height="64"/><figcaption>64</figcaption></figure>
+        <figure><img src="logo-mark-dev.svg" width="32" height="32"/><figcaption>32</figcaption></figure>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Prod (bleed — for iOS/maskable)<small>logo-mark-bleed.svg</small></h2>
+      <div class="sizes bleed">
+        <figure><img src="logo-mark-bleed.svg" width="120" height="120"/><figcaption>120</figcaption></figure>
+        <figure><img src="logo-mark-bleed.svg" width="64" height="64"/><figcaption>64</figcaption></figure>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Dev (bleed — for iOS Debug)<small>logo-mark-dev-bleed.svg</small></h2>
+      <div class="sizes bleed">
+        <figure><img src="logo-mark-dev-bleed.svg" width="120" height="120"/><figcaption>120</figcaption></figure>
+        <figure><img src="logo-mark-dev-bleed.svg" width="64" height="64"/><figcaption>64</figcaption></figure>
+      </div>
+    </div>
+  </div>
+
+  <p class="note">The dev variant uses a plain orange diagonal band — no text, no font dependency, so the generator output is byte-deterministic across macOS and Linux CI. Bleed variants show against a checker background to indicate the OS will mask the corners (iOS rounds, Android adaptive masks).</p>
+</div>
+</body>
+</html>

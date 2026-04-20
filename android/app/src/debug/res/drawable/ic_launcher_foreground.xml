@@ -1,4 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Debug-flavor override of the adaptive-icon foreground.
+  Same mark as main + an orange diagonal band at the top-left to signal "dev build".
+  Must mirror the band placement used by brand/logo-mark-dev.svg — keep in sync
+  when the source SVG changes.
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
@@ -31,5 +37,13 @@
                 android:strokeLineJoin="round"
                 android:pathData="M0 28 L30 28 M26.5 25 L30 28 L26.5 31"/>
         </group>
+    </group>
+    <group
+        android:translateX="27"
+        android:translateY="27"
+        android:rotation="-45">
+        <path
+            android:fillColor="#FFF97316"
+            android:pathData="M-90 -10 L90 -10 L90 10 L-90 10 Z"/>
     </group>
 </vector>

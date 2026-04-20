@@ -1,0 +1,13 @@
+{
+  "name": "vmflow-brand",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Brand asset generator for VMflow / mdb-esp32-cashless. Renders master SVGs into all icon sizes used across iOS, Android, PWA, favicons, and the ESP32 captive portal.",
+  "scripts": {
+    "generate": "node generate.mjs"
+  },
+  "dependencies": {
+    "@resvg/resvg-js": "^2.6.2"
+  }
+}

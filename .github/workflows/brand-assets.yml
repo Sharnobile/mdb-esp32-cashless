@@ -1,0 +1,50 @@
+name: Brand Assets
+
+on:
+  pull_request:
+    paths:
+      - 'brand/**'
+      - '.github/workflows/brand-assets.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'brand/**'
+      - '.github/workflows/brand-assets.yml'
+  workflow_dispatch:
+
+jobs:
+  verify:
+    name: Verify generated assets are up-to-date
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: brand/package-lock.json
+
+      - name: Install generator deps
+        working-directory: brand
+        run: npm ci
+
+      - name: Regenerate brand assets
+        working-directory: brand
+        run: node generate.mjs
+
+      - name: Fail if generated assets differ from committed
+        run: |
+          if ! git diff --quiet; then
+            echo "::error::Brand assets are out of date."
+            echo "Run 'cd brand && npm install && node generate.mjs' locally and commit the result."
+            echo ""
+            echo "Files that differ:"
+            git diff --stat
+            echo ""
+            echo "Diff summary:"
+            git diff --name-only
+            exit 1
+          fi
+          echo "✅ All generated brand assets match the committed sources."

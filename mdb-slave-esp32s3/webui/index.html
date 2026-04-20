@@ -4,10 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>VMFlow Setup</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA0OCA0OCIgd2lkdGg9IjQ4IiBoZWlnaHQ9IjQ4Ij4KICA8cmVjdCB3aWR0aD0iNDgiIGhlaWdodD0iNDgiIHJ4PSIxMCIgZmlsbD0iIzBGMTcyQSIvPgogIDxnIHRyYW5zZm9ybT0idHJhbnNsYXRlKDgsMTEpIj4KICAgIDxyZWN0IHg9IjAiICB5PSIwIiB3aWR0aD0iNSIgaGVpZ2h0PSIyMiIgcng9IjEuNSIgZmlsbD0iI2ZmZiIvPgogICAgPHJlY3QgeD0iOCIgIHk9IjAiIHdpZHRoPSI1IiBoZWlnaHQ9IjE0IiByeD0iMS41IiBmaWxsPSIjZmZmIi8+CiAgICA8cmVjdCB4PSIxNiIgeT0iMCIgd2lkdGg9IjUiIGhlaWdodD0iMjIiIHJ4PSIxLjUiIGZpbGw9IiNBM0U2MzUiLz4KICAgIDxyZWN0IHg9IjI0IiB5PSIwIiB3aWR0aD0iNSIgaGVpZ2h0PSIxNCIgcng9IjEuNSIgZmlsbD0iI0EzRTYzNSIvPgogICAgPHBhdGggZD0iTTAgMjggTDMwIDI4IE0yNi41IDI1IEwzMCAyOCBMMjYuNSAzMSIgc3Ryb2tlPSIjQTNFNjM1IiBzdHJva2Utd2lkdGg9IjIuNSIgZmlsbD0ibm9uZSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+CiAgPC9nPgo8L3N2Zz4K">
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:Arial,sans-serif;background:#f0f0f0;padding:16px}
     .card{max-width:480px;margin:0 auto;background:#fff;padding:20px;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,.1);margin-bottom:16px}
+    .brand{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+    .brand-mark{width:40px;height:40px;flex-shrink:0;border-radius:9px}
     h1{font-size:20px;margin-bottom:4px}
     .sub{color:#666;font-size:13px;margin-bottom:20px}
     label{display:block;font-size:13px;font-weight:600;margin-bottom:4px;margin-top:12px}
@@ -50,8 +53,22 @@
 <body>
 
 <div class="card">
-  <h1>VMFlow</h1>
-  <p class="sub">Device setup — connect to your network and register with your account</p>
+  <div class="brand">
+    <svg class="brand-mark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" aria-hidden="true">
+      <rect width="48" height="48" rx="10" fill="#0F172A"/>
+      <g transform="translate(8,11)">
+        <rect x="0"  y="0" width="5" height="22" rx="1.5" fill="#fff"/>
+        <rect x="8"  y="0" width="5" height="14" rx="1.5" fill="#fff"/>
+        <rect x="16" y="0" width="5" height="22" rx="1.5" fill="#A3E635"/>
+        <rect x="24" y="0" width="5" height="14" rx="1.5" fill="#A3E635"/>
+        <path d="M0 28 L30 28 M26.5 25 L30 28 L26.5 31" stroke="#A3E635" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+      </g>
+    </svg>
+    <div>
+      <h1>VMFlow</h1>
+      <p class="sub">Device setup — connect to your network and register with your account</p>
+    </div>
+  </div>
 
   <!-- WiFi network selector -->
   <div class="wifi-header">
