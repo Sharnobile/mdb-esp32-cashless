@@ -521,7 +521,7 @@ Deno.serve(async (req) => {
     // Goldbären" → short query "Haribo") counts as keyword-origin: explicit
     // user intent wins.
     const KEYWORD_QUERY_CAP = 100
-    const PRODUCT_QUERY_CAP = 50
+    const PRODUCT_QUERY_CAP = 300
     const allEntries = Array.from(searchQueries.entries())
     const keywordEntries = allEntries
       .filter(([q]) => keywordOriginQueries.has(q))
