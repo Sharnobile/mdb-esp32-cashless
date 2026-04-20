@@ -4,6 +4,7 @@ import SwiftUI
 struct VMflowApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject private var authService = AuthService()
+    @Environment(\.scenePhase) private var scenePhase
 
     init() {
         #if DEBUG
@@ -15,6 +16,18 @@ struct VMflowApp: App {
         WindowGroup {
             RootView()
                 .environmentObject(authService)
+                .onChange(of: scenePhase) { _, newPhase in
+                    if newPhase == .active {
+                        Task { await authService.syncLocaleToServer() }
+                    }
+                }
+                .task {
+                    for await _ in NotificationCenter.default.notifications(
+                        named: NSLocale.currentLocaleDidChangeNotification
+                    ) {
+                        await authService.syncLocaleToServer()
+                    }
+                }
         }
     }
 }
