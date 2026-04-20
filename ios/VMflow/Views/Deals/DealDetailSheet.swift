@@ -221,13 +221,13 @@ struct DealDetailSheet: View {
             }
 
             HStack(spacing: 12) {
-                ProductImage(imagePath: deal.products?.imagePath, size: 44)
+                ProductImage(imagePath: deal.productImagePath, size: 44)
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text(deal.productName)
                         .font(.subheadline.weight(.medium))
 
-                    if let price = deal.products?.sellprice {
+                    if let price = deal.productSellprice {
                         Text("Sell price: \(String(format: "%.2f \u{20AC}", price))")
                             .font(.caption)
                             .foregroundStyle(.secondary)
