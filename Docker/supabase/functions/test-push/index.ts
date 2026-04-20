@@ -1,6 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { sendPushToUsers } from '../_shared/web-push.ts'
 import { stockUrgency } from '../mqtt-webhook/stock-urgency.ts'
+import { t, formatPrice, type Locale } from '../_shared/notification-i18n.ts'
 
 Deno.serve(async (req) => {
   // CORS preflight
@@ -76,24 +77,28 @@ Deno.serve(async (req) => {
     // Simulate a sale-shaped notification so the user can verify the new
     // layout (title / subtitle / body) end-to-end, including rich-media
     // image on iOS. Uses real product name + image for realism; dummy
-    // stock numbers to hit the 🟡 warning bucket.
-    const dummyProductName = testProductName ?? 'Sample Product'
-    const dummyPrice = 2.50
-    const dummyCurrentStock = 6
-    const dummyCapacity = 10
-    const dummyFillWhenBelow = 5
-    const emoji = stockUrgency(dummyCurrentStock, dummyFillWhenBelow)
-    const refillHint = dummyFillWhenBelow > 0
-      ? ` — refill at ${dummyFillWhenBelow}`
-      : ''
-    const dummyBody = `${emoji}${dummyCurrentStock}/${dummyCapacity} left${refillHint}`
+    // stock numbers to hit the 🟡 warning bucket. Builder pattern allows
+    // each recipient to see the notification in their preferred language.
+    const result = await sendPushToUsers(adminClient, membership.company_id, '_test', (locale: Locale) => {
+      const strings = t(locale)
+      const productName = testProductName ?? strings.sampleProduct
+      const priceStr = formatPrice(2.50, locale)
+      const dummyCurrentStock = 6
+      const dummyCapacity = 10
+      const dummyFillWhenBelow = 5
+      const emoji = stockUrgency(dummyCurrentStock, dummyFillWhenBelow)
+      const refillHint = dummyFillWhenBelow > 0
+        ? ` — ${strings.refillAt(dummyFillWhenBelow)}`
+        : ''
+      const body = `${emoji}${dummyCurrentStock}/${dummyCapacity} ${strings.left}${refillHint}`
 
-    const result = await sendPushToUsers(adminClient, membership.company_id, '_test', {
-      title: '💵 Sale · Test Machine',
-      subtitle: `${dummyProductName} — €${dummyPrice.toFixed(2)}`,
-      body: dummyBody,
-      image: testImageUrl,
-      data: { type: 'test' },
+      return {
+        title: `💵 ${strings.sale} · ${strings.testMachine}`,
+        subtitle: `${productName} — ${priceStr}`,
+        body,
+        image: testImageUrl,
+        data: { type: 'test' },
+      }
     })
 
     return new Response(JSON.stringify({ ok: true, ...result }), {
