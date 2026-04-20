@@ -1,0 +1,72 @@
+/**
+ * Per-locale notification strings + price formatting for push pushes.
+ *
+ * Single source of truth for the ~8 strings we send to user devices.
+ * Emoji prefixes (🛒 💵 🟡 ⚠️ 🚨) stay universal and are concatenated
+ * by the callers; this module only supplies translated words and
+ * locale-aware currency formatting.
+ */
+
+export type Locale = 'en' | 'de'
+
+/**
+ * Clamp any input (user-supplied locale, Accept-Language header,
+ * iOS `Locale.current` code) to our supported set. Unknown → 'en'.
+ */
+export function normalizeLocale(raw: string | null | undefined): Locale {
+  if (!raw) return 'en'
+  const prefix = raw.toLowerCase().split(/[-_]/)[0] ?? ''
+  return prefix === 'de' ? 'de' : 'en'
+}
+
+export interface TranslationSet {
+  sale: string
+  left: string
+  refillAt: (threshold: number) => string
+  noStockInfo: string
+  lowStockTitle: string
+  remaining: string
+  testMachine: string
+  sampleProduct: string
+}
+
+const en: TranslationSet = {
+  sale: 'Sale',
+  left: 'left',
+  refillAt: (n) => `refill at ${n}`,
+  noStockInfo: 'No stock info',
+  lowStockTitle: 'Low Stock Alert',
+  remaining: 'remaining',
+  testMachine: 'Test Machine',
+  sampleProduct: 'Sample Product',
+}
+
+const de: TranslationSet = {
+  sale: 'Verkauf',
+  left: 'übrig',
+  refillAt: (n) => `nachfüllen bei ${n}`,
+  noStockInfo: 'Kein Bestand',
+  lowStockTitle: 'Bestandswarnung',
+  remaining: 'übrig',
+  testMachine: 'Testmaschine',
+  sampleProduct: 'Beispielprodukt',
+}
+
+export function t(locale: Locale): TranslationSet {
+  return locale === 'de' ? de : en
+}
+
+/**
+ * Locale-aware EUR currency formatting.
+ *   en → '€2.50'   (en-GB style, symbol-first)
+ *   de → '2,50 €'  (de-DE style, symbol-last with NBSP separator)
+ *
+ * Callers embed the returned string directly in the notification body.
+ */
+export function formatPrice(amount: number, locale: Locale): string {
+  const bcp47 = locale === 'de' ? 'de-DE' : 'en-GB'
+  return new Intl.NumberFormat(bcp47, {
+    style: 'currency',
+    currency: 'EUR',
+  }).format(amount)
+}
