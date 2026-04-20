@@ -469,11 +469,24 @@ Deno.serve(async (req) => {
     // the queries loop (Step 2) and read by the suppression gate (Step 3).
     const keywordCovered = new Map<string | number, Set<string>>()
 
-    // Build search queries: use both the full product name AND shorter
-    // brand-level queries (first 1–2 words). This ensures we find generic
-    // offers like "Powerade versch. Sorten" even when the product is named
-    // "Powerade Sports Mountain Blast".
+    // Queries Marktguru with: (1) user keyword terms — explicit brand/phrase
+    // intent that often doesn't appear verbatim in any product name, inserted
+    // first so they survive the 50-query cap; (2) full product names; (3)
+    // first-word brand queries — catches generic offers like "Powerade versch.
+    // Sorten" for products named "Powerade Sports Mountain Blast".
     const searchQueries = new Map<string, typeof products>()
+
+    // Keyword-only queries use [] as matchProducts — the keyword-matching pass
+    // and the cross-product pass both iterate all keywords / all products
+    // regardless of the per-query seed, so correctness doesn't need it.
+    for (const keyword of keywords) {
+      for (const term of keyword.terms) {
+        const trimmed = term.trim()
+        if (!trimmed || searchQueries.has(trimmed)) continue
+        searchQueries.set(trimmed, [])
+      }
+    }
+
     for (const product of products) {
       if (!product.name) continue
       const fullName = product.name.trim()
