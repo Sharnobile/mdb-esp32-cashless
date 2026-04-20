@@ -2,6 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { decodeBase64 } from 'https://deno.land/std@0.224.0/encoding/base64.ts'
 import { sendPushToUsers } from '../_shared/web-push.ts'
 import { stockUrgency } from './stock-urgency.ts'
+import { t, formatPrice, type Locale } from '../_shared/notification-i18n.ts'
 
 // Sale payload format version carried in byte 1 of the 19-byte XOR-encrypted
 // payload. v2 adds per-device monotonic sale_seq (bytes 14-17) + time_uncertain
@@ -458,42 +459,50 @@ Deno.serve(async (req) => {
         }
 
         // 1. Sale notification — three-line layout on iOS (title / subtitle /
-        //    body), merged on Android+web (subtitle\nbody).
+        //    body), merged on Android+web (subtitle\nbody). Localized per
+        //    recipient via sendPushToUsers' locale grouping.
         const itemLabel = productName ?? `Item #${itemNumber}`;
         const machineLabel = machine?.name ? ` · ${machine.name}` : '';
-        const saleTitle = `💵 Sale${machineLabel}`;
-        const saleSubtitle = `${itemLabel} — €${salePrice.toFixed(2)}`;
 
-        let saleBody: string;
-        if (tray && typeof tray.current_stock === 'number' && typeof tray.capacity === 'number' && tray.capacity > 0) {
-          const emoji = stockUrgency(tray.current_stock, tray.fill_when_below ?? 0);
-          const refillHint = (tray.fill_when_below ?? 0) > 0
-            ? ` — refill at ${tray.fill_when_below}`
-            : '';
-          saleBody = `${emoji}${tray.current_stock}/${tray.capacity} left${refillHint}`;
-        } else {
-          saleBody = 'No stock info';
-        }
+        await sendPushToUsers(adminClient, embedded.company, 'sale', (locale: Locale) => {
+          const strings = t(locale);
+          const priceStr = formatPrice(salePrice, locale);
 
-        await sendPushToUsers(adminClient, embedded.company, 'sale', {
-          title: saleTitle,
-          subtitle: saleSubtitle,
-          body: saleBody,
-          image: productImageUrl,
-          data: { type: 'sale', embedded_id: embedded.id },
+          let body: string;
+          if (tray && typeof tray.current_stock === 'number' && typeof tray.capacity === 'number' && tray.capacity > 0) {
+            const emoji = stockUrgency(tray.current_stock, tray.fill_when_below ?? 0);
+            const refillHint = (tray.fill_when_below ?? 0) > 0
+              ? ` — ${strings.refillAt(tray.fill_when_below)}`
+              : '';
+            body = `${emoji}${tray.current_stock}/${tray.capacity} ${strings.left}${refillHint}`;
+          } else {
+            body = strings.noStockInfo;
+          }
+
+          return {
+            title: `💵 ${strings.sale}${machineLabel}`,
+            subtitle: `${itemLabel} — ${priceStr}`,
+            body,
+            image: productImageUrl,
+            data: { type: 'sale', embedded_id: embedded.id },
+          };
         });
 
-        // 2. Low stock notification — only for users who explicitly want
-        //    low-stock alerts AND don't already receive sale notifications
-        //    (sale pushes already carry stock info, so double-alerting is
-        //    noisy). Users who turned sale off but kept low_stock on still
-        //    get this.
+        // 2. Low stock notification — localized title + body. Still
+        //    suppressed for users with sale enabled (sale push already
+        //    carries stock info).
         if (machine && lowTray) {
-          await sendPushToUsers(adminClient, embedded.company, 'low_stock', {
-            title: 'Low Stock Alert',
-            body: `${productName ?? `Item #${itemNumber}`} in ${machine.name}: ${lowTray.current_stock}/${lowTray.capacity} remaining`,
-            image: productImageUrl,
-            data: { type: 'low_stock', machine_id: machine.id },
+          const itemLabelLow = productName ?? `Item #${itemNumber}`;
+          const machineName = machine.name;
+
+          await sendPushToUsers(adminClient, embedded.company, 'low_stock', (locale: Locale) => {
+            const strings = t(locale);
+            return {
+              title: strings.lowStockTitle,
+              body: `${itemLabelLow} in ${machineName}: ${lowTray.current_stock}/${lowTray.capacity} ${strings.remaining}`,
+              image: productImageUrl,
+              data: { type: 'low_stock', machine_id: machine.id },
+            };
           }, {
             suppressIfAlsoEnabled: 'sale',
           });
