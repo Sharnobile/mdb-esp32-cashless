@@ -9,11 +9,13 @@
  */
 
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { normalizeLocale, type Locale } from './notification-i18n.ts'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 interface PushSubscription {
   id: string
+  user_id: string
   endpoint: string | null
   p256dh: string | null
   auth: string | null
@@ -584,7 +586,7 @@ export async function sendPushToUsers(
   adminClient: SupabaseClient,
   companyId: string,
   notificationType: string,
-  payload: PushPayload,
+  payloadOrBuilder: PushPayload | ((locale: Locale) => PushPayload),
   options?: {
     /**
      * Skip users who also have this OTHER notification type enabled. Useful
@@ -595,6 +597,14 @@ export async function sendPushToUsers(
     suppressIfAlsoEnabled?: string
   },
 ): Promise<{ sent: number; expired: number }> {
+  // Normalize to a builder. Legacy callers that pass a plain PushPayload
+  // get the same payload for every locale group — functionally identical
+  // to the pre-locale behavior. New callers pass the builder directly.
+  const buildPayload: (locale: Locale) => PushPayload =
+    typeof payloadOrBuilder === 'function'
+      ? payloadOrBuilder
+      : () => payloadOrBuilder
+
   // VAPID config for web push
   const publicKey = Deno.env.get('VAPID_PUBLIC_KEY')
   const privateKey = Deno.env.get('VAPID_PRIVATE_KEY')
@@ -701,88 +711,119 @@ export async function sendPushToUsers(
     return { sent: 0, expired: 0 }
   }
 
-  // Split subscriptions by platform
-  const webSubs = subscriptions.filter(s => s.platform === 'web' && s.endpoint && s.p256dh && s.auth)
-  const iosSubs = subscriptions.filter(s => s.platform === 'ios' && s.fcm_token)
-  const androidSubs = subscriptions.filter(s => s.platform === 'android' && s.fcm_token)
+  // Bulk-fetch locale for all remaining subscribers. Absence of row or
+  // unknown value → 'en' (matches today's behavior byte-for-byte).
+  const userIds = [...new Set(subscriptions.map((s) => s.user_id))]
+  const { data: userRows } = await adminClient
+    .from('users')
+    .select('id, locale')
+    .in('id', userIds)
+
+  const localeByUser = new Map<string, Locale>(
+    (userRows ?? []).map((r: { id: string; locale: string | null }) => [
+      r.id,
+      normalizeLocale(r.locale),
+    ]),
+  )
+
+  // Group recipients by locale.
+  const groupedByLocale = new Map<Locale, PushSubscription[]>()
+  for (const sub of subscriptions) {
+    const loc = localeByUser.get(sub.user_id) ?? 'en'
+    const bucket = groupedByLocale.get(loc) ?? []
+    bucket.push(sub)
+    groupedByLocale.set(loc, bucket)
+  }
 
   let sent = 0
   let expired = 0
   const expiredIds: string[] = []
 
-  // Send web push notifications (VAPID)
-  if (vapid && webSubs.length > 0) {
-    await Promise.allSettled(
-      webSubs.map(async (sub) => {
-        try {
-          const response = await sendPushNotification(
-            { endpoint: sub.endpoint!, p256dh: sub.p256dh!, auth: sub.auth! },
-            payload,
-            vapid,
-          )
-          if (response.ok || response.status === 201) {
-            sent++
-          } else if (response.status === 404 || response.status === 410) {
-            expired++
-            expiredIds.push(sub.id)
-          } else {
-            console.warn(`Push failed for ${sub.endpoint}: ${response.status}`)
-          }
-        } catch (err) {
-          console.warn(`Push error for ${sub.endpoint}:`, err)
-        }
-      }),
+  // Dispatch per locale group — each group sees a freshly-built payload
+  // in its language.
+  for (const [locale, groupSubs] of groupedByLocale) {
+    const payload = buildPayload(locale)
+
+    const webSubs = groupSubs.filter(
+      (s) => s.platform === 'web' && s.endpoint && s.p256dh && s.auth,
     )
+    const iosSubs = groupSubs.filter((s) => s.platform === 'ios' && s.fcm_token)
+    const androidSubs = groupSubs.filter((s) => s.platform === 'android' && s.fcm_token)
+
+    // Send web push notifications (VAPID)
+    if (vapid && webSubs.length > 0) {
+      await Promise.allSettled(
+        webSubs.map(async (sub) => {
+          try {
+            const response = await sendPushNotification(
+              { endpoint: sub.endpoint!, p256dh: sub.p256dh!, auth: sub.auth! },
+              payload,
+              vapid,
+            )
+            if (response.ok || response.status === 201) {
+              sent++
+            } else if (response.status === 404 || response.status === 410) {
+              expired++
+              expiredIds.push(sub.id)
+            } else {
+              console.warn(`Push failed for ${sub.endpoint}: ${response.status}`)
+            }
+          } catch (err) {
+            console.warn(`Push error for ${sub.endpoint}:`, err)
+          }
+        }),
+      )
+    }
+
+    // Send iOS push notifications (APNs direct)
+    if (apnsConfig && iosSubs.length > 0) {
+      await Promise.allSettled(
+        iosSubs.map(async (sub) => {
+          try {
+            // Use per-subscription bundle ID if stored, otherwise fall back to env var
+            const perSubConfig = sub.apns_topic
+              ? { ...apnsConfig!, topic: sub.apns_topic }
+              : apnsConfig!
+            const result = await sendApnsNotification(sub.fcm_token!, payload, perSubConfig)
+            if (result.ok) {
+              sent++
+            } else if (result.expired) {
+              expired++
+              expiredIds.push(sub.id)
+            }
+          } catch (err) {
+            console.warn(`APNs push error for token ${sub.fcm_token?.slice(0, 8)}...:`, err)
+          }
+        }),
+      )
+    }
+
+    // Send Android push notifications (FCM)
+    if (fcmServiceAccount && androidSubs.length > 0) {
+      await Promise.allSettled(
+        androidSubs.map(async (sub) => {
+          try {
+            const result = await sendFcmNotification(
+              sub.fcm_token!,
+              'android',
+              payload,
+              fcmServiceAccount!,
+            )
+            if (result.ok) {
+              sent++
+            } else if (result.expired) {
+              expired++
+              expiredIds.push(sub.id)
+            }
+          } catch (err) {
+            console.warn(`FCM push error for token ${sub.fcm_token?.slice(0, 8)}...:`, err)
+          }
+        }),
+      )
+    }
   }
 
-  // Send iOS push notifications (APNs direct)
-  if (apnsConfig && iosSubs.length > 0) {
-    await Promise.allSettled(
-      iosSubs.map(async (sub) => {
-        try {
-          // Use per-subscription bundle ID if stored, otherwise fall back to env var
-          const perSubConfig = sub.apns_topic
-            ? { ...apnsConfig!, topic: sub.apns_topic }
-            : apnsConfig!
-          const result = await sendApnsNotification(sub.fcm_token!, payload, perSubConfig)
-          if (result.ok) {
-            sent++
-          } else if (result.expired) {
-            expired++
-            expiredIds.push(sub.id)
-          }
-        } catch (err) {
-          console.warn(`APNs push error for token ${sub.fcm_token?.slice(0, 8)}...:`, err)
-        }
-      }),
-    )
-  }
-
-  // Send Android push notifications (FCM)
-  if (fcmServiceAccount && androidSubs.length > 0) {
-    await Promise.allSettled(
-      androidSubs.map(async (sub) => {
-        try {
-          const result = await sendFcmNotification(
-            sub.fcm_token!,
-            'android',
-            payload,
-            fcmServiceAccount!,
-          )
-          if (result.ok) {
-            sent++
-          } else if (result.expired) {
-            expired++
-            expiredIds.push(sub.id)
-          }
-        } catch (err) {
-          console.warn(`FCM push error for token ${sub.fcm_token?.slice(0, 8)}...:`, err)
-        }
-      }),
-    )
-  }
-
-  // Clean up expired subscriptions
+  // Clean up expired subscriptions (runs once after all locale groups)
   if (expiredIds.length > 0) {
     try {
       await adminClient
