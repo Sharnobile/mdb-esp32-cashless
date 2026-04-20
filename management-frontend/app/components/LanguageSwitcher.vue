@@ -7,8 +7,21 @@ const availableLocales = computed(() =>
   (locales.value as { code: string; name: string }[]).filter(l => l.code !== locale.value)
 )
 
-function switchLocale(code: string) {
-  setLocale(code)
+async function switchLocale(code: string) {
+  await setLocale(code)
+
+  // Persist to users.locale so edge-function pushes can read the
+  // preference. Best-effort — if the DB write fails, the i18n cookie
+  // is still set and the UI follows; pushes just fall back to 'en'.
+  try {
+    const supabase = useSupabaseClient()
+    const user = useSupabaseUser()
+    if (user.value?.id) {
+      await supabase.from('users').update({ locale: code }).eq('id', user.value.id)
+    }
+  } catch (err) {
+    console.warn('[LanguageSwitcher] persist failed:', err)
+  }
 }
 </script>
 
