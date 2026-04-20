@@ -470,20 +470,22 @@ Deno.serve(async (req) => {
     const keywordCovered = new Map<string | number, Set<string>>()
 
     // Queries Marktguru with: (1) user keyword terms — explicit brand/phrase
-    // intent that often doesn't appear verbatim in any product name, inserted
-    // first so they survive the 50-query cap; (2) full product names; (3)
-    // first-word brand queries — catches generic offers like "Powerade versch.
-    // Sorten" for products named "Powerade Sports Mountain Blast".
+    // intent that often doesn't appear verbatim in any product name; (2) full
+    // product names; (3) first-word brand queries — catches generic offers
+    // like "Powerade versch. Sorten" for products named "Powerade Sports
+    // Mountain Blast". Keyword-origin and product-origin queries get separate
+    // caps below so keywords can't push products out of the budget (or vice
+    // versa). matchProducts on keyword-only entries stays [] — the keyword-
+    // matching and cross-product passes already iterate all keywords/products.
     const searchQueries = new Map<string, typeof products>()
+    const keywordOriginQueries = new Set<string>()
 
-    // Keyword-only queries use [] as matchProducts — the keyword-matching pass
-    // and the cross-product pass both iterate all keywords / all products
-    // regardless of the per-query seed, so correctness doesn't need it.
     for (const keyword of keywords) {
       for (const term of keyword.terms) {
         const trimmed = term.trim()
-        if (!trimmed || searchQueries.has(trimmed)) continue
-        searchQueries.set(trimmed, [])
+        if (!trimmed) continue
+        keywordOriginQueries.add(trimmed)
+        if (!searchQueries.has(trimmed)) searchQueries.set(trimmed, [])
       }
     }
 
@@ -513,8 +515,25 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Deduplicate and limit queries to keep API usage reasonable
-    const queries = Array.from(searchQueries.entries()).slice(0, 50)
+    // Split caps so keyword-origin queries never crowd out product-origin
+    // queries (or vice versa). A query that originated from BOTH a keyword
+    // term AND a product name (e.g. user keyword "Haribo" + product "Haribo
+    // Goldbären" → short query "Haribo") counts as keyword-origin: explicit
+    // user intent wins.
+    const KEYWORD_QUERY_CAP = 100
+    const PRODUCT_QUERY_CAP = 50
+    const allEntries = Array.from(searchQueries.entries())
+    const keywordEntries = allEntries
+      .filter(([q]) => keywordOriginQueries.has(q))
+      .slice(0, KEYWORD_QUERY_CAP)
+    const productEntries = allEntries
+      .filter(([q]) => !keywordOriginQueries.has(q))
+      .slice(0, PRODUCT_QUERY_CAP)
+    const queries = [...keywordEntries, ...productEntries]
+    console.log(
+      `[deal-search] queries: ${keywordEntries.length} keyword-origin + `
+      + `${productEntries.length} product-only (caps ${KEYWORD_QUERY_CAP}/${PRODUCT_QUERY_CAP})`,
+    )
 
     for (const [query, matchProducts] of queries) {
       try {
