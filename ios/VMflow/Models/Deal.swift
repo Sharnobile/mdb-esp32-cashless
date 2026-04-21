@@ -13,7 +13,9 @@ struct DealSearchResponse: Codable {
 
 struct Deal: Codable, Identifiable {
     let id: UUID
-    let productId: UUID
+    let productId: UUID?
+    let keywordId: UUID?
+    let matchedTerm: String?
     let retailer: String
     let dealTitle: String
     let dealPrice: Double?
@@ -32,10 +34,13 @@ struct Deal: Codable, Identifiable {
     let fetchedAt: String
     let offerId: String?
     let products: DealProduct?
+    let dealKeywords: DealKeywordMatch?
 
     enum CodingKeys: String, CodingKey {
         case id, retailer, confidence, products
         case productId = "product_id"
+        case keywordId = "keyword_id"
+        case matchedTerm = "matched_term"
         case dealTitle = "deal_title"
         case dealPrice = "deal_price"
         case regularPrice = "regular_price"
@@ -51,6 +56,7 @@ struct Deal: Codable, Identifiable {
         case requiresApp = "requires_app"
         case fetchedAt = "fetched_at"
         case offerId = "offer_id"
+        case dealKeywords = "deal_keywords"
     }
 
     // MARK: - Formatted Properties
@@ -71,7 +77,20 @@ struct Deal: Codable, Identifiable {
     }
 
     var productName: String {
-        products?.name ?? "Unknown Product"
+        if let name = products?.name { return name }
+        if let label = dealKeywords?.label, !label.isEmpty { return label }
+        if let firstTerm = dealKeywords?.terms?.first, !firstTerm.isEmpty { return firstTerm }
+        if let firstLinked = dealKeywords?.linkedProducts.first?.name { return firstLinked }
+        if let term = matchedTerm, !term.isEmpty { return term }
+        return "Unknown Product"
+    }
+
+    var productImagePath: String? {
+        products?.imagePath ?? dealKeywords?.linkedProducts.first?.imagePath
+    }
+
+    var productSellprice: Double? {
+        products?.sellprice ?? dealKeywords?.linkedProducts.first?.sellprice
     }
 
     // MARK: - Validity
@@ -173,5 +192,45 @@ struct DealProduct: Codable {
     enum CodingKeys: String, CodingKey {
         case name, sellprice
         case imagePath = "image_path"
+    }
+}
+
+// MARK: - Deal Keyword (joined relation for keyword-match rows)
+
+/// Keyword group info embedded via PostgREST nested select when a deal was
+/// matched against a user-defined keyword group rather than a single product.
+/// The `deal_keyword_products` side returns rows like `{ products: {...} }`,
+/// which we flatten into `linkedProducts` for convenient access.
+struct DealKeywordMatch: Codable {
+    let id: UUID?
+    let label: String?
+    let terms: [String]?
+    let linkedProducts: [DealProduct]
+
+    private struct LinkedProductRow: Codable {
+        let products: DealProduct?
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, label, terms
+        case dealKeywordProducts = "deal_keyword_products"
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decodeIfPresent(UUID.self, forKey: .id)
+        label = try c.decodeIfPresent(String.self, forKey: .label)
+        terms = try c.decodeIfPresent([String].self, forKey: .terms)
+        let rows = try c.decodeIfPresent([LinkedProductRow].self, forKey: .dealKeywordProducts) ?? []
+        linkedProducts = rows.compactMap { $0.products }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encodeIfPresent(id, forKey: .id)
+        try c.encodeIfPresent(label, forKey: .label)
+        try c.encodeIfPresent(terms, forKey: .terms)
+        let rows = linkedProducts.map { LinkedProductRow(products: $0) }
+        try c.encode(rows, forKey: .dealKeywordProducts)
     }
 }
