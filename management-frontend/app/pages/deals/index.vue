@@ -50,6 +50,7 @@ const {
   unarchiveDeal,
   pinDeal,
   unpinDeal,
+  userStateError,
 } = useDeals()
 
 const lastFetchLabel = computed(() => {
@@ -304,6 +305,13 @@ function highlightTokens(text: string, tokens: string[] | null): { text: string;
             <IconAlertCircle class="size-4 shrink-0" />
             {{ error }}
           </div>
+          <div
+            v-if="userStateError"
+            class="flex items-center gap-2 rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+          >
+            <IconAlertCircle class="size-4 shrink-0" />
+            <span class="min-w-0 flex-1 break-words">{{ userStateError }}</span>
+          </div>
 
           <!-- KPI Cards -->
           <div class="grid grid-cols-2 gap-4 md:grid-cols-4">
@@ -421,25 +429,27 @@ function highlightTokens(text: string, tokens: string[] | null): { text: string;
                     <IconPin class="size-3" />
                   </div>
 
-                  <!-- Quick actions (top-right, visible on hover/focus) -->
-                  <div class="absolute right-2 top-2 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+                  <!-- Quick actions (top-right). On touch devices opacity-100 always;
+                       on desktop fade in on hover/focus to keep the card clean. -->
+                  <div class="absolute right-2 top-2 z-10 flex gap-1 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100">
                     <button
                       type="button"
-                      class="inline-flex size-7 items-center justify-center rounded-md border bg-card/90 shadow-sm backdrop-blur transition-colors hover:bg-muted"
+                      class="inline-flex size-8 items-center justify-center rounded-md border bg-card/90 shadow-sm backdrop-blur transition-colors hover:bg-muted"
+                      :class="{ 'border-primary text-primary': deal.pinned }"
                       :title="deal.pinned ? t('deals.unpin') : t('deals.pin')"
                       @click.stop="togglePin(deal, $event)"
                     >
-                      <IconPinnedOff v-if="deal.pinned" class="size-3.5" />
-                      <IconPin v-else class="size-3.5" />
+                      <IconPinnedOff v-if="deal.pinned" class="size-4" />
+                      <IconPin v-else class="size-4" />
                     </button>
                     <button
                       type="button"
-                      class="inline-flex size-7 items-center justify-center rounded-md border bg-card/90 shadow-sm backdrop-blur transition-colors hover:bg-muted"
+                      class="inline-flex size-8 items-center justify-center rounded-md border bg-card/90 shadow-sm backdrop-blur transition-colors hover:bg-muted"
                       :title="deal.archived ? t('deals.unarchive') : t('deals.archive')"
                       @click.stop="toggleArchive(deal, $event)"
                     >
-                      <IconArchiveOff v-if="deal.archived" class="size-3.5" />
-                      <IconArchive v-else class="size-3.5" />
+                      <IconArchiveOff v-if="deal.archived" class="size-4" />
+                      <IconArchive v-else class="size-4" />
                     </button>
                   </div>
 

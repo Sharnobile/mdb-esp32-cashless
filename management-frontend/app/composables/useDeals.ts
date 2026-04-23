@@ -181,6 +181,11 @@ export function useDeals() {
   // Keyed by `${retailer}::${offer_id}` to match DedupedDeal.key.
   const userStates = ref<Map<string, { archived: boolean; pinnedAt: string | null }>>(new Map())
 
+  // Surface the most recent archive/pin failure so the UI can show it
+  // (e.g. RLS denial or missing migration → otherwise looks like the button
+  // does nothing because the optimistic update gets rolled back silently).
+  const userStateError = ref<string | null>(null)
+
   // Deal search settings
   const dealsEnabled = ref(false)
   const dealsZipCode = ref('')
@@ -355,10 +360,13 @@ export function useDeals() {
       }, { onConflict: 'user_id,company_id,retailer,offer_id' })
     if (err) {
       console.error('[useDeals] upsertUserState failed:', err)
+      userStateError.value = err.message ?? 'Failed to update deal state'
       // Roll back the optimistic update on failure.
       const rollback = new Map(userStates.value)
       rollback.set(key, prev)
       userStates.value = rollback
+    } else {
+      userStateError.value = null
     }
   }
 
@@ -643,6 +651,7 @@ export function useDeals() {
     unarchiveDeal,
     pinDeal,
     unpinDeal,
+    userStateError,
     keywords,
     fetchKeywords,
     createKeyword,
