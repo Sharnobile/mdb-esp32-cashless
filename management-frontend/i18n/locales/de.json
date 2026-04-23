@@ -1066,6 +1066,7 @@
     "pin": "Anpinnen",
     "unpin": "Lösen",
     "pinned": "Angepinnt",
+    "pinnedGroup": "Angepinnt",
     "archive": "Archivieren",
     "unarchive": "Wiederherstellen",
     "matchedProductCount": "{n} Produkte gematched",

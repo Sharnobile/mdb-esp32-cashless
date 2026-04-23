@@ -117,7 +117,7 @@ struct DealsView: View {
             } else if viewModel.filteredDeals.isEmpty {
                 emptyResults
             } else {
-                ForEach(viewModel.groupedDeals, id: \.key) { group in
+                ForEach(viewModel.groupedDeals) { group in
                     Section {
                         ForEach(group.deals) { deal in
                             DealCard(deal: deal)
@@ -133,9 +133,15 @@ struct DealsView: View {
                                 }
                         }
                     } header: {
-                        HStack {
-                            Text(group.key)
+                        HStack(spacing: 6) {
+                            if group.pinned {
+                                Image(systemName: "pin.fill")
+                                    .font(.caption)
+                                    .foregroundStyle(Color.accentColor)
+                            }
+                            Text(group.label)
                                 .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(group.pinned ? Color.accentColor : .primary)
                             Spacer()
                             Text("\(group.deals.count)")
                                 .font(.caption.weight(.medium))

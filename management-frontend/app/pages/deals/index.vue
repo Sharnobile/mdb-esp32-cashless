@@ -90,18 +90,60 @@ const filteredDeals = computed<DedupedDeal[]>(() => {
   return source.filter((d) => matchesSearch(d, q))
 })
 
-const groupedFiltered = computed<Map<string, DedupedDeal[]>>(() => {
+/**
+ * Pinned deals always show up first as a dedicated group, regardless of the
+ * retailer/ungrouped toggle. Within the remaining groups the unpinned deals
+ * are grouped normally so they don't show up twice.
+ *
+ * In the Archived view the pinned group is omitted — the user is explicitly
+ * reviewing archived items there, and we don't double-flag pinned+archived.
+ */
+interface DealGroup {
+  key: string
+  label: string
+  pinned: boolean
+  deals: DedupedDeal[]
+}
+
+const groupedFiltered = computed<DealGroup[]>(() => {
+  const result: DealGroup[] = []
+  const source = filteredDeals.value
+  const isActive = listMode.value === 'active'
+
+  const pinnedDeals = isActive ? source.filter((d) => d.pinned) : []
+  const rest = isActive ? source.filter((d) => !d.pinned) : source
+
+  if (pinnedDeals.length > 0) {
+    result.push({
+      key: '__pinned__',
+      label: t('deals.pinnedGroup'),
+      pinned: true,
+      deals: pinnedDeals,
+    })
+  }
+
   if (groupBy.value === 'none') {
-    return new Map([['__all__', filteredDeals.value]])
+    if (rest.length > 0) {
+      result.push({
+        key: '__all__',
+        label: t('deals.ungrouped'),
+        pinned: false,
+        deals: rest,
+      })
+    }
+  } else {
+    const byRetailer = new Map<string, DedupedDeal[]>()
+    for (const deal of rest) {
+      const existing = byRetailer.get(deal.retailer) ?? []
+      existing.push(deal)
+      byRetailer.set(deal.retailer, existing)
+    }
+    for (const [key, deals] of byRetailer) {
+      result.push({ key, label: key, pinned: false, deals })
+    }
   }
-  const grouped = new Map<string, DedupedDeal[]>()
-  for (const deal of filteredDeals.value) {
-    const key = deal.retailer
-    const existing = grouped.get(key) ?? []
-    existing.push(deal)
-    grouped.set(key, existing)
-  }
-  return grouped
+
+  return result
 })
 
 onMounted(async () => {
@@ -403,19 +445,32 @@ function highlightTokens(text: string, tokens: string[] | null): { text: string;
           <!-- Deal groups -->
           <div v-else class="space-y-6">
             <div
-              v-for="[group, groupDeals] in groupedFiltered"
-              :key="group"
+              v-for="group in groupedFiltered"
+              :key="group.key"
               class="space-y-3"
             >
-              <div v-if="groupBy !== 'none'" class="flex items-center gap-2">
+              <!-- Pinned group has its own distinctive header with a pin icon. -->
+              <div
+                v-if="group.pinned"
+                class="flex items-center gap-2 border-b border-primary/30 pb-2"
+              >
+                <IconPin class="size-5 text-primary" />
+                <h2 class="text-lg font-semibold text-primary">{{ group.label }}</h2>
+                <Badge variant="default">{{ group.deals.length }}</Badge>
+              </div>
+              <!-- Retailer header (only shown when grouped by retailer). -->
+              <div
+                v-else-if="groupBy !== 'none' && group.key !== '__all__'"
+                class="flex items-center gap-2"
+              >
                 <IconBuildingStore class="size-5 text-muted-foreground" />
-                <h2 class="text-lg font-semibold">{{ group }}</h2>
-                <Badge variant="secondary">{{ groupDeals.length }}</Badge>
+                <h2 class="text-lg font-semibold">{{ group.label }}</h2>
+                <Badge variant="secondary">{{ group.deals.length }}</Badge>
               </div>
 
               <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 <div
-                  v-for="deal in groupDeals"
+                  v-for="deal in group.deals"
                   :key="deal.key"
                   class="group relative flex gap-3 rounded-xl border bg-card p-4 text-left shadow-sm transition-colors hover:bg-muted/50"
                   :class="{ 'ring-1 ring-primary/40': deal.pinned }"

@@ -133,17 +133,54 @@ final class DealsViewModel: ObservableObject {
         }
     }
 
-    var groupedDeals: [(key: String, deals: [DedupedDeal])] {
+    /// Pinned deals always form their own top-of-list group, independent of
+    /// the retailer/product toggle. The rest stay grouped by the user's
+    /// chosen dimension below. In Archived view the pinned group is omitted
+    /// (the user is explicitly reviewing archived items).
+    struct DealGroup: Identifiable {
+        let id: String
+        let label: String
+        let pinned: Bool
+        let deals: [DedupedDeal]
+    }
+
+    var groupedDeals: [DealGroup] {
+        var result: [DealGroup] = []
+        let source = filteredDeals
+        let isActive = listMode == .active
+
+        let pinnedDeals = isActive ? source.filter { $0.pinned } : []
+        let rest = isActive ? source.filter { !$0.pinned } : source
+
+        if !pinnedDeals.isEmpty {
+            result.append(DealGroup(
+                id: "__pinned__",
+                label: "Pinned",
+                pinned: true,
+                deals: pinnedDeals
+            ))
+        }
+
         let grouped: [String: [DedupedDeal]]
         switch groupBy {
         case .retailer:
-            grouped = Dictionary(grouping: filteredDeals) { $0.retailer }
+            grouped = Dictionary(grouping: rest) { $0.retailer }
         case .product:
-            grouped = Dictionary(grouping: filteredDeals) { deal in
+            grouped = Dictionary(grouping: rest) { deal in
                 deal.matchedProducts.first?.name ?? deal.matchedKeywords.first?.label ?? "—"
             }
         }
-        return grouped.sorted { $0.key < $1.key }.map { (key: $0.key, deals: $0.value) }
+
+        for (key, deals) in grouped.sorted(by: { $0.key < $1.key }) {
+            result.append(DealGroup(
+                id: key,
+                label: key,
+                pinned: false,
+                deals: deals
+            ))
+        }
+
+        return result
     }
 
     var totalDeals: Int { filteredDeals.count }
