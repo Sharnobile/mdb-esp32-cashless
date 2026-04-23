@@ -117,6 +117,7 @@ async function refresh() {
 
 // ── Action handlers (keep detail sheet state in sync after mutation) ──────
 async function toggleArchive(deal: DedupedDeal, e?: Event) {
+  console.log('[deals page] toggleArchive click', { key: deal.key, archived: deal.archived })
   e?.stopPropagation()
   if (deal.archived) {
     await unarchiveDeal(deal.retailer, deal.offer_id)
@@ -130,6 +131,7 @@ async function toggleArchive(deal: DedupedDeal, e?: Event) {
 }
 
 async function togglePin(deal: DedupedDeal, e?: Event) {
+  console.log('[deals page] togglePin click', { key: deal.key, pinned: deal.pinned })
   e?.stopPropagation()
   if (deal.pinned) {
     await unpinDeal(deal.retailer, deal.offer_id)

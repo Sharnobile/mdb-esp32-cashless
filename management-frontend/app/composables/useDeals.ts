@@ -338,7 +338,16 @@ export function useDeals() {
     offerId: string,
     patch: { archived_at?: string | null; pinned_at?: string | null },
   ) {
-    if (!organization.value?.id || !user.value?.id) return
+    console.log('[useDeals] upsertUserState called', { retailer, offerId, patch })
+    if (!organization.value?.id || !user.value?.id) {
+      const reason = !organization.value?.id ? 'no organization' : 'no user'
+      console.warn('[useDeals] upsertUserState skipped:', reason, {
+        organization: organization.value,
+        user: user.value,
+      })
+      userStateError.value = `Cannot save: ${reason}`
+      return
+    }
     const key = stateKey(retailer, offerId)
     const prev = userStates.value.get(key) ?? { archived: false, pinnedAt: null }
     const next = { ...prev }
@@ -349,15 +358,19 @@ export function useDeals() {
     newMap.set(key, next)
     userStates.value = newMap
 
-    const { error: err } = await supabase
+    const payload = {
+      user_id: user.value.id,
+      company_id: organization.value.id,
+      retailer,
+      offer_id: offerId,
+      ...patch,
+    }
+    console.log('[useDeals] upsertUserState → supabase', payload)
+    const { data, error: err } = await supabase
       .from('deal_user_state')
-      .upsert({
-        user_id: user.value.id,
-        company_id: organization.value.id,
-        retailer,
-        offer_id: offerId,
-        ...patch,
-      }, { onConflict: 'user_id,company_id,retailer,offer_id' })
+      .upsert(payload, { onConflict: 'user_id,company_id,retailer,offer_id' })
+      .select()
+    console.log('[useDeals] upsertUserState ← supabase', { data, err })
     if (err) {
       console.error('[useDeals] upsertUserState failed:', err)
       userStateError.value = err.message ?? 'Failed to update deal state'
