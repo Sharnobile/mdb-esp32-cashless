@@ -6,16 +6,21 @@ import Supabase
 /// a `DedupedDeal` so the "N matched products" case is rendered properly.
 struct DealDetailSheet: View {
     let deal: DedupedDeal
-    let onArchive: () -> Void
-    let onUnarchive: () -> Void
-    let onPin: () -> Void
-    let onUnpin: () -> Void
+    @ObservedObject var viewModel: DealsViewModel
 
     @Environment(\.dismiss) private var dismiss
     @StateObject private var stockModel = DealProductStockModel()
     @State private var selectedProduct: DealProductSelection?
 
-    private var primary: Deal { deal.primary }
+    /// Resolve the current user-state for this deal from the view model so
+    /// pin/archive taps immediately update the button labels — the `deal`
+    /// captured at sheet-open time is a value-type snapshot and doesn't
+    /// observe subsequent mutations.
+    private var liveDeal: DedupedDeal {
+        viewModel.dedupedDeals.first(where: { $0.key == deal.key }) ?? deal
+    }
+
+    private var primary: Deal { liveDeal.primary }
 
     /// Bundle of identifiers that opens `ProductDetailSheet` when tapped. Lets
     /// the sheet-with-item sheet presentation work for both matched-product
@@ -152,7 +157,7 @@ struct DealDetailSheet: View {
     private var titleSection: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
-                if deal.pinned {
+                if liveDeal.pinned {
                     Image(systemName: "pin.fill")
                         .font(.subheadline)
                         .foregroundStyle(Color.accentColor)
@@ -165,7 +170,7 @@ struct DealDetailSheet: View {
                 Image(systemName: "storefront.fill")
                     .font(.caption)
                     .foregroundStyle(.blue)
-                Text(deal.retailer)
+                Text(liveDeal.retailer)
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(.blue)
             }
@@ -187,9 +192,9 @@ struct DealDetailSheet: View {
 
     @ViewBuilder
     private var pinButton: some View {
-        if deal.pinned {
+        if liveDeal.pinned {
             Button {
-                onUnpin()
+                Task { await viewModel.unpin(liveDeal) }
             } label: {
                 pinLabel
             }
@@ -197,7 +202,7 @@ struct DealDetailSheet: View {
             .tint(Color.accentColor)
         } else {
             Button {
-                onPin()
+                Task { await viewModel.pin(liveDeal) }
             } label: {
                 pinLabel
             }
@@ -208,8 +213,8 @@ struct DealDetailSheet: View {
 
     private var pinLabel: some View {
         Label(
-            deal.pinned ? "Unpin" : "Pin to top",
-            systemImage: deal.pinned ? "pin.slash.fill" : "pin.fill"
+            liveDeal.pinned ? "Unpin" : "Pin to top",
+            systemImage: liveDeal.pinned ? "pin.slash.fill" : "pin.fill"
         )
         .font(.subheadline.weight(.semibold))
         .frame(maxWidth: .infinity)
@@ -219,23 +224,23 @@ struct DealDetailSheet: View {
     @ViewBuilder
     private var archiveButton: some View {
         Button {
-            if deal.archived {
-                onUnarchive()
+            if liveDeal.archived {
+                Task { await viewModel.unarchive(liveDeal) }
             } else {
-                onArchive()
+                Task { await viewModel.archive(liveDeal) }
                 dismiss()
             }
         } label: {
             Label(
-                deal.archived ? "Restore" : "Archive",
-                systemImage: deal.archived ? "tray.and.arrow.up.fill" : "archivebox.fill"
+                liveDeal.archived ? "Restore" : "Archive",
+                systemImage: liveDeal.archived ? "tray.and.arrow.up.fill" : "archivebox.fill"
             )
             .font(.subheadline.weight(.semibold))
             .frame(maxWidth: .infinity)
             .padding(.vertical, 10)
         }
         .buttonStyle(.bordered)
-        .tint(deal.archived ? .blue : .orange)
+        .tint(liveDeal.archived ? .blue : .orange)
     }
 
     // MARK: - Price

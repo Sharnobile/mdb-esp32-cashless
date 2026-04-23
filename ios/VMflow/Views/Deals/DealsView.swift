@@ -31,14 +31,8 @@ struct DealsView: View {
             Text(viewModel.error ?? "")
         }
         .sheet(item: $selectedDeal) { deal in
-            DealDetailSheet(
-                deal: deal,
-                onArchive: { Task { await viewModel.archive(deal) } },
-                onUnarchive: { Task { await viewModel.unarchive(deal) } },
-                onPin: { Task { await viewModel.pin(deal) } },
-                onUnpin: { Task { await viewModel.unpin(deal) } }
-            )
-            .presentationDetents([.large])
+            DealDetailSheet(deal: deal, viewModel: viewModel)
+                .presentationDetents([.large])
         }
     }
 
