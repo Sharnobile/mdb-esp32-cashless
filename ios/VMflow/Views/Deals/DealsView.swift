@@ -194,7 +194,7 @@ struct DealsView: View {
             } label: {
                 Label("Pin", systemImage: "pin.fill")
             }
-            .tint(.accentColor)
+            .tint(Color.accentColor)
         }
     }
 

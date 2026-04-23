@@ -15,7 +15,7 @@ struct DealCard: View {
                     if deal.pinned {
                         Image(systemName: "pin.fill")
                             .font(.caption2)
-                            .foregroundStyle(.accentColor)
+                            .foregroundStyle(Color.accentColor)
                     }
                     Text(deal.dealTitle)
                         .font(.subheadline.weight(.semibold))

@@ -117,7 +117,7 @@ struct DealDetailSheet: View {
                 if deal.pinned {
                     Image(systemName: "pin.fill")
                         .font(.subheadline)
-                        .foregroundStyle(.accentColor)
+                        .foregroundStyle(Color.accentColor)
                 }
                 Text(primary.dealTitle)
                     .font(.title3.weight(.bold))
@@ -138,39 +138,66 @@ struct DealDetailSheet: View {
 
     private var userActions: some View {
         HStack(spacing: 10) {
-            Button {
-                deal.pinned ? onUnpin() : onPin()
-            } label: {
-                Label(
-                    deal.pinned ? "Unpin" : "Pin to top",
-                    systemImage: deal.pinned ? "pin.slash.fill" : "pin.fill"
-                )
-                .font(.subheadline.weight(.semibold))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
-            }
-            .buttonStyle(deal.pinned ? .bordered : .borderedProminent)
-            .tint(.accentColor)
+            pinButton
+            archiveButton
+        }
+    }
 
+    // Split into separate @ViewBuilder properties so each branch can carry
+    // its own .buttonStyle — a ternary returning different ButtonStyle
+    // concrete types (.bordered vs .borderedProminent) doesn't compile.
+
+    @ViewBuilder
+    private var pinButton: some View {
+        if deal.pinned {
             Button {
-                if deal.archived {
-                    onUnarchive()
-                } else {
-                    onArchive()
-                    dismiss()
-                }
+                onUnpin()
             } label: {
-                Label(
-                    deal.archived ? "Restore" : "Archive",
-                    systemImage: deal.archived ? "tray.and.arrow.up.fill" : "archivebox.fill"
-                )
-                .font(.subheadline.weight(.semibold))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
+                pinLabel
             }
             .buttonStyle(.bordered)
-            .tint(deal.archived ? .blue : .orange)
+            .tint(Color.accentColor)
+        } else {
+            Button {
+                onPin()
+            } label: {
+                pinLabel
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(Color.accentColor)
         }
+    }
+
+    private var pinLabel: some View {
+        Label(
+            deal.pinned ? "Unpin" : "Pin to top",
+            systemImage: deal.pinned ? "pin.slash.fill" : "pin.fill"
+        )
+        .font(.subheadline.weight(.semibold))
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 10)
+    }
+
+    @ViewBuilder
+    private var archiveButton: some View {
+        Button {
+            if deal.archived {
+                onUnarchive()
+            } else {
+                onArchive()
+                dismiss()
+            }
+        } label: {
+            Label(
+                deal.archived ? "Restore" : "Archive",
+                systemImage: deal.archived ? "tray.and.arrow.up.fill" : "archivebox.fill"
+            )
+            .font(.subheadline.weight(.semibold))
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 10)
+        }
+        .buttonStyle(.bordered)
+        .tint(deal.archived ? .blue : .orange)
     }
 
     // MARK: - Price
