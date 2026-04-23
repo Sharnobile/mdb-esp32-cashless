@@ -40,6 +40,7 @@ struct ReviewStepView: View {
                 ReplacementProductPicker(
                     products: viewModel.availableProducts,
                     selectedProductId: viewModel.replacements.first(where: { $0.trayId == trayId })?.replacementProductId,
+                    existingSlotsByProduct: existingSlots(forTrayId: trayId),
                     onSelect: { productId in
                         viewModel.setReplacement(trayId: trayId, productId: productId)
                         pickerTrayId = nil
@@ -217,6 +218,30 @@ struct ReviewStepView: View {
             .foregroundStyle(color)
     }
 
+    // MARK: - Existing Slots
+
+    /// Build a map of productId → sorted slot numbers for every tray in the
+    /// same machine as the tray being replaced, excluding the tray itself.
+    ///
+    /// Returns an empty map when the suggestion or machine can't be resolved
+    /// (defensive — should not happen since the suggestion is what triggered
+    /// the sheet). Trays with `productId == nil` contribute nothing.
+    private func existingSlots(forTrayId trayId: UUID) -> [UUID: [Int]] {
+        guard let suggestion = viewModel.replacements.first(where: { $0.trayId == trayId }),
+              let machine = viewModel.machines.first(where: { $0.id == suggestion.machineId })
+        else { return [:] }
+
+        var result: [UUID: [Int]] = [:]
+        for refillTray in machine.trays where refillTray.tray.id != trayId {
+            guard let productId = refillTray.tray.productId else { continue }
+            result[productId, default: []].append(refillTray.tray.itemNumber)
+        }
+        for key in result.keys {
+            result[key]?.sort()
+        }
+        return result
+    }
+
     // MARK: - Bottom Bar
 
     private var bottomBar: some View {
@@ -272,11 +297,32 @@ extension UUID: @retroactive Identifiable {
     public var id: UUID { self }
 }
 
+// MARK: - Slot Badge Label
+
+/// Format a sorted list of slot numbers into a compact pill label.
+///
+/// - 1 slot: `"Slot 3"`
+/// - 2–3 slots: `"Slot 3, 7"` / `"Slot 3, 7, 9"`
+/// - 4+ slots: `"Slot 3, 7, 9 +2"` — first three + remainder count
+///
+/// Returns an empty string for an empty input; callers should treat that
+/// as "no pill".
+func slotBadgeLabel(_ slots: [Int]) -> String {
+    guard !slots.isEmpty else { return "" }
+    if slots.count <= 3 {
+        return "Slot \(slots.map(String.init).joined(separator: ", "))"
+    }
+    let first = slots.prefix(3).map(String.init).joined(separator: ", ")
+    let extra = slots.count - 3
+    return "Slot \(first) +\(extra)"
+}
+
 // MARK: - Replacement Product Picker
 
 struct ReplacementProductPicker: View {
     let products: [Product]
     let selectedProductId: UUID?
+    let existingSlotsByProduct: [UUID: [Int]]
     let onSelect: (UUID) -> Void
 
     @State private var searchText = ""
@@ -322,6 +368,15 @@ struct ReplacementProductPicker: View {
                         ProductImage(imagePath: product.imagePath, size: 36)
                         Text(product.name ?? "Unnamed")
                             .foregroundStyle(.primary)
+                        if let slots = existingSlotsByProduct[product.id], !slots.isEmpty {
+                            Text(slotBadgeLabel(slots))
+                                .font(.caption2.weight(.semibold))
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Capsule().fill(.orange.opacity(0.15)))
+                                .foregroundStyle(.orange)
+                                .accessibilityLabel("Already in \(slots.count == 1 ? "slot" : "slots") \(slots.map(String.init).joined(separator: ", "))")
+                        }
                         Spacer()
                         if selectedProductId == product.id {
                             Image(systemName: "checkmark")
@@ -339,5 +394,36 @@ struct ReplacementProductPicker: View {
         .searchable(text: $searchText, prompt: "Search products")
         .navigationTitle("Select Replacement")
         .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+// MARK: - Previews
+
+#Preview("Picker with existing slots") {
+    let sampleProducts: [Product] = (1...8).map { i in
+        Product(
+            id: UUID(),
+            name: "Product \(i)",
+            imagePath: nil,
+            discontinued: false,
+            sellprice: 2.50,
+            category: nil
+        )
+    }
+
+    // 1 slot, 3 slots, 6 slots — verify pill formatting at each threshold.
+    let slots: [UUID: [Int]] = [
+        sampleProducts[0].id: [3],
+        sampleProducts[1].id: [1, 5, 9],
+        sampleProducts[2].id: [2, 4, 6, 8, 10, 12],
+    ]
+
+    return NavigationStack {
+        ReplacementProductPicker(
+            products: sampleProducts,
+            selectedProductId: nil,
+            existingSlotsByProduct: slots,
+            onSelect: { _ in }
+        )
     }
 }
