@@ -1093,6 +1093,8 @@
     "matchedTokens": "Matched terms",
     "matchMethod": "Method",
     "fuzzyNameMatch": "Fuzzy name matching",
+    "stockWarehouse": "Warehouse stock",
+    "stockMachines": "In machines",
     "keywords": {
       "title": "Keywords",
       "tabLabel": "Keywords",
