@@ -1,45 +1,57 @@
 import SwiftUI
 
-/// Detail sheet showing full deal information with hero image and actions.
+/// Detail sheet showing full deal information with hero image, pin/archive
+/// actions, and the full list of matched products / keyword groups. Takes
+/// a `DedupedDeal` so the "N matched products" case is rendered properly.
 struct DealDetailSheet: View {
-    let deal: Deal
+    let deal: DedupedDeal
+    let onArchive: () -> Void
+    let onUnarchive: () -> Void
+    let onPin: () -> Void
+    let onUnpin: () -> Void
+
     @Environment(\.dismiss) private var dismiss
+
+    private var primary: Deal { deal.primary }
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 0) {
-                    // Hero Image
                     heroImage
 
                     VStack(alignment: .leading, spacing: 16) {
-                        // Title + Retailer
                         titleSection
 
                         Divider()
 
-                        // Price
+                        userActions
+
+                        Divider()
+
                         priceSection
 
                         Divider()
 
-                        // Validity
                         validitySection
 
-                        // App requirement
-                        if deal.requiresApp {
+                        if primary.requiresApp {
                             appRequirementNotice
+                        }
+
+                        if !deal.matchedKeywords.isEmpty {
+                            Divider()
+                            keywordsSection
+                        }
+
+                        if !deal.matchedProducts.isEmpty {
+                            Divider()
+                            productsSection
                         }
 
                         Divider()
 
-                        // Matched product
-                        productSection
-
-                        Divider()
-
-                        // Actions
-                        actionButtons
+                        externalLinks
                     }
                     .padding(20)
                 }
@@ -60,7 +72,7 @@ struct DealDetailSheet: View {
 
     private var heroImage: some View {
         Group {
-            let urlString = deal.imageUrlLarge ?? deal.imageUrl
+            let urlString = primary.imageUrlLarge ?? primary.imageUrl
             if let urlString,
                let encoded = urlString.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
                let url = URL(string: encoded) {
@@ -101,8 +113,15 @@ struct DealDetailSheet: View {
 
     private var titleSection: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(deal.dealTitle)
-                .font(.title3.weight(.bold))
+            HStack(spacing: 6) {
+                if deal.pinned {
+                    Image(systemName: "pin.fill")
+                        .font(.subheadline)
+                        .foregroundStyle(Color.accentColor)
+                }
+                Text(primary.dealTitle)
+                    .font(.title3.weight(.bold))
+            }
 
             HStack(spacing: 6) {
                 Image(systemName: "storefront.fill")
@@ -115,24 +134,90 @@ struct DealDetailSheet: View {
         }
     }
 
+    // MARK: - User actions (pin / archive)
+
+    private var userActions: some View {
+        HStack(spacing: 10) {
+            pinButton
+            archiveButton
+        }
+    }
+
+    // Split into separate @ViewBuilder properties so each branch can carry
+    // its own .buttonStyle — a ternary returning different ButtonStyle
+    // concrete types (.bordered vs .borderedProminent) doesn't compile.
+
+    @ViewBuilder
+    private var pinButton: some View {
+        if deal.pinned {
+            Button {
+                onUnpin()
+            } label: {
+                pinLabel
+            }
+            .buttonStyle(.bordered)
+            .tint(Color.accentColor)
+        } else {
+            Button {
+                onPin()
+            } label: {
+                pinLabel
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(Color.accentColor)
+        }
+    }
+
+    private var pinLabel: some View {
+        Label(
+            deal.pinned ? "Unpin" : "Pin to top",
+            systemImage: deal.pinned ? "pin.slash.fill" : "pin.fill"
+        )
+        .font(.subheadline.weight(.semibold))
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 10)
+    }
+
+    @ViewBuilder
+    private var archiveButton: some View {
+        Button {
+            if deal.archived {
+                onUnarchive()
+            } else {
+                onArchive()
+                dismiss()
+            }
+        } label: {
+            Label(
+                deal.archived ? "Restore" : "Archive",
+                systemImage: deal.archived ? "tray.and.arrow.up.fill" : "archivebox.fill"
+            )
+            .font(.subheadline.weight(.semibold))
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 10)
+        }
+        .buttonStyle(.bordered)
+        .tint(deal.archived ? .blue : .orange)
+    }
+
     // MARK: - Price
 
     private var priceSection: some View {
         HStack(spacing: 12) {
-            if let price = deal.formattedDealPrice {
+            if let price = primary.formattedDealPrice {
                 Text(price)
                     .font(.title.weight(.bold))
                     .foregroundStyle(.green)
             }
 
-            if let regular = deal.formattedRegularPrice {
+            if let regular = primary.formattedRegularPrice {
                 Text(regular)
                     .font(.title3)
                     .strikethrough()
                     .foregroundStyle(.secondary)
             }
 
-            if let discount = deal.formattedDiscount {
+            if let discount = primary.formattedDiscount {
                 Text(discount)
                     .font(.subheadline.weight(.bold))
                     .foregroundStyle(.white)
@@ -155,18 +240,18 @@ struct DealDetailSheet: View {
             }
 
             HStack(spacing: 8) {
-                if let from = deal.formattedValidFrom {
+                if let from = primary.formattedValidFrom {
                     Text(from)
                         .font(.subheadline)
                 }
 
-                if deal.validFrom != nil && deal.validUntil != nil {
+                if primary.validFrom != nil && primary.validUntil != nil {
                     Image(systemName: "arrow.right")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
 
-                if let until = deal.formattedValidUntil {
+                if let until = primary.formattedValidUntil {
                     Text(until)
                         .font(.subheadline)
                 }
@@ -180,7 +265,7 @@ struct DealDetailSheet: View {
 
     @ViewBuilder
     private var validityStatusBadge: some View {
-        let status = deal.validityStatus
+        let status = primary.validityStatus
         Text(status.label)
             .font(.caption.weight(.semibold))
             .foregroundStyle(validityColor(status))
@@ -209,41 +294,44 @@ struct DealDetailSheet: View {
         .background(RoundedRectangle(cornerRadius: 10).fill(.orange.opacity(0.08)))
     }
 
-    // MARK: - Matched Product
+    // MARK: - Matched Keywords
 
-    private var productSection: some View {
+    private var keywordsSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
-                Image(systemName: "cube.box.fill")
+                Image(systemName: "tag.fill")
                     .foregroundStyle(.secondary)
-                Text("Matched Product")
+                Text("Matched Keyword Groups")
                     .font(.subheadline.weight(.medium))
             }
 
-            HStack(spacing: 12) {
-                ProductImage(imagePath: deal.productImagePath, size: 44)
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(deal.productName)
-                        .font(.subheadline.weight(.medium))
-
-                    if let price = deal.productSellprice {
-                        Text("Sell price: \(String(format: "%.2f \u{20AC}", price))")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(Array(deal.matchedKeywords.enumerated()), id: \.offset) { _, kw in
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(spacing: 6) {
+                            Text(kw.label ?? kw.terms?.first ?? "Keyword")
+                                .font(.subheadline.weight(.medium))
+                            if let term = primary.matchedTerm, !term.isEmpty {
+                                Text("matched via \"\(term)\"")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        if kw.linkedProducts.isEmpty {
+                            Text("No products linked to this group yet")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .italic()
+                        } else {
+                            ForEach(Array(kw.linkedProducts.enumerated()), id: \.offset) { _, p in
+                                if let name = p.name {
+                                    Text("• \(name)")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
                     }
-                }
-
-                Spacer()
-
-                // Confidence
-                VStack(spacing: 2) {
-                    Text(deal.formattedConfidence)
-                        .font(.headline.weight(.bold))
-                        .foregroundStyle(confidenceColor)
-                    Text("Match")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
                 }
             }
             .padding(12)
@@ -251,11 +339,56 @@ struct DealDetailSheet: View {
         }
     }
 
-    // MARK: - Action Buttons
+    // MARK: - Matched Products
 
-    private var actionButtons: some View {
+    private var productsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: "cube.box.fill")
+                    .foregroundStyle(.secondary)
+                Text(deal.matchedProducts.count == 1 ? "Matched Product" : "\(deal.matchedProducts.count) Matched Products")
+                    .font(.subheadline.weight(.medium))
+                Spacer()
+                Text(primary.formattedConfidence)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(confidenceColor)
+            }
+
+            VStack(spacing: 8) {
+                ForEach(deal.matchedProducts) { p in
+                    HStack(spacing: 12) {
+                        ProductImage(imagePath: p.imagePath, size: 36)
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(p.name)
+                                .font(.subheadline)
+                                .lineLimit(2)
+                            if let price = p.sellprice {
+                                Text(String(format: "%.2f \u{20AC}", price))
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+
+                        Spacer()
+
+                        Text("\(Int(p.confidence * 100))%")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(confidenceColor(for: p.confidence))
+                            .monospacedDigit()
+                    }
+                }
+            }
+            .padding(12)
+            .background(RoundedRectangle(cornerRadius: 10).fill(Color(.systemGray6)))
+        }
+    }
+
+    // MARK: - External Links
+
+    private var externalLinks: some View {
         VStack(spacing: 10) {
-            if let urlString = deal.sourceUrl, let url = URL(string: urlString) {
+            if let urlString = primary.sourceUrl, let url = URL(string: urlString) {
                 Link(destination: url) {
                     Label("View Prospekt", systemImage: "newspaper")
                         .font(.subheadline.weight(.semibold))
@@ -265,7 +398,7 @@ struct DealDetailSheet: View {
                 .buttonStyle(.bordered)
             }
 
-            if let urlString = deal.externalUrl, let url = URL(string: urlString) {
+            if let urlString = primary.externalUrl, let url = URL(string: urlString) {
                 Link(destination: url) {
                     Label("View All Offers", systemImage: "arrow.up.right.square")
                         .font(.subheadline.weight(.semibold))
@@ -280,7 +413,11 @@ struct DealDetailSheet: View {
     // MARK: - Helpers
 
     private var confidenceColor: Color {
-        switch deal.confidenceLevel {
+        confidenceColor(for: primary.confidence)
+    }
+
+    private func confidenceColor(for value: Double) -> Color {
+        switch Deal.ConfidenceLevel(value: value) {
         case .high: return .green
         case .medium: return .yellow
         case .low: return .orange

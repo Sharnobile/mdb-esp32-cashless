@@ -13,6 +13,7 @@ const mockSupabase = {
 ;(globalThis as any).computed = vueComputed
 ;(globalThis as any).useState = <T,>(_k: string, init?: () => T) => vueRef(init ? init() : undefined)
 ;(globalThis as any).useSupabaseClient = () => mockSupabase
+;(globalThis as any).useSupabaseUser = () => vueRef({ id: 'user-1' })
 ;(globalThis as any).useOrganization = () => ({ organization: vueRef({ id: 'company-1' }) })
 
 vi.mock('#imports', () => ({

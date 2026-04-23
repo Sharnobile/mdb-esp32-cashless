@@ -53,6 +53,49 @@ interface DealSearchResponse {
   error?: string
 }
 
+/**
+ * Deduplicated view of a deal: one card per (retailer, offer_id), aggregating
+ * all matched products (when the same offer fuzzy-matched multiple catalog
+ * items). The `primary` field carries the highest-confidence raw row — used
+ * for sorting and to back the existing detail-sheet UI.
+ *
+ * `matchedProducts` contains every product the offer matched against (across
+ * all duplicates of the same offer), so the user can see "this Red Bull deal
+ * applies to Red Bull Energy / Red Bull Sugarfree / …" without having three
+ * separate cards.
+ */
+export interface DedupedDeal {
+  /** Stable cross-refresh key: `${retailer}::${offer_id}` */
+  key: string
+  retailer: string
+  offer_id: string
+  primary: Deal
+  matchedProducts: Array<{
+    id: string
+    name: string
+    image_path: string | null
+    sellprice: number | null
+    confidence: number
+  }>
+  /** Keyword groups that matched this offer (one entry per keyword group) */
+  matchedKeywords: Array<{
+    id: string
+    label: string | null
+    matched_term: string | null
+    products: Array<{ id: string; name: string; image_path: string | null; sellprice: number | null }>
+  }>
+  archived: boolean
+  pinned: boolean
+  pinnedAt: string | null
+}
+
+interface DealUserStateRow {
+  retailer: string
+  offer_id: string
+  archived_at: string | null
+  pinned_at: string | null
+}
+
 // Country presets — must stay in sync with edge function COUNTRY_PRESETS
 export interface DealsConfig {
   generic_terms: string[]
@@ -124,6 +167,7 @@ export function getDealsPreset(countryCode: string): DealsConfig {
 
 export function useDeals() {
   const supabase = useSupabaseClient()
+  const user = useSupabaseUser()
   const { organization } = useOrganization()
 
   const deals = ref<Deal[]>([])
@@ -132,6 +176,15 @@ export function useDeals() {
   const fromCache = ref(false)
   const searchedProducts = ref(0)
   const lastFetchedAt = ref<string | null>(null)
+
+  // Per-user state for each (retailer, offer_id) — archived / pinned flags.
+  // Keyed by `${retailer}::${offer_id}` to match DedupedDeal.key.
+  const userStates = ref<Map<string, { archived: boolean; pinnedAt: string | null }>>(new Map())
+
+  // Surface the most recent archive/pin failure so the UI can show it
+  // (e.g. RLS denial or missing migration → otherwise looks like the button
+  // does nothing because the optimistic update gets rolled back silently).
+  const userStateError = ref<string | null>(null)
 
   // Deal search settings
   const dealsEnabled = ref(false)
@@ -252,6 +305,191 @@ export function useDeals() {
     }
   }
 
+  // ── User-state (archive / pin) ──────────────────────────────────────────
+
+  function stateKey(retailer: string, offerId: string): string {
+    return `${retailer}::${offerId}`
+  }
+
+  /** Resolve the current user id. useSupabaseUser() is a Vue ref that may
+   *  not be hydrated yet on first render (same workaround as useMachineTrays
+   *  logActivity). Falls back to auth.getSession() which is always current. */
+  async function resolveUserId(): Promise<string | null> {
+    if (user.value?.id) return user.value.id
+    const { data: { session } } = await supabase.auth.getSession()
+    return session?.user?.id ?? null
+  }
+
+  async function fetchUserStates() {
+    const uid = await resolveUserId()
+    if (!organization.value?.id || !uid) return
+    const { data, error: err } = await supabase
+      .from('deal_user_state')
+      .select('retailer, offer_id, archived_at, pinned_at')
+      .eq('company_id', organization.value.id)
+      .eq('user_id', uid)
+    if (err) {
+      console.error('[useDeals] fetchUserStates failed:', err)
+      return
+    }
+    const map = new Map<string, { archived: boolean; pinnedAt: string | null }>()
+    for (const row of (data ?? []) as DealUserStateRow[]) {
+      map.set(stateKey(row.retailer, row.offer_id), {
+        archived: row.archived_at != null,
+        pinnedAt: row.pinned_at,
+      })
+    }
+    userStates.value = map
+  }
+
+  /** Optimistically updates the local state map and writes to the DB. */
+  async function upsertUserState(
+    retailer: string,
+    offerId: string,
+    patch: { archived_at?: string | null; pinned_at?: string | null },
+  ) {
+    const uid = await resolveUserId()
+    if (!organization.value?.id || !uid) {
+      const reason = !organization.value?.id ? 'no organization' : 'no user'
+      console.warn('[useDeals] upsertUserState skipped:', reason)
+      userStateError.value = `Cannot save: ${reason}`
+      return
+    }
+    const key = stateKey(retailer, offerId)
+    const prev = userStates.value.get(key) ?? { archived: false, pinnedAt: null }
+    const next = { ...prev }
+    if ('archived_at' in patch) next.archived = patch.archived_at != null
+    if ('pinned_at' in patch) next.pinnedAt = patch.pinned_at ?? null
+    // New Map ref so Vue picks up the change.
+    const newMap = new Map(userStates.value)
+    newMap.set(key, next)
+    userStates.value = newMap
+
+    const payload = {
+      user_id: uid,
+      company_id: organization.value.id,
+      retailer,
+      offer_id: offerId,
+      ...patch,
+    }
+    const { error: err } = await supabase
+      .from('deal_user_state')
+      .upsert(payload, { onConflict: 'user_id,company_id,retailer,offer_id' })
+    if (err) {
+      console.error('[useDeals] upsertUserState failed:', err)
+      userStateError.value = err.message ?? 'Failed to update deal state'
+      // Roll back the optimistic update on failure.
+      const rollback = new Map(userStates.value)
+      rollback.set(key, prev)
+      userStates.value = rollback
+    } else {
+      userStateError.value = null
+    }
+  }
+
+  function archiveDeal(retailer: string, offerId: string) {
+    return upsertUserState(retailer, offerId, { archived_at: new Date().toISOString() })
+  }
+  function unarchiveDeal(retailer: string, offerId: string) {
+    return upsertUserState(retailer, offerId, { archived_at: null })
+  }
+  function pinDeal(retailer: string, offerId: string) {
+    return upsertUserState(retailer, offerId, { pinned_at: new Date().toISOString() })
+  }
+  function unpinDeal(retailer: string, offerId: string) {
+    return upsertUserState(retailer, offerId, { pinned_at: null })
+  }
+
+  // ── Deduplicated deals ──────────────────────────────────────────────────
+
+  /**
+   * Collapse raw deal_cache rows into one entry per (retailer, offer_id),
+   * aggregating matched products / keyword groups across the duplicates and
+   * applying user state (archived / pinned). The "primary" raw deal is the
+   * highest-confidence row, used by the existing detail-sheet UI.
+   */
+  const dedupedDeals = computed<DedupedDeal[]>(() => {
+    const groups = new Map<string, Deal[]>()
+    for (const d of deals.value) {
+      const k = stateKey(d.retailer, d.offer_id)
+      const existing = groups.get(k) ?? []
+      existing.push(d)
+      groups.set(k, existing)
+    }
+
+    const result: DedupedDeal[] = []
+    for (const [key, rows] of groups) {
+      // Sort by confidence desc; primary is the strongest match.
+      rows.sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0))
+      const primary = rows[0]
+
+      // Aggregate distinct products across all rows for this offer.
+      const productMap = new Map<string, DedupedDeal['matchedProducts'][number]>()
+      // Aggregate distinct keyword groups across all rows for this offer.
+      const keywordMap = new Map<string, DedupedDeal['matchedKeywords'][number]>()
+
+      for (const r of rows) {
+        if (r.products) {
+          const existing = productMap.get(r.products.id)
+          if (!existing || (r.confidence ?? 0) > existing.confidence) {
+            productMap.set(r.products.id, {
+              id: r.products.id,
+              name: r.products.name,
+              image_path: r.products.image_path,
+              sellprice: r.products.sellprice,
+              confidence: r.confidence ?? 0,
+            })
+          }
+        }
+        if (r.deal_keywords) {
+          if (!keywordMap.has(r.deal_keywords.id)) {
+            keywordMap.set(r.deal_keywords.id, {
+              id: r.deal_keywords.id,
+              label: r.deal_keywords.label,
+              matched_term: r.matched_term,
+              products: r.deal_keywords.deal_keyword_products.map((kp) => kp.products),
+            })
+          }
+        }
+      }
+
+      const state = userStates.value.get(key)
+      result.push({
+        key,
+        retailer: primary.retailer,
+        offer_id: primary.offer_id,
+        primary,
+        matchedProducts: Array.from(productMap.values()).sort((a, b) => b.confidence - a.confidence),
+        matchedKeywords: Array.from(keywordMap.values()),
+        archived: state?.archived ?? false,
+        pinned: state?.pinnedAt != null,
+        pinnedAt: state?.pinnedAt ?? null,
+      })
+    }
+
+    return result
+  })
+
+  // Active deals (not archived). Pinned ones float to the top, then sorted
+  // by discount_pct desc (matching the edge function order).
+  const activeDeals = computed(() => {
+    const list = dedupedDeals.value.filter((d) => !d.archived)
+    list.sort((a, b) => {
+      if (a.pinned && !b.pinned) return -1
+      if (!a.pinned && b.pinned) return 1
+      if (a.pinned && b.pinned) {
+        // Most-recently pinned first.
+        return (b.pinnedAt ?? '').localeCompare(a.pinnedAt ?? '')
+      }
+      const da = a.primary.discount_pct ?? -1
+      const db = b.primary.discount_pct ?? -1
+      return db - da
+    })
+    return list
+  })
+
+  const archivedDeals = computed(() => dedupedDeals.value.filter((d) => d.archived))
+
   // Group deals by retailer
   const dealsByRetailer = computed(() => {
     const grouped = new Map<string, Deal[]>()
@@ -275,14 +513,20 @@ export function useDeals() {
     return grouped
   })
 
-  // Stats
-  const totalDeals = computed(() => deals.value.length)
-  const uniqueRetailers = computed(() => new Set(deals.value.map((d) => d.retailer)).size)
+  // Stats — based on deduped active (non-archived) deals so the user sees
+  // numbers that match what's on screen.
+  const totalDeals = computed(() => activeDeals.value.length)
+  const uniqueRetailers = computed(() => new Set(activeDeals.value.map((d) => d.retailer)).size)
   const avgDiscount = computed(() => {
-    const withDiscount = deals.value.filter((d) => d.discount_pct != null && d.discount_pct > 0)
+    const withDiscount = activeDeals.value.filter(
+      (d) => d.primary.discount_pct != null && d.primary.discount_pct > 0,
+    )
     if (withDiscount.length === 0) return 0
-    return Math.round(withDiscount.reduce((sum, d) => sum + (d.discount_pct ?? 0), 0) / withDiscount.length)
+    return Math.round(
+      withDiscount.reduce((sum, d) => sum + (d.primary.discount_pct ?? 0), 0) / withDiscount.length,
+    )
   })
+  const archivedCount = computed(() => archivedDeals.value.length)
 
   // ── Keyword groups ─────────────────────────────────────────────────────────
 
@@ -415,6 +659,16 @@ export function useDeals() {
     totalDeals,
     uniqueRetailers,
     avgDiscount,
+    archivedCount,
+    dedupedDeals,
+    activeDeals,
+    archivedDeals,
+    fetchUserStates,
+    archiveDeal,
+    unarchiveDeal,
+    pinDeal,
+    unpinDeal,
+    userStateError,
     keywords,
     fetchKeywords,
     createKeyword,

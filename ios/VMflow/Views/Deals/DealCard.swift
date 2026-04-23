@@ -1,49 +1,52 @@
 import SwiftUI
 
-/// Compact deal card for use in lists.
+/// Compact deal card for use in lists. Takes a deduplicated deal (one card
+/// per offer, covering all matched products/keyword groups) and surfaces the
+/// per-user archive/pin state via small corner badges.
 struct DealCard: View {
-    let deal: Deal
+    let deal: DedupedDeal
 
     var body: some View {
         HStack(spacing: 12) {
-            // Deal image
             dealImage
 
-            // Details
             VStack(alignment: .leading, spacing: 4) {
-                // Title
-                Text(deal.dealTitle)
-                    .font(.subheadline.weight(.semibold))
-                    .lineLimit(2)
+                HStack(spacing: 4) {
+                    if deal.pinned {
+                        Image(systemName: "pin.fill")
+                            .font(.caption2)
+                            .foregroundStyle(Color.accentColor)
+                    }
+                    Text(deal.dealTitle)
+                        .font(.subheadline.weight(.semibold))
+                        .lineLimit(2)
+                }
 
-                // Retailer + Product
                 HStack(spacing: 4) {
                     Text(deal.retailer)
                         .foregroundStyle(.blue)
                     Text("·")
                         .foregroundStyle(.secondary)
-                    Text(deal.productName)
-                        .foregroundStyle(.secondary)
+                    matchedTargetLabel
                 }
                 .font(.caption)
                 .lineLimit(1)
 
-                // Price row
                 HStack(spacing: 6) {
-                    if let price = deal.formattedDealPrice {
+                    if let price = deal.primary.formattedDealPrice {
                         Text(price)
                             .font(.subheadline.weight(.bold))
                             .foregroundStyle(.green)
                     }
 
-                    if let regular = deal.formattedRegularPrice {
+                    if let regular = deal.primary.formattedRegularPrice {
                         Text(regular)
                             .font(.caption)
                             .strikethrough()
                             .foregroundStyle(.secondary)
                     }
 
-                    if let discount = deal.formattedDiscount {
+                    if let discount = deal.primary.formattedDiscount {
                         Text(discount)
                             .font(.caption2.weight(.bold))
                             .foregroundStyle(.white)
@@ -53,7 +56,6 @@ struct DealCard: View {
                     }
                 }
 
-                // Bottom row: validity + badges
                 HStack(spacing: 6) {
                     validityBadge
 
@@ -66,7 +68,7 @@ struct DealCard: View {
                             .background(Capsule().fill(.orange.opacity(0.15)))
                     }
 
-                    if deal.confidenceLevel == .low {
+                    if deal.primary.confidenceLevel == .low {
                         Circle()
                             .fill(.yellow)
                             .frame(width: 6, height: 6)
@@ -77,6 +79,33 @@ struct DealCard: View {
             Spacer(minLength: 0)
         }
         .padding(.vertical, 6)
+        .opacity(deal.archived ? 0.55 : 1.0)
+    }
+
+    // MARK: - Matched target label
+    // Shows the most informative identifier — a keyword group label (if
+    // keyword-matched), a single product name, or an N-matched-products
+    // aggregate count. Mirrors the web card.
+
+    @ViewBuilder
+    private var matchedTargetLabel: some View {
+        if let kw = deal.matchedKeywords.first, let label = kw.label, !label.isEmpty {
+            HStack(spacing: 3) {
+                Image(systemName: "tag.fill")
+                    .font(.caption2)
+                Text(label)
+            }
+            .foregroundStyle(.secondary)
+        } else if deal.matchedProducts.count > 1 {
+            Text("\(deal.matchedProducts.count) matched products")
+                .foregroundStyle(.secondary)
+        } else if let first = deal.matchedProducts.first {
+            Text(first.name)
+                .foregroundStyle(.secondary)
+        } else {
+            Text(deal.primary.productName)
+                .foregroundStyle(.secondary)
+        }
     }
 
     // MARK: - Deal Image
@@ -124,11 +153,11 @@ struct DealCard: View {
 
     @ViewBuilder
     private var validityBadge: some View {
-        let status = deal.validityStatus
+        let status = deal.primary.validityStatus
         HStack(spacing: 3) {
             Image(systemName: validityIcon(status))
                 .font(.caption2)
-            if let until = deal.formattedValidUntil {
+            if let until = deal.primary.formattedValidUntil {
                 Text("until \(until)")
                     .font(.caption2)
             } else {

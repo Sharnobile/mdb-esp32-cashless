@@ -234,3 +234,64 @@ struct DealKeywordMatch: Codable {
         try c.encode(rows, forKey: .dealKeywordProducts)
     }
 }
+
+// MARK: - Deal User State (archived / pinned per user)
+
+/// Per-user annotation on a deal, keyed by (retailer, offer_id) on the server.
+/// Rows only exist for deals the user has interacted with; absence of a row
+/// means not-archived and not-pinned.
+struct DealUserStateRow: Codable {
+    let retailer: String
+    let offerId: String
+    let archivedAt: String?
+    let pinnedAt: String?
+
+    enum CodingKeys: String, CodingKey {
+        case retailer
+        case offerId = "offer_id"
+        case archivedAt = "archived_at"
+        case pinnedAt = "pinned_at"
+    }
+}
+
+// MARK: - Deduplicated Deal
+
+/// Collapses multiple deal_cache rows that share the same (retailer, offer_id)
+/// into a single card. Brand-wide offers that fuzzy-matched many catalog
+/// entries (e.g. "Red Bull versch. Sorten" matching every Red Bull variant)
+/// used to render as N near-identical duplicates; now they appear as one card
+/// with the full list of matched products accessible in the detail sheet.
+struct DedupedDeal: Identifiable {
+    /// Stable cross-refresh key — matches the server-side `deal_user_state`
+    /// composite key (retailer, offer_id). Safe to use as SwiftUI Identifiable.
+    let key: String
+    let retailer: String
+    let offerId: String
+    let primary: Deal
+    let matchedProducts: [MatchedProduct]
+    let matchedKeywords: [DealKeywordMatch]
+    let archived: Bool
+    let pinned: Bool
+    let pinnedAt: String?
+
+    var id: String { key }
+
+    struct MatchedProduct: Identifiable {
+        let id: UUID
+        let name: String
+        let imagePath: String?
+        let sellprice: Double?
+        let confidence: Double
+    }
+
+    /// Forwards through to the underlying primary deal so existing UI helpers
+    /// (formattedDealPrice, validityStatus, confidenceLevel, …) keep working
+    /// without needing a parallel set of DedupedDeal computed properties.
+    var dealTitle: String { primary.dealTitle }
+    var requiresApp: Bool { primary.requiresApp }
+    var discountPct: Double? { primary.discountPct }
+    var confidence: Double { primary.confidence }
+    var imageUrl: String? { primary.imageUrl }
+    var imageUrlLarge: String? { primary.imageUrlLarge }
+}
+
