@@ -1093,6 +1093,8 @@
     "matchedTokens": "Übereinstimmende Begriffe",
     "matchMethod": "Methode",
     "fuzzyNameMatch": "Unscharfer Namensabgleich",
+    "stockWarehouse": "Lagerbestand",
+    "stockMachines": "In Automaten",
     "keywords": {
       "title": "Schlagwörter",
       "tabLabel": "Schlagwörter",

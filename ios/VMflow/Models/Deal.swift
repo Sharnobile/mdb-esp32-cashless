@@ -185,12 +185,13 @@ struct Deal: Codable, Identifiable {
 // MARK: - Deal Product (joined relation)
 
 struct DealProduct: Codable {
+    let id: UUID?
     let name: String?
     let imagePath: String?
     let sellprice: Double?
 
     enum CodingKeys: String, CodingKey {
-        case name, sellprice
+        case id, name, sellprice
         case imagePath = "image_path"
     }
 }

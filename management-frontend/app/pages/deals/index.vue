@@ -12,6 +12,8 @@ import {
   IconPinnedOff,
   IconArchive,
   IconArchiveOff,
+  IconBuildingWarehouse,
+  IconBox,
 } from '@tabler/icons-vue'
 import Badge from '@/components/ui/badge/Badge.vue'
 import {
@@ -66,9 +68,63 @@ const listMode = ref<'active' | 'archived'>('active')
 const selectedDeal = ref<DedupedDeal | null>(null)
 const sheetOpen = ref(false)
 
+interface ProductStockTotals {
+  warehouseQty: number
+  trayStock: number
+  trayCapacity: number
+}
+
+const productStock = ref<Map<string, ProductStockTotals>>(new Map())
+const productStockLoading = ref(false)
+
+const supabase = useSupabaseClient()
+
+async function loadProductStock(productIds: string[]) {
+  const missing = productIds.filter((id) => !productStock.value.has(id))
+  if (missing.length === 0) return
+  productStockLoading.value = true
+  try {
+    const [batchesRes, traysRes] = await Promise.all([
+      supabase
+        .from('warehouse_stock_batches')
+        .select('product_id, quantity')
+        .in('product_id', missing)
+        .gt('quantity', 0),
+      supabase
+        .from('machine_trays')
+        .select('product_id, current_stock, capacity')
+        .in('product_id', missing),
+    ])
+
+    const next = new Map(productStock.value)
+    for (const id of missing) {
+      next.set(id, { warehouseQty: 0, trayStock: 0, trayCapacity: 0 })
+    }
+    for (const row of ((batchesRes.data ?? []) as Array<{ product_id: string; quantity: number }>)) {
+      const entry = next.get(row.product_id)
+      if (entry) entry.warehouseQty += row.quantity ?? 0
+    }
+    for (const row of ((traysRes.data ?? []) as Array<{ product_id: string; current_stock: number; capacity: number }>)) {
+      const entry = next.get(row.product_id)
+      if (entry) {
+        entry.trayStock += row.current_stock ?? 0
+        entry.trayCapacity += row.capacity ?? 0
+      }
+    }
+    productStock.value = next
+  } finally {
+    productStockLoading.value = false
+  }
+}
+
 function openDetail(deal: DedupedDeal) {
   selectedDeal.value = deal
   sheetOpen.value = true
+  const ids = [
+    ...deal.matchedProducts.map((p) => p.id),
+    ...deal.matchedKeywords.flatMap((k) => k.products.map((p) => p.id)),
+  ]
+  if (ids.length > 0) void loadProductStock(ids)
 }
 
 function matchesSearch(d: DedupedDeal, q: string): boolean {
@@ -745,9 +801,35 @@ function highlightTokens(text: string, tokens: string[] | null): { text: string;
                   {{ t('deals.keywords.matchedVia', { term: kw.matched_term }) }}
                 </span>
               </div>
-              <ul v-if="kw.products.length > 0" class="ml-1 space-y-0.5">
-                <li v-for="p in kw.products" :key="p.id" class="text-xs text-muted-foreground">
+              <ul v-if="kw.products.length > 0" class="ml-1 space-y-1">
+                <li v-for="p in kw.products" :key="p.id" class="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                   <NuxtLink :to="`/products/${p.id}`" class="hover:underline">{{ p.name }}</NuxtLink>
+                  <span class="flex items-center gap-1.5 text-[10px]">
+                    <span
+                      :class="[
+                        'inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 font-medium tabular-nums',
+                        (productStock.get(p.id)?.warehouseQty ?? 0) > 0
+                          ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+                          : 'bg-muted text-muted-foreground',
+                      ]"
+                      :title="t('deals.stockWarehouse')"
+                    >
+                      <IconBuildingWarehouse class="size-2.5" />
+                      {{ productStock.get(p.id)?.warehouseQty ?? 0 }}
+                    </span>
+                    <span
+                      :class="[
+                        'inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 font-medium tabular-nums',
+                        (productStock.get(p.id)?.trayStock ?? 0) > 0
+                          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200'
+                          : 'bg-muted text-muted-foreground',
+                      ]"
+                      :title="t('deals.stockMachines')"
+                    >
+                      <IconBox class="size-2.5" />
+                      {{ productStock.get(p.id)?.trayStock ?? 0 }}<template v-if="(productStock.get(p.id)?.trayCapacity ?? 0) > 0">/{{ productStock.get(p.id)!.trayCapacity }}</template>
+                    </span>
+                  </span>
                 </li>
               </ul>
               <p v-else class="text-xs italic text-muted-foreground">
@@ -774,14 +856,38 @@ function highlightTokens(text: string, tokens: string[] | null): { text: string;
             </div>
 
             <ul class="space-y-1.5">
-              <li v-for="p in selectedDeal.matchedProducts" :key="p.id" class="flex items-center justify-between gap-2">
+              <li v-for="p in selectedDeal.matchedProducts" :key="p.id" class="flex flex-wrap items-center justify-between gap-2">
                 <NuxtLink :to="`/products/${p.id}`" class="min-w-0 flex-1 truncate text-xs hover:underline">
                   <template v-for="(seg, idx) in highlightTokens(p.name, selectedDeal.primary.matched_tokens)" :key="idx">
                     <mark v-if="seg.matched" class="rounded-sm bg-green-200 px-0.5 dark:bg-green-900">{{ seg.text }}</mark>
                     <span v-else>{{ seg.text }}</span>
                   </template>
                 </NuxtLink>
-                <span class="flex items-center gap-2 shrink-0">
+                <span class="flex items-center gap-1.5 shrink-0">
+                  <span
+                    :class="[
+                      'inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-medium tabular-nums',
+                      (productStock.get(p.id)?.warehouseQty ?? 0) > 0
+                        ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+                        : 'bg-muted text-muted-foreground',
+                    ]"
+                    :title="t('deals.stockWarehouse')"
+                  >
+                    <IconBuildingWarehouse class="size-2.5" />
+                    {{ productStock.get(p.id)?.warehouseQty ?? 0 }}
+                  </span>
+                  <span
+                    :class="[
+                      'inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-medium tabular-nums',
+                      (productStock.get(p.id)?.trayStock ?? 0) > 0
+                        ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200'
+                        : 'bg-muted text-muted-foreground',
+                    ]"
+                    :title="t('deals.stockMachines')"
+                  >
+                    <IconBox class="size-2.5" />
+                    {{ productStock.get(p.id)?.trayStock ?? 0 }}<template v-if="(productStock.get(p.id)?.trayCapacity ?? 0) > 0">/{{ productStock.get(p.id)!.trayCapacity }}</template>
+                  </span>
                   <span v-if="p.sellprice != null" class="text-[10px] text-muted-foreground">
                     {{ p.sellprice.toFixed(2) }}&euro;
                   </span>
