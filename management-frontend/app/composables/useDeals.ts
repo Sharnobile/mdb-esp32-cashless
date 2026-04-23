@@ -311,13 +311,23 @@ export function useDeals() {
     return `${retailer}::${offerId}`
   }
 
+  /** Resolve the current user id. useSupabaseUser() is a Vue ref that may
+   *  not be hydrated yet on first render (same workaround as useMachineTrays
+   *  logActivity). Falls back to auth.getSession() which is always current. */
+  async function resolveUserId(): Promise<string | null> {
+    if (user.value?.id) return user.value.id
+    const { data: { session } } = await supabase.auth.getSession()
+    return session?.user?.id ?? null
+  }
+
   async function fetchUserStates() {
-    if (!organization.value?.id || !user.value?.id) return
+    const uid = await resolveUserId()
+    if (!organization.value?.id || !uid) return
     const { data, error: err } = await supabase
       .from('deal_user_state')
       .select('retailer, offer_id, archived_at, pinned_at')
       .eq('company_id', organization.value.id)
-      .eq('user_id', user.value.id)
+      .eq('user_id', uid)
     if (err) {
       console.error('[useDeals] fetchUserStates failed:', err)
       return
@@ -338,13 +348,10 @@ export function useDeals() {
     offerId: string,
     patch: { archived_at?: string | null; pinned_at?: string | null },
   ) {
-    console.log('[useDeals] upsertUserState called', { retailer, offerId, patch })
-    if (!organization.value?.id || !user.value?.id) {
+    const uid = await resolveUserId()
+    if (!organization.value?.id || !uid) {
       const reason = !organization.value?.id ? 'no organization' : 'no user'
-      console.warn('[useDeals] upsertUserState skipped:', reason, {
-        organization: organization.value,
-        user: user.value,
-      })
+      console.warn('[useDeals] upsertUserState skipped:', reason)
       userStateError.value = `Cannot save: ${reason}`
       return
     }
@@ -359,18 +366,15 @@ export function useDeals() {
     userStates.value = newMap
 
     const payload = {
-      user_id: user.value.id,
+      user_id: uid,
       company_id: organization.value.id,
       retailer,
       offer_id: offerId,
       ...patch,
     }
-    console.log('[useDeals] upsertUserState → supabase', payload)
-    const { data, error: err } = await supabase
+    const { error: err } = await supabase
       .from('deal_user_state')
       .upsert(payload, { onConflict: 'user_id,company_id,retailer,offer_id' })
-      .select()
-    console.log('[useDeals] upsertUserState ← supabase', { data, err })
     if (err) {
       console.error('[useDeals] upsertUserState failed:', err)
       userStateError.value = err.message ?? 'Failed to update deal state'
