@@ -377,7 +377,7 @@ struct ReplacementProductPicker: View {
                                 .padding(.vertical, 2)
                                 .background(Capsule().fill(.orange.opacity(0.15)))
                                 .foregroundStyle(.orange)
-                                .accessibilityLabel("Already in \(slots.count == 1 ? "slot" : "slots") \(slots.map(String.init).joined(separator: ", "))")
+                                .accessibilityLabel("Already in \(slots.count == 1 ? "slot" : "slots") \(slots.sorted().map(String.init).joined(separator: ", "))")
                         }
                         Spacer()
                         if selectedProductId == product.id {
