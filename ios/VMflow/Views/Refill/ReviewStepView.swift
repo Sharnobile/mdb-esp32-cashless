@@ -299,21 +299,23 @@ extension UUID: @retroactive Identifiable {
 
 // MARK: - Slot Badge Label
 
-/// Format a sorted list of slot numbers into a compact pill label.
+/// Format a list of slot numbers into a compact pill label.
 ///
 /// - 1 slot: `"Slot 3"`
 /// - 2–3 slots: `"Slot 3, 7"` / `"Slot 3, 7, 9"`
 /// - 4+ slots: `"Slot 3, 7, 9 +2"` — first three + remainder count
 ///
-/// Returns an empty string for an empty input; callers should treat that
-/// as "no pill".
+/// The input is sorted ascending before rendering, so callers don't have to
+/// pre-sort. Returns an empty string for an empty input; callers should
+/// treat that as "no pill".
 func slotBadgeLabel(_ slots: [Int]) -> String {
-    guard !slots.isEmpty else { return "" }
-    if slots.count <= 3 {
-        return "Slot \(slots.map(String.init).joined(separator: ", "))"
+    let sorted = slots.sorted()
+    guard !sorted.isEmpty else { return "" }
+    if sorted.count <= 3 {
+        return "Slot \(sorted.map(String.init).joined(separator: ", "))"
     }
-    let first = slots.prefix(3).map(String.init).joined(separator: ", ")
-    let extra = slots.count - 3
+    let first = sorted.prefix(3).map(String.init).joined(separator: ", ")
+    let extra = sorted.count - 3
     return "Slot \(first) +\(extra)"
 }
 
