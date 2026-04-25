@@ -270,7 +270,9 @@ Add:
 
 ### Storage backups
 
-Product images are stored in `Docker/volumes/storage/`. Back up this directory alongside database dumps.
+Product images and firmware binaries are stored in `Docker/volumes/storage/`. Back up this directory alongside database dumps.
+
+> ⚠️ **Use a tool that preserves extended attributes** (`rsync -aX`, `tar --xattrs`, `cp -a`). Supabase Storage stores per-file metadata (content-type, cache-control) as xattrs, not in the database. Tools that strip them silently (`rsync -a` without `-X`, `scp`, `sftp`, `docker cp`, plain `tar`) will cause every public Storage URL to return `500 Internal Server Error` after restore. See [Section 10. Server Migration](#10-server-migration-moving-to-a-new-host) for the correct procedure and the recovery script if the mistake has already happened.
 
 ---
 
@@ -461,6 +463,123 @@ docker compose restart functions
 ```
 
 > **Note**: Database migrations cannot be automatically rolled back. If a migration causes issues, write a corrective migration or restore from a backup.
+
+---
+
+## 10. Server Migration (Moving to a New Host)
+
+When moving the entire stack to a new VPS or rebuilding the host, the **single most common pitfall** is losing extended attributes on the Storage volume. Supabase Storage's `file` backend stores per-object metadata (`content-type`, `cache-control`) as **xattrs directly on each file**, not in PostgreSQL. If your copy tool strips xattrs, every public Storage URL (product images, firmware binaries) returns `500 Internal Server Error` with `ENODATA / "The extended attribute does not exist"` in the storage container logs — even though all files appear to be present and the row counts in `storage.objects` match the filesystem.
+
+### Correct migration procedure
+
+On the **old host** — stop the stack so nothing writes during the copy:
+
+```bash
+cd /path/to/mdb-esp32-cashless/Docker
+docker compose down
+```
+
+Copy everything to the **new host** with `rsync -aHX`. The `-X` flag (extended attributes) is mandatory; `-H` preserves hardlinks; `--numeric-ids` keeps UIDs intact across hosts:
+
+```bash
+rsync -aHX --numeric-ids --info=progress2 \
+  /path/to/mdb-esp32-cashless/ \
+  root@new-host:/path/to/mdb-esp32-cashless/
+```
+
+On the new host:
+
+```bash
+cd /path/to/mdb-esp32-cashless/Docker
+docker compose up -d
+```
+
+The DB starts from `volumes/db/data`, the Storage volume already has its xattrs intact, and public URLs work immediately.
+
+> 💡 **Always copy the entire `Docker/volumes/` tree — not just `volumes/storage/`.** The `volumes/db/data/` directory is the live PostgreSQL state and contains everything that matters for auth: the `auth.users` / `auth.sessions` / `auth.refresh_tokens` rows **and** the per-role passwords in `pg_authid` for `supabase_auth_admin`, `supabase_storage_admin`, `authenticator`, `realtime`, etc. These role passwords must match the secrets in `.env`. A volume copy preserves them byte-for-byte. A `pg_dump`-based migration drops `pg_authid` by default — restoring on a freshly-initialized DB leaves the role passwords whatever the init scripts set, which usually does **not** match the old `.env`, and the auth/storage/realtime containers fail to connect. Stick with a full volume copy unless you have a strong reason to dump+restore.
+
+### Tools that silently strip xattrs — avoid
+
+| Tool | Behavior |
+|------|----------|
+| `rsync -a` (without `-X`) | Drops xattrs |
+| `scp` / `sftp` | No xattr support |
+| `tar` (without `--xattrs`) | Drops xattrs |
+| `docker cp` | Always drops xattrs |
+| Copy across a filesystem without user-xattr support | xattrs are silently lost on write |
+
+Safe equivalents: `rsync -aHX`, `cp -a`, `tar --xattrs --acls`, restic, borg.
+
+### Recovery: rebuild xattrs from DB metadata
+
+If the migration already happened with the wrong tool and you're hitting `500`s on Storage URLs, the xattrs can be rebuilt losslessly — `storage.objects.metadata` (jsonb) preserves both `mimetype` and `cacheControl` from the original upload. Run on the new host, from the `Docker/` directory.
+
+**Step 1 — Dry-run** (counts files, changes nothing):
+
+```bash
+docker compose exec -T db psql -U postgres -d postgres -tA -c \
+"SELECT bucket_id || '|' || name || '|' || version || '|' ||
+        coalesce(metadata->>'mimetype','application/octet-stream') || '|' ||
+        coalesce(metadata->>'cacheControl','max-age=3600')
+ FROM storage.objects;" \
+| docker compose exec -T storage sh -c '
+    apk add --no-cache attr >/dev/null 2>&1
+    total=0; ok=0; need=0; absent=0
+    while IFS="|" read -r bucket name version mime cc; do
+      total=$((total+1))
+      f="${FILE_STORAGE_BACKEND_PATH:-/var/lib/storage}/${REGION:-stub}/${TENANT_ID:-stub}/$bucket/$name/$version"
+      [ -f "$f" ] || { absent=$((absent+1)); continue; }
+      if getfattr --only-values -n user.supabase.content-type "$f" >/dev/null 2>&1; then
+        ok=$((ok+1))
+      else
+        need=$((need+1))
+      fi
+    done
+    echo "Total: $total | already OK: $ok | will fix: $need | missing on disk: $absent"'
+```
+
+**Step 2 — Apply** (idempotent, only touches files missing xattrs):
+
+```bash
+docker compose exec -T db psql -U postgres -d postgres -tA -c \
+"SELECT bucket_id || '|' || name || '|' || version || '|' ||
+        coalesce(metadata->>'mimetype','application/octet-stream') || '|' ||
+        coalesce(metadata->>'cacheControl','max-age=3600')
+ FROM storage.objects;" \
+| docker compose exec -T storage sh -c '
+    apk add --no-cache attr >/dev/null 2>&1
+    fixed=0; skipped=0; absent=0
+    while IFS="|" read -r bucket name version mime cc; do
+      f="${FILE_STORAGE_BACKEND_PATH:-/var/lib/storage}/${REGION:-stub}/${TENANT_ID:-stub}/$bucket/$name/$version"
+      [ -f "$f" ] || { absent=$((absent+1)); continue; }
+      if getfattr --only-values -n user.supabase.content-type "$f" >/dev/null 2>&1; then
+        skipped=$((skipped+1)); continue
+      fi
+      setfattr -n user.supabase.content-type -v "$mime" "$f"
+      setfattr -n user.supabase.cache-control -v "$cc" "$f"
+      fixed=$((fixed+1))
+    done
+    echo "Fixed: $fixed | already OK: $skipped | absent: $absent"'
+```
+
+The script processes **all buckets** (`product-images`, `firmware`, etc.) in one pass and reads `REGION` / `TENANT_ID` / `FILE_STORAGE_BACKEND_PATH` from the storage container's environment, so it works regardless of how those are configured.
+
+**Step 3 — Verify** with a previously-broken URL, bypassing any browser/CDN cache:
+
+```bash
+curl -si http://localhost:8000/storage/v1/object/public/product-images/<filename> | head -10
+```
+
+Expect `HTTP/1.1 200 OK` plus `content-type` and `cache-control` headers. If a CDN (e.g. Cloudflare) sits in front, it may still serve stale `500`s briefly — purge the cache or wait for TTL.
+
+### Why "some images work" can be misleading
+
+After a broken migration, you may see *some* images load fine in the browser. Two effects cause this:
+
+1. **Browser HTTP cache** — if the browser previously got a `200` (with `Cache-Control: max-age=3600`), it serves the cached body and never hits the origin until TTL expires. The image appears intact even though every fresh request would `500`.
+2. **CDN edge cache** — Cloudflare / similar caches the original `200` aggressively. Public Storage URLs with no cache-buster keep returning the cached response.
+
+Always verify with `curl -si http://localhost:8000/...` from the server (bypasses both caches) before concluding which files are actually OK.
 
 ---
 
