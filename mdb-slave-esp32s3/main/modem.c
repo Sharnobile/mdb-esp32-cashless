@@ -292,14 +292,46 @@ esp_err_t modem_init(const char *apn, const char *pin, modem_lte_mode_t mode) {
     return ESP_OK;
 }
 
+/* Poll AT+CEREG? until stat == 1 (home) or 5 (roaming). Up to 60 s. */
+static esp_err_t modem_wait_registered(void) {
+    char resp[96];
+    for (int i = 0; i < 30; i++) {
+        memset(resp, 0, sizeof(resp));
+        esp_err_t err = esp_modem_at(s_dce, "AT+CEREG?", resp, 3000);
+        if (err == ESP_OK && (strstr(resp, ",1") || strstr(resp, ",5"))) {
+            ESP_LOGI(TAG, "EPS registered: %s", resp);
+            return ESP_OK;
+        }
+        ESP_LOGW(TAG, "not registered (attempt %d/30): %s", i + 1, resp);
+        vTaskDelay(pdMS_TO_TICKS(2000));
+    }
+    return ESP_ERR_TIMEOUT;
+}
+
 esp_err_t modem_connect(void) {
-    ESP_LOGW(TAG, "modem_connect: stub returns ESP_ERR_NOT_SUPPORTED");
-    return ESP_ERR_NOT_SUPPORTED;
+    if (!s_dce) return ESP_ERR_INVALID_STATE;
+
+    /* Make sure RF is on (some modems boot at CFUN=4 = airplane). */
+    esp_err_t err = esp_modem_at(s_dce, "AT+CFUN=1", NULL, 5000);
+    ESP_LOGI(TAG, "AT+CFUN=1: %s", esp_err_to_name(err));
+
+    err = modem_wait_registered();
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "registration timeout");
+        return err;
+    }
+
+    /* PPP params already set in modem_probe — just enter DATA mode. */
+    err = esp_modem_set_mode(s_dce, ESP_MODEM_MODE_DATA);
+    ESP_LOGI(TAG, "set DATA mode: %s", esp_err_to_name(err));
+    return err;
 }
 
 esp_err_t modem_disconnect(void) {
-    ESP_LOGW(TAG, "modem_disconnect: stub returns ESP_OK (no-op)");
-    return ESP_OK;
+    if (!s_dce) return ESP_OK;
+    esp_err_t err = esp_modem_set_mode(s_dce, ESP_MODEM_MODE_COMMAND);
+    ESP_LOGI(TAG, "set COMMAND mode: %s", esp_err_to_name(err));
+    return err;
 }
 
 void modem_power_cycle(void) {
