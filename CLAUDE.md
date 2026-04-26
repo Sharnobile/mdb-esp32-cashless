@@ -61,6 +61,14 @@ Single main file `main/mdb-slave-esp32s3.c` runs these concurrent FreeRTOS tasks
 
 **CMakeLists.txt**: Uses explicit `REQUIRES` — adding a new header include likely requires adding the owning component to `REQUIRES` in `main/CMakeLists.txt` (e.g. `esp_wifi`, `esp_http_client`, `mqtt`, `driver`, `bt`, etc.).
 
+**Cellular driver (`modem.c` / `modem.h`)**: Self-contained SIM7080G driver
+introduced in P1 of the cellular milestone. Public API: `modem_probe`,
+`modem_init`, `modem_connect`, `modem_disconnect`, `modem_status`,
+`modem_power_cycle`. Not yet wired into `app_main` — that integration is
+P2 (network manager). To run the P1 validation harness, set
+`CONFIG_CASHLESS_TEST_MODE_MODEM=y` in `idf.py menuconfig` under the new
+"SIM7080G" menu.
+
 ### mdb-master-esp32s3 Architecture
 
 VMC simulator, polls MDB peripherals at addresses 0x08, 0x10, 0x60. Button ISR (`button0_isr_handler`) triggers a vend cycle. LED strip on GPIO48. DEX reader on GPIO17/18.
