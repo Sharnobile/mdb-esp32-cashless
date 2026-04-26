@@ -82,6 +82,8 @@ git commit -m "firmware(modem): align SIM7080G pin defines with LilyGo T-SIM7080
 
 Edit this task's section to add a one-line note: *"PWRKEY polarity: active-LOW direct"* OR *"PWRKEY polarity: active-LOW via inverting transistor (GPIO high → PWRKEY low)"*. This drives the implementation in Task 8.
 
+> **Pinout assumption (autonomous executor, 2026-04-26):** kept existing defines (RX=18, TX=17, PWR=14) from Leonardo's d3f8b05; PWRKEY polarity assumed direct active-LOW (LilyGo standard). Awaits user verification during Task 12 hardware acceptance.
+
 ---
 
 ### Task 2: Add Kconfig options for SIM7080G
