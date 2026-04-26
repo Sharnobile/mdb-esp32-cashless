@@ -271,7 +271,12 @@ esp_err_t modem_init(const char *apn, const char *pin, modem_lte_mode_t mode) {
         /* Tolerate failure — SIM may not require PIN. */
     }
 
-    /* Network mode: 38 = LTE only (we don't want GSM fallback). */
+    /* Network mode: 38 = LTE only (we don't want GSM fallback).
+     * CNMP/CMNB/CEREG=1 are best-effort — some SIM7080G firmware revisions
+     * accept the value but still negotiate the right RAT, others reject
+     * the command and pick a default that's good enough. We log the
+     * outcome but do not fail modem_init() on it; the registration check
+     * in modem_connect() is the load-bearing gate. */
     err = esp_modem_at(s_dce, "AT+CNMP=38", NULL, 3000);
     ESP_LOGI(TAG, "AT+CNMP=38: %s", esp_err_to_name(err));
 
@@ -281,26 +286,46 @@ esp_err_t modem_init(const char *apn, const char *pin, modem_lte_mode_t mode) {
     err = esp_modem_at(s_dce, cmnb_cmd, NULL, 3000);
     ESP_LOGI(TAG, "%s: %s", cmnb_cmd, esp_err_to_name(err));
 
-    /* Configure APN via the esp_modem helper (writes AT+CGDCONT). */
+    /* Configure APN via the esp_modem helper (writes AT+CGDCONT). This
+     * one IS load-bearing — without an APN the modem cannot attach. */
     err = esp_modem_set_apn(s_dce, apn);
     ESP_LOGI(TAG, "esp_modem_set_apn(%s): %s", apn, esp_err_to_name(err));
     if (err != ESP_OK) return err;
 
-    /* Enable +CEREG URC so we can poll registration cleanly later. */
+    /* Enable +CEREG URC so we can poll registration cleanly later.
+     * Best-effort like CNMP/CMNB. */
     esp_modem_at(s_dce, "AT+CEREG=1", NULL, 3000);
 
     return ESP_OK;
 }
 
-/* Poll AT+CEREG? until stat == 1 (home) or 5 (roaming). Up to 60 s. */
+/* Extract the registration `stat` field from a +CEREG response.
+ * Format: "+CEREG: <n>,<stat>[,...]". Returns -1 if unparseable. */
+static int parse_cereg_stat(const char *resp) {
+    const char *p = strstr(resp, "+CEREG:");
+    if (!p) return -1;
+    int n = 0, stat = -1;
+    if (sscanf(p, "+CEREG: %d,%d", &n, &stat) != 2) return -1;
+    return stat;
+}
+
+/* Poll AT+CEREG? until stat == 1 (home) or 5 (roaming). Up to 60 s.
+ * Uses positional parsing rather than strstr(",1") to avoid false
+ * positives on trailing AcT or location fields. */
 static esp_err_t modem_wait_registered(void) {
-    char resp[96];
+    /* esp_modem_at copies up to CONFIG_ESP_MODEM_C_API_STR_MAX (128) bytes
+     * regardless of buffer size — match that to avoid stack overflow on
+     * verbose firmware responses. */
+    char resp[128];
     for (int i = 0; i < 30; i++) {
         memset(resp, 0, sizeof(resp));
         esp_err_t err = esp_modem_at(s_dce, "AT+CEREG?", resp, 3000);
-        if (err == ESP_OK && (strstr(resp, ",1") || strstr(resp, ",5"))) {
-            ESP_LOGI(TAG, "EPS registered: %s", resp);
-            return ESP_OK;
+        if (err == ESP_OK) {
+            int stat = parse_cereg_stat(resp);
+            if (stat == 1 || stat == 5) {
+                ESP_LOGI(TAG, "EPS registered (stat=%d): %s", stat, resp);
+                return ESP_OK;
+            }
         }
         ESP_LOGW(TAG, "not registered (attempt %d/30): %s", i + 1, resp);
         vTaskDelay(pdMS_TO_TICKS(2000));
@@ -371,7 +396,9 @@ void modem_status(modem_status_t *out) {
 
     if (!s_dce) return;
 
-    char resp[96];
+    /* Buffer size matches CONFIG_ESP_MODEM_C_API_STR_MAX (128) — see
+     * modem_wait_registered() for the rationale. */
+    char resp[128];
 
     /* Signal quality. Response shape varies between firmwares — esp_modem
      * may strip the AT echo entirely and return just "+CSQ: 14,99\r\n",
@@ -387,9 +414,11 @@ void modem_status(modem_status_t *out) {
         }
     }
 
-    /* Registration */
+    /* Registration — positional parse to avoid false positives on
+     * trailing AcT/location fields. */
     if (esp_modem_at(s_dce, "AT+CEREG?", resp, 2000) == ESP_OK) {
-        out->registered = (strstr(resp, ",1") || strstr(resp, ",5")) != NULL;
+        int stat = parse_cereg_stat(resp);
+        out->registered = (stat == 1 || stat == 5);
     }
 
     /* Operator name */
