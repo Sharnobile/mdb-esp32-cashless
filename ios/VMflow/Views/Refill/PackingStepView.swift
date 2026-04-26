@@ -148,7 +148,7 @@ struct PackingStepView: View {
                         Text(item.productName)
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(outOfStock ? .secondary : .primary)
-                            .lineLimit(1)
+                            .fixedSize(horizontal: false, vertical: true)
 
                         HStack(spacing: 6) {
                             warehouseStockBadge(for: item)
@@ -259,7 +259,7 @@ struct PackingStepView: View {
                 Text(need.machineName)
                     .font(.subheadline)
                     .foregroundStyle(isDisabled ? .secondary : .primary)
-                    .lineLimit(1)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 HStack(spacing: 4) {
                     Text("needs \(need.quantity) / \(need.capacity)")

@@ -85,7 +85,7 @@ struct ReviewStepView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(suggestion.currentProductName)
                         .font(.subheadline.weight(.semibold))
-                        .lineLimit(1)
+                        .fixedSize(horizontal: false, vertical: true)
                         .strikethrough(!isUnassigned, color: .red)
                         .foregroundStyle(isUnassigned ? .secondary : .primary)
 

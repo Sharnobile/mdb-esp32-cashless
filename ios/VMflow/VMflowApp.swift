@@ -60,9 +60,10 @@ struct RootView: View {
 struct LaunchScreenView: View {
     var body: some View {
         VStack(spacing: 16) {
-            Image(systemName: "cup.and.saucer.fill")
-                .font(.system(size: 60))
-                .foregroundStyle(.blue)
+            Image("AppLogo")
+                .resizable()
+                .frame(width: 96, height: 96)
+                .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
             Text("VMflow")
                 .font(.largeTitle.bold())
             ProgressView()

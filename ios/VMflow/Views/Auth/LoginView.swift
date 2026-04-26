@@ -19,9 +19,10 @@ struct LoginView: View {
             VStack(spacing: 32) {
                 // Branding
                 VStack(spacing: 12) {
-                    Image(systemName: "cup.and.saucer.fill")
-                        .font(.system(size: 56))
-                        .foregroundStyle(.blue)
+                    Image("AppLogo")
+                        .resizable()
+                        .frame(width: 88, height: 88)
+                        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
                         .padding(.top, 60)
 
                     Text("VMflow")

@@ -201,7 +201,7 @@ struct RefillStepView: View {
                     HStack(spacing: 6) {
                         Text(refillTray.tray.productName)
                             .font(.subheadline.weight(.semibold))
-                            .lineLimit(1)
+                            .fixedSize(horizontal: false, vertical: true)
 
                         if soldDuringTour {
                             // Mini badge: a sale happened on this tray after
@@ -359,7 +359,7 @@ struct RefillStepView: View {
             Text(refillTray.tray.productName)
                 .font(.caption)
                 .foregroundStyle(.secondary)
-                .lineLimit(1)
+                .fixedSize(horizontal: false, vertical: true)
 
             Spacer()
 
