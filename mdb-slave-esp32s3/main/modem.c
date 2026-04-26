@@ -268,7 +268,23 @@ esp_err_t modem_disconnect(void) {
 }
 
 void modem_power_cycle(void) {
-    ESP_LOGW(TAG, "modem_power_cycle: stub does nothing");
+    /* Configure PWRKEY as output. Direction matters: on LilyGo (direct
+     * wiring), GPIO low = PWRKEY low = "press". On Leonardo's custom
+     * PCB (inverting transistor), GPIO high = PWRKEY low = "press".
+     * MODEM_PWRKEY_INVERTED selects between them. */
+    gpio_set_direction(MODEM_PIN_PWR, GPIO_MODE_OUTPUT);
+
+    const int idle_level    = MODEM_PWRKEY_INVERTED ? 0 : 1;
+    const int pressed_level = MODEM_PWRKEY_INVERTED ? 1 : 0;
+
+    gpio_set_level(MODEM_PIN_PWR, idle_level);
+    vTaskDelay(pdMS_TO_TICKS(100));
+    gpio_set_level(MODEM_PIN_PWR, pressed_level);
+    vTaskDelay(pdMS_TO_TICKS(1200));   /* SIM7080G PWRKEY ≥ 1.0 s */
+    gpio_set_level(MODEM_PIN_PWR, idle_level);
+
+    ESP_LOGI(TAG, "PWRKEY pulsed; waiting 5 s for boot...");
+    vTaskDelay(pdMS_TO_TICKS(5000));
 }
 
 void modem_status(modem_status_t *out) {
