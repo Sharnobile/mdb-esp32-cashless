@@ -47,6 +47,12 @@ final class DealsViewModel: ObservableObject {
     /// Collapse raw deal_cache rows into one entry per (retailer, offer_id).
     /// Picks the highest-confidence row as the "primary" and aggregates the
     /// full set of matched products / keyword groups for the detail sheet.
+    ///
+    /// Result is sorted by `key` ascending so the order is deterministic across
+    /// recomputes — Swift `Dictionary` iteration order is unspecified, so
+    /// without an explicit sort items would shuffle every time `userStates`
+    /// changes (e.g. after archive/pin), making downstream stable-sort ties
+    /// resolve differently and visibly reorder the list.
     var dedupedDeals: [DedupedDeal] {
         let validDeals = deals.filter { $0.isValid && $0.offerId != nil }
 
@@ -58,7 +64,7 @@ final class DealsViewModel: ObservableObject {
             groups[key, default: []].append(d)
         }
 
-        return groups.compactMap { (key, rows) -> DedupedDeal? in
+        let result: [DedupedDeal] = groups.compactMap { (key, rows) -> DedupedDeal? in
             let sorted = rows.sorted { $0.confidence > $1.confidence }
             guard let primary = sorted.first, let offerId = primary.offerId else { return nil }
 
@@ -98,24 +104,41 @@ final class DealsViewModel: ObservableObject {
                 pinnedAt: state?.pinnedAt
             )
         }
+
+        return result.sorted { $0.key < $1.key }
     }
 
     /// Non-archived deals with pinned ones floated to the top (most recent
     /// pin first), then sorted by discount desc. Matches the web behaviour.
+    /// `key` ascending breaks ties so equal-discount or equal-pinnedAt deals
+    /// don't shuffle when an unrelated archive/pin mutates `userStates`.
     var activeDeals: [DedupedDeal] {
         dedupedDeals
             .filter { !$0.archived }
             .sorted { a, b in
                 if a.pinned != b.pinned { return a.pinned && !b.pinned }
                 if a.pinned, b.pinned {
-                    return (a.pinnedAt ?? "") > (b.pinnedAt ?? "")
+                    let pa = a.pinnedAt ?? ""
+                    let pb = b.pinnedAt ?? ""
+                    if pa != pb { return pa > pb }
+                    return a.key < b.key
                 }
-                return (a.discountPct ?? -1) > (b.discountPct ?? -1)
+                let da = a.discountPct ?? -1
+                let db = b.discountPct ?? -1
+                if da != db { return da > db }
+                return a.key < b.key
             }
     }
 
     var archivedDeals: [DedupedDeal] {
-        dedupedDeals.filter { $0.archived }
+        dedupedDeals
+            .filter { $0.archived }
+            .sorted { a, b in
+                let da = a.discountPct ?? -1
+                let db = b.discountPct ?? -1
+                if da != db { return da > db }
+                return a.key < b.key
+            }
     }
 
     var archivedCount: Int { archivedDeals.count }
