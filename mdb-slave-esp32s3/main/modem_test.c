@@ -26,11 +26,6 @@
 
 #define TAG "modem_test"
 
-/* Forward-declared in modem.c (will move to modem.h in P3). */
-esp_err_t modem_nvs_load(char *apn_out, size_t apn_size,
-                         char *pin_out, size_t pin_size,
-                         modem_lte_mode_t *mode_out);
-
 void app_main(void) {
     ESP_LOGW(TAG, "================================================");
     ESP_LOGW(TAG, "  P1 modem driver test main (NOT PRODUCTION)   ");

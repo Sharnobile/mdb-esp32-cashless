@@ -25,11 +25,6 @@
 #define NVS_KEY_PIN     "sim_pin"
 #define NVS_KEY_MODE    "lte_mode"
 
-/* Recommended buffer sizes for callers of modem_nvs_load(). Will be
- * promoted to modem.h alongside the helpers in P3. */
-#define MODEM_APN_MAX   64
-#define MODEM_PIN_MAX   12
-
 /* Pin defaults must match Task 1's findings. Currently: */
 #define MODEM_PIN_RX    GPIO_NUM_18
 #define MODEM_PIN_TX    GPIO_NUM_17
@@ -46,13 +41,6 @@
 static esp_modem_dce_t  *s_dce  = NULL;
 static esp_netif_t      *s_netif = NULL;
 static bool              s_probed_present = false;
-
-/* === Internal API — promoted to modem.h in P3 ===================== */
-esp_err_t modem_nvs_load(char *apn_out, size_t apn_size,
-                         char *pin_out, size_t pin_size,
-                         modem_lte_mode_t *mode_out);
-esp_err_t modem_nvs_save(const char *apn, const char *pin, modem_lte_mode_t mode);
-/* ================================================================== */
 
 /* Load cellular config from NVS. Returns ESP_OK on success and fills the
  * outputs; returns ESP_ERR_NVS_NOT_FOUND if either the vmflow namespace

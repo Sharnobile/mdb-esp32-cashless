@@ -94,6 +94,31 @@ void modem_power_cycle(void);
  */
 void modem_status(modem_status_t *out);
 
+/* ---- NVS helpers (cellular config) ---- */
+
+/* Recommended buffer sizes for the load helper. */
+#define MODEM_APN_MAX   64
+#define MODEM_PIN_MAX   12
+
+/*
+ * Load cellular config from NVS namespace "vmflow", keys
+ * "apn" / "sim_pin" / "lte_mode". Returns ESP_OK on success and fills
+ * the outputs. Returns ESP_ERR_NVS_NOT_FOUND if either the namespace
+ * does not exist yet OR the apn key is missing/empty (caller treats
+ * both as "no cellular config saved"). Returns ESP_ERR_INVALID_ARG if
+ * apn_out is NULL or apn_size is 0. pin_out and mode_out are optional.
+ */
+esp_err_t modem_nvs_load(char *apn_out, size_t apn_size,
+                         char *pin_out, size_t pin_size,
+                         modem_lte_mode_t *mode_out);
+
+/*
+ * Save cellular config to NVS. apn must be non-NULL and non-empty;
+ * pin may be NULL or empty. Returns the underlying NVS error on
+ * failure.
+ */
+esp_err_t modem_nvs_save(const char *apn, const char *pin, modem_lte_mode_t mode);
+
 #ifdef __cplusplus
 }
 #endif
