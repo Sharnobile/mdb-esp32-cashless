@@ -18,6 +18,8 @@
 #define NVS_KEY_PIN     "sim_pin"
 #define NVS_KEY_MODE    "lte_mode"
 
+/* Recommended buffer sizes for callers of modem_nvs_load(). Will be
+ * promoted to modem.h alongside the helpers in P3. */
 #define MODEM_APN_MAX   64
 #define MODEM_PIN_MAX   12
 
@@ -29,13 +31,18 @@ esp_err_t modem_nvs_save(const char *apn, const char *pin, modem_lte_mode_t mode
 /* ================================================================== */
 
 /* Load cellular config from NVS. Returns ESP_OK on success and fills the
- * outputs; returns ESP_ERR_NVS_NOT_FOUND if no APN is set (in which case
- * the caller must wait for the captive portal to populate NVS). */
+ * outputs; returns ESP_ERR_NVS_NOT_FOUND if either the vmflow namespace
+ * does not exist yet OR the apn key is missing/empty (caller treats both
+ * as "no cellular config saved"). Returns ESP_ERR_INVALID_ARG if apn_out
+ * is NULL or apn_size is 0. */
 esp_err_t modem_nvs_load(char *apn_out, size_t apn_size,
                          char *pin_out, size_t pin_size,
                          modem_lte_mode_t *mode_out) {
+    if (!apn_out || apn_size == 0) return ESP_ERR_INVALID_ARG;
+
     nvs_handle_t h;
     esp_err_t err = nvs_open(NVS_NAMESPACE, NVS_READONLY, &h);
+    if (err == ESP_ERR_NVS_NOT_FOUND) return ESP_ERR_NVS_NOT_FOUND;
     if (err != ESP_OK) return err;
 
     size_t s = apn_size;
@@ -55,6 +62,10 @@ esp_err_t modem_nvs_load(char *apn_out, size_t apn_size,
     if (mode_out) {
         uint8_t m = MODEM_LTE_MODE_BOTH;
         nvs_get_u8(h, NVS_KEY_MODE, &m);
+        /* Reject garbage from a corrupted or hand-edited NVS. */
+        if (m < MODEM_LTE_MODE_CATM || m > MODEM_LTE_MODE_BOTH) {
+            m = MODEM_LTE_MODE_BOTH;
+        }
         *mode_out = (modem_lte_mode_t)m;
     }
 
