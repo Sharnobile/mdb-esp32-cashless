@@ -16,6 +16,9 @@ Docker/vuejs/package-lock.json
 
 .vscode/*
 
+# VS Code Local History extension snapshots
+**/.history/
+
 .project
 
 .temp
