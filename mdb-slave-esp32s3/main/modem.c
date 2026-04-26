@@ -9,8 +9,79 @@
 #include <string.h>
 #include <esp_log.h>
 #include <esp_err.h>
+#include <nvs.h>
 
 #define TAG "modem"
+
+#define NVS_NAMESPACE   "vmflow"
+#define NVS_KEY_APN     "apn"
+#define NVS_KEY_PIN     "sim_pin"
+#define NVS_KEY_MODE    "lte_mode"
+
+#define MODEM_APN_MAX   64
+#define MODEM_PIN_MAX   12
+
+/* === Internal API — promoted to modem.h in P3 ===================== */
+esp_err_t modem_nvs_load(char *apn_out, size_t apn_size,
+                         char *pin_out, size_t pin_size,
+                         modem_lte_mode_t *mode_out);
+esp_err_t modem_nvs_save(const char *apn, const char *pin, modem_lte_mode_t mode);
+/* ================================================================== */
+
+/* Load cellular config from NVS. Returns ESP_OK on success and fills the
+ * outputs; returns ESP_ERR_NVS_NOT_FOUND if no APN is set (in which case
+ * the caller must wait for the captive portal to populate NVS). */
+esp_err_t modem_nvs_load(char *apn_out, size_t apn_size,
+                         char *pin_out, size_t pin_size,
+                         modem_lte_mode_t *mode_out) {
+    nvs_handle_t h;
+    esp_err_t err = nvs_open(NVS_NAMESPACE, NVS_READONLY, &h);
+    if (err != ESP_OK) return err;
+
+    size_t s = apn_size;
+    err = nvs_get_str(h, NVS_KEY_APN, apn_out, &s);
+    if (err != ESP_OK || strlen(apn_out) == 0) {
+        nvs_close(h);
+        return ESP_ERR_NVS_NOT_FOUND;
+    }
+
+    if (pin_out && pin_size > 0) {
+        s = pin_size;
+        if (nvs_get_str(h, NVS_KEY_PIN, pin_out, &s) != ESP_OK) {
+            pin_out[0] = '\0';
+        }
+    }
+
+    if (mode_out) {
+        uint8_t m = MODEM_LTE_MODE_BOTH;
+        nvs_get_u8(h, NVS_KEY_MODE, &m);
+        *mode_out = (modem_lte_mode_t)m;
+    }
+
+    nvs_close(h);
+    return ESP_OK;
+}
+
+esp_err_t modem_nvs_save(const char *apn, const char *pin, modem_lte_mode_t mode) {
+    if (!apn || strlen(apn) == 0) return ESP_ERR_INVALID_ARG;
+
+    nvs_handle_t h;
+    esp_err_t err = nvs_open(NVS_NAMESPACE, NVS_READWRITE, &h);
+    if (err != ESP_OK) return err;
+
+    err = nvs_set_str(h, NVS_KEY_APN, apn);
+    if (err == ESP_OK && pin) {
+        err = nvs_set_str(h, NVS_KEY_PIN, pin);
+    }
+    if (err == ESP_OK) {
+        err = nvs_set_u8(h, NVS_KEY_MODE, (uint8_t)mode);
+    }
+    if (err == ESP_OK) {
+        err = nvs_commit(h);
+    }
+    nvs_close(h);
+    return err;
+}
 
 bool modem_probe(void) {
     ESP_LOGW(TAG, "modem_probe: stub returns false");
