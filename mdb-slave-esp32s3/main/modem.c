@@ -252,9 +252,44 @@ bool modem_probe(void) {
 }
 
 esp_err_t modem_init(const char *apn, const char *pin, modem_lte_mode_t mode) {
-    (void)apn; (void)pin; (void)mode;
-    ESP_LOGW(TAG, "modem_init: stub returns ESP_ERR_NOT_SUPPORTED");
-    return ESP_ERR_NOT_SUPPORTED;
+    if (!s_dce) {
+        ESP_LOGE(TAG, "modem_init called before successful modem_probe");
+        return ESP_ERR_INVALID_STATE;
+    }
+    if (!apn || strlen(apn) == 0) {
+        ESP_LOGE(TAG, "modem_init: APN required");
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    esp_err_t err;
+
+    /* SIM PIN, if provided. AT+CPIN expects only the PIN if it's needed;
+     * if the SIM is PIN-less, sending AT+CPIN errors and we ignore that. */
+    if (pin && strlen(pin) > 0) {
+        err = esp_modem_set_pin(s_dce, pin);
+        ESP_LOGI(TAG, "esp_modem_set_pin: %s", esp_err_to_name(err));
+        /* Tolerate failure — SIM may not require PIN. */
+    }
+
+    /* Network mode: 38 = LTE only (we don't want GSM fallback). */
+    err = esp_modem_at(s_dce, "AT+CNMP=38", NULL, 3000);
+    ESP_LOGI(TAG, "AT+CNMP=38: %s", esp_err_to_name(err));
+
+    /* CMNB selects within LTE: 1=Cat-M, 2=NB-IoT, 3=both. */
+    char cmnb_cmd[24];
+    snprintf(cmnb_cmd, sizeof(cmnb_cmd), "AT+CMNB=%d", (int)mode);
+    err = esp_modem_at(s_dce, cmnb_cmd, NULL, 3000);
+    ESP_LOGI(TAG, "%s: %s", cmnb_cmd, esp_err_to_name(err));
+
+    /* Configure APN via the esp_modem helper (writes AT+CGDCONT). */
+    err = esp_modem_set_apn(s_dce, apn);
+    ESP_LOGI(TAG, "esp_modem_set_apn(%s): %s", apn, esp_err_to_name(err));
+    if (err != ESP_OK) return err;
+
+    /* Enable +CEREG URC so we can poll registration cleanly later. */
+    esp_modem_at(s_dce, "AT+CEREG=1", NULL, 3000);
+
+    return ESP_OK;
 }
 
 esp_err_t modem_connect(void) {
