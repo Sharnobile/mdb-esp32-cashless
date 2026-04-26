@@ -34,7 +34,7 @@ P2 introduces two new files, materially changes one large file, and removes one 
 
 ---
 
-## Chunk 1: Foundation — NVS promotion + network module skeleton (Tasks 1–5)
+## Chunk 1: Foundation — NVS promotion + network module skeleton (Tasks 1–3)
 
 This chunk is purely additive. No production code paths change. The new `network.c` is wired into the build but never called yet — `network_init()` is a stub. Production behaviour is bit-identical to post-P1 state.
 
