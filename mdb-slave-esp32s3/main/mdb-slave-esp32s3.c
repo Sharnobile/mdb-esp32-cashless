@@ -2478,6 +2478,7 @@ static void factory_reset_task(void *arg) {
     }
 }
 
+#if !CONFIG_CASHLESS_TEST_MODE_MODEM
 void app_main(void) {
 
     gpio_set_direction(PIN_MDB_RX, GPIO_MODE_INPUT);
@@ -2805,3 +2806,4 @@ void app_main(void) {
     xTaskCreatePinnedToCore(vTaskBitEvent, "TaskBitEvent", 2048, NULL, 1, NULL, 0);
     xEventGroupSetBits(xLedEventGroup, BIT_EVT_TRIGGER);
 }
+#endif /* !CONFIG_CASHLESS_TEST_MODE_MODEM */
