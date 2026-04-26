@@ -354,8 +354,64 @@ void modem_power_cycle(void) {
     vTaskDelay(pdMS_TO_TICKS(5000));
 }
 
+/* Convert AT+CSQ raw value (0-31, 99 = unknown) to dBm. Per 3GPP 27.007:
+ *   raw = 0   → -113 dBm
+ *   raw = 31  → -51 dBm
+ *   raw = 99  → unknown (return 0)
+ *   else      → -113 + 2 * raw */
+static int8_t csq_to_dbm(int raw) {
+    if (raw == 99 || raw < 0 || raw > 31) return 0;
+    return -113 + (raw * 2);
+}
+
 void modem_status(modem_status_t *out) {
     if (!out) return;
     memset(out, 0, sizeof(*out));
     out->active_mode = MODEM_LTE_MODE_BOTH;
+
+    if (!s_dce) return;
+
+    char resp[96];
+
+    /* Signal quality. Response shape varies between firmwares — esp_modem
+     * may strip the AT echo entirely and return just "+CSQ: 14,99\r\n",
+     * or it may include a leading "\r\n+CSQ: ...". Use strstr to find
+     * the prefix instead of a positional sscanf format. */
+    if (esp_modem_at(s_dce, "AT+CSQ", resp, 2000) == ESP_OK) {
+        const char *p = strstr(resp, "+CSQ:");
+        if (p) {
+            int rssi_raw = -1, ber = -1;
+            if (sscanf(p, "+CSQ: %d,%d", &rssi_raw, &ber) >= 1) {
+                out->rssi_dbm = csq_to_dbm(rssi_raw);
+            }
+        }
+    }
+
+    /* Registration */
+    if (esp_modem_at(s_dce, "AT+CEREG?", resp, 2000) == ESP_OK) {
+        out->registered = (strstr(resp, ",1") || strstr(resp, ",5")) != NULL;
+    }
+
+    /* Operator name */
+    if (esp_modem_at(s_dce, "AT+COPS?", resp, 2000) == ESP_OK) {
+        /* Response: +COPS: 0,0,"Vodafone DE",7  — extract the quoted string */
+        char *first = strchr(resp, '"');
+        if (first) {
+            char *second = strchr(first + 1, '"');
+            if (second) {
+                size_t len = second - first - 1;
+                if (len >= sizeof(out->operator_name)) len = sizeof(out->operator_name) - 1;
+                memcpy(out->operator_name, first + 1, len);
+                out->operator_name[len] = '\0';
+            }
+        }
+    }
+
+    /* IP address (only valid in PPP/data mode) */
+    if (s_netif) {
+        esp_netif_ip_info_t ip_info;
+        if (esp_netif_get_ip_info(s_netif, &ip_info) == ESP_OK && ip_info.ip.addr != 0) {
+            esp_ip4addr_ntoa(&ip_info.ip, out->ip, sizeof(out->ip));
+        }
+    }
 }
