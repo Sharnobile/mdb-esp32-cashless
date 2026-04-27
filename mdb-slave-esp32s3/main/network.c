@@ -286,7 +286,9 @@ static void cellular_bring_up_task(void *arg) {
  * on its next tick). Total worst-case duration ~6-30s depending on how long
  * each modem_connect takes (CFUN + registration + PPP). */
 #define PPP_RECONNECT_ATTEMPTS  3
+#define OFFLINE_RETRY_DELAY_S   30
 static int s_ppp_reconnect_attempts = 0;
+static void schedule_offline_retry(void);
 
 static void ppp_reconnect_task(void *arg) {
     (void)arg;
@@ -318,13 +320,55 @@ static void ppp_reconnect_task(void *arg) {
             return;
         }
     }
-    /* All Layer-1 attempts exhausted — modem watchdog (Layer 2) will
-     * pick up from here on its next tick. */
-    ESP_LOGE(TAG, "PPP Layer-1 reconnect exhausted — handing off to watchdog");
+    /* All Layer-1 attempts exhausted — drop to OFFLINE and schedule a
+     * delayed retry. Without this, OFFLINE was a dead-end: the modem
+     * watchdog (Layer 2) only fires on AT-ping failure and skips the
+     * ping entirely while PPP looks alive, so it could miss the
+     * unreachable state for minutes; mqtt_watchdog (Layer 3) only
+     * hard-reboots after 10 min. We prefer to keep retrying.
+     *
+     * Schedule a fresh cellular_bring_up_task after OFFLINE_RETRY_DELAY_S
+     * — that path runs the full modem_init + modem_connect sequence,
+     * which is the right thing to do if Layer 1 couldn't recover (e.g.
+     * the modem itself is hung and needs power-cycling, or registration
+     * was lost). */
+    ESP_LOGE(TAG, "PPP Layer-1 reconnect exhausted — dropping to OFFLINE, "
+                  "will retry in %d s", OFFLINE_RETRY_DELAY_S);
     s_ppp_reconnect_attempts = 0;
     s_state = NETWORK_STATE_OFFLINE;
     network_fire_event(NETWORK_EVENT_UPLINK_DOWN);
+    schedule_offline_retry();
     vTaskDelete(NULL);
+}
+
+/* Periodic retry while in OFFLINE — re-spawns cellular_bring_up_task
+ * after a fixed delay. Independent of the modem watchdog so we recover
+ * even when AT pings are skipped (which happens whenever PPP looks
+ * locally alive even though carrier-side is dead). */
+static esp_timer_handle_t s_offline_retry_timer = NULL;
+
+static void offline_retry_cb(void *arg) {
+    (void)arg;
+    if (s_state != NETWORK_STATE_OFFLINE) {
+        ESP_LOGI(TAG, "offline retry: state changed to %d, skipping", s_state);
+        return;
+    }
+    ESP_LOGW(TAG, "offline retry: re-spawning cellular_bring_up_task");
+    s_state = NETWORK_STATE_CELLULAR_REGISTERING;
+    xTaskCreate(cellular_bring_up_task, "cell_up", 4096, NULL, 4, NULL);
+}
+
+static void schedule_offline_retry(void) {
+    if (!s_offline_retry_timer) {
+        const esp_timer_create_args_t args = {
+            .callback = offline_retry_cb,
+            .name     = "offline_retry"
+        };
+        esp_timer_create(&args, &s_offline_retry_timer);
+    }
+    /* one-shot — re-armed by next exhaustion */
+    esp_timer_stop(s_offline_retry_timer);
+    esp_timer_start_once(s_offline_retry_timer, OFFLINE_RETRY_DELAY_S * 1000000ULL);
 }
 
 /* PPP status event handler — fires on NETIF_PPP_LOST_IP and friends.

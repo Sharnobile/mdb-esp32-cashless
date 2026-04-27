@@ -2408,11 +2408,21 @@ static void network_event_cb(network_event_t event, void *user_data) {
                 sntp_started = true;
             }
 
-            if (!mqtt_started && mqttClient) {
-                ESP_LOGW(TAG, "MQTT: starting client (company='%s' device='%s', client=%p)",
-                         my_company_id, my_device_id, mqttClient);
-                esp_mqtt_client_start(mqttClient);
-                mqtt_last_connected_tick = xTaskGetTickCount();
+            /* mqtt_started=true means we already kicked the client at
+             * least once. esp_mqtt_client_reconnect() forces an
+             * immediate reconnect attempt instead of waiting for the
+             * client's internal reconnect timer (which can be 5-30s);
+             * this is what we want when uplink just came back. */
+            if (mqttClient) {
+                if (!mqtt_started) {
+                    ESP_LOGW(TAG, "MQTT: starting client (company='%s' device='%s', client=%p)",
+                             my_company_id, my_device_id, mqttClient);
+                    esp_mqtt_client_start(mqttClient);
+                    mqtt_last_connected_tick = xTaskGetTickCount();
+                } else {
+                    ESP_LOGW(TAG, "MQTT: uplink restored, forcing reconnect");
+                    esp_mqtt_client_reconnect(mqttClient);
+                }
             }
 
             if (mqtt_watchdog_timer == NULL) {
@@ -2429,7 +2439,17 @@ static void network_event_cb(network_event_t event, void *user_data) {
             break;
 
         case NETWORK_EVENT_UPLINK_DOWN:
-            ESP_LOGW(TAG, "uplink down — MQTT will reconnect when uplink returns");
+            /* Tell MQTT to disconnect so it doesn't sit on a dead socket
+             * waiting for getaddrinfo / TCP timeouts. The client will be
+             * forced back online via esp_mqtt_client_reconnect() in the
+             * UPLINK_UP branch above when PPP recovers. Without this,
+             * the client kept the original socket alive across the PPP
+             * gap — sometimes resulting in 5+ minute delays before MQTT
+             * detected the dead link via its internal keepalive. */
+            ESP_LOGW(TAG, "uplink down — disconnecting MQTT client");
+            if (mqttClient && mqtt_started) {
+                esp_mqtt_client_disconnect(mqttClient);
+            }
             break;
 
         case NETWORK_EVENT_SOFTAP_STARTED:
