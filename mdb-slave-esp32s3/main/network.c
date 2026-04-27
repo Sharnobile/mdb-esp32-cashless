@@ -26,7 +26,11 @@
 #include <esp_wifi.h>
 #include <esp_event.h>
 #include <esp_netif.h>
+#include <esp_netif_ip_addr.h>
 #include <esp_timer.h>
+
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 #include "webui_server.h"
 
@@ -200,18 +204,121 @@ static void network_wifi_event_handler(void *arg, esp_event_base_t event_base, i
         }
 }
 
+/* ---- Cellular bring-up ----
+ *
+ * Background task that runs modem_init + modem_connect using the APN
+ * stored in NVS. Spawned by network_init (when APN is already in NVS)
+ * or by network_cellular_configure (when the captive portal saves a
+ * fresh APN). Fires NETWORK_EVENT_UPLINK_UP on success.
+ */
+static void cellular_bring_up_task(void *arg) {
+    (void)arg;
+    char apn[MODEM_APN_MAX], pin[MODEM_PIN_MAX];
+    modem_lte_mode_t mode;
+
+    esp_err_t err = modem_nvs_load(apn, sizeof(apn), pin, sizeof(pin), &mode);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "cellular bring-up: no APN — task exiting");
+        vTaskDelete(NULL);
+        return;
+    }
+
+    s_state = NETWORK_STATE_CELLULAR_REGISTERING;
+
+    err = modem_init(apn, pin, mode);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "modem_init failed: %s", esp_err_to_name(err));
+        s_state = NETWORK_STATE_OFFLINE;
+        vTaskDelete(NULL);
+        return;
+    }
+
+    err = modem_connect();
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "modem_connect failed: %s", esp_err_to_name(err));
+        s_state = NETWORK_STATE_OFFLINE;
+        vTaskDelete(NULL);
+        return;
+    }
+
+    s_state = NETWORK_STATE_CELLULAR_UP;
+    ESP_LOGI(TAG, "cellular up");
+    network_fire_event(NETWORK_EVENT_UPLINK_UP);
+    vTaskDelete(NULL);
+}
+
+/* PPP status event handler — fires on NETIF_PPP_LOST_IP and friends.
+ * For now we just log + transition state. P4 watchdog escalates. */
+static void network_ppp_event_handler(void *arg, esp_event_base_t event_base,
+                                       int32_t event_id, void *event_data) {
+    (void)arg; (void)event_data;
+    if (event_base != IP_EVENT) return;
+    if (event_id == IP_EVENT_PPP_GOT_IP) {
+        ESP_LOGI(TAG, "PPP GOT_IP");
+        /* state transition handled in cellular_bring_up_task — this
+         * event is informational because esp_modem_set_mode(DATA)
+         * already drives the PPP lifecycle synchronously. */
+    } else if (event_id == IP_EVENT_PPP_LOST_IP) {
+        ESP_LOGW(TAG, "PPP LOST_IP");
+        if (s_state == NETWORK_STATE_CELLULAR_UP) {
+            s_state = NETWORK_STATE_OFFLINE;
+            network_fire_event(NETWORK_EVENT_UPLINK_DOWN);
+        }
+    }
+}
+
 /* ---- Public API ---- */
 
 void network_init(void) {
+    /* PPP handler registered unconditionally and BEFORE modem_probe — the
+     * probe may toggle PPP state and we want the handler ready for
+     * IP_EVENT_PPP_LOST_IP / GOT_IP either way. The WiFi handlers are
+     * registered later (and only on the WiFi branch) since cellular-only
+     * boards never run esp_wifi_init. */
+    esp_event_handler_instance_register(IP_EVENT, IP_EVENT_PPP_GOT_IP,
+                                         network_ppp_event_handler, NULL, NULL);
+    esp_event_handler_instance_register(IP_EVENT, IP_EVENT_PPP_LOST_IP,
+                                         network_ppp_event_handler, NULL, NULL);
+
     ESP_LOGI(TAG, "network_init: probing modem...");
     bool modem_present = modem_probe();
     ESP_LOGI(TAG, "modem_probe → %s", modem_present ? "true" : "false");
 
     if (modem_present) {
-        ESP_LOGW(TAG, "cellular branch not yet implemented in P2 C2 — "
-                      "falling through to WiFi for now");
+        ESP_LOGI(TAG, "cellular branch — WiFi STA will NOT be initialised");
+
+        /* Bring up SoftAP only — the captive portal serves the
+         * cellular config wizard (P3) so the user can enter APN/PIN.
+         * P3 wires this; for now we still need SoftAP up so the user
+         * has something to talk to. We init WiFi in AP-only mode and
+         * start the radio here so network_start_softap() can apply
+         * the AP config. */
+        esp_netif_create_default_wifi_ap();
+        wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+        esp_wifi_init(&cfg);
+        esp_wifi_set_mode(WIFI_MODE_AP);
+        esp_wifi_start();
+        s_state = NETWORK_STATE_SOFTAP_ONLY;
+        network_start_softap();
+
+        /* If the user has previously saved an APN, kick off the
+         * cellular bring-up in a background task. Otherwise wait
+         * here for the captive portal (P3) to call
+         * network_cellular_configure(). */
+        char apn[MODEM_APN_MAX], pin[MODEM_PIN_MAX];
+        modem_lte_mode_t mode;
+        esp_err_t err = modem_nvs_load(apn, sizeof(apn), pin, sizeof(pin), &mode);
+        if (err == ESP_OK) {
+            ESP_LOGI(TAG, "APN found in NVS — starting cellular bring-up task");
+            xTaskCreate(cellular_bring_up_task, "cell_up", 4096, NULL, 4, NULL);
+        } else {
+            ESP_LOGI(TAG, "no APN in NVS — waiting for captive portal config");
+        }
+
+        return;  /* DO NOT init WiFi STA on cellular boards */
     }
 
+    /* ---- WiFi-only branch ---- */
     s_state = NETWORK_STATE_WIFI_CONNECTING;
 
     esp_netif_create_default_wifi_sta();
@@ -239,7 +346,49 @@ void network_get_status(network_status_t *out) {
     if (!out) return;
     memset(out, 0, sizeof(*out));
     out->state = s_state;
-    strcpy(out->uplink_kind, "none");
+    out->uplink_up = (s_state == NETWORK_STATE_WIFI_UP || s_state == NETWORK_STATE_CELLULAR_UP);
+
+    if (s_state == NETWORK_STATE_WIFI_UP)        strcpy(out->uplink_kind, "wifi");
+    else if (s_state == NETWORK_STATE_CELLULAR_UP) strcpy(out->uplink_kind, "cellular");
+    else                                          strcpy(out->uplink_kind, "none");
+
+    /* WiFi block — populated only when WiFi STA has been initialised
+     * AND a SSID has been saved/configured. esp_wifi_get_config returns
+     * an error pre-init or when WiFi was never started (cellular boards),
+     * so we use it as the gate. */
+    wifi_config_t wcfg = {0};
+    if (esp_wifi_get_config(WIFI_IF_STA, &wcfg) == ESP_OK && wcfg.sta.ssid[0] != 0) {
+        out->wifi_initialised = true;
+        strncpy(out->wifi_ssid, (const char *)wcfg.sta.ssid, sizeof(out->wifi_ssid) - 1);
+
+        wifi_ap_record_t ap = {0};
+        if (esp_wifi_sta_get_ap_info(&ap) == ESP_OK) {
+            out->wifi_rssi = ap.rssi;
+        }
+
+        esp_netif_t *sta = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+        if (sta) {
+            esp_netif_ip_info_t ip_info;
+            if (esp_netif_get_ip_info(sta, &ip_info) == ESP_OK && ip_info.ip.addr != 0) {
+                esp_ip4addr_ntoa(&ip_info.ip, out->wifi_ip, sizeof(out->wifi_ip));
+            }
+        }
+    }
+
+    /* Cellular block — populated only if modem was detected (we sit in
+     * one of the cellular states or in SOFTAP_ONLY post-cellular-branch). */
+    if (s_state == NETWORK_STATE_CELLULAR_REGISTERING ||
+        s_state == NETWORK_STATE_CELLULAR_UP ||
+        s_state == NETWORK_STATE_SOFTAP_ONLY) {
+        modem_status_t ms;
+        modem_status(&ms);
+        out->modem_present       = true;
+        out->cellular_registered = ms.registered;
+        out->cellular_rssi_dbm   = ms.rssi_dbm;
+        strncpy(out->cellular_operator, ms.operator_name, sizeof(out->cellular_operator) - 1);
+        strncpy(out->cellular_ip, ms.ip, sizeof(out->cellular_ip) - 1);
+        out->cellular_mode       = ms.active_mode;
+    }
 }
 
 void network_register_callback(network_event_cb_t cb, void *user_data) {
@@ -248,18 +397,39 @@ void network_register_callback(network_event_cb_t cb, void *user_data) {
 }
 
 esp_err_t network_start_softap(void) {
-    ESP_LOGW(TAG, "network_start_softap: stub returns ESP_OK");
+    if (s_softap_active) {
+        ESP_LOGI(TAG, "network_start_softap: already active");
+        return ESP_OK;
+    }
+    start_softap();
+    start_dns_server();
+    start_rest_server();
+    s_softap_active = true;
+    network_fire_event(NETWORK_EVENT_SOFTAP_STARTED);
     return ESP_OK;
 }
 
 esp_err_t network_stop_softap(void) {
+    if (!s_softap_active) {
+        return ESP_OK;
+    }
+    stop_rest_server();
+    stop_dns_server();
+    s_softap_active = false;
+    network_fire_event(NETWORK_EVENT_SOFTAP_STOPPED);
     return ESP_OK;
 }
 
 esp_err_t network_cellular_configure(const char *apn, const char *pin, modem_lte_mode_t mode) {
-    (void)apn; (void)pin; (void)mode;
-    ESP_LOGW(TAG, "network_cellular_configure: stub returns ESP_ERR_NOT_SUPPORTED");
-    return ESP_ERR_NOT_SUPPORTED;
+    esp_err_t err = modem_nvs_save(apn, pin, mode);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "network_cellular_configure: modem_nvs_save failed: %s",
+                 esp_err_to_name(err));
+        return err;
+    }
+    /* Spawn the bring-up task — same one network_init uses. */
+    xTaskCreate(cellular_bring_up_task, "cell_up", 4096, NULL, 4, NULL);
+    return ESP_OK;
 }
 
 esp_err_t network_wifi_configure(const char *ssid, const char *password) {
