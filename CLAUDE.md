@@ -79,6 +79,20 @@ the callback either spawns `provision_claim_task` (first-boot claim
 flow) or starts the MQTT client. The pre-P2 inline `wifi_event_handler`
 (~165 lines) was extracted into `network.c`.
 
+**Captive portal wizard (P3)**: `webui_server.c` exposes
+`GET /api/v1/system/info` (returns `{variant, wizard_state, uplink:{kind,wifi,cellular}, claim:{claimed, prov_code_set}}` from `network_get_status()`),
+plus three POST endpoints: `/api/v1/cellular/configure` `{apn, pin, lte_mode}`,
+`/api/v1/wifi/configure` `{ssid, password}` (rejected on cellular boards),
+and `/api/v1/claim` `{prov_code, srv_url}` (writes NVS + spawns
+`provision_claim_task` from `provision.h`).
+The captive portal HTML (`webui/index.html`, embedded via `EMBED_FILES`)
+is a vanilla-JS SPA: polls `/system/info` every 2 s, renders one of 7
+wizard-state views (booting, offline, cellular_config, cellular_registering,
+wifi_connecting, ready_to_claim, claimed), shows a status banner with
+signal bars + operator + IP, and disables submit buttons during in-flight
+or registering states. The old combined `/api/v1/settings/set` endpoint
+was removed in P3.
+
 **Cellular driver (`modem.c` / `modem.h`)**: SIM7080G driver introduced
 in P1. Public API: `modem_probe`, `modem_init`, `modem_connect`,
 `modem_disconnect`, `modem_status`, `modem_power_cycle`, plus NVS
