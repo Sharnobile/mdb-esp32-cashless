@@ -486,6 +486,37 @@ esp_err_t modem_init(const char *apn, const char *pin, modem_lte_mode_t mode) {
      * Best-effort like CNMP/CMNB. */
     esp_modem_at(s_dce, "AT+CEREG=1", NULL, 8000);
 
+    /* Disable PSM (Power Save Mode) and eDRX (extended Discontinuous
+     * Reception). IoT-oriented APNs like Telekom's `sensor.net` enable
+     * both by default to save battery — at the cost of MQTT/TLS
+     * reachability:
+     *
+     *   - PSM: modem detaches and sleeps for up to 3.5h, drops carrier
+     *     NAT translations, server-initiated traffic is lost, outbound
+     *     SYNs come back as ICMP host-unreachable until the modem
+     *     wakes on its own schedule.
+     *   - eDRX: modem listens for paging only every X seconds (up to
+     *     ~163s on LTE-M, ~10485s on NB-IoT). Carrier NAT entries
+     *     evict during the dark window, MQTT pings can't reach back.
+     *
+     * Field symptom (captured from a Telekom IoT SIM):
+     *   E esp-tls: [sock=N] connect() error: Host is unreachable
+     *   E mqtt_client: Error transport connect
+     *   ...repeated every 5s as the MQTT client retries...
+     *
+     * Even though PPP nominally stays up (lwIP's netif still has the
+     * IP), TCP packets just never reach the broker. We need an
+     * always-on radio for an MDB cashless device — battery isn't a
+     * concern, plug power is. So: disable both. Best-effort: some
+     * carriers reject the AT (we want PSM off but they won't allow
+     * client-side override) — log and continue. */
+    esp_modem_at(s_dce, "AT+CPSMS=0", NULL, 5000);
+    /* AcT 4 = LTE-M (Cat-M1), 5 = NB-IoT. Sending both covers either
+     * RAT regardless of CMNB above. */
+    esp_modem_at(s_dce, "AT+CEDRXS=0,4", NULL, 5000);
+    esp_modem_at(s_dce, "AT+CEDRXS=0,5", NULL, 5000);
+    ESP_LOGI(TAG, "PSM + eDRX disabled (IoT power-save off)");
+
     return ESP_OK;
 }
 
