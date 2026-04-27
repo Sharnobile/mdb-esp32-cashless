@@ -441,7 +441,24 @@ esp_err_t network_cellular_configure(const char *apn, const char *pin, modem_lte
 }
 
 esp_err_t network_wifi_configure(const char *ssid, const char *password) {
-    (void)ssid; (void)password;
-    ESP_LOGW(TAG, "network_wifi_configure: stub returns ESP_ERR_NOT_SUPPORTED");
-    return ESP_ERR_NOT_SUPPORTED;
+    if (!ssid || strlen(ssid) == 0) return ESP_ERR_INVALID_ARG;
+
+    /* On cellular boards (modem present) we deliberately ignore WiFi
+     * credentials — policy is cellular-only when modem detected. */
+    if (s_state == NETWORK_STATE_SOFTAP_ONLY ||
+        s_state == NETWORK_STATE_CELLULAR_REGISTERING ||
+        s_state == NETWORK_STATE_CELLULAR_UP) {
+        ESP_LOGW(TAG, "network_wifi_configure: ignored on cellular board");
+        return ESP_ERR_NOT_SUPPORTED;
+    }
+
+    wifi_config_t cfg = {0};
+    esp_wifi_get_config(WIFI_IF_STA, &cfg);
+    strncpy((char *)cfg.sta.ssid,     ssid,     sizeof(cfg.sta.ssid)     - 1);
+    strncpy((char *)cfg.sta.password, password ? password : "",
+                                                sizeof(cfg.sta.password) - 1);
+    esp_err_t err = esp_wifi_set_config(WIFI_IF_STA, &cfg);
+    if (err != ESP_OK) return err;
+
+    return esp_wifi_connect();
 }
