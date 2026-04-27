@@ -432,3 +432,114 @@ void modem_status(modem_status_t *out) {
         }
     }
 }
+
+/* === Watchdog =========================================================
+ *
+ * Polls the modem with a bare "AT" every WATCHDOG_TICK_SEC. On three
+ * consecutive failures escalates to power-cycle + re-init + re-connect.
+ * Layer-3 hard-reboot is the existing mqtt_watchdog_cb in main.c —
+ * we never call esp_restart() from here.
+ *
+ * Forward-compatibility note (P5): the watchdog tick also refreshes
+ * RSSI / operator into a static struct, so /system/info and the
+ * MQTT status payload can read them without re-issuing AT every poll.
+ * ===================================================================== */
+
+#define WATCHDOG_TICK_SEC            30
+#define WATCHDOG_FAIL_TO_POWER_CYCLE  3
+#define WATCHDOG_POWER_CYCLE_LIMIT    2
+
+static TaskHandle_t  s_watchdog_task = NULL;
+static int           s_consec_fails  = 0;
+static int           s_power_cycles  = 0;
+
+esp_err_t modem_at_keepalive_ping(void) {
+    if (!s_dce) return ESP_ERR_INVALID_STATE;
+
+    /* If we're in DATA (PPP) mode, AT commands won't get through.
+     * We must escape with +++ first. esp_modem_set_mode handles the
+     * timing internally. */
+    char resp[32];
+    esp_err_t err = esp_modem_at(s_dce, "AT", resp, 3000);
+    if (err == ESP_OK) return ESP_OK;
+
+    /* Try a PPP escape and one retry. If even that fails, the modem
+     * is unresponsive. */
+    esp_modem_set_mode(s_dce, ESP_MODEM_MODE_COMMAND);
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    err = esp_modem_at(s_dce, "AT", resp, 3000);
+    return err;
+}
+
+static void modem_watchdog_task(void *arg) {
+    (void)arg;
+    ESP_LOGI(TAG, "watchdog: starting (tick=%ds, fail-to-pulse=%d)",
+             WATCHDOG_TICK_SEC, WATCHDOG_FAIL_TO_POWER_CYCLE);
+
+    while (1) {
+        vTaskDelay(pdMS_TO_TICKS(WATCHDOG_TICK_SEC * 1000));
+
+        esp_err_t err = modem_at_keepalive_ping();
+        if (err == ESP_OK) {
+            if (s_consec_fails) {
+                ESP_LOGI(TAG, "watchdog: AT recovered after %d fails", s_consec_fails);
+            }
+            s_consec_fails = 0;
+            s_power_cycles = 0;
+            continue;
+        }
+
+        s_consec_fails++;
+        ESP_LOGW(TAG, "watchdog: AT ping failed (%d/%d): %s",
+                 s_consec_fails, WATCHDOG_FAIL_TO_POWER_CYCLE,
+                 esp_err_to_name(err));
+
+        if (s_consec_fails < WATCHDOG_FAIL_TO_POWER_CYCLE) continue;
+
+        /* Layer 2: pulse PWRKEY and re-init. Bounded by
+         * WATCHDOG_POWER_CYCLE_LIMIT so a dead chip doesn't burn flash
+         * cycles forever — Layer 3 (mqtt_watchdog_cb) reboots the
+         * device after another 5-10 minutes. */
+        if (s_power_cycles >= WATCHDOG_POWER_CYCLE_LIMIT) {
+            ESP_LOGE(TAG, "watchdog: power-cycle limit reached — leaving Layer 3 to handle");
+            s_consec_fails = 0;   /* let it re-arm; Layer 3 will reboot eventually */
+            continue;
+        }
+
+        ESP_LOGW(TAG, "watchdog: Layer 2 — modem_power_cycle + re-init (#%d)",
+                 s_power_cycles + 1);
+        modem_power_cycle();
+        s_power_cycles++;
+
+        /* Re-init with the saved NVS config (same path cellular_bring_up_task
+         * uses). If config is missing, log and let Layer 3 reboot — there's
+         * nothing useful we can do. */
+        char apn[MODEM_APN_MAX], pin[MODEM_PIN_MAX];
+        modem_lte_mode_t mode;
+        if (modem_nvs_load(apn, sizeof(apn), pin, sizeof(pin), &mode) != ESP_OK) {
+            ESP_LOGE(TAG, "watchdog: no NVS config to re-init with");
+            continue;
+        }
+        if (modem_init(apn, pin, mode) != ESP_OK) {
+            ESP_LOGE(TAG, "watchdog: modem_init after pulse failed");
+            continue;
+        }
+        if (modem_connect() != ESP_OK) {
+            ESP_LOGE(TAG, "watchdog: modem_connect after pulse failed");
+            continue;
+        }
+        ESP_LOGI(TAG, "watchdog: recovered via Layer 2");
+        s_consec_fails = 0;
+        /* leave s_power_cycles as-is so the limit binds across rapid retries */
+    }
+}
+
+void modem_start_watchdog(void) {
+    if (s_watchdog_task) return;
+    xTaskCreate(modem_watchdog_task, "modem_wdt", 4096, NULL, 2, &s_watchdog_task);
+}
+
+void modem_stop_watchdog(void) {
+    /* P4: not used. Real implementation would vTaskDelete + null the
+     * handle, but no caller needs that yet. Reserved for future use. */
+}

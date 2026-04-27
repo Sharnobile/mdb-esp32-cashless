@@ -119,6 +119,27 @@ esp_err_t modem_nvs_load(char *apn_out, size_t apn_size,
  */
 esp_err_t modem_nvs_save(const char *apn, const char *pin, modem_lte_mode_t mode);
 
+/* ---- Watchdog ---- */
+
+/*
+ * Periodic AT keepalive sent to the modem from a low-priority FreeRTOS
+ * task (started via modem_start_watchdog). Returns ESP_OK if the modem
+ * responded to the bare "AT" within ~3s. Failure modes:
+ *   - In PPP DATA mode the modem won't respond to AT — caller must
+ *     issue an escape (+++) first; the watchdog handles this internally.
+ *   - Three consecutive failures trigger modem_power_cycle + re-init.
+ */
+esp_err_t modem_at_keepalive_ping(void);
+
+/*
+ * Start the watchdog task. Must be called only after a successful
+ * modem_connect. Idempotent — second call is a no-op. The task runs
+ * forever (no stop API in P4; modem_stop_watchdog is a placeholder
+ * for future use).
+ */
+void modem_start_watchdog(void);
+void modem_stop_watchdog(void);   /* P4: no-op; reserved */
+
 #ifdef __cplusplus
 }
 #endif
