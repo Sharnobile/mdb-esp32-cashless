@@ -933,19 +933,26 @@ static void modem_watchdog_task(void *arg) {
 
         if (s_consec_fails < WATCHDOG_FAIL_TO_POWER_CYCLE) continue;
 
-        /* Layer 2: pulse PWRKEY and re-init. Bounded by
-         * WATCHDOG_POWER_CYCLE_LIMIT so a dead chip doesn't burn flash
-         * cycles forever — Layer 3 (mqtt_watchdog_cb) reboots the
-         * device after another 5-10 minutes. */
+        /* Layer 2: hard-reset the modem (PMU DC3 cut + PWRKEY) and re-init.
+         * Bounded by WATCHDOG_POWER_CYCLE_LIMIT so a dead chip doesn't burn
+         * flash cycles forever — Layer 3 (mqtt_watchdog_cb) reboots the
+         * device after another 5-10 minutes.
+         *
+         * NOTE: previously called modem_power_cycle() which only pulses
+         * PWRKEY once. On a running SIM7080G a single 1.2 s PWRKEY pulse
+         * is the "graceful power-off" command, not a reset — the modem
+         * shuts down and stays off, leaving subsequent AT commands timing
+         * out forever. modem_hard_reset() does the actual cycle: PMU DC3
+         * cut + re-enable + PWRKEY-pulse-to-boot. */
         if (s_power_cycles >= WATCHDOG_POWER_CYCLE_LIMIT) {
             ESP_LOGE(TAG, "watchdog: power-cycle limit reached — leaving Layer 3 to handle");
             s_consec_fails = 0;   /* let it re-arm; Layer 3 will reboot eventually */
             continue;
         }
 
-        ESP_LOGW(TAG, "watchdog: Layer 2 — modem_power_cycle + re-init (#%d)",
+        ESP_LOGW(TAG, "watchdog: Layer 2 — modem_hard_reset + re-init (#%d)",
                  s_power_cycles + 1);
-        modem_power_cycle();
+        modem_hard_reset();
         s_power_cycles++;
 
         /* Re-init with the saved NVS config (same path cellular_bring_up_task
