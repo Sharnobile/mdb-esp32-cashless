@@ -111,6 +111,26 @@ Deno.serve(async (req) => {
         }
       }
 
+      // Parse extra key:value segments (parts[3+]) into a cellular block.
+      // Old firmware sends only 3 parts; new cellular firmware sends extras
+      // like "uplink:cellular|op:Vodafone DE|rssi:-78|mode:LTE-M|ip:10.0.0.1".
+      // parts.slice(3) returns [] when length is 3, so this is a no-op for
+      // legacy 3-segment status payloads.
+      const cellular: Record<string, string | number> = {};
+      for (const seg of parts.slice(3)) {
+        const colonIdx = seg.indexOf(':');
+        if (colonIdx <= 0) continue;
+        const key = seg.slice(0, colonIdx).trim();
+        const val = seg.slice(colonIdx + 1).trim();
+        if (!key || !val) continue;
+        if (key === 'rssi') {
+          const n = parseInt(val, 10);
+          if (!Number.isNaN(n)) cellular[key] = n;
+        } else {
+          cellular[key] = val;
+        }
+      }
+
       const updatePayload: Record<string, any> = {
         status,
         status_at: new Date().toISOString(),
@@ -128,6 +148,19 @@ Deno.serve(async (req) => {
       }
       if (firmwareBuildDate) {
         updatePayload.firmware_build_date = firmwareBuildDate;
+      }
+
+      // Merge cellular telemetry into mdb_diagnostics jsonb if present.
+      // Read-modify-write so we don't clobber other diagnostic fields the
+      // mdb-log handler may have written (state, addr, polls, chkErr, etc).
+      if (Object.keys(cellular).length > 0) {
+        const { data: existing } = await adminClient
+          .from('embeddeds')
+          .select('mdb_diagnostics')
+          .eq('id', deviceId)
+          .maybeSingle();
+        const prev = (existing?.mdb_diagnostics as Record<string, unknown> | null) ?? {};
+        updatePayload.mdb_diagnostics = { ...prev, cellular };
       }
 
       const { error } = await adminClient
