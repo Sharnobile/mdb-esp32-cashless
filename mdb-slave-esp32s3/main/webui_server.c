@@ -1,5 +1,6 @@
 #include <string.h>
 #include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "esp_wifi.h"
 #include "esp_http_server.h"
 #include "nvs_flash.h"
@@ -10,6 +11,8 @@
 #include "esp_chip_info.h"
 #include "webui_server.h"
 #include "network.h"
+#include "modem.h"
+#include "provision.h"
 
 #define TAG "webui"
 
@@ -244,6 +247,130 @@ static esp_err_t system_info_get_handler(httpd_req_t *req) {
     return ESP_OK;
 }
 
+/* ---------- Wizard endpoint helpers ---------- */
+
+static esp_err_t recv_json_body(httpd_req_t *req, char *buf, size_t bufsize) {
+    int total = req->content_len;
+    if (total <= 0 || total >= (int)bufsize) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "body too large or empty");
+        return ESP_FAIL;
+    }
+    int cur = 0;
+    while (cur < total) {
+        int r = httpd_req_recv(req, buf + cur, total - cur);
+        if (r <= 0) {
+            httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "recv failed");
+            return ESP_FAIL;
+        }
+        cur += r;
+    }
+    buf[total] = '\0';
+    return ESP_OK;
+}
+
+static esp_err_t send_ok(httpd_req_t *req) {
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, "{\"ok\":true}");
+    return ESP_OK;
+}
+
+static esp_err_t send_err_json(httpd_req_t *req, const char *msg) {
+    char buf[128];
+    snprintf(buf, sizeof(buf), "{\"error\":\"%s\"}", msg);
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, buf);
+    return ESP_OK;
+}
+
+/* POST /api/v1/cellular/configure  body: {apn, pin, lte_mode}
+ *   apn: required string
+ *   pin: optional string (empty = no PIN)
+ *   lte_mode: integer 1=CatM 2=NBIoT 3=Both */
+static esp_err_t cellular_configure_handler(httpd_req_t *req) {
+    char buf[512];
+    if (recv_json_body(req, buf, sizeof(buf)) != ESP_OK) return ESP_OK;
+
+    cJSON *root = cJSON_Parse(buf);
+    if (!root) return send_err_json(req, "invalid JSON");
+
+    cJSON *japn = cJSON_GetObjectItem(root, "apn");
+    cJSON *jpin = cJSON_GetObjectItem(root, "pin");
+    cJSON *jmode = cJSON_GetObjectItem(root, "lte_mode");
+    if (!japn || !cJSON_IsString(japn) || strlen(japn->valuestring) == 0) {
+        cJSON_Delete(root);
+        return send_err_json(req, "apn required");
+    }
+    int mode = jmode && cJSON_IsNumber(jmode) ? (int)jmode->valuedouble : MODEM_LTE_MODE_BOTH;
+    if (mode < 1 || mode > 3) mode = MODEM_LTE_MODE_BOTH;
+
+    const char *pin = (jpin && cJSON_IsString(jpin)) ? jpin->valuestring : "";
+
+    esp_err_t err = network_cellular_configure(japn->valuestring, pin, (modem_lte_mode_t)mode);
+    cJSON_Delete(root);
+
+    if (err == ESP_ERR_INVALID_STATE) return send_err_json(req, "bring-up already in progress");
+    if (err != ESP_OK)                return send_err_json(req, esp_err_to_name(err));
+    return send_ok(req);
+}
+
+/* POST /api/v1/wifi/configure  body: {ssid, password} */
+static esp_err_t wifi_configure_handler(httpd_req_t *req) {
+    char buf[512];
+    if (recv_json_body(req, buf, sizeof(buf)) != ESP_OK) return ESP_OK;
+
+    cJSON *root = cJSON_Parse(buf);
+    if (!root) return send_err_json(req, "invalid JSON");
+
+    cJSON *jssid = cJSON_GetObjectItem(root, "ssid");
+    cJSON *jpass = cJSON_GetObjectItem(root, "password");
+    if (!jssid || !cJSON_IsString(jssid) || strlen(jssid->valuestring) == 0) {
+        cJSON_Delete(root);
+        return send_err_json(req, "ssid required");
+    }
+    const char *pass = (jpass && cJSON_IsString(jpass)) ? jpass->valuestring : "";
+
+    esp_err_t err = network_wifi_configure(jssid->valuestring, pass);
+    cJSON_Delete(root);
+
+    if (err == ESP_ERR_NOT_SUPPORTED) return send_err_json(req, "WiFi not configurable on cellular board");
+    if (err != ESP_OK)                return send_err_json(req, esp_err_to_name(err));
+    return send_ok(req);
+}
+
+/* POST /api/v1/claim  body: {prov_code, srv_url} */
+static esp_err_t claim_handler(httpd_req_t *req) {
+    char buf[512];
+    if (recv_json_body(req, buf, sizeof(buf)) != ESP_OK) return ESP_OK;
+
+    cJSON *root = cJSON_Parse(buf);
+    if (!root) return send_err_json(req, "invalid JSON");
+
+    cJSON *jcode = cJSON_GetObjectItem(root, "prov_code");
+    cJSON *jurl  = cJSON_GetObjectItem(root, "srv_url");
+    if (!jcode || !cJSON_IsString(jcode) || strlen(jcode->valuestring) == 0) {
+        cJSON_Delete(root);
+        return send_err_json(req, "prov_code required");
+    }
+    if (!jurl || !cJSON_IsString(jurl) || strlen(jurl->valuestring) == 0) {
+        cJSON_Delete(root);
+        return send_err_json(req, "srv_url required");
+    }
+
+    /* Persist + spawn the claim task. The task reads from NVS and
+     * reboots on success. */
+    nvs_handle_t h;
+    if (nvs_open("vmflow", NVS_READWRITE, &h) == ESP_OK) {
+        nvs_set_str(h, "prov_code", jcode->valuestring);
+        nvs_set_str(h, "srv_url",   jurl->valuestring);
+        nvs_commit(h);
+        nvs_close(h);
+    }
+    cJSON_Delete(root);
+
+    xTaskCreate(provision_claim_task, "prov_claim", 8192, NULL, 5, NULL);
+    return send_ok(req);
+}
+
 static esp_err_t wifi_scan_get_handler(httpd_req_t *req) {
 
     wifi_scan_config_t scan_cfg = {
@@ -373,12 +500,14 @@ void start_rest_server(void) {
     httpd_start(&rest_server, &config);
 
     static const httpd_uri_t uris[] = {
-        { .uri = "/",                    .method = HTTP_GET,  .handler = index_get_handler        },
-        { .uri = "/api/v1/system/info",  .method = HTTP_GET,  .handler = system_info_get_handler  },
-        { .uri = "/api/v1/settings/set", .method = HTTP_POST, .handler = wifi_set_handler         },
-        { .uri = "/api/v1/wifi/scan",    .method = HTTP_GET,  .handler = wifi_scan_get_handler    },
-        { .uri = "/generate_204",        .method = HTTP_GET,  .handler = captive_handler          },
-        { .uri = "/hotspot-detect.html", .method = HTTP_GET,  .handler = captive_handler          },
+        { .uri = "/",                          .method = HTTP_GET,  .handler = index_get_handler          },
+        { .uri = "/api/v1/system/info",        .method = HTTP_GET,  .handler = system_info_get_handler    },
+        { .uri = "/api/v1/wifi/scan",          .method = HTTP_GET,  .handler = wifi_scan_get_handler      },
+        { .uri = "/api/v1/cellular/configure", .method = HTTP_POST, .handler = cellular_configure_handler },
+        { .uri = "/api/v1/wifi/configure",     .method = HTTP_POST, .handler = wifi_configure_handler     },
+        { .uri = "/api/v1/claim",              .method = HTTP_POST, .handler = claim_handler              },
+        { .uri = "/generate_204",              .method = HTTP_GET,  .handler = captive_handler            },
+        { .uri = "/hotspot-detect.html",       .method = HTTP_GET,  .handler = captive_handler            },
     };
 
     for (int i = 0; i < sizeof(uris) / sizeof(uris[0]); i++) {
