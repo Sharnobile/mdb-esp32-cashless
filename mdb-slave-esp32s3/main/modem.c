@@ -602,12 +602,26 @@ esp_err_t modem_connect(void) {
         return err;
     }
 
-    /* Pull operator name into the cache while we're still in COMMAND
-     * mode — once we switch to DATA, AT becomes expensive (PPP escape).
-     * Best-effort: ignore failure, the cache just stays empty. */
+    /* Pull operator name + actual RAT into the cache while we're still
+     * in COMMAND mode — once we switch to DATA, AT becomes expensive
+     * (PPP escape). Best-effort: ignore failure, the cache just stays
+     * at the configured preference (CMNB).
+     *
+     * Response format (3GPP TS 27.007 §7.3):
+     *   +COPS: <mode>,<format>,"<oper>",<AcT>
+     * e.g. on Telekom IoT:
+     *   +COPS: 0,0,"Telekom.de",7
+     *
+     * <AcT> values relevant to SIM7080G:
+     *   7 = E-UTRAN  (LTE-M / Cat-M1)
+     *   9 = E-UTRAN NB-S1 (NB-IoT)
+     * Anything else (GSM 0/3, UMTS 2, etc.) shouldn't happen on this
+     * modem since CNMP=38 forces LTE-only — we leave active_mode at
+     * the configured value if we see an unexpected AcT. */
     {
         char resp[128] = {0};
         if (esp_modem_at(s_dce, "AT+COPS?", resp, 2000) == ESP_OK) {
+            ESP_LOGI(TAG, "AT+COPS?: %s", resp);
             const char *first  = strchr(resp, '"');
             const char *second = first ? strchr(first + 1, '"') : NULL;
             if (first && second && second > first + 1) {
@@ -619,6 +633,25 @@ esp_err_t modem_connect(void) {
                 memcpy(s_status_cache.operator_name, first + 1, len);
                 s_status_cache.operator_name[len] = '\0';
                 status_cache_unlock();
+
+                /* AcT is the digit after the comma following the closing quote. */
+                const char *p = second + 1;
+                while (*p == ',' || *p == ' ') p++;
+                if (*p >= '0' && *p <= '9') {
+                    int act = *p - '0';
+                    modem_lte_mode_t actual = MODEM_LTE_MODE_BOTH;
+                    if      (act == 7) actual = MODEM_LTE_MODE_CATM;
+                    else if (act == 9) actual = MODEM_LTE_MODE_NBIOT;
+                    if (actual != MODEM_LTE_MODE_BOTH) {
+                        status_cache_lock();
+                        s_status_cache.active_mode = actual;
+                        status_cache_unlock();
+                        ESP_LOGI(TAG, "registered on RAT %d → %s", act,
+                                 actual == MODEM_LTE_MODE_CATM ? "LTE-M" : "NB-IoT");
+                    } else {
+                        ESP_LOGW(TAG, "registered on unexpected AcT %d — keeping configured mode", act);
+                    }
+                }
             }
         }
     }
