@@ -421,6 +421,14 @@ esp_err_t network_stop_softap(void) {
 }
 
 esp_err_t network_cellular_configure(const char *apn, const char *pin, modem_lte_mode_t mode) {
+    /* Reject re-entry while a bring-up is in flight. Without this guard a
+     * rapidly-resubmitting captive portal could spawn parallel cell_up
+     * tasks racing on s_state and double-firing UPLINK_UP. */
+    if (s_state == NETWORK_STATE_CELLULAR_REGISTERING) {
+        ESP_LOGW(TAG, "network_cellular_configure: bring-up already in progress");
+        return ESP_ERR_INVALID_STATE;
+    }
+
     esp_err_t err = modem_nvs_save(apn, pin, mode);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "network_cellular_configure: modem_nvs_save failed: %s",
