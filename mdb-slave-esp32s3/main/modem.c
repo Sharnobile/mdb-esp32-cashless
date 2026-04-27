@@ -698,19 +698,34 @@ static int           s_power_cycles  = 0;
 esp_err_t modem_at_keepalive_ping(void) {
     if (!s_dce) return ESP_ERR_INVALID_STATE;
 
-    /* If we're in DATA (PPP) mode, AT commands won't get through.
-     * We must escape with +++ first. esp_modem_set_mode handles the
-     * timing internally. */
-    char resp[32];
-    esp_err_t err = esp_modem_at(s_dce, "AT", resp, 3000);
-    if (err == ESP_OK) return ESP_OK;
+    /* In DATA (PPP) mode AT commands cannot pass through — the bytes
+     * would be interpreted as PPP frames. Earlier versions tried to
+     * "escape" by calling esp_modem_set_mode(COMMAND), but that tears
+     * the live PPP link down: every 30s tick killed any in-flight
+     * HTTP/MQTT/TLS session, observed in the field as
+     *
+     *   D HTTP_CLIENT: Write header[4]: POST /functions/v1/claim-device ...
+     *   D esp-netif_lwip-ppp: esp_netif_stop_ppp: Stopped PPP connection
+     *   E esp-tls-mbedtls: read error :-0x004C
+     *
+     * 30 s after PPP came up. The claim could never finish.
+     *
+     * In DATA mode we rely on PPP's own LCP-echo mechanism (lwIP
+     * pppos default ~30 s interval, 4 retries) to detect a dead
+     * modem. If the PPP link drops, IP_EVENT_PPP_LOST_IP fires and
+     * Layer-1 reconnect handles it. So: skip the AT ping in DATA mode
+     * and report OK — the PPP layer is the authoritative liveness
+     * signal there. */
+    if (s_netif) {
+        esp_netif_ip_info_t ip_info;
+        if (esp_netif_get_ip_info(s_netif, &ip_info) == ESP_OK && ip_info.ip.addr != 0) {
+            return ESP_OK;
+        }
+    }
 
-    /* Try a PPP escape and one retry. If even that fails, the modem
-     * is unresponsive. */
-    esp_modem_set_mode(s_dce, ESP_MODEM_MODE_COMMAND);
-    vTaskDelay(pdMS_TO_TICKS(1000));
-    err = esp_modem_at(s_dce, "AT", resp, 3000);
-    return err;
+    /* COMMAND mode (registration phase or recovery): AT works directly. */
+    char resp[32];
+    return esp_modem_at(s_dce, "AT", resp, 3000);
 }
 
 static void modem_watchdog_task(void *arg) {
