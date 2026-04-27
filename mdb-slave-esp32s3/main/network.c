@@ -243,26 +243,69 @@ static void cellular_bring_up_task(void *arg) {
 
     s_state = NETWORK_STATE_CELLULAR_UP;
     ESP_LOGI(TAG, "cellular up");
+    /* Start the modem watchdog (Layer 2 recovery). Idempotent — re-spawning
+     * cellular_bring_up_task after a Layer-2 power-cycle won't double-start
+     * the task. Gated to this task ONLY so WiFi-only boards never spawn it. */
+    modem_start_watchdog();
     network_fire_event(NETWORK_EVENT_UPLINK_UP);
     vTaskDelete(NULL);
 }
 
+/* Layer 1 PPP reconnect: 3 fast attempts via modem_disconnect + modem_connect
+ * before falling back to OFFLINE (where the modem watchdog Layer 2 picks up
+ * on its next tick). Total worst-case duration ~6-30s depending on how long
+ * each modem_connect takes (CFUN + registration + PPP). */
+#define PPP_RECONNECT_ATTEMPTS  3
+static int s_ppp_reconnect_attempts = 0;
+
+static void ppp_reconnect_task(void *arg) {
+    (void)arg;
+    while (s_ppp_reconnect_attempts < PPP_RECONNECT_ATTEMPTS) {
+        s_ppp_reconnect_attempts++;
+        ESP_LOGW(TAG, "PPP reconnect attempt %d/%d",
+                 s_ppp_reconnect_attempts, PPP_RECONNECT_ATTEMPTS);
+
+        modem_disconnect();
+        vTaskDelay(pdMS_TO_TICKS(2000));
+
+        if (modem_connect() == ESP_OK) {
+            ESP_LOGI(TAG, "PPP reconnect succeeded on attempt %d", s_ppp_reconnect_attempts);
+            s_state = NETWORK_STATE_CELLULAR_UP;
+            s_ppp_reconnect_attempts = 0;
+            network_fire_event(NETWORK_EVENT_UPLINK_UP);
+            vTaskDelete(NULL);
+            return;
+        }
+    }
+    /* All Layer-1 attempts exhausted — modem watchdog (Layer 2) will
+     * pick up from here on its next tick. */
+    ESP_LOGE(TAG, "PPP Layer-1 reconnect exhausted — handing off to watchdog");
+    s_ppp_reconnect_attempts = 0;
+    s_state = NETWORK_STATE_OFFLINE;
+    network_fire_event(NETWORK_EVENT_UPLINK_DOWN);
+    vTaskDelete(NULL);
+}
+
 /* PPP status event handler — fires on NETIF_PPP_LOST_IP and friends.
- * For now we just log + transition state. P4 watchdog escalates. */
+ * On LOST_IP we spawn ppp_reconnect_task (Layer 1) instead of dropping
+ * straight to OFFLINE. */
 static void network_ppp_event_handler(void *arg, esp_event_base_t event_base,
                                        int32_t event_id, void *event_data) {
     (void)arg; (void)event_data;
     if (event_base != IP_EVENT) return;
     if (event_id == IP_EVENT_PPP_GOT_IP) {
         ESP_LOGI(TAG, "PPP GOT_IP");
-        /* state transition handled in cellular_bring_up_task — this
-         * event is informational because esp_modem_set_mode(DATA)
-         * already drives the PPP lifecycle synchronously. */
+        /* state transition handled in cellular_bring_up_task or
+         * ppp_reconnect_task — this event is informational because
+         * esp_modem_set_mode(DATA) already drives the PPP lifecycle
+         * synchronously. */
     } else if (event_id == IP_EVENT_PPP_LOST_IP) {
         ESP_LOGW(TAG, "PPP LOST_IP");
         if (s_state == NETWORK_STATE_CELLULAR_UP) {
-            s_state = NETWORK_STATE_OFFLINE;
-            network_fire_event(NETWORK_EVENT_UPLINK_DOWN);
+            /* Layer 1: spawn a reconnect task. We do this in a task
+             * because modem_disconnect/modem_connect can take seconds,
+             * and the event handler must not block. */
+            xTaskCreate(ppp_reconnect_task, "ppp_reconn", 4096, NULL, 4, NULL);
         }
     }
 }
