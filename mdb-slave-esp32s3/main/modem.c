@@ -425,14 +425,18 @@ esp_err_t modem_init(const char *apn, const char *pin, modem_lte_mode_t mode) {
      * accept the value but still negotiate the right RAT, others reject
      * the command and pick a default that's good enough. We log the
      * outcome but do not fail modem_init() on it; the registration check
-     * in modem_connect() is the load-bearing gate. */
-    err = esp_modem_at(s_dce, "AT+CNMP=38", NULL, 3000);
+     * in modem_connect() is the load-bearing gate.
+     *
+     * Bumped to 8s timeout: a freshly-booted SIM7080G often takes 4-6s
+     * to acknowledge config commands while internal init is still
+     * running. With 3s some firmware revs always look "broken". */
+    err = esp_modem_at(s_dce, "AT+CNMP=38", NULL, 8000);
     ESP_LOGI(TAG, "AT+CNMP=38: %s", esp_err_to_name(err));
 
     /* CMNB selects within LTE: 1=Cat-M, 2=NB-IoT, 3=both. */
     char cmnb_cmd[24];
     snprintf(cmnb_cmd, sizeof(cmnb_cmd), "AT+CMNB=%d", (int)mode);
-    err = esp_modem_at(s_dce, cmnb_cmd, NULL, 3000);
+    err = esp_modem_at(s_dce, cmnb_cmd, NULL, 8000);
     ESP_LOGI(TAG, "%s: %s", cmnb_cmd, esp_err_to_name(err));
 
     /* Configure APN via the esp_modem helper (writes AT+CGDCONT). This
@@ -443,7 +447,7 @@ esp_err_t modem_init(const char *apn, const char *pin, modem_lte_mode_t mode) {
 
     /* Enable +CEREG URC so we can poll registration cleanly later.
      * Best-effort like CNMP/CMNB. */
-    esp_modem_at(s_dce, "AT+CEREG=1", NULL, 3000);
+    esp_modem_at(s_dce, "AT+CEREG=1", NULL, 8000);
 
     return ESP_OK;
 }
@@ -485,8 +489,17 @@ static esp_err_t modem_wait_registered(void) {
 esp_err_t modem_connect(void) {
     if (!s_dce) return ESP_ERR_INVALID_STATE;
 
-    /* Make sure RF is on (some modems boot at CFUN=4 = airplane). */
-    esp_err_t err = esp_modem_at(s_dce, "AT+CFUN=1", NULL, 5000);
+    /* Make sure RF is on (some modems boot at CFUN=4 = airplane).
+     *
+     * CFUN=1 is the load-bearing radio-enable command — without it the
+     * modem stays in airplane mode and CEREG never fires. SIM7080G can
+     * take 10-25 seconds to acknowledge CFUN=1 on cold boot because it
+     * has to bring up the RF front-end, scan bands, and read the SIM
+     * card before responding OK. Earlier 5s timeout was way too short
+     * and made the cellular path silently broken on a fresh boot —
+     * AT+CEREG? would then keep returning empty because the radio
+     * hadn't actually come up yet. 30 s is the practical safe ceiling. */
+    esp_err_t err = esp_modem_at(s_dce, "AT+CFUN=1", NULL, 30000);
     ESP_LOGI(TAG, "AT+CFUN=1: %s", esp_err_to_name(err));
 
     err = modem_wait_registered();
@@ -524,8 +537,12 @@ void modem_power_cycle(void) {
     vTaskDelay(pdMS_TO_TICKS(1200));   /* SIM7080G PWRKEY ≥ 1.0 s */
     gpio_set_level(MODEM_PIN_PWR, idle_level);
 
-    ESP_LOGI(TAG, "PWRKEY pulsed; waiting 5 s for boot...");
-    vTaskDelay(pdMS_TO_TICKS(5000));
+    /* SIM7080G boot time after PWRKEY release: typically 6-8s, can be up
+     * to ~12s on cold start. 5s was too aggressive — the modem was still
+     * initialising when we issued AT+CFUN=1. 8s is a safer floor; the
+     * 30s CFUN=1 timeout in modem_connect absorbs any remaining slack. */
+    ESP_LOGI(TAG, "PWRKEY pulsed; waiting 8 s for boot...");
+    vTaskDelay(pdMS_TO_TICKS(8000));
 }
 
 /* Convert AT+CSQ raw value (0-31, 99 = unknown) to dBm. Per 3GPP 27.007:
