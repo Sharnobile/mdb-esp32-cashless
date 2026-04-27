@@ -50,6 +50,7 @@ interface EmbeddedDevice {
   status_at: string
   firmware_version: string | null
   firmware_build_date: string | null
+  mdb_diagnostics: Record<string, any> | null
   machine_name: string | null
   machine_id: string | null
 }
@@ -63,7 +64,7 @@ async function fetchDevices() {
     // Fetch all embedded devices with their linked vendingMachine (if any)
     const { data, error } = await supabase
       .from('embeddeds')
-      .select('id, created_at, subdomain, mac_address, status, status_at, firmware_version, firmware_build_date')
+      .select('id, created_at, subdomain, mac_address, status, status_at, firmware_version, firmware_build_date, mdb_diagnostics')
       .order('created_at', { ascending: false })
 
     if (error) throw error
@@ -116,6 +117,7 @@ function subscribeToDeviceUpdates() {
           existing.status_at = updated.status_at ?? existing.status_at
           existing.firmware_version = updated.firmware_version ?? existing.firmware_version
           existing.firmware_build_date = updated.firmware_build_date ?? existing.firmware_build_date
+          existing.mdb_diagnostics = updated.mdb_diagnostics ?? existing.mdb_diagnostics
         }
       }
     )
@@ -317,6 +319,7 @@ async function confirmDelete() {
                   />
                   {{ device.status === 'ota_updating' ? t('machineDetail.updating') : device.status === 'ota_success' ? t('machineDetail.updated') : device.status === 'ota_failed' ? t('machineDetail.updateFailed') : device.status }}
                 </Badge>
+                <CellularHealthBadge :diagnostics="device.mdb_diagnostics" />
               </div>
               <button
                 class="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
@@ -399,21 +402,24 @@ async function confirmDelete() {
                   {{ device.mac_address ?? '—' }}
                 </td>
                 <td class="px-4 py-3">
-                  <Badge
-                    :variant="device.status === 'online' ? 'default' : device.status?.startsWith('ota_') ? 'default' : 'secondary'"
-                  >
-                    <span
-                      class="mr-1 inline-block h-2 w-2 rounded-full"
-                      :class="{
-                        'bg-green-400': device.status === 'online',
-                        'bg-yellow-400': device.status === 'ota_updating',
-                        'bg-green-400 animate-pulse': device.status === 'ota_success',
-                        'bg-red-400': device.status === 'ota_failed',
-                        'bg-muted-foreground/50': !['online', 'ota_updating', 'ota_success', 'ota_failed'].includes(device.status),
-                      }"
-                    />
-                    {{ device.status === 'ota_updating' ? t('machineDetail.updating') : device.status === 'ota_success' ? t('machineDetail.updated') : device.status === 'ota_failed' ? t('machineDetail.updateFailed') : device.status }}
-                  </Badge>
+                  <div class="flex items-center gap-2">
+                    <Badge
+                      :variant="device.status === 'online' ? 'default' : device.status?.startsWith('ota_') ? 'default' : 'secondary'"
+                    >
+                      <span
+                        class="mr-1 inline-block h-2 w-2 rounded-full"
+                        :class="{
+                          'bg-green-400': device.status === 'online',
+                          'bg-yellow-400': device.status === 'ota_updating',
+                          'bg-green-400 animate-pulse': device.status === 'ota_success',
+                          'bg-red-400': device.status === 'ota_failed',
+                          'bg-muted-foreground/50': !['online', 'ota_updating', 'ota_success', 'ota_failed'].includes(device.status),
+                        }"
+                      />
+                      {{ device.status === 'ota_updating' ? t('machineDetail.updating') : device.status === 'ota_success' ? t('machineDetail.updated') : device.status === 'ota_failed' ? t('machineDetail.updateFailed') : device.status }}
+                    </Badge>
+                    <CellularHealthBadge :diagnostics="device.mdb_diagnostics" />
+                  </div>
                 </td>
                 <td class="px-4 py-3 text-muted-foreground">
                   <template v-if="device.firmware_version">

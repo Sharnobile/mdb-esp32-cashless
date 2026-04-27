@@ -1186,6 +1186,7 @@ async function handleAddSale() {
                 >
                   {{ machine.embeddeds.status === 'ota_updating' ? t('machineDetail.updating') : machine.embeddeds.status === 'ota_success' ? t('machineDetail.updated') : machine.embeddeds.status === 'ota_failed' ? t('machineDetail.updateFailed') : machine.embeddeds.status === 'online' ? t('machineDetail.online') : machine.embeddeds.status === 'offline' ? t('machineDetail.offline') : machine.embeddeds.status }}
                 </span>
+                <CellularHealthBadge :diagnostics="machine.embeddeds.mdb_diagnostics" />
                 <button
                   class="inline-flex items-center gap-1 rounded-md border px-3 py-1.5 text-xs font-medium text-muted-foreground shadow-sm transition-colors hover:bg-muted hover:text-foreground"
                   @click="openInsights"
