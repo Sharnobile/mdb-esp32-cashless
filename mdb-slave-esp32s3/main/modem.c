@@ -192,6 +192,13 @@ bool modem_probe(void) {
     dte_config.uart_config.rts_io_num = -1;
     dte_config.uart_config.cts_io_num = -1;
 
+    /* Workaround for ESP-IDF v5.5.1 assert in find_desc_for_source:
+     * with event_queue_size > 0 the UART driver creates an event task
+     * which triggers a code path that asserts inside esp_intr_alloc.
+     * Setting it to 0 disables the event queue (esp_modem doesn't
+     * strictly need it — it polls UART directly). */
+    dte_config.uart_config.event_queue_size = 0;
+
     /* APN doesn't matter for the probe; pass an empty placeholder. */
     esp_modem_dce_config_t dce_config = ESP_MODEM_DCE_DEFAULT_CONFIG("");
 
