@@ -22,8 +22,8 @@ flowchart TD
     H -->|User tippt APN| I[POST /api/v1/cellular/configure<br/>NVS speichern]
     I --> G
 
-    G --> J[modem_init<br/>CNMP=38, CMNB=mode<br/>CGDCONT, CEREG=1<br/>CPSMS=0, CEDRXS=0]
-    J --> K[modem_connect<br/>AT+CFUN=1<br/>AT+CEREG? Loop bis registered]
+    G --> J[modem_init<br/>CNMP=38, CMNB=mode<br/>CGDCONT, CEREG=1<br/>CPSMS=0, CEDRXS=0<br/>CIPSHUT, CNACT=0,0]
+    J --> K[modem_connect<br/>AT+CFUN=1<br/>AT+CEREG? Loop bis registered<br/>AT+CGCONTRDP=1 verify]
     K --> L[AT+COPS?<br/>Operator + RAT Cache]
     L --> M[esp_modem_set_mode DATA<br/>ATD*99##]
     M --> N{IPCP fertig?<br/>30s Timeout}
@@ -31,7 +31,10 @@ flowchart TD
     N -->|Nein| ESC[Recovery Ladder:<br/>PDP→RF→Soft→Hard]
     ESC --> M
 
-    O --> P[NETWORK_EVENT_UPLINK_UP]
+    O --> PROBE{TCP probe<br/>1.1.1.1:53<br/>5s Timeout}
+    PROBE -->|OK| P[NETWORK_EVENT_UPLINK_UP]
+    PROBE -->|Fail| PHANTOM[Phantom PPP detected<br/>→ Recovery Ladder]
+    PHANTOM --> ESC
     P --> Q{prov_code in NVS<br/>UND passkey leer?}
 
     Q -->|Ja| R[provision_claim_task<br/>HTTPS POST /functions/v1/claim-device]
@@ -134,6 +137,10 @@ Wenn `apn` noch nicht in NVS:
 | `AT+CPSMS=0` | Power-Save-Mode AUS (sonst Carrier-NAT-Drops) |
 | `AT+CEDRXS=0,4` | eDRX AUS für Cat-M |
 | `AT+CEDRXS=0,5` | eDRX AUS für NB-IoT |
+| `AT+CIPSHUT` | Internen TCP/IP-Stack-Residue räumen (Phantom-PPP-Schutz) |
+| `AT+CNACT=0,0` | App-PDP deaktivieren falls alt-aktiv (Phantom-PPP-Schutz) |
+
+**Wichtig — kein `AT+CGACT=1,1`:** Auf LTE/Cat-M aktiviert sich der Default-Bearer (CID 1) **automatisch** mit der Registration. Manuell `AT+CGACT=1,1` triggert einen Race der die PDP-Context-Bindung splittet — inbound funktioniert, outbound droppen am GTP-Layer. Genau das Phantom-PPP-Symptom. Niemals manuell aktivieren.
 
 **modem_connect** — Funk-Aktivierung:
 
@@ -141,13 +148,19 @@ Wenn `apn` noch nicht in NVS:
 |---|---|---|
 | 1 | `AT+CFUN=1` (RF on) | 30s |
 | 2 | `AT+CEREG?` Loop bis `stat=1` (home) oder `5` (roaming) | 30 × 2s = 60s |
-| 3 | `AT+COPS?` → Operator-Name + RAT (7=LTE-M, 9=NB-IoT) | 2s |
-| 4 | `esp_modem_set_mode(DATA)` → ATD*99## intern | sofort |
+| 3 | `AT+CGCONTRDP=1` Verify-Loop (5×) — bestätigt PDP wirklich aktiv | 5 × 1s = 5s |
+| 4 | `AT+COPS?` → Operator-Name + RAT (7=LTE-M, 9=NB-IoT) | 2s |
+| 5 | `esp_modem_set_mode(DATA)` → ATD*99## intern | sofort |
+
+**Warum `AT+CGCONTRDP` Verify:** Nach `+CEREG: 1,5` (registered) kann es 1-5s dauern bis die Carrier-seitige Data-Attach wirklich komplett ist. Wenn wir zu früh in DATA-Mode gehen, bekommen wir ATD `CONNECT` aber ohne echten GTP-Tunnel. CGCONTRDP gibt die echten dynamischen Parameter (IP, DNS, Gateway) zurück — leer = noch nicht aktiv, voll = wirklich da.
 
 **Logs für Erfolg:**
 ```
+I modem: PSM + eDRX disabled (IoT power-save off)
+I modem: internal TCPIP stack cleared
 I modem: AT+CFUN=1: ESP_OK
 I modem: EPS registered: +CEREG: 1,5
+I modem: PDP context active: +CGCONTRDP: 1,5,"sensor.net","100.x.x.x"...
 I modem: AT+COPS?: +COPS: 0,0,"Telekom.de",7
 I modem: registered on RAT 7 → LTE-M
 I modem: set DATA mode: ESP_OK
@@ -182,27 +195,71 @@ sequenceDiagram
 
 **Default netif:** PPP wird explizit als Default gesetzt (statt es lwIP überlassen). Verhindert dass Outbound-Traffic über den AP statt PPP routet.
 
+**Note: `10.0.0.1` im Log ist normal.** Das ist der von SIMCom-Modems hardcoded IPCP-peer placeholder, **kein** Indikator für einen halb-kaputten State. Die echte vom Carrier vergebene IP läuft auf dem PPP netif (CGNAT-Range, typischerweise `100.64.x.x` oder ähnlich).
+
 ---
 
-### Stufe 6: Was bei IPCP-Fehler passiert (Recovery-Ladder)
+### Stufe 5b: Reachability-Probe (~5s)
 
-Wenn `set_mode(DATA)` "OK" liefert aber kein `+CGEV: PDN ACT` / `IPCP` durchkommt → Modem hängt in halbtotem Zustand.
+**Phantom-PPP-Schutz:** PPP IPCP kann erfolgreich sein während der eigentliche Datenpfad gar nicht funktioniert (PDP-Context split-bound, internal TCPIP-Stack-Residue, Carrier-Side-Glitch). Bevor wir `UPLINK_UP` feuern, machen wir einen **echten** End-to-End-Test:
+
+```
+TCP connect 1.1.1.1:53 mit 5s Timeout
+  → SYN-ACK kommt zurück → echtes Internet ✓
+  → keine Antwort       → Phantom-PPP, Recovery-Ladder triggert
+```
+
+**Warum `1.1.1.1:53`:**
+- Anycast (extrem niedrige RTT von überall)
+- Nie geblockt (manche Corporate-/Carrier-Filter blocken HTTP-Probes auf 80/443, DNS-Port 53 fast nie)
+- SYN-ACK bestätigt **bidirektionalen** TCP — Phantom-PPP würde hier scheitern
+
+**Logs für Erfolg:**
+```
+I network: PPP GOT_IP: 10.0.0.1
+I network: PPP DNS: main=8.8.8.8 backup=8.8.4.4
+I network: IPCP completed after initial connect — probing internet
+I network: internet reachable after initial connect
+I network: cellular up
+```
+
+**Logs bei Phantom-PPP:**
+```
+I network: PPP GOT_IP: 10.0.0.1
+I network: IPCP completed after initial connect — probing internet
+W network: internet probe failed after initial connect (phantom PPP) — escalating
+I network: PPP attempt: PDP reset
+W modem: L1.5 recovery: AT+CGACT=0,1
+... Recovery-Ladder durchlaufen ...
+```
+
+---
+
+### Stufe 6: Was bei IPCP-Fehler oder Phantom-PPP passiert (Recovery-Ladder)
+
+Zwei Trigger lösen die Recovery-Ladder aus:
+
+**A) IPCP Timeout** — `set_mode(DATA)` liefert OK, aber `IP_EVENT_PPP_GOT_IP` kommt nicht innerhalb 30s.
+
+**B) Phantom-PPP** — IPCP klappt, aber TCP-Probe zu `1.1.1.1:53` schlägt fehl. Der häufigere Fall in Production.
 
 ```mermaid
 flowchart LR
-    F[IPCP Timeout 30s] --> A[L1.5: PDP Reset<br/>CGACT=0,1 + CGACT=1,1<br/>~5s]
-    A --> RA[modem_connect retry]
+    F1[IPCP Timeout 30s] --> A
+    F2[Phantom PPP<br/>probe failed] --> A
+    A[L1.5: PDP Reset<br/>CGACT=0,1 + CGACT=1,1<br/>~5s]
+    A --> RA[modem_connect + probe]
     RA -->|OK| DONE[CELLULAR_UP]
     RA -->|Fail| B[L1.6: RF Reset<br/>CFUN=0 + CFUN=1<br/>~10s]
-    B --> RB[modem_connect retry]
+    B --> RB[modem_connect + probe]
     RB -->|OK| DONE
     RB -->|Fail| C[L2: Soft Restart<br/>CFUN=1,1<br/>~12s]
     C --> CINIT[modem_init re-apply]
-    CINIT --> RC[modem_connect retry]
+    CINIT --> RC[modem_connect + probe]
     RC -->|OK| DONE
     RC -->|Fail| D[L3: Hard Reset<br/>PMU DC3 cut + PWRKEY<br/>~15s]
     D --> DINIT[modem_init re-apply]
-    DINIT --> RD[modem_connect retry]
+    DINIT --> RD[modem_connect + probe]
     RD -->|OK| DONE
     RD -->|Fail| OFF[OFFLINE state<br/>30s offline_retry timer]
     OFF -->|Timer| START[cellular_bring_up_task<br/>komplett neu]
@@ -211,7 +268,10 @@ flowchart LR
     style DONE fill:#c8e6c9
     style OFF fill:#ffcdd2
     style D fill:#ff8a65
+    style F2 fill:#ffe0b2
 ```
+
+Jeder Recovery-Step beinhaltet jetzt **modem_connect + Reachability-Probe** als Erfolgs-Bedingung — nicht nur "kam IPCP an", sondern "fließen die Daten wirklich". Das stoppt Phantom-PPP-Loops sofort statt erst beim ersten echten Request.
 
 **Worst-case Zeit:** ~3-4min komplette Ladder durchgehen, dann 30s Wartezeit, dann von vorne. Layer 3 (Hard Reset via PMU) ist die echte Reset-Eskalation und sollte fast immer durchgreifen.
 
@@ -346,31 +406,46 @@ NVS-Namespace: `vmflow`
 I modem: PMU: AXP2101 detected (chip ID 0x4A)
 I modem: modem detected and synced
 I network: APN found in NVS — starting cellular bring-up task
+I modem: PSM + eDRX disabled (IoT power-save off)
+I modem: internal TCPIP stack cleared
 I modem: AT+CFUN=1: ESP_OK
 I modem: EPS registered: +CEREG: 1,5
+I modem: PDP context active: +CGCONTRDP: 1,5,...
 I modem: registered on RAT 7 → LTE-M
 I network: PPP GOT_IP: 10.0.0.1
 I network: PPP DNS: main=8.8.8.8 backup=8.8.4.4
+I network: IPCP completed after initial connect — probing internet
+I network: internet reachable after initial connect
 I network: cellular up
 I mdb_cashless: PROV: claiming device at https://...    (nur Erst-Boot)
 I mdb_cashless: PROV: claimed, ... — restarting          (nur Erst-Boot)
 I mdb_cashless: MQTT: connected to broker
 ```
 
-**Eskalation läuft:**
+**Phantom-PPP gefangen + Recovery greift:**
 ```
-E network: PPP IPCP timeout — entering recovery escalation
+I network: IPCP completed after initial connect — probing internet
+W network: internet probe failed after initial connect (phantom PPP) — escalating
+I network: PPP attempt: PDP reset
 W modem: L1.5 recovery: AT+CGACT=0,1
 W modem: L1.5 recovery: AT+CGACT=1,1
-I network: PPP attempt: PDP reset
-I modem: AT+CFUN=1: ESP_OK
-I modem: set DATA mode: ESP_OK
-I network: IPCP completed after PDP reset      ← Erfolg auf L1.5
+I network: IPCP completed after PDP reset — probing internet
+I network: internet reachable after PDP reset      ← Phantom-PPP gefixt durch L1.5
+I network: cellular up
+```
+
+**Eskalation läuft tiefer:**
+```
+W network: internet probe failed after PDP reset (phantom PPP) — escalating
+I network: PPP attempt: RF reset
+W modem: L1.6 recovery: AT+CFUN=0
+W modem: L1.6 recovery: AT+CFUN=1
+... weiter zu Soft restart oder Hard reset ...
 ```
 
 **Komplett-Fail:**
 ```
-W network: IPCP timeout after hard reset — escalating
+W network: internet probe failed after hard reset (phantom PPP) — escalating
 E network: PPP recovery ladder exhausted — OFFLINE, retry in 30 s
 W network: offline retry: re-spawning cellular_bring_up_task
 ... (von vorne, hoffentlich besseres Glück) ...
@@ -391,6 +466,15 @@ A: Carrier-abhängig. Telekom IoT auf `sensor.net` ist unter Last variabel. Wenn
 
 **Q: Wieso PSM und eDRX explizit ausschalten?**
 A: Telekom IoT-APNs aktivieren beides per Default für Battery-Devices. Im Sleep-Modus droppt der Carrier die NAT-Translation, MQTT-Pings kommen nicht durch. Wir haben Plug-Power → durchgehend wach gewünscht.
+
+**Q: Was ist Phantom-PPP?**
+A: Häufiges SIMCom-Symptom: PPP IPCP klappt erfolgreich (lwIP hat eine IP), aber der eigentliche Datenpfad ist tot. Inbound-Pakete fließen (über gecachten Air-Side-State im Funknetz), aber Outbound-Pakete werden silent dropped am GTP-Layer im Modem. TLS-Handshake bekommt das Server-Cert, aber unser ClientKeyExchange kommt nie an, Server FINs nach 15s Timeout. **Ursache:** SIM7080G hat zwei parallele Network-Stacks (Host-PPP + internal AT+CIP*/AT+CNACT*) die sich denselben PDP-Context teilen. Residue im internen Stack splittet die Bindung. **Schutz:** `AT+CIPSHUT` + `AT+CNACT=0,0` in `modem_init` räumen proaktiv. **Detection:** TCP-Probe zu `1.1.1.1:53` bevor `UPLINK_UP` feuert. **Recovery:** Eskalations-Ladder L1.5-L3.
+
+**Q: Wieso ist die IP `10.0.0.1` im Log?**
+A: Das ist der von SIMCom-Modems hardcoded **PPP peer placeholder** während IPCP — nicht unsere echte vom Carrier vergebene IP. Die echte IP läuft auf dem PPP netif (typischerweise CGNAT-Range `100.64.x.x` für Telekom IoT). Sehen von `10.0.0.1` in `PPP GOT_IP` ist der normale Healthy-State, **kein** Diagnostic für eine halb-kaputte PDP-Context.
+
+**Q: Wieso kein `AT+CGACT=1,1` zum aktivieren des PDP-Contexts?**
+A: Auf LTE/Cat-M/NB-IoT aktiviert sich der Default-Bearer (CID 1) **automatisch** mit der Registration. Manuelles `AT+CGACT=1,1` triggert einen Race der die PDP-Context-Bindung in einen halb-aktiven Zustand bringt — exakt das Phantom-PPP-Symptom. Wir verifizieren stattdessen mit `AT+CGCONTRDP=1` dass die Auto-Aktivierung wirklich durchgelaufen ist.
 
 **Q: Was bedeutet "RAT 7" im Log?**
 A: 3GPP Access Technology = 7 → E-UTRAN (LTE-M / Cat-M1). 9 wäre NB-IoT.
