@@ -17,6 +17,7 @@
 #include <driver/gpio.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+#include <freertos/semphr.h>
 
 #define TAG "modem"
 
@@ -159,30 +160,53 @@ static bool modem_pwrkey_quiescent_looks_attached(void) {
     return high_samples == 5;
 }
 
+/* The actual probe body — runs in a CPU-1-pinned helper task to dodge
+ * an ESP-IDF v5.5.1 bug where iterating CPU-0 shared-vector descriptors
+ * inside esp_intr_alloc trips an assert (find_desc_for_source
+ * intr_alloc.c:199 svd != NULL). By running on CPU 1, the iteration
+ * skips CPU-0 vectors entirely (else-if condition `vd->cpu == cpu`),
+ * sidestepping the corrupted entry. The PPP netif and UART driver
+ * end up bound to CPU 1, but that's fine — interrupts on either core
+ * service the same UART hardware. */
+static bool modem_probe_body(void);
+
+typedef struct {
+    SemaphoreHandle_t done;
+    bool result;
+} probe_args_t;
+
+static void modem_probe_cpu1_task(void *arg) {
+    probe_args_t *p = (probe_args_t *)arg;
+    p->result = modem_probe_body();
+    xSemaphoreGive(p->done);
+    vTaskDelete(NULL);
+}
+
 bool modem_probe(void) {
     if (s_probed_present) {
         ESP_LOGI(TAG, "modem_probe: already probed (present)");
         return true;
     }
 
-    /* Why no GPIO heuristic anymore:
-     *
-     * Earlier versions tried to gate the probe on a quiescent reading of
-     * the PWRKEY pin (assumption: modem-internal pull-up holds it high).
-     * That assumption is wrong for the LilyGo T-SIM7080G-S3 — the
-     * SIM7080G is *off* at cold boot (VBAT is gated by an external
-     * MOSFET driven by PWRKEY itself, classic chicken-and-egg), so the
-     * line reads low until we *pulse* PWRKEY. The heuristic therefore
-     * always failed on the LilyGo and the probe never woke the modem.
-     *
-     * New strategy: always go through the full probe sequence (sync →
-     * PPP-escape → power-pulse → sync) regardless of GPIO state. On a
-     * board with no modem this still bails out gracefully (sync
-     * timeouts, ~13 s total worst case), it just toggles GPIO 41
-     * harmlessly along the way. If a future production WiFi-only PCB
-     * routes GPIO 41 to something that *cares* about being toggled, we
-     * can re-introduce a board-variant Kconfig gate then. */
+    probe_args_t args = { .done = xSemaphoreCreateBinary(), .result = false };
+    if (!args.done) {
+        ESP_LOGE(TAG, "modem_probe: semaphore alloc failed");
+        return false;
+    }
+    BaseType_t ok = xTaskCreatePinnedToCore(modem_probe_cpu1_task,
+                                              "modem_probe",
+                                              8192, &args, 5, NULL, 1 /* CPU 1 */);
+    if (ok != pdPASS) {
+        ESP_LOGE(TAG, "modem_probe: failed to spawn CPU-1 task");
+        vSemaphoreDelete(args.done);
+        return false;
+    }
+    xSemaphoreTake(args.done, portMAX_DELAY);
+    vSemaphoreDelete(args.done);
+    return args.result;
+}
 
+static bool modem_probe_body(void) {
     /* Build the temporary DTE/DCE. */
     esp_modem_dte_config_t dte_config = ESP_MODEM_DTE_DEFAULT_CONFIG();
     dte_config.uart_config.port_num   = MODEM_UART_PORT;
