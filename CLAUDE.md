@@ -93,6 +93,8 @@ signal bars + operator + IP, and disables submit buttons during in-flight
 or registering states. The old combined `/api/v1/settings/set` endpoint
 was removed in P3.
 
+**Cellular recovery (P4)**: 3-layer escalation. Layer 1 — `network.c::ppp_reconnect_task` retries `modem_disconnect`+`modem_connect` 3 times on `IP_EVENT_PPP_LOST_IP`, ~6 s total. Layer 2 — `modem.c::modem_watchdog_task` (30 s tick) escalates to `modem_power_cycle` (PWRKEY pulse) after 3 consecutive `AT` failures; bounded to 2 power-cycles before deferring to Layer 3. Layer 3 — existing `mqtt_watchdog_cb` hard-reboots after 10 min without MQTT (unchanged from pre-P4). MQTT keepalive bumps to 180 s + network/reconnect timeouts to 30 s/20 s when uplink is cellular at `esp_mqtt_client_init` time. Known limitation: at MQTT-init time `network_init()` has not yet run, so `modem_present` is false and cellular boards still get the WiFi-tuned MQTT values on the first connection — the branch is documented for intent and any future refactor that moves `network_init()` earlier picks up cellular tuning automatically. The watchdog task is started exclusively from `cellular_bring_up_task` (after `modem_connect` succeeds), so WiFi-only boards never spawn it.
+
 **Cellular driver (`modem.c` / `modem.h`)**: SIM7080G driver introduced
 in P1. Public API: `modem_probe`, `modem_init`, `modem_connect`,
 `modem_disconnect`, `modem_status`, `modem_power_cycle`, plus NVS
