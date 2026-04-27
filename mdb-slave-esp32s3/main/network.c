@@ -337,6 +337,45 @@ static void network_ppp_event_handler(void *arg, esp_event_base_t event_base,
     if (event_id == IP_EVENT_PPP_GOT_IP) {
         ip_event_got_ip_t *ev = (ip_event_got_ip_t *)event_data;
         ESP_LOGI(TAG, "PPP GOT_IP: " IPSTR, IP2STR(&ev->ip_info.ip));
+
+        /* Force PPP as the outbound default netif. Otherwise the SoftAP
+         * (route_prio 10) competes with PPP (20) — usually PPP wins,
+         * but we set it explicitly to remove ambiguity. */
+        esp_netif_set_default_netif(ev->esp_netif);
+
+        /* Make sure DNS works.
+         *
+         * CONFIG_ESP_NETIF_SET_DNS_PER_DEFAULT_NETIF is off, so lwIP
+         * uses the global dns_setserver list. The carrier *should* push
+         * DNS during IPCP, but several APNs (sensors.net included) don't,
+         * leaving the list empty and getaddrinfo() returning EAI_NONAME
+         * (errno 202). Read whatever the PPP layer negotiated, and only
+         * force public fallbacks if both slots are empty. */
+        esp_netif_dns_info_t main_dns, backup_dns;
+        bool have_main = (esp_netif_get_dns_info(ev->esp_netif, ESP_NETIF_DNS_MAIN, &main_dns) == ESP_OK
+                          && main_dns.ip.u_addr.ip4.addr != 0);
+        bool have_backup = (esp_netif_get_dns_info(ev->esp_netif, ESP_NETIF_DNS_BACKUP, &backup_dns) == ESP_OK
+                            && backup_dns.ip.u_addr.ip4.addr != 0);
+        char main_str[16] = "(none)", backup_str[16] = "(none)";
+        if (have_main)   esp_ip4addr_ntoa(&main_dns.ip.u_addr.ip4,   main_str,   sizeof(main_str));
+        if (have_backup) esp_ip4addr_ntoa(&backup_dns.ip.u_addr.ip4, backup_str, sizeof(backup_str));
+        ESP_LOGI(TAG, "PPP DNS: main=%s backup=%s", main_str, backup_str);
+
+        if (!have_main) {
+            esp_netif_dns_info_t fallback = { 0 };
+            fallback.ip.type = ESP_IPADDR_TYPE_V4;
+            fallback.ip.u_addr.ip4.addr = esp_ip4addr_aton("8.8.8.8");
+            esp_netif_set_dns_info(ev->esp_netif, ESP_NETIF_DNS_MAIN, &fallback);
+            ESP_LOGW(TAG, "PPP DNS: carrier did not push DNS — installing 8.8.8.8 as primary");
+        }
+        if (!have_backup) {
+            esp_netif_dns_info_t fallback = { 0 };
+            fallback.ip.type = ESP_IPADDR_TYPE_V4;
+            fallback.ip.u_addr.ip4.addr = esp_ip4addr_aton("1.1.1.1");
+            esp_netif_set_dns_info(ev->esp_netif, ESP_NETIF_DNS_BACKUP, &fallback);
+            ESP_LOGW(TAG, "PPP DNS: installing 1.1.1.1 as backup");
+        }
+
         /* Unblock cellular_bring_up_task / ppp_reconnect_task, which
          * wait on this bit before declaring uplink up. esp_modem_set_mode
          * returns before IPCP finishes, so we MUST gate UPLINK_UP on
