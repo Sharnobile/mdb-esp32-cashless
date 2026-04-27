@@ -451,7 +451,14 @@
           var progress = el("claim_progress");
           if (progress) {
             show(progress);
-            el("claim_progress_text").textContent = "Anfrage gesendet — warte auf Bestätigung…";
+            /* Multi-line so the user knows the disconnect is expected.
+             * After successful claim, the device esp_restart()s — AP
+             * goes down for ~10-30s, phone's auto-join may not always
+             * trigger, so we tell them what to do. */
+            el("claim_progress_text").innerHTML =
+              "Anmeldung läuft, Gerät startet danach neu.<br>" +
+              "<span class=\"muted\">Das WLAN wird kurz getrennt. Falls dein Gerät nicht automatisch erneut verbindet, " +
+              "wähle <b>VMflow</b> im WLAN-Menü erneut aus.</span>";
           }
         } else {
           setError("#form_claim", (j && j.error) || "Fehler beim Senden.");
@@ -514,10 +521,18 @@
     else if (state === "ready_to_claim")         nextView = "claim";
     else                                          nextView = "loading";
 
-    /* If claim was just submitted, surface stuck-claim warning after 30s */
-    if (currentView === "claim" && claimSubmittedAt && (Date.now() - claimSubmittedAt > 30000) && !info.claim.claimed) {
+    /* Stuck-claim warning after 90 s — covers the worst case of
+     * reboot (~5 s) + cellular re-registration (~30-60 s) + AP back +
+     * phone auto-join. Anything longer than that and something's
+     * actually wrong (bad code, expired, server unreachable). */
+    if (currentView === "claim" && claimSubmittedAt && (Date.now() - claimSubmittedAt > 90000) && !info.claim.claimed) {
       var pt = el("claim_progress_text");
-      if (pt) pt.textContent = "Anmeldung dauert ungewöhnlich lange — bitte SIM-Verbindung und Provisioning-Code prüfen.";
+      if (pt) {
+        pt.innerHTML =
+          "Anmeldung dauert ungewöhnlich lange.<br>" +
+          "<span class=\"muted\">Verbinde dich erneut mit <b>VMflow</b> im WLAN-Menü und lade diese Seite neu. " +
+          "Wenn das nicht hilft, prüfe Provisioning-Code und Server-URL.</span>";
+      }
     }
 
     if (nextView === currentView) return;
