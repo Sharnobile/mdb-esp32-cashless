@@ -165,24 +165,25 @@ bool modem_probe(void) {
         return true;
     }
 
-    /* Step 1: GPIO quiescent check. Cheap, no side effects.
+    /* Why no GPIO heuristic anymore:
      *
-     * Critical fast-path: if the GPIO check says no modem, return
-     * immediately WITHOUT installing the UART2 driver. The UART
-     * driver install was crashing on a hardware test
-     * (find_desc_for_source assert in esp_intr_alloc) on boards that
-     * don't have a SIM7080G wired to PWRKEY, and the safest thing
-     * we can do is never touch the UART hardware at all unless we
-     * have positive evidence a modem is present. */
-    if (!modem_pwrkey_quiescent_looks_attached()) {
-        ESP_LOGI(TAG, "modem_probe: PWRKEY quiescent says no modem — "
-                       "skipping all UART/DTE/DCE work");
-        gpio_reset_pin(MODEM_PIN_PWR);
-        return false;
-    }
+     * Earlier versions tried to gate the probe on a quiescent reading of
+     * the PWRKEY pin (assumption: modem-internal pull-up holds it high).
+     * That assumption is wrong for the LilyGo T-SIM7080G-S3 — the
+     * SIM7080G is *off* at cold boot (VBAT is gated by an external
+     * MOSFET driven by PWRKEY itself, classic chicken-and-egg), so the
+     * line reads low until we *pulse* PWRKEY. The heuristic therefore
+     * always failed on the LilyGo and the probe never woke the modem.
+     *
+     * New strategy: always go through the full probe sequence (sync →
+     * PPP-escape → power-pulse → sync) regardless of GPIO state. On a
+     * board with no modem this still bails out gracefully (sync
+     * timeouts, ~13 s total worst case), it just toggles GPIO 41
+     * harmlessly along the way. If a future production WiFi-only PCB
+     * routes GPIO 41 to something that *cares* about being toggled, we
+     * can re-introduce a board-variant Kconfig gate then. */
 
-    /* Step 2: Build a temporary DTE/DCE just for the AT-sync probe.
-     * If sync fails we tear it down without ever issuing a power pulse. */
+    /* Build the temporary DTE/DCE. */
     esp_modem_dte_config_t dte_config = ESP_MODEM_DTE_DEFAULT_CONFIG();
     dte_config.uart_config.port_num   = MODEM_UART_PORT;
     dte_config.uart_config.baud_rate  = MODEM_BAUD;
@@ -222,8 +223,10 @@ bool modem_probe(void) {
     }
 
     if (ret != ESP_OK) {
-        /* GPIO heuristic already passed (we'd have returned at the top
-         * otherwise). Modem is attached but cold — pulse power. */
+        /* Modem either off (LilyGo cold boot) or absent. Pulse PWRKEY:
+         * if a modem is wired up this turns it on; if not, the pulse
+         * is harmless on most boards (revisit if a production PCB
+         * connects GPIO 41 to something sensitive). */
         ESP_LOGI(TAG, "issuing PWRKEY pulse...");
         modem_power_cycle();
         ret = esp_modem_sync(s_dce);
@@ -254,6 +257,10 @@ bool modem_probe(void) {
     s_probed_present = true;
     ESP_LOGI(TAG, "modem detected and synced");
     return true;
+}
+
+bool modem_is_present(void) {
+    return s_probed_present;
 }
 
 esp_err_t modem_init(const char *apn, const char *pin, modem_lte_mode_t mode) {

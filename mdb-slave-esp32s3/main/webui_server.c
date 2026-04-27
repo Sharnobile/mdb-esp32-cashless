@@ -100,14 +100,26 @@ static esp_err_t system_info_get_handler(httpd_req_t *req) {
     bool claimed       = (strlen(company_id) > 0);
     bool prov_code_set = (strlen(prov_code)  > 0);
 
-    cJSON *root = cJSON_CreateObject();
-    cJSON_AddStringToObject(root, "variant",
-        st.modem_present ? "cellular" : "wifi");
+    /* Variant is keyed off the actual probe outcome, NOT off the current
+     * network state. SOFTAP_ONLY can mean either "cellular board waiting
+     * for APN" OR "WiFi-only board with no saved creds" — using
+     * modem_is_present() disambiguates. */
+    bool modem_present = modem_is_present();
 
-    /* If claimed already, treat the wizard as "complete" so the SPA
-     * shows a steady-state view rather than the claim form. */
-    cJSON_AddStringToObject(root, "wizard_state",
-        claimed ? "claimed" : wizard_state_str(st.state));
+    cJSON *root = cJSON_CreateObject();
+    cJSON_AddStringToObject(root, "variant", modem_present ? "cellular" : "wifi");
+
+    /* Wizard state mapping. SOFTAP_ONLY needs special handling because it
+     * means different things on the two variants. */
+    const char *ws;
+    if (claimed) {
+        ws = "claimed";
+    } else if (st.state == NETWORK_STATE_SOFTAP_ONLY) {
+        ws = modem_present ? "cellular_config" : "wifi_connecting";
+    } else {
+        ws = wizard_state_str(st.state);
+    }
+    cJSON_AddStringToObject(root, "wizard_state", ws);
 
     cJSON *uplink = cJSON_AddObjectToObject(root, "uplink");
     cJSON_AddStringToObject(uplink, "kind", st.uplink_kind);
@@ -121,7 +133,7 @@ static esp_err_t system_info_get_handler(httpd_req_t *req) {
         cJSON_AddNullToObject(uplink, "wifi");
     }
 
-    if (st.modem_present) {
+    if (modem_present) {
         cJSON *c = cJSON_AddObjectToObject(uplink, "cellular");
         cJSON_AddStringToObject(c, "operator",  st.cellular_operator);
         cJSON_AddStringToObject(c, "mode",      lte_mode_str(st.cellular_mode));

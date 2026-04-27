@@ -43,20 +43,29 @@ typedef struct {
  * Detect whether a SIM7080G is wired and responsive.
  *
  * Sequence (safe on boards without a modem):
- *   1. Configure UART2 at 115200, GPIOs RX/TX/PWR per Kconfig pin defaults.
- *   2. Read PWRKEY GPIO quiescent state — must match modem-attached pattern.
- *   3. Try esp_modem_sync() (modem may already be on after warm reset).
- *   4. If fail: switch to ESP_MODEM_MODE_COMMAND (PPP escape), retry sync.
- *   5. If still fail AND quiescent state is modem-attached: power_pulse, retry.
- *   6. Returns true only if AT sync succeeds; false otherwise.
+ *   1. Configure UART2 at 115200, GPIOs RX/TX/PWR per pin defaults.
+ *   2. Try esp_modem_sync() (modem may already be on after warm reset).
+ *   3. If fail: switch to ESP_MODEM_MODE_COMMAND (PPP escape), retry sync.
+ *   4. If still fail: pulse PWRKEY (turns the modem on if attached), retry.
+ *   5. Returns true only if AT sync succeeds; false otherwise.
  *
- * Total worst-case duration: ~10 s. Quick path (modem absent + GPIO check
- * fails): <500 ms.
+ * Total worst-case duration: ~13 s on a board without a modem (sync
+ * timeouts + a no-op power pulse). Quick path (warm modem already on):
+ * < 500 ms.
  *
  * Idempotent — safe to call multiple times. Does NOT enable any cellular
  * function (CFUN stays at whatever the modem booted with).
  */
 bool modem_probe(void);
+
+/*
+ * Returns whether the most recent modem_probe() succeeded — i.e. whether
+ * a SIM7080G is actually attached and synced. Used by network.c to
+ * disambiguate `NETWORK_STATE_SOFTAP_ONLY` (which can be reached either
+ * from a cellular board without an APN OR a WiFi-only board with no
+ * saved credentials) so the captive portal renders the correct variant.
+ */
+bool modem_is_present(void);
 
 /*
  * Configure the modem with credentials and prepare for network attach.
