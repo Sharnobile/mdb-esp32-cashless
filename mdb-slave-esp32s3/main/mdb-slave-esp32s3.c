@@ -2303,7 +2303,8 @@ static void network_event_cb(network_event_t event, void *user_data) {
             }
 
             if (!mqtt_started && mqttClient) {
-                ESP_LOGW(TAG, "MQTT: starting client");
+                ESP_LOGW(TAG, "MQTT: starting client (company='%s' device='%s', client=%p)",
+                         my_company_id, my_device_id, mqttClient);
                 esp_mqtt_client_start(mqttClient);
                 mqtt_last_connected_tick = xTaskGetTickCount();
             }
@@ -2315,7 +2316,8 @@ static void network_event_cb(network_event_t event, void *user_data) {
                 };
                 if (esp_timer_create(&wdt_args, &mqtt_watchdog_timer) == ESP_OK) {
                     esp_timer_start_periodic(mqtt_watchdog_timer, MQTT_WATCHDOG_INTERVAL_SEC * 1000000ULL);
-                    ESP_LOGI(TAG, "MQTT watchdog timer started");
+                    ESP_LOGI(TAG, "MQTT watchdog timer started (every %ds, timeout %ds)",
+                             MQTT_WATCHDOG_INTERVAL_SEC, MQTT_WATCHDOG_TIMEOUT_SEC);
                 }
             }
             break;
