@@ -121,14 +121,20 @@
    * and /api/v1/claim.
    * ============================================================ */
 
-  /* ---------- State labels (German) ---------- */
+  /* ---------- State labels (German) ----------
+   *
+   * "cellular_registering" = das Modem versucht sich beim Mobilfunkmast
+   * einzubuchen (3GPP CEREG). Das ist NICHT die Anmeldung beim Backend
+   * — die kommt später im Schritt "ready_to_claim". Wording bewusst auf
+   * "Verbindung wird aufgebaut" um Verwechslung mit der Geräte-
+   * Anmeldung zu vermeiden. */
   var STATE_LABELS = {
     booting:              "Bootet…",
     offline:              "Kein Uplink",
     cellular_config:      "SIM nicht konfiguriert",
-    cellular_registering: "Registriere bei Mobilfunknetz…",
+    cellular_registering: "Mobilfunk-Verbindung wird aufgebaut…",
     wifi_connecting:      "WiFi verbindet…",
-    ready_to_claim:       "Bereit zur Anmeldung",
+    ready_to_claim:       "Bereit zur Geräte-Anmeldung",
     claimed:              "Online — angemeldet"
   };
 
@@ -285,8 +291,8 @@
     return (
       '<div class="panel center">' +
         '<div class="spinner"></div>' +
-        '<h2 style="margin-top:14px">Registriere bei Mobilfunknetz…</h2>' +
-        '<p class="muted" style="margin-top:6px">Das kann bis zu 60 Sekunden dauern.</p>' +
+        '<h2 style="margin-top:14px">Mobilfunk-Verbindung wird aufgebaut…</h2>' +
+        '<p class="muted" style="margin-top:6px">Das Modem bucht sich beim Mobilfunkmast ein und holt eine IP-Adresse. Kann bis zu 60 Sekunden dauern.</p>' +
       '</div>'
     );
   }
