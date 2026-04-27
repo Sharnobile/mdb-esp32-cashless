@@ -3,7 +3,6 @@ set(srcs "mdb-slave-esp32s3.c"
         "nimble.c"
         "sale_queue.c"
         "modem.c"
-        "modem_test.c"
         "network.c")
 
 idf_component_register(SRCS "${srcs}"

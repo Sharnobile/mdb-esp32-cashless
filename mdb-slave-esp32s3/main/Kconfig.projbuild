@@ -116,13 +116,4 @@ menu "SIM7080G"
             allows runtime override; this value is only used if no APN is
             saved in NVS.
 
-    config CASHLESS_TEST_MODE_MODEM
-        bool "Run modem test main instead of full firmware (P1 validation)"
-        default n
-        help
-            When enabled, app_main() is replaced by modem_test_main()
-            which exercises modem_probe / init / connect / status and
-            logs results. Used for P1 hardware validation only — must
-            be turned off for production builds.
-
 endmenu # SIM7080G
