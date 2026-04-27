@@ -214,8 +214,13 @@ Deno.serve(async (req) => {
       const prevState = (deviceRow.mdb_diagnostics as Record<string, unknown> | null)?.state as string | undefined;
       const stateChanged = prevState !== newState;
 
-      // Always update latest diagnostics snapshot
-      const diagPayload = { ...diag, updated_at: new Date().toISOString() };
+      // Merge diagnostics with previous snapshot so sibling blocks
+      // written by other handlers (e.g. cellular telemetry from the
+      // status-payload parser) are preserved. Without this merge, every
+      // 5-minute mdb-log heartbeat would wipe `cellular`, making the
+      // CellularHealthBadge disappear shortly after every reconnect.
+      const prevDiag = (deviceRow.mdb_diagnostics as Record<string, unknown> | null) ?? {};
+      const diagPayload = { ...prevDiag, ...diag, updated_at: new Date().toISOString() };
 
       // If device is sending mdb-log, it's clearly online — fix status if
       // the forwarder missed the initial 'online' message (e.g. after server restart)

@@ -102,6 +102,7 @@ static void network_wifi_event_handler(void *arg, esp_event_base_t event_base, i
                 start_rest_server();
                 s_softap_active = true;
                 s_state = NETWORK_STATE_SOFTAP_ONLY;
+                network_fire_event(NETWORK_EVENT_SOFTAP_STARTED);
             } else {
                 s_state = NETWORK_STATE_WIFI_CONNECTING;
                 esp_err_t conn_err = esp_wifi_connect();
@@ -113,6 +114,7 @@ static void network_wifi_event_handler(void *arg, esp_event_base_t event_base, i
                     start_rest_server();
                     s_softap_active = true;
                     s_state = NETWORK_STATE_SOFTAP_ONLY;
+                    network_fire_event(NETWORK_EVENT_SOFTAP_STARTED);
                 }
             }
             break;
@@ -152,6 +154,7 @@ static void network_wifi_event_handler(void *arg, esp_event_base_t event_base, i
                 start_rest_server();
                 s_softap_active = true;
                 s_state = NETWORK_STATE_SOFTAP_ONLY;
+                network_fire_event(NETWORK_EVENT_SOFTAP_STARTED);
 
                 /* Start periodic reconnect timer */
                 if (s_wifi_reconnect_timer == NULL) {
