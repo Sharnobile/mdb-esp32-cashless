@@ -45,6 +45,10 @@
 #define PPP_GOT_IP_BIT          BIT0
 static EventGroupHandle_t       s_ppp_event_group = NULL;
 
+/* OFFLINE retry: re-spawn cellular_bring_up_task after this many seconds
+ * when both the recovery ladder and Layer-1 PPP reconnect have given up. */
+#define OFFLINE_RETRY_DELAY_S   30
+
 #define TAG "network"
 
 /* SoftAP fallback policy — moved verbatim from mdb-slave-esp32s3.c
@@ -218,6 +222,10 @@ static void network_wifi_event_handler(void *arg, esp_event_base_t event_base, i
         }
 }
 
+/* Forward decl — schedule_offline_retry's body is below ppp_reconnect_task,
+ * but cellular_bring_up_task also calls it on recovery-ladder exhaustion. */
+static void schedule_offline_retry(void);
+
 /* ---- Cellular bring-up ----
  *
  * Background task that runs modem_init + modem_connect using the APN
@@ -247,28 +255,97 @@ static void cellular_bring_up_task(void *arg) {
         return;
     }
 
-    err = modem_connect();
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "modem_connect failed: %s", esp_err_to_name(err));
-        s_state = NETWORK_STATE_OFFLINE;
-        vTaskDelete(NULL);
-        return;
+    /* PPP bring-up + IPCP-timeout recovery loop.
+     *
+     * SIM7080G occasionally accepts ATD*99## but never completes IPCP —
+     * symptom seen in the field is `set DATA mode: ESP_OK` followed by
+     * 30 s of silence, never a +IP. Causes range from a stale PDP
+     * context (most common, fixes with CGACT cycle) to a hung modem
+     * firmware (needs CFUN=1,1) to wedged hardware (needs DC3 cut).
+     *
+     * Per SIMCom AT Command Manual + esp-protocols field reports we
+     * walk a recovery escalation ladder: PDP reset → RF reset → soft
+     * restart → hard reset, attempting modem_connect() after each.
+     * Total worst-case ~3 minutes before bailing OFFLINE; the
+     * offline_retry timer then re-runs the whole bring-up after 30 s.
+     *
+     * Each step that escalates beyond CGACT also requires a fresh
+     * modem_init() because CFUN-or-power-cycle wipes our config (CNMP,
+     * CMNB, CGDCONT, CEREG, CPSMS, CEDRXS). */
+    enum {
+        STEP_INITIAL,
+        STEP_PDP,
+        STEP_RF,
+        STEP_SOFT,
+        STEP_HARD,
+        STEP_DONE,
+    } step;
+
+    bool ipcp_ok = false;
+    for (step = STEP_INITIAL; step != STEP_DONE && !ipcp_ok; ) {
+        const char *step_name = NULL;
+
+        /* Apply the recovery primitive for this step. STEP_INITIAL is
+         * the first try — modem_init has already run, jump straight
+         * into modem_connect. Subsequent steps repair-then-reconfigure. */
+        switch (step) {
+            case STEP_INITIAL:
+                step_name = "initial connect";
+                break;
+            case STEP_PDP:
+                step_name = "PDP reset";
+                modem_pdp_reset();
+                break;
+            case STEP_RF:
+                step_name = "RF reset";
+                modem_rf_reset();
+                break;
+            case STEP_SOFT:
+                step_name = "soft restart";
+                modem_soft_restart();
+                modem_init(apn, pin, mode);   /* re-apply config */
+                break;
+            case STEP_HARD:
+                step_name = "hard reset";
+                modem_hard_reset();
+                modem_init(apn, pin, mode);
+                break;
+            default:
+                break;
+        }
+
+        ESP_LOGI(TAG, "PPP attempt: %s", step_name);
+        err = modem_connect();
+        if (err != ESP_OK) {
+            ESP_LOGW(TAG, "modem_connect after %s failed: %s — escalating",
+                     step_name, esp_err_to_name(err));
+        } else if (s_ppp_event_group) {
+            EventBits_t bits = xEventGroupWaitBits(s_ppp_event_group, PPP_GOT_IP_BIT,
+                                                   pdFALSE, pdTRUE, pdMS_TO_TICKS(30000));
+            if (bits & PPP_GOT_IP_BIT) {
+                ESP_LOGI(TAG, "IPCP completed after %s", step_name);
+                ipcp_ok = true;
+                break;
+            }
+            ESP_LOGW(TAG, "IPCP timeout after %s — escalating", step_name);
+        }
+
+        /* Advance to next escalation level. */
+        step = (step == STEP_INITIAL) ? STEP_PDP
+             : (step == STEP_PDP)     ? STEP_RF
+             : (step == STEP_RF)      ? STEP_SOFT
+             : (step == STEP_SOFT)    ? STEP_HARD
+             :                          STEP_DONE;
     }
 
-    /* esp_modem_set_mode(DATA) only kicks PPP off — it doesn't wait for
-     * IPCP to install IP/DNS/route. Without this wait the upstream
-     * UPLINK_UP consumer (claim task, MQTT client) hits getaddrinfo
-     * with no DNS server and fails with EAI_NODATA. PPP IPCP is
-     * usually <2s; allow up to 30s on slow carriers. */
-    if (s_ppp_event_group) {
-        EventBits_t bits = xEventGroupWaitBits(s_ppp_event_group, PPP_GOT_IP_BIT,
-                                               pdFALSE, pdTRUE, pdMS_TO_TICKS(30000));
-        if (!(bits & PPP_GOT_IP_BIT)) {
-            ESP_LOGE(TAG, "PPP IPCP timeout — no IP after 30s");
-            s_state = NETWORK_STATE_OFFLINE;
-            vTaskDelete(NULL);
-            return;
-        }
+    if (!ipcp_ok) {
+        ESP_LOGE(TAG, "PPP recovery ladder exhausted — OFFLINE, retry in %d s",
+                 OFFLINE_RETRY_DELAY_S);
+        s_state = NETWORK_STATE_OFFLINE;
+        network_fire_event(NETWORK_EVENT_UPLINK_DOWN);
+        schedule_offline_retry();
+        vTaskDelete(NULL);
+        return;
     }
 
     s_state = NETWORK_STATE_CELLULAR_UP;
@@ -286,9 +363,7 @@ static void cellular_bring_up_task(void *arg) {
  * on its next tick). Total worst-case duration ~6-30s depending on how long
  * each modem_connect takes (CFUN + registration + PPP). */
 #define PPP_RECONNECT_ATTEMPTS  3
-#define OFFLINE_RETRY_DELAY_S   30
 static int s_ppp_reconnect_attempts = 0;
-static void schedule_offline_retry(void);
 
 static void ppp_reconnect_task(void *arg) {
     (void)arg;

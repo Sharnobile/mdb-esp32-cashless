@@ -91,11 +91,28 @@ esp_err_t modem_connect(void);
 esp_err_t modem_disconnect(void);
 
 /*
- * Hard power-cycle the modem: assert PWRKEY for 1.2 s, wait 5 s for
- * boot. Used by the recovery layer (P4) when AT sync stops responding.
- * Caller should re-init/re-connect afterwards.
+ * Single PWRKEY pulse + 8 s boot wait. Designed for the cold-boot path
+ * (modem off, turn on). On a RUNNING modem this only powers it OFF —
+ * use modem_hard_reset() for an actual cycle.
  */
 void modem_power_cycle(void);
+
+/*
+ * Recovery escalation ladder (per SIMCom AT Command Manual §10 +
+ * production field reports). Each layer is independently callable;
+ * caller decides escalation order. Each must be followed by
+ * modem_init() + modem_connect() to re-establish the data session.
+ *
+ * L1.5 — PDP context cycle (CGACT down/up). ~5 s. Cheapest reset.
+ * L1.6 — Radio reset (CFUN=0/1). ~10 s. Re-attaches to network.
+ * L2   — Soft firmware restart (CFUN=1,1). ~12 s. Modem reboots cleanly.
+ * L3   — Hardware reset (PMU DC3 cut + PWRKEY). ~15 s. Last resort
+ *        before factory_reset; resets modem hardware unconditionally.
+ */
+esp_err_t modem_pdp_reset(void);
+esp_err_t modem_rf_reset(void);
+esp_err_t modem_soft_restart(void);
+void      modem_hard_reset(void);
 
 /*
  * Refresh and return current modem status. Cheap to call (issues

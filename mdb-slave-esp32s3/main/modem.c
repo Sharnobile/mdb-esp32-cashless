@@ -669,27 +669,143 @@ esp_err_t modem_disconnect(void) {
     return err;
 }
 
-void modem_power_cycle(void) {
-    /* Configure PWRKEY as output. Direction matters: on LilyGo (direct
-     * wiring), GPIO low = PWRKEY low = "press". On Leonardo's custom
-     * PCB (inverting transistor), GPIO high = PWRKEY low = "press".
-     * MODEM_PWRKEY_INVERTED selects between them. */
+/* PWRKEY pulse helper. Single 1.2s press — that's a TOGGLE on SIM7080G:
+ * if the modem is off it powers it on; if on, it powers it off (graceful
+ * shutdown, ~3s before STATUS goes low).
+ *
+ * Original SIM7080 Hardware Design v1.04 §3.4: PWRKEY low ≥1.0s for
+ * power-on, ≥1.2s for power-off. We use 1.2s which works for both. */
+static void pwrkey_pulse(void) {
     gpio_set_direction(MODEM_PIN_PWR, GPIO_MODE_OUTPUT);
-
     const int idle_level    = MODEM_PWRKEY_INVERTED ? 0 : 1;
     const int pressed_level = MODEM_PWRKEY_INVERTED ? 1 : 0;
 
     gpio_set_level(MODEM_PIN_PWR, idle_level);
     vTaskDelay(pdMS_TO_TICKS(100));
     gpio_set_level(MODEM_PIN_PWR, pressed_level);
-    vTaskDelay(pdMS_TO_TICKS(1200));   /* SIM7080G PWRKEY ≥ 1.0 s */
+    vTaskDelay(pdMS_TO_TICKS(1200));
     gpio_set_level(MODEM_PIN_PWR, idle_level);
+}
 
-    /* SIM7080G boot time after PWRKEY release: typically 6-8s, can be up
-     * to ~12s on cold start. 5s was too aggressive — the modem was still
-     * initialising when we issued AT+CFUN=1. 8s is a safer floor; the
-     * 30s CFUN=1 timeout in modem_connect absorbs any remaining slack. */
+void modem_power_cycle(void) {
+    /* Original use case: modem is OFF (cold boot), this pulse turns it ON.
+     * Used by modem_probe at boot. Keeping name + behaviour for backward
+     * compat. For an actual power CYCLE on a running modem, use
+     * modem_hard_reset() instead — that's the function field-tests showed
+     * we actually need (single PWRKEY pulse on a running modem only
+     * powers it off and leaves it off).
+     *
+     * Caller is responsible for knowing the modem is currently OFF. */
+    pwrkey_pulse();
     ESP_LOGI(TAG, "PWRKEY pulsed; waiting 8 s for boot...");
+    vTaskDelay(pdMS_TO_TICKS(8000));
+}
+
+/* === Recovery escalation ladder ============================================
+ *
+ * Per SIMCom AT Command Manual + LilyGo + esp-protocols field reports, the
+ * stable recovery path on SIM7080G has four levels, in order of cost:
+ *
+ *   L1.5  modem_pdp_reset()    ~5 s   — CGACT down/up. Fixes "stuck PDP
+ *                                       context" where a previous session's
+ *                                       state lingers.
+ *   L1.6  modem_rf_reset()    ~10 s   — AT+CFUN=0/1. Fixes stuck cell
+ *                                       registration / handover failures.
+ *   L2    modem_soft_restart() ~12 s  — AT+CFUN=1,1 firmware reboot. Fixes
+ *                                       almost all internal modem-firmware
+ *                                       hangs without losing power.
+ *   L3    modem_hard_reset()  ~15 s   — PMU DC3 cut + PWRKEY. Last resort
+ *                                       short of factory reset; resets
+ *                                       hardware unconditionally.
+ *
+ * Each must be followed by modem_init() + modem_connect() to re-establish
+ * the application stack. Recovery total budget under 1 minute before
+ * escalating to next level, so worst-case ~3-4 minutes ladder traversal
+ * before bailing OFFLINE. The ppp_reconnect_task / cellular_bring_up_task
+ * paths drive this ladder. */
+
+/* L1.5: PDP context cycle. Cheapest reset — keeps RF + registration. */
+esp_err_t modem_pdp_reset(void) {
+    if (!s_dce) return ESP_ERR_INVALID_STATE;
+
+    /* Must be in COMMAND mode to issue AT. If we're in DATA, escape. */
+    esp_modem_set_mode(s_dce, ESP_MODEM_MODE_COMMAND);
+    vTaskDelay(pdMS_TO_TICKS(500));
+
+    char resp[64];
+    ESP_LOGW(TAG, "L1.5 recovery: AT+CGACT=0,1 (deactivate PDP)");
+    esp_modem_at(s_dce, "AT+CGACT=0,1", resp, 5000);
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    ESP_LOGW(TAG, "L1.5 recovery: AT+CGACT=1,1 (re-activate PDP)");
+    esp_err_t err = esp_modem_at(s_dce, "AT+CGACT=1,1", resp, 10000);
+    ESP_LOGI(TAG, "L1.5 recovery: result=%s", esp_err_to_name(err));
+    return err;
+}
+
+/* L1.6: Radio reset. Resets RF stack, keeps SIM session and modem firmware. */
+esp_err_t modem_rf_reset(void) {
+    if (!s_dce) return ESP_ERR_INVALID_STATE;
+
+    esp_modem_set_mode(s_dce, ESP_MODEM_MODE_COMMAND);
+    vTaskDelay(pdMS_TO_TICKS(500));
+
+    char resp[32];
+    ESP_LOGW(TAG, "L1.6 recovery: AT+CFUN=0 (radio off)");
+    esp_modem_at(s_dce, "AT+CFUN=0", resp, 10000);
+    vTaskDelay(pdMS_TO_TICKS(2000));   /* let the network see the detach */
+    ESP_LOGW(TAG, "L1.6 recovery: AT+CFUN=1 (radio on)");
+    esp_err_t err = esp_modem_at(s_dce, "AT+CFUN=1", resp, 30000);
+    ESP_LOGI(TAG, "L1.6 recovery: result=%s", esp_err_to_name(err));
+    return err;
+}
+
+/* L2: Soft firmware restart. Modem stays powered; firmware reboots cleanly.
+ * AT+CFUN=1,1 returns OK first then the modem detaches/reattaches. We can't
+ * AT until ~10s later. */
+esp_err_t modem_soft_restart(void) {
+    if (!s_dce) return ESP_ERR_INVALID_STATE;
+
+    esp_modem_set_mode(s_dce, ESP_MODEM_MODE_COMMAND);
+    vTaskDelay(pdMS_TO_TICKS(500));
+
+    char resp[32];
+    ESP_LOGW(TAG, "L2 recovery: AT+CFUN=1,1 (soft restart)");
+    esp_modem_at(s_dce, "AT+CFUN=1,1", resp, 5000);
+    vTaskDelay(pdMS_TO_TICKS(10000));   /* boot wait */
+    ESP_LOGI(TAG, "L2 recovery: modem should be back");
+    return ESP_OK;
+}
+
+/* L3: Hardware power cycle. PMU DC3 cut + re-enable + PWRKEY pulse. The
+ * cleanest reset short of factory_reset — resets the modem hardware
+ * unconditionally regardless of internal state.
+ *
+ * On boards without AXP2101 PMU, falls back to a PWRKEY toggle pair (two
+ * pulses with a gap), which is the best we can do without power-gating. */
+void modem_hard_reset(void) {
+    /* Try PMU-based DC3 cut first (LilyGo T-SIM7080G route). */
+    ESP_LOGW(TAG, "L3 recovery: cutting modem power via PMU DC3 for 2 s");
+    esp_err_t pmu_err = axp_rmw_reg(AXP2101_REG_DC_ONOFF, 0x04, 0);
+
+    if (pmu_err == ESP_OK) {
+        vTaskDelay(pdMS_TO_TICKS(2000));   /* drain caps + ensure modem fully off */
+        ESP_LOGI(TAG, "L3 recovery: re-enabling DC3");
+        axp_rmw_reg(AXP2101_REG_DC_ONOFF, 0, 0x04);
+        vTaskDelay(pdMS_TO_TICKS(500));    /* power rails stabilise */
+        pwrkey_pulse();                    /* boot the modem */
+    } else {
+        /* No PMU. Fallback: PWRKEY pulse pair. First press toggles state
+         * (modem-on → off, modem-off → on); we wait through the modem's
+         * shutdown sequence (~3 s typical), then a second press to ensure
+         * we end up in the "on" state. Less reliable than PMU but better
+         * than a single pulse. */
+        ESP_LOGW(TAG, "L3 recovery: PMU not available, PWRKEY toggle-pair");
+        pwrkey_pulse();                    /* may turn off if was on */
+        vTaskDelay(pdMS_TO_TICKS(3000));   /* let modem complete shutdown */
+        pwrkey_pulse();                    /* turn on (if off) */
+    }
+
+    ESP_LOGI(TAG, "L3 recovery: waiting 8 s for modem boot...");
     vTaskDelay(pdMS_TO_TICKS(8000));
 }
 
