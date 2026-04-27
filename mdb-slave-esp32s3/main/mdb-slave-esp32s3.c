@@ -2140,7 +2140,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
  * persists the returned subdomain + passkey, erases the one-time code, then
  * reboots so the regular startup path takes over.
  */
-static void provision_claim_task(void *arg) {
+void provision_claim_task(void *arg) {
     char prov_code[32] = {0};
     char srv_url[128]  = {0};
 
