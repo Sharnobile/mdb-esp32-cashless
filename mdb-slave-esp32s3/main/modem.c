@@ -18,6 +18,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <freertos/semphr.h>
+#include <driver/i2c_master.h>
 
 #define TAG "modem"
 
@@ -174,41 +175,146 @@ bool modem_probe(void) {
     return args.result;
 }
 
-/* LilyGo T-SIM7080G boards gate the SIM7080G's VBAT through an external
- * MOSFET driven by a separate "POWERON" GPIO. Without that pin asserted
- * HIGH the modem has no power, ignores PWRKEY pulses, and never replies
- * to AT. Different LilyGo revisions wire different GPIOs:
- *   - T-SIM7080G-S3 (most common):    GPIO 12
- *   - some S3 revs:                   GPIO 47
- *   - some S3 sense-board revs:       GPIO 48
+/* === AXP2101 PMU power-up =============================================
  *
- * Asserting all candidates at boot is harmless on boards that don't
- * use a given pin (it just becomes an idle-high output). On the
- * existing production WiFi-only PCB GPIO 12 is wired to a buzzer
- * which beeps briefly when held HIGH — annoying but not damaging.
- * Once the specific pin is known for a deployed board, narrow this
- * list to just that pin. */
-static const gpio_num_t kPoweronCandidates[] = {
-    GPIO_NUM_12,    /* LilyGo T-SIM7080G-S3 typical */
-    GPIO_NUM_47,    /* some S3 revs */
-    GPIO_NUM_48,    /* some S3 sense-board revs */
-};
+ * The LilyGo T-SIM7080G-S3 board has an AXP2101 power management IC that
+ * gates the SIM7080G's main VBAT (DC3 channel, 3.0V) and the level-
+ * conversion supply (BLDO1 channel, 3.3V) — both addressed via I2C.
+ * Without these channels enabled the modem has zero power, ignores
+ * PWRKEY pulses, and never responds on UART.
+ *
+ * Discovered by reading LilyGo's official ATDebug.ino reference sketch
+ * (github.com/Xinyuan-LilyGO/LilyGo-T-SIM7080G/examples/ATDebug). Pin
+ * candidates we tried earlier (GPIO 12/47/48 driven HIGH) were all
+ * misses because there's no plain GPIO POWERON — it's I2C all the way.
+ *
+ * Register addresses come from XPowersLib/AXP2101Constants.h. We do
+ * the bare-minimum sequence here in C without pulling the C++ library:
+ *   1. Verify chip ID at 0x03 → 0x4A
+ *   2. Set DC3 voltage (0x84) to 3000 mV (code 102)
+ *   3. Enable DC3 (0x80, set bit 2) → modem main power
+ *   4. Set BLDO1 voltage (0x96) to 3300 mV (code 28)
+ *   5. Enable BLDO1 (0x90, set bit 4) → level-conversion supply
+ *
+ * If the AXP2101 isn't present (production WiFi-only PCB) the I2C probe
+ * fails with ESP_ERR_TIMEOUT; we log and continue so the modem probe
+ * sequence still runs (it'll bail out at AT-sync, just like before).
+ */
+#define AXP2101_I2C_PORT       I2C_NUM_1
+#define AXP2101_I2C_SDA        GPIO_NUM_15
+#define AXP2101_I2C_SCL        GPIO_NUM_7
+#define AXP2101_SLAVE_ADDR     0x34
+#define AXP2101_REG_CHIP_ID    0x03
+#define AXP2101_CHIP_ID_VAL    0x4A
+#define AXP2101_REG_DC_ONOFF   0x80
+#define AXP2101_REG_DC3_VOL    0x84
+#define AXP2101_REG_LDO_ONOFF0 0x90
+#define AXP2101_REG_BLDO1_VOL  0x96
 
-static void modem_assert_poweron_candidates(void) {
-    for (size_t i = 0; i < sizeof(kPoweronCandidates) / sizeof(kPoweronCandidates[0]); i++) {
-        gpio_num_t pin = kPoweronCandidates[i];
-        gpio_set_direction(pin, GPIO_MODE_OUTPUT);
-        gpio_set_level(pin, 1);
-        ESP_LOGI(TAG, "POWERON candidate GPIO %d → HIGH", (int)pin);
+static i2c_master_bus_handle_t s_axp_bus = NULL;
+static i2c_master_dev_handle_t s_axp_dev = NULL;
+
+static esp_err_t axp_read_reg(uint8_t reg, uint8_t *out) {
+    return i2c_master_transmit_receive(s_axp_dev, &reg, 1, out, 1, pdMS_TO_TICKS(100));
+}
+
+static esp_err_t axp_write_reg(uint8_t reg, uint8_t val) {
+    uint8_t buf[2] = { reg, val };
+    return i2c_master_transmit(s_axp_dev, buf, sizeof(buf), pdMS_TO_TICKS(100));
+}
+
+/* Read-modify-write: clear `clear_mask`, set bits in `set_mask`. */
+static esp_err_t axp_rmw_reg(uint8_t reg, uint8_t clear_mask, uint8_t set_mask) {
+    uint8_t v;
+    esp_err_t err = axp_read_reg(reg, &v);
+    if (err != ESP_OK) return err;
+    v = (v & ~clear_mask) | set_mask;
+    return axp_write_reg(reg, v);
+}
+
+/* Returns ESP_OK if AXP2101 was found and the modem rails were enabled.
+ * Returns the I2C error otherwise. Idempotent — safe to call multiple
+ * times in case the modem probe escalates. */
+static esp_err_t modem_enable_pmu_rails(void) {
+    if (!s_axp_bus) {
+        i2c_master_bus_config_t bus_cfg = {
+            .clk_source        = I2C_CLK_SRC_DEFAULT,
+            .i2c_port          = AXP2101_I2C_PORT,
+            .scl_io_num        = AXP2101_I2C_SCL,
+            .sda_io_num        = AXP2101_I2C_SDA,
+            .glitch_ignore_cnt = 7,
+            .flags             = { .enable_internal_pullup = true },
+        };
+        esp_err_t err = i2c_new_master_bus(&bus_cfg, &s_axp_bus);
+        if (err != ESP_OK) {
+            ESP_LOGW(TAG, "PMU: i2c_new_master_bus failed: %s", esp_err_to_name(err));
+            return err;
+        }
+
+        i2c_device_config_t dev_cfg = {
+            .dev_addr_length = I2C_ADDR_BIT_LEN_7,
+            .device_address  = AXP2101_SLAVE_ADDR,
+            .scl_speed_hz    = 100000,
+        };
+        err = i2c_master_bus_add_device(s_axp_bus, &dev_cfg, &s_axp_dev);
+        if (err != ESP_OK) {
+            ESP_LOGW(TAG, "PMU: bus_add_device failed: %s", esp_err_to_name(err));
+            i2c_del_master_bus(s_axp_bus);
+            s_axp_bus = NULL;
+            return err;
+        }
     }
-    /* SIM7080G typically wants VBAT stable for >= 50ms before PWRKEY.
-     * 200ms gives the MOSFET + decoupling caps room to settle. */
+
+    uint8_t chip_id;
+    esp_err_t err = axp_read_reg(AXP2101_REG_CHIP_ID, &chip_id);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "PMU: chip ID read failed (%s) — likely no AXP2101 on this board",
+                 esp_err_to_name(err));
+        return err;
+    }
+    if (chip_id != AXP2101_CHIP_ID_VAL) {
+        ESP_LOGW(TAG, "PMU: unexpected chip ID 0x%02X (expected 0x%02X)",
+                 chip_id, AXP2101_CHIP_ID_VAL);
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+    ESP_LOGI(TAG, "PMU: AXP2101 detected (chip ID 0x%02X)", chip_id);
+
+    /* DC3 voltage = 3000 mV. AXP2101 DC3 voltage encoding has three ranges;
+     * 1.6-3.4V at 100mV step starts at code 88. So 3000mV = 88 + 14 = 102. */
+    uint8_t dc3_code = 102;
+    err = axp_rmw_reg(AXP2101_REG_DC3_VOL, 0x7F, dc3_code & 0x7F);
+    if (err != ESP_OK) { ESP_LOGE(TAG, "PMU: set DC3 voltage failed: %s", esp_err_to_name(err)); return err; }
+
+    /* Enable DC3 (bit 2 of register 0x80) — modem main power */
+    err = axp_rmw_reg(AXP2101_REG_DC_ONOFF, 0, 0x04);
+    if (err != ESP_OK) { ESP_LOGE(TAG, "PMU: enable DC3 failed: %s", esp_err_to_name(err)); return err; }
+    ESP_LOGI(TAG, "PMU: DC3 enabled at 3000 mV (modem main power)");
+
+    /* BLDO1 voltage = 3300 mV. BLDO1 range 500-3500 mV at 100mV step,
+     * code = (mV - 500) / 100. So 3300 → (3300-500)/100 = 28. */
+    uint8_t bldo1_code = 28;
+    err = axp_rmw_reg(AXP2101_REG_BLDO1_VOL, 0x1F, bldo1_code & 0x1F);
+    if (err != ESP_OK) { ESP_LOGE(TAG, "PMU: set BLDO1 voltage failed: %s", esp_err_to_name(err)); return err; }
+
+    /* Enable BLDO1 (bit 4 of register 0x90) — level conversion supply */
+    err = axp_rmw_reg(AXP2101_REG_LDO_ONOFF0, 0, 0x10);
+    if (err != ESP_OK) { ESP_LOGE(TAG, "PMU: enable BLDO1 failed: %s", esp_err_to_name(err)); return err; }
+    ESP_LOGI(TAG, "PMU: BLDO1 enabled at 3300 mV (level-conversion supply)");
+
+    /* Give the rails a moment to stabilise before the modem probes. */
     vTaskDelay(pdMS_TO_TICKS(200));
+    return ESP_OK;
 }
 
 static bool modem_probe_body(void) {
-    /* First make sure the modem actually has VBAT. */
-    modem_assert_poweron_candidates();
+    /* First enable modem power rails via the AXP2101 PMU. On a board
+     * without the PMU (production WiFi-only) this is a no-op + warning;
+     * on the LilyGo it's load-bearing. */
+    esp_err_t pmu_err = modem_enable_pmu_rails();
+    if (pmu_err != ESP_OK) {
+        ESP_LOGW(TAG, "PMU init failed: %s — continuing anyway (will bail on AT timeout)",
+                 esp_err_to_name(pmu_err));
+    }
 
     /* Build the temporary DTE/DCE. */
     esp_modem_dte_config_t dte_config = ESP_MODEM_DTE_DEFAULT_CONFIG();
