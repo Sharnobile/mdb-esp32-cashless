@@ -61,13 +61,30 @@ Single main file `main/mdb-slave-esp32s3.c` runs these concurrent FreeRTOS tasks
 
 **CMakeLists.txt**: Uses explicit `REQUIRES` — adding a new header include likely requires adding the owning component to `REQUIRES` in `main/CMakeLists.txt` (e.g. `esp_wifi`, `esp_http_client`, `mqtt`, `driver`, `bt`, etc.).
 
-**Cellular driver (`modem.c` / `modem.h`)**: Self-contained SIM7080G driver
-introduced in P1 of the cellular milestone. Public API: `modem_probe`,
-`modem_init`, `modem_connect`, `modem_disconnect`, `modem_status`,
-`modem_power_cycle`. Not yet wired into `app_main` — that integration is
-P2 (network manager). To run the P1 validation harness, set
-`CONFIG_CASHLESS_TEST_MODE_MODEM=y` in `idf.py menuconfig` under the new
-"SIM7080G" menu.
+**Network manager (`network.c` / `network.h`)**: Single orchestrator for
+the device's uplink. At boot, `network_init()` calls `modem_probe()` and
+branches:
+- **Modem detected** → cellular-only boot. WiFi STA is NOT initialised.
+  SoftAP comes up immediately. If an APN is in NVS (post-claim or
+  pre-configured), `cellular_bring_up_task` runs `modem_init` +
+  `modem_connect`. P3 captive portal calls `network_cellular_configure`
+  with new credentials.
+- **No modem** → WiFi-only boot. Behaviour identical to the pre-P2
+  firmware: `esp_wifi_init` + STA/AP netifs + `esp_wifi_start`. SoftAP
+  comes up after `WIFI_SOFTAP_AFTER` failed connect attempts.
+
+`mdb-slave-esp32s3.c` registers a single callback via
+`network_register_callback` that fires on `NETWORK_EVENT_UPLINK_UP` —
+the callback either spawns `provision_claim_task` (first-boot claim
+flow) or starts the MQTT client. The pre-P2 inline `wifi_event_handler`
+(~165 lines) was extracted into `network.c`.
+
+**Cellular driver (`modem.c` / `modem.h`)**: SIM7080G driver introduced
+in P1. Public API: `modem_probe`, `modem_init`, `modem_connect`,
+`modem_disconnect`, `modem_status`, `modem_power_cycle`, plus NVS
+helpers `modem_nvs_load`/`modem_nvs_save` (promoted to the public API
+in P2). All callers now go through `network.c` — no part of `app_main`
+touches `esp_modem_*` directly.
 
 ### mdb-master-esp32s3 Architecture
 
