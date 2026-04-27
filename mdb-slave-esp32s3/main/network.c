@@ -21,6 +21,13 @@
 #include "network.h"
 
 #include <string.h>
+#include <fcntl.h>
+#include <errno.h>
+#include <sys/socket.h>
+#include <sys/select.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <netdb.h>
 #include <esp_log.h>
 #include <esp_err.h>
 #include <esp_wifi.h>
@@ -35,6 +42,66 @@
 
 #include "webui_server.h"
 
+#define TAG "network"
+
+/* Reachability probe: open a TCP connect to a known stable endpoint
+ * with a short timeout. Returns true if SYN-ACK comes back within
+ * timeout_ms. Used to detect "phantom PPP" — IPCP completed and lwIP
+ * has an IP, but the modem-side data path is broken (e.g. PDP context
+ * half-bound) so outbound packets silently drop. We do this BEFORE
+ * declaring NETWORK_EVENT_UPLINK_UP so MQTT/claim don't waste minutes
+ * on a dead path.
+ *
+ * 1.1.1.1:53 is Cloudflare's anycast public DNS — universally reachable
+ * from any cellular APN, low RTT, never blocked by corporate filters
+ * the way port 80/443 sometimes are. SYN-ACK on port 53 confirms
+ * outbound + inbound TCP both work end-to-end through the carrier. */
+static bool probe_internet_tcp(const char *host, int port, int timeout_ms) {
+    struct addrinfo hints = { 0 };
+    hints.ai_family   = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+    struct addrinfo *result = NULL;
+    if (getaddrinfo(host, NULL, &hints, &result) != 0 || !result) {
+        ESP_LOGW(TAG, "probe: getaddrinfo(%s) failed", host);
+        return false;
+    }
+
+    struct sockaddr_in addr = *(struct sockaddr_in *)result->ai_addr;
+    addr.sin_port = htons(port);
+    freeaddrinfo(result);
+
+    int sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (sock < 0) return false;
+
+    int flags = fcntl(sock, F_GETFL, 0);
+    fcntl(sock, F_SETFL, flags | O_NONBLOCK);
+
+    bool ok = false;
+    int  rc = connect(sock, (struct sockaddr *)&addr, sizeof(addr));
+    if (rc == 0) {
+        ok = true;
+    } else if (errno == EINPROGRESS) {
+        fd_set wfds;
+        FD_ZERO(&wfds);
+        FD_SET(sock, &wfds);
+        struct timeval tv = {
+            .tv_sec  = timeout_ms / 1000,
+            .tv_usec = (timeout_ms % 1000) * 1000,
+        };
+        if (select(sock + 1, NULL, &wfds, NULL, &tv) > 0) {
+            int        sock_err   = 0;
+            socklen_t  err_len    = sizeof(sock_err);
+            if (getsockopt(sock, SOL_SOCKET, SO_ERROR, &sock_err, &err_len) == 0
+                    && sock_err == 0) {
+                ok = true;
+            }
+        }
+    }
+
+    close(sock);
+    return ok;
+}
+
 /* PPP synchronisation: esp_modem_set_mode(DATA) returns as soon as PPP
  * starts negotiating, NOT when IPCP completes — at that moment lwIP has
  * no IP, no DNS server, and no default route. If we fired UPLINK_UP
@@ -48,8 +115,6 @@ static EventGroupHandle_t       s_ppp_event_group = NULL;
 /* OFFLINE retry: re-spawn cellular_bring_up_task after this many seconds
  * when both the recovery ladder and Layer-1 PPP reconnect have given up. */
 #define OFFLINE_RETRY_DELAY_S   30
-
-#define TAG "network"
 
 /* SoftAP fallback policy — moved verbatim from mdb-slave-esp32s3.c
  * (was main.c lines 77-78). DO NOT change values without coordinating
@@ -323,11 +388,25 @@ static void cellular_bring_up_task(void *arg) {
             EventBits_t bits = xEventGroupWaitBits(s_ppp_event_group, PPP_GOT_IP_BIT,
                                                    pdFALSE, pdTRUE, pdMS_TO_TICKS(30000));
             if (bits & PPP_GOT_IP_BIT) {
-                ESP_LOGI(TAG, "IPCP completed after %s", step_name);
-                ipcp_ok = true;
-                break;
+                /* IPCP says we have an IP. Now confirm the data path
+                 * actually works by probing a known stable endpoint.
+                 * This catches "phantom PPP" — a half-bound PDP context
+                 * where IPCP completed but outbound packets silently
+                 * drop at the modem's GTP layer. Without this probe we
+                 * declare UPLINK_UP, MQTT/claim try and waste up to
+                 * Cloudflare-edge timeout (15 s) per attempt before
+                 * we even consider escalating. */
+                ESP_LOGI(TAG, "IPCP completed after %s — probing internet", step_name);
+                if (probe_internet_tcp("1.1.1.1", 53, 5000)) {
+                    ESP_LOGI(TAG, "internet reachable after %s", step_name);
+                    ipcp_ok = true;
+                    break;
+                }
+                ESP_LOGW(TAG, "internet probe failed after %s (phantom PPP) — escalating",
+                         step_name);
+            } else {
+                ESP_LOGW(TAG, "IPCP timeout after %s — escalating", step_name);
             }
-            ESP_LOGW(TAG, "IPCP timeout after %s — escalating", step_name);
         }
 
         /* Advance to next escalation level. */

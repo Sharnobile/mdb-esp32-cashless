@@ -517,6 +517,28 @@ esp_err_t modem_init(const char *apn, const char *pin, modem_lte_mode_t mode) {
     esp_modem_at(s_dce, "AT+CEDRXS=0,5", NULL, 5000);
     ESP_LOGI(TAG, "PSM + eDRX disabled (IoT power-save off)");
 
+    /* Tear down any leftover internal TCP/IP stack state.
+     *
+     * SIM7080G has TWO independent network stacks: the host-managed PPP
+     * stack we use, and an internal stack (AT+CIP-, AT+CNACT-, AT+SH-
+     * command families) that the modem firmware can run in parallel.
+     * Both share the underlying
+     * PDP context. If the modem retains residue from a previous session
+     * (open CIP socket, dangling CNACT, half-init AT+SHCONN) the PDP
+     * binding can split: PPP negotiates IPCP successfully and inbound
+     * packets flow (because the air-side bearer cached state still
+     * forwards them), but outbound TX gets routed to the dead internal
+     * stack and silently dropped at the GTP encapsulation layer.
+     *
+     * Field symptom: cert downloads ok, ClientKeyExchange never reaches
+     * server, server FINs the half-handshake at its 15 s timeout.
+     *
+     * Both ATs are best-effort (return ERROR if the stack wasn't
+     * active, which is fine). They MUST run before set_mode(DATA). */
+    esp_modem_at(s_dce, "AT+CIPSHUT",  NULL, 5000);   /* legacy SIM7000 stack */
+    esp_modem_at(s_dce, "AT+CNACT=0,0", NULL, 5000);  /* SIM7080G app PDP */
+    ESP_LOGI(TAG, "internal TCPIP stack cleared");
+
     return ESP_OK;
 }
 
@@ -600,6 +622,35 @@ esp_err_t modem_connect(void) {
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "registration timeout");
         return err;
+    }
+
+    /* Verify PDP context is actually active before entering DATA mode.
+     *
+     * On LTE the default bearer auto-activates with registration, but
+     * the activation can lag the +CEREG: 1 URC by a couple of seconds.
+     * AT+CGCONTRDP returns the dynamic IP/DNS/gateway the network
+     * assigned us — if the response is empty we registered but the
+     * data attach hasn't completed. Going to DATA mode now would yield
+     * the "PPP up but no data" symptom (ATD returns CONNECT but the
+     * underlying GTP tunnel isn't really there yet).
+     *
+     * We poll for up to 5 s. Best-effort — if AT+CGCONTRDP isn't
+     * supported on a particular firmware rev we fall through and let
+     * the post-PPP reachability probe in network.c catch any residual
+     * "phantom PPP" cases. */
+    {
+        char rdp_resp[256];
+        for (int i = 0; i < 5; i++) {
+            memset(rdp_resp, 0, sizeof(rdp_resp));
+            if (esp_modem_at(s_dce, "AT+CGCONTRDP=1", rdp_resp, 3000) == ESP_OK
+                    && strstr(rdp_resp, "+CGCONTRDP:") != NULL) {
+                ESP_LOGI(TAG, "PDP context active: %.120s%s",
+                         rdp_resp, strlen(rdp_resp) > 120 ? "..." : "");
+                break;
+            }
+            ESP_LOGW(TAG, "PDP not yet active (try %d/5), waiting 1 s", i + 1);
+            vTaskDelay(pdMS_TO_TICKS(1000));
+        }
     }
 
     /* Pull operator name + actual RAT into the cache while we're still
