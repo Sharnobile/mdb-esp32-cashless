@@ -50,11 +50,15 @@
 #define MODEM_UART_PORT UART_NUM_2
 #define MODEM_BAUD      115200
 
-/* Set in Task 1: true if the LilyGo board uses an inverting transistor
- * on PWRKEY (GPIO high → PWRKEY low). false if PWRKEY is wired direct
- * (GPIO low → PWRKEY low). DEFAULT: direct (LilyGo standard). Override
- * if Task 1 found otherwise. */
-#define MODEM_PWRKEY_INVERTED 0
+/* PWRKEY polarity: true if the LilyGo board uses an inverting transistor
+ * between ESP GPIO 41 and the SIM7080G PWRKEY pin (GPIO high → transistor
+ * conducts → PWRKEY low = "press"). false if wired direct.
+ *
+ * Verified empirically against LilyGo's reference Arduino sketch which
+ * does LOW → HIGH (1s) → LOW. That matches an inverting transistor:
+ * ESP idles LOW, drives HIGH for 1s to assert PWRKEY low, then back.
+ * Hence INVERTED = 1 for the LilyGo T-SIM7080G boards. */
+#define MODEM_PWRKEY_INVERTED 1
 
 static esp_modem_dce_t  *s_dce  = NULL;
 static esp_netif_t      *s_netif = NULL;
