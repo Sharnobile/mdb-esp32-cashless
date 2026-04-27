@@ -31,8 +31,19 @@
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/event_groups.h"
 
 #include "webui_server.h"
+
+/* PPP synchronisation: esp_modem_set_mode(DATA) returns as soon as PPP
+ * starts negotiating, NOT when IPCP completes — at that moment lwIP has
+ * no IP, no DNS server, and no default route. If we fired UPLINK_UP
+ * here, MQTT/HTTP clients would immediately try getaddrinfo() and fail
+ * with EAI_NODATA. We therefore wait for IP_EVENT_PPP_GOT_IP (set as a
+ * bit on this event group from network_ppp_event_handler) before
+ * declaring the cellular uplink up. */
+#define PPP_GOT_IP_BIT          BIT0
+static EventGroupHandle_t       s_ppp_event_group = NULL;
 
 #define TAG "network"
 
@@ -244,6 +255,22 @@ static void cellular_bring_up_task(void *arg) {
         return;
     }
 
+    /* esp_modem_set_mode(DATA) only kicks PPP off — it doesn't wait for
+     * IPCP to install IP/DNS/route. Without this wait the upstream
+     * UPLINK_UP consumer (claim task, MQTT client) hits getaddrinfo
+     * with no DNS server and fails with EAI_NODATA. PPP IPCP is
+     * usually <2s; allow up to 30s on slow carriers. */
+    if (s_ppp_event_group) {
+        EventBits_t bits = xEventGroupWaitBits(s_ppp_event_group, PPP_GOT_IP_BIT,
+                                               pdFALSE, pdTRUE, pdMS_TO_TICKS(30000));
+        if (!(bits & PPP_GOT_IP_BIT)) {
+            ESP_LOGE(TAG, "PPP IPCP timeout — no IP after 30s");
+            s_state = NETWORK_STATE_OFFLINE;
+            vTaskDelete(NULL);
+            return;
+        }
+    }
+
     s_state = NETWORK_STATE_CELLULAR_UP;
     ESP_LOGI(TAG, "cellular up");
     /* Start the modem watchdog (Layer 2 recovery). Idempotent — re-spawning
@@ -272,6 +299,17 @@ static void ppp_reconnect_task(void *arg) {
         vTaskDelay(pdMS_TO_TICKS(2000));
 
         if (modem_connect() == ESP_OK) {
+            ESP_LOGI(TAG, "PPP reconnect: modem_connect ok, waiting for IPCP");
+            /* Same gate as cellular_bring_up_task — wait for actual
+             * IP/DNS install, not just for set_mode(DATA) to return. */
+            if (s_ppp_event_group) {
+                EventBits_t bits = xEventGroupWaitBits(s_ppp_event_group, PPP_GOT_IP_BIT,
+                                                       pdFALSE, pdTRUE, pdMS_TO_TICKS(30000));
+                if (!(bits & PPP_GOT_IP_BIT)) {
+                    ESP_LOGW(TAG, "PPP reconnect: IPCP timeout, retrying");
+                    continue;
+                }
+            }
             ESP_LOGI(TAG, "PPP reconnect succeeded on attempt %d", s_ppp_reconnect_attempts);
             s_state = NETWORK_STATE_CELLULAR_UP;
             s_ppp_reconnect_attempts = 0;
@@ -297,13 +335,21 @@ static void network_ppp_event_handler(void *arg, esp_event_base_t event_base,
     (void)arg; (void)event_data;
     if (event_base != IP_EVENT) return;
     if (event_id == IP_EVENT_PPP_GOT_IP) {
-        ESP_LOGI(TAG, "PPP GOT_IP");
-        /* state transition handled in cellular_bring_up_task or
-         * ppp_reconnect_task — this event is informational because
-         * esp_modem_set_mode(DATA) already drives the PPP lifecycle
-         * synchronously. */
+        ip_event_got_ip_t *ev = (ip_event_got_ip_t *)event_data;
+        ESP_LOGI(TAG, "PPP GOT_IP: " IPSTR, IP2STR(&ev->ip_info.ip));
+        /* Unblock cellular_bring_up_task / ppp_reconnect_task, which
+         * wait on this bit before declaring uplink up. esp_modem_set_mode
+         * returns before IPCP finishes, so we MUST gate UPLINK_UP on
+         * this event — otherwise upstream code (claim, MQTT) runs
+         * getaddrinfo before lwIP has installed any DNS server. */
+        if (s_ppp_event_group) {
+            xEventGroupSetBits(s_ppp_event_group, PPP_GOT_IP_BIT);
+        }
     } else if (event_id == IP_EVENT_PPP_LOST_IP) {
         ESP_LOGW(TAG, "PPP LOST_IP");
+        if (s_ppp_event_group) {
+            xEventGroupClearBits(s_ppp_event_group, PPP_GOT_IP_BIT);
+        }
         if (s_state == NETWORK_STATE_CELLULAR_UP) {
             /* Layer 1: spawn a reconnect task. We do this in a task
              * because modem_disconnect/modem_connect can take seconds,
@@ -316,6 +362,10 @@ static void network_ppp_event_handler(void *arg, esp_event_base_t event_base,
 /* ---- Public API ---- */
 
 void network_init(void) {
+    /* PPP IPCP-completion event group — created before any handler
+     * registration so the GOT_IP callback always finds a non-NULL handle. */
+    if (!s_ppp_event_group) s_ppp_event_group = xEventGroupCreate();
+
     /* PPP handler registered unconditionally and BEFORE modem_probe — the
      * probe may toggle PPP state and we want the handler ready for
      * IP_EVENT_PPP_LOST_IP / GOT_IP either way. The WiFi handlers are
