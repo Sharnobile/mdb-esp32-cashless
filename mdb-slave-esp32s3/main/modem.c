@@ -25,10 +25,27 @@
 #define NVS_KEY_PIN     "sim_pin"
 #define NVS_KEY_MODE    "lte_mode"
 
-/* Pin defaults must match Task 1's findings. Currently: */
-#define MODEM_PIN_RX    GPIO_NUM_18
-#define MODEM_PIN_TX    GPIO_NUM_17
-#define MODEM_PIN_PWR   GPIO_NUM_14
+/* LilyGo T-SIM7080G-S3 standard pinout, confirmed by user 2026-04-27.
+ * The earlier 18/17/14 defines were inherited from Leonardo's custom-PCB
+ * attempt (commit d3f8b05) and crashed during uart_driver_install on
+ * actual hardware because they don't match anything on a real LilyGo.
+ *
+ * LilyGo T-SIM7080G-S3 (verified by user):
+ *   PWRKEY:  GPIO 41   active-LOW direct (no transistor inversion)
+ *   MODEM_TX (ESP→SIM): GPIO 5
+ *   MODEM_RX (SIM→ESP): GPIO 4
+ *   RI:      GPIO 3   (not used in P1)
+ *   DTR:     GPIO 42  (not used in P1)
+ *
+ * NOTE: GPIO 4 and 5 alias PIN_MDB_RX/PIN_MDB_TX in mdb-slave-esp32s3.c.
+ * On the LilyGo the MDB hardware is absent so the alias is harmless —
+ * MDB code sets these as inputs at boot (idle high-Z), which doesn't
+ * conflict with the modem's later UART matrix re-routing. On a future
+ * board variant with BOTH MDB and the modem, these defines must move
+ * into Kconfig and the two functions must use different pins. */
+#define MODEM_PIN_RX    GPIO_NUM_4    /* SIM7080G TX → ESP RX */
+#define MODEM_PIN_TX    GPIO_NUM_5    /* ESP TX → SIM7080G RX */
+#define MODEM_PIN_PWR   GPIO_NUM_41   /* PWRKEY active-LOW direct */
 #define MODEM_UART_PORT UART_NUM_2
 #define MODEM_BAUD      115200
 
@@ -148,8 +165,21 @@ bool modem_probe(void) {
         return true;
     }
 
-    /* Step 1: GPIO quiescent check. Cheap, no side effects. */
-    bool likely_attached = modem_pwrkey_quiescent_looks_attached();
+    /* Step 1: GPIO quiescent check. Cheap, no side effects.
+     *
+     * Critical fast-path: if the GPIO check says no modem, return
+     * immediately WITHOUT installing the UART2 driver. The UART
+     * driver install was crashing on a hardware test
+     * (find_desc_for_source assert in esp_intr_alloc) on boards that
+     * don't have a SIM7080G wired to PWRKEY, and the safest thing
+     * we can do is never touch the UART hardware at all unless we
+     * have positive evidence a modem is present. */
+    if (!modem_pwrkey_quiescent_looks_attached()) {
+        ESP_LOGI(TAG, "modem_probe: PWRKEY quiescent says no modem — "
+                       "skipping all UART/DTE/DCE work");
+        gpio_reset_pin(MODEM_PIN_PWR);
+        return false;
+    }
 
     /* Step 2: Build a temporary DTE/DCE just for the AT-sync probe.
      * If sync fails we tear it down without ever issuing a power pulse. */
@@ -192,21 +222,8 @@ bool modem_probe(void) {
     }
 
     if (ret != ESP_OK) {
-        if (!likely_attached) {
-            ESP_LOGI(TAG, "GPIO quiescent says no modem — skipping power pulse");
-            esp_modem_destroy(s_dce);
-            esp_netif_destroy(s_netif);
-            s_dce = NULL;
-            s_netif = NULL;
-            /* Reset PWRKEY GPIO to default (input, no pull) so we leave
-             * no trace on the production board. */
-            gpio_reset_pin(MODEM_PIN_PWR);
-            return false;
-        }
-
-        /* Last resort: pulse power and try one more time. Only reached
-         * when the GPIO check thinks a modem is attached but the modem
-         * isn't responding to AT — likely cold boot. */
+        /* GPIO heuristic already passed (we'd have returned at the top
+         * otherwise). Modem is attached but cold — pulse power. */
         ESP_LOGI(TAG, "issuing PWRKEY pulse...");
         modem_power_cycle();
         ret = esp_modem_sync(s_dce);
