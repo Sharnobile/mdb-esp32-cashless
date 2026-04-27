@@ -9,6 +9,7 @@
 #include "lwip/ip_addr.h"
 #include "esp_chip_info.h"
 #include "webui_server.h"
+#include "network.h"
 
 #define TAG "webui"
 
@@ -159,60 +160,87 @@ static esp_err_t wifi_set_handler(httpd_req_t *req) {
     return ESP_OK;
 }
 
-static esp_err_t system_info_get_handler(httpd_req_t *req) {
-
-    esp_chip_info_t chip_info;
-    esp_chip_info(&chip_info);
-
-    wifi_config_t wifi_cfg = {0};
-    esp_wifi_get_config(WIFI_IF_STA, &wifi_cfg);
-
-    char srv_url[128] = "";
-    char mqtt_host[128] = "";
-    char mqtt_port[8] = "";
-    char mqtt_user[64] = "";
-    char mqtt_pass[64] = "";
-    char prov_code[32] = "";
-    char company_id[40] = "";
-    nvs_handle_t handle;
-    if (nvs_open("vmflow", NVS_READONLY, &handle) == ESP_OK) {
-        size_t s_len = sizeof(srv_url);
-        nvs_get_str(handle, "srv_url", srv_url, &s_len);
-        size_t h_len = sizeof(mqtt_host);
-        nvs_get_str(handle, "mqtt_host", mqtt_host, &h_len);
-        size_t p_len = sizeof(mqtt_port);
-        nvs_get_str(handle, "mqtt_port", mqtt_port, &p_len);
-        size_t u_len = sizeof(mqtt_user);
-        nvs_get_str(handle, "mqtt_user", mqtt_user, &u_len);
-        size_t pw_len = sizeof(mqtt_pass);
-        nvs_get_str(handle, "mqtt_pass", mqtt_pass, &pw_len);
-        size_t pc_len = sizeof(prov_code);
-        nvs_get_str(handle, "prov_code", prov_code, &pc_len);
-        size_t c_len = sizeof(company_id);
-        nvs_get_str(handle, "company_id", company_id, &c_len);
-        nvs_close(handle);
+static const char *wizard_state_str(network_state_t s) {
+    switch (s) {
+        case NETWORK_STATE_BOOTING:               return "booting";
+        case NETWORK_STATE_OFFLINE:               return "offline";
+        case NETWORK_STATE_SOFTAP_ONLY:           return "cellular_config";
+        case NETWORK_STATE_WIFI_CONNECTING:       return "wifi_connecting";
+        case NETWORK_STATE_WIFI_UP:               return "ready_to_claim";  /* if not claimed yet */
+        case NETWORK_STATE_CELLULAR_REGISTERING:  return "cellular_registering";
+        case NETWORK_STATE_CELLULAR_UP:           return "ready_to_claim";  /* if not claimed yet */
     }
+    return "unknown";
+}
+
+static const char *lte_mode_str(modem_lte_mode_t m) {
+    switch (m) {
+        case MODEM_LTE_MODE_CATM:  return "LTE-M";
+        case MODEM_LTE_MODE_NBIOT: return "NB-IoT";
+        case MODEM_LTE_MODE_BOTH:  return "Auto";
+    }
+    return "unknown";
+}
+
+static esp_err_t system_info_get_handler(httpd_req_t *req) {
+    network_status_t st;
+    network_get_status(&st);
+
+    /* Read claim status from NVS */
+    char company_id[40] = "";
+    char prov_code[16]  = "";
+    nvs_handle_t h;
+    if (nvs_open("vmflow", NVS_READONLY, &h) == ESP_OK) {
+        size_t sl = sizeof(company_id);
+        nvs_get_str(h, "company_id", company_id, &sl);
+        sl = sizeof(prov_code);
+        nvs_get_str(h, "prov_code", prov_code, &sl);
+        nvs_close(h);
+    }
+    bool claimed       = (strlen(company_id) > 0);
+    bool prov_code_set = (strlen(prov_code)  > 0);
 
     cJSON *root = cJSON_CreateObject();
-    cJSON_AddStringToObject(root, "version",       IDF_VER);
-    cJSON_AddNumberToObject(root, "cores",         chip_info.cores);
-    cJSON_AddNumberToObject(root, "model",         chip_info.model);
-    cJSON_AddStringToObject(root, "wifi_ssid",     (char *)wifi_cfg.sta.ssid);
-    cJSON_AddStringToObject(root, "wifi_password", (char *)wifi_cfg.sta.password);
-    cJSON_AddStringToObject(root, "srv_url",       srv_url);
-    cJSON_AddStringToObject(root, "mqtt_host",     mqtt_host);
-    cJSON_AddStringToObject(root, "mqtt_port",     mqtt_port);
-    cJSON_AddStringToObject(root, "mqtt_user",     mqtt_user);
-    cJSON_AddStringToObject(root, "mqtt_pass",     mqtt_pass);
-    cJSON_AddStringToObject(root, "prov_code",     prov_code);
-    cJSON_AddBoolToObject(root,   "claimed",       strlen(company_id) > 0);
+    cJSON_AddStringToObject(root, "variant",
+        st.modem_present ? "cellular" : "wifi");
+
+    /* If claimed already, treat the wizard as "complete" so the SPA
+     * shows a steady-state view rather than the claim form. */
+    cJSON_AddStringToObject(root, "wizard_state",
+        claimed ? "claimed" : wizard_state_str(st.state));
+
+    cJSON *uplink = cJSON_AddObjectToObject(root, "uplink");
+    cJSON_AddStringToObject(uplink, "kind", st.uplink_kind);
+
+    if (st.wifi_initialised) {
+        cJSON *w = cJSON_AddObjectToObject(uplink, "wifi");
+        cJSON_AddStringToObject(w, "ssid", st.wifi_ssid);
+        cJSON_AddNumberToObject(w, "rssi", st.wifi_rssi);
+        cJSON_AddStringToObject(w, "ip",   st.wifi_ip);
+    } else {
+        cJSON_AddNullToObject(uplink, "wifi");
+    }
+
+    if (st.modem_present) {
+        cJSON *c = cJSON_AddObjectToObject(uplink, "cellular");
+        cJSON_AddStringToObject(c, "operator",  st.cellular_operator);
+        cJSON_AddStringToObject(c, "mode",      lte_mode_str(st.cellular_mode));
+        cJSON_AddNumberToObject(c, "rssi_dbm",  st.cellular_rssi_dbm);
+        cJSON_AddStringToObject(c, "ip",        st.cellular_ip);
+        cJSON_AddBoolToObject(c,   "registered", st.cellular_registered);
+    } else {
+        cJSON_AddNullToObject(uplink, "cellular");
+    }
+
+    cJSON *claim = cJSON_AddObjectToObject(root, "claim");
+    cJSON_AddBoolToObject(claim, "claimed",       claimed);
+    cJSON_AddBoolToObject(claim, "prov_code_set", prov_code_set);
 
     char *json_str = cJSON_PrintUnformatted(root);
     httpd_resp_set_type(req, "application/json");
     httpd_resp_send(req, json_str, HTTPD_RESP_USE_STRLEN);
     cJSON_free(json_str);
     cJSON_Delete(root);
-
     return ESP_OK;
 }
 
