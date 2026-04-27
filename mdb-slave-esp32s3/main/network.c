@@ -510,11 +510,23 @@ void network_get_status(network_status_t *out) {
         }
     }
 
-    /* Cellular block — populated only if modem was detected (we sit in
-     * one of the cellular states or in SOFTAP_ONLY post-cellular-branch). */
-    if (s_state == NETWORK_STATE_CELLULAR_REGISTERING ||
-        s_state == NETWORK_STATE_CELLULAR_UP ||
-        s_state == NETWORK_STATE_SOFTAP_ONLY) {
+    /* Cellular block — populated whenever a modem was successfully
+     * probed at boot, regardless of current network state. modem_status
+     * is a pure cache read (no AT, no blocking), and the cache holds
+     * the last-known operator/rssi/mode/registered values from the
+     * registration loop and post-CEREG COPS query.
+     *
+     * Earlier this branch gated on `s_state in
+     * {REGISTERING, CELLULAR_UP, SOFTAP_ONLY}`, which made the captive
+     * portal banner suddenly show empty Signal/Operator/Mode whenever
+     * the state machine flipped to OFFLINE briefly (e.g. mid-PPP
+     * reconnect, or any other state transition glitch). Reported in
+     * the field as "Daten verschwinden nach einigen Sekunden" — the
+     * user sees stale-but-correct data evaporate just because the
+     * state momentarily moved. Always-on cellular block fixes that
+     * without any data integrity concern: if the modem is present,
+     * the cache is meaningful. */
+    if (modem_is_present()) {
         modem_status_t ms;
         modem_status(&ms);
         out->modem_present       = true;
