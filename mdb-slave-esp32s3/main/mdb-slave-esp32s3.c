@@ -2156,13 +2156,42 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
  * persists the returned subdomain + passkey, erases the one-time code, then
  * reboots so the regular startup path takes over.
  */
+/* In-task retry policy.
+ *
+ * Used to be: on any failure, sleep 10s and esp_restart(). That made
+ * sense when the only reason to fail was a transient network blip on
+ * WiFi STA — reboot, re-DHCP, retry. On cellular it's destructive: a
+ * persistent failure (typo'd prov_code, server down, expired code)
+ * turns into an endless reboot loop where the user can never get back
+ * to the captive portal long enough to fix the input.
+ *
+ * New behaviour: try the HTTPS POST up to PROV_MAX_ATTEMPTS times with
+ * a fixed backoff. On success → restart (cleanest way to apply the
+ * new credentials). On persistent failure → log + exit. The captive
+ * portal stays up. The user can resubmit /api/v1/claim with corrected
+ * input, which spawns a fresh task. */
+#define PROV_MAX_ATTEMPTS  3
+#define PROV_RETRY_DELAY_S 5
+
+/* Single-flight guard so concurrent /api/v1/claim submits + boot-time
+ * re-spawn don't run two tasks against the same NVS state. */
+static volatile bool s_prov_claim_running = false;
+
 void provision_claim_task(void *arg) {
+    if (s_prov_claim_running) {
+        ESP_LOGW(TAG, "PROV: task already running — skipping duplicate spawn");
+        vTaskDelete(NULL);
+        return;
+    }
+    s_prov_claim_running = true;
+
     char prov_code[32] = {0};
     char srv_url[128]  = {0};
 
     nvs_handle_t handle;
     if (nvs_open("vmflow", NVS_READWRITE, &handle) != ESP_OK) {
         ESP_LOGE(TAG, "PROV: NVS open failed");
+        s_prov_claim_running = false;
         vTaskDelete(NULL);
         return;
     }
@@ -2171,6 +2200,7 @@ void provision_claim_task(void *arg) {
     if (nvs_get_str(handle, "prov_code", prov_code, &len) != ESP_OK || strlen(prov_code) == 0) {
         ESP_LOGI(TAG, "PROV: no provisioning code in NVS");
         nvs_close(handle);
+        s_prov_claim_running = false;
         vTaskDelete(NULL);
         return;
     }
@@ -2181,18 +2211,20 @@ void provision_claim_task(void *arg) {
 
     if (strlen(srv_url) == 0) {
         ESP_LOGE(TAG, "PROV: no server URL in NVS");
+        s_prov_claim_running = false;
         vTaskDelete(NULL);
         return;
     }
 
-    /* MAC address */
+    /* MAC address. On cellular boards STA isn't started, but esp_wifi
+     * is initialised for AP — esp_wifi_get_mac(STA) still works because
+     * the STA MAC is derived from the same efuse base address. */
     uint8_t mac[6];
     esp_wifi_get_mac(WIFI_IF_STA, mac);
     char mac_str[18];
     snprintf(mac_str, sizeof(mac_str), "%02x:%02x:%02x:%02x:%02x:%02x",
              mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 
-    /* Build request */
     char body[128];
     snprintf(body, sizeof(body),
              "{\"short_code\":\"%s\",\"mac_address\":\"%s\"}", prov_code, mac_str);
@@ -2202,30 +2234,35 @@ void provision_claim_task(void *arg) {
 
     ESP_LOGI(TAG, "PROV: claiming device at %s body=%s", url, body);
 
-    char resp_buf[512] = {0};
-
     bool use_tls = (strncmp(url, "https://", 8) == 0);
 
-    esp_http_client_config_t http_cfg = {
-        .url               = url,
-        .method            = HTTP_METHOD_POST,
-        .crt_bundle_attach = use_tls ? esp_crt_bundle_attach : NULL,
-        .timeout_ms        = 15000,
-    };
+    for (int attempt = 1; attempt <= PROV_MAX_ATTEMPTS; attempt++) {
+        char resp_buf[512] = {0};
 
-    esp_http_client_handle_t client = esp_http_client_init(&http_cfg);
-    esp_http_client_set_header(client, "Content-Type", "application/json");
+        esp_http_client_config_t http_cfg = {
+            .url               = url,
+            .method            = HTTP_METHOD_POST,
+            .crt_bundle_attach = use_tls ? esp_crt_bundle_attach : NULL,
+            .timeout_ms        = 15000,
+        };
 
-    esp_err_t http_err = esp_http_client_open(client, strlen(body));
-    if (http_err == ESP_OK) {
-        esp_http_client_write(client, body, strlen(body));
-        int content_length = esp_http_client_fetch_headers(client);
-        int status = esp_http_client_get_status_code(client);
+        esp_http_client_handle_t client = esp_http_client_init(&http_cfg);
+        esp_http_client_set_header(client, "Content-Type", "application/json");
 
-        int read_len = esp_http_client_read_response(client, resp_buf, sizeof(resp_buf) - 1);
-        if (read_len >= 0) resp_buf[read_len] = '\0';
-
-        ESP_LOGW(TAG, "PROV: HTTP %d  body=%s", status, resp_buf);
+        esp_err_t http_err = esp_http_client_open(client, strlen(body));
+        int status = -1;
+        if (http_err == ESP_OK) {
+            esp_http_client_write(client, body, strlen(body));
+            esp_http_client_fetch_headers(client);
+            status = esp_http_client_get_status_code(client);
+            int read_len = esp_http_client_read_response(client, resp_buf, sizeof(resp_buf) - 1);
+            if (read_len >= 0) resp_buf[read_len] = '\0';
+            ESP_LOGW(TAG, "PROV: attempt %d/%d HTTP %d body=%s",
+                     attempt, PROV_MAX_ATTEMPTS, status, resp_buf);
+        } else {
+            ESP_LOGE(TAG, "PROV: attempt %d/%d HTTP transport error: %s",
+                     attempt, PROV_MAX_ATTEMPTS, esp_err_to_name(http_err));
+        }
 
         if (status == 200) {
             cJSON *root = cJSON_Parse(resp_buf);
@@ -2260,22 +2297,43 @@ void provision_claim_task(void *arg) {
                              j_company->valuestring, j_device->valuestring);
                     cJSON_Delete(root);
                     esp_http_client_cleanup(client);
+                    s_prov_claim_running = false;
                     tracked_restart("provision");
                     /* not reached */
                 }
                 cJSON_Delete(root);
             }
+            ESP_LOGE(TAG, "PROV: HTTP 200 but response missing required fields — giving up");
+            esp_http_client_cleanup(client);
+            break;   /* server replied OK but with garbage — retrying won't help */
         }
-    } else {
-        ESP_LOGE(TAG, "PROV: HTTP error: %s", esp_err_to_name(http_err));
+
+        esp_http_client_cleanup(client);
+
+        /* 4xx = client problem (bad/expired/used code, wrong URL). No
+         * point retrying — the user must fix the captive portal input. */
+        if (status >= 400 && status < 500) {
+            ESP_LOGW(TAG, "PROV: server rejected the claim (HTTP %d) — not retrying", status);
+            break;
+        }
+
+        /* Transport / 5xx error — retry with a backoff unless this was
+         * the last attempt. */
+        if (attempt < PROV_MAX_ATTEMPTS) {
+            ESP_LOGI(TAG, "PROV: retrying in %d s...", PROV_RETRY_DELAY_S);
+            vTaskDelay(pdMS_TO_TICKS(PROV_RETRY_DELAY_S * 1000));
+        }
     }
 
-    // Claim failed — retry after delay by rebooting.
-    // Without this, MQTT never starts and the device stays offline forever.
-    ESP_LOGW(TAG, "PROV: claim failed — restarting in 10s to retry");
-    esp_http_client_cleanup(client);
-    vTaskDelay(pdMS_TO_TICKS(10000));
-    tracked_restart("provision");
+    /* Persistent failure. DO NOT reboot — that would loop forever
+     * because prov_code stays in NVS. The captive portal AP is still
+     * up; the user can correct their input and POST /api/v1/claim
+     * again, which spawns a fresh task. */
+    ESP_LOGE(TAG, "PROV: giving up after %d attempts — captive portal remains "
+                  "available for retry (or factory reset to start over)",
+             PROV_MAX_ATTEMPTS);
+    s_prov_claim_running = false;
+    vTaskDelete(NULL);
 }
 
 /*
