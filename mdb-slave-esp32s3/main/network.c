@@ -203,7 +203,32 @@ static void network_wifi_event_handler(void *arg, esp_event_base_t event_base, i
 /* ---- Public API ---- */
 
 void network_init(void) {
-    ESP_LOGW(TAG, "network_init: stub — full implementation in P2 C2/C3");
+    ESP_LOGI(TAG, "network_init: probing modem...");
+    bool modem_present = modem_probe();
+    ESP_LOGI(TAG, "modem_probe → %s", modem_present ? "true" : "false");
+
+    if (modem_present) {
+        ESP_LOGW(TAG, "cellular branch not yet implemented in P2 C2 — "
+                      "falling through to WiFi for now");
+    }
+
+    s_state = NETWORK_STATE_WIFI_CONNECTING;
+
+    esp_netif_create_default_wifi_sta();
+    esp_netif_create_default_wifi_ap();
+
+    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+    esp_wifi_init(&cfg);
+
+    esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID,
+                                         network_wifi_event_handler, NULL, NULL);
+    esp_event_handler_instance_register(IP_EVENT, ESP_EVENT_ANY_ID,
+                                         network_wifi_event_handler, NULL, NULL);
+
+    /* APSTA so SoftAP can come up alongside STA on demand. The handler
+     * narrows mode back to STA-only on IP_EVENT_STA_GOT_IP. */
+    esp_wifi_set_mode(WIFI_MODE_APSTA);
+    esp_wifi_start();
 }
 
 network_state_t network_get_state(void) {
