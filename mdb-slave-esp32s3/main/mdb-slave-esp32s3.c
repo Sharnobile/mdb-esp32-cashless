@@ -1890,8 +1890,24 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
     	snprintf(topic_, sizeof(topic_), "/%s/%s/status", my_company_id, my_device_id);
 
 		const esp_app_desc_t *app_desc = esp_app_get_description();
-		char status_msg[128];
-		snprintf(status_msg, sizeof(status_msg), "online|v:%s|b:%s %s %s", app_desc->version, app_desc->date, app_desc->time, BUILD_TIMEZONE);
+		char status_msg[256];   /* bumped from 128 to fit cellular fields */
+		int n = snprintf(status_msg, sizeof(status_msg), "online|v:%s|b:%s %s %s",
+		                 app_desc->version, app_desc->date, app_desc->time, BUILD_TIMEZONE);
+
+		network_status_t ns;
+		network_get_status(&ns);
+		if (ns.modem_present && n > 0 && n < (int)sizeof(status_msg)) {
+		    /* modem_lte_mode_t enum to short string, mirroring captive-portal helper */
+		    const char *mode_str = (ns.cellular_mode == MODEM_LTE_MODE_CATM)  ? "LTE-M"  :
+		                           (ns.cellular_mode == MODEM_LTE_MODE_NBIOT) ? "NB-IoT" :
+		                           (ns.cellular_mode == MODEM_LTE_MODE_BOTH)  ? "Auto"   : "?";
+		    snprintf(status_msg + n, sizeof(status_msg) - n,
+		             "|uplink:cellular|op:%s|rssi:%d|mode:%s|ip:%s",
+		             ns.cellular_operator[0] ? ns.cellular_operator : "unknown",
+		             ns.cellular_rssi_dbm,
+		             mode_str,
+		             ns.cellular_ip[0] ? ns.cellular_ip : "0.0.0.0");
+		}
 		ESP_LOGI(TAG, "MQTT: publishing '%s' to '%s'", status_msg, topic_);
 		esp_mqtt_client_publish(mqttClient, topic_, status_msg, 0, 1, 1);
 
