@@ -2499,6 +2499,26 @@ static void factory_reset_task(void *arg) {
 
 void app_main(void) {
 
+    /* Silence the chatty IDF subsystems that drown out our own logs.
+     * These tags were emitting D-level lines several times per second
+     * (every captive-portal poll, every NVS read, every PPP packet).
+     * We keep ESP_LOG_WARN as the floor — actual problems still surface,
+     * but the line-by-line parse trace is gone. */
+    esp_log_level_set("httpd",          ESP_LOG_WARN);
+    esp_log_level_set("httpd_parse",    ESP_LOG_WARN);
+    esp_log_level_set("httpd_txrx",     ESP_LOG_WARN);
+    esp_log_level_set("httpd_uri",      ESP_LOG_WARN);
+    esp_log_level_set("httpd_sess",     ESP_LOG_WARN);
+    esp_log_level_set("esp_netif_lwip", ESP_LOG_WARN);
+    esp_log_level_set("esp_netif_handlers", ESP_LOG_WARN);
+    esp_log_level_set("nvs",            ESP_LOG_WARN);
+    esp_log_level_set("event",          ESP_LOG_WARN);
+    esp_log_level_set("command_lib",    ESP_LOG_WARN);
+    esp_log_level_set("intr_alloc",     ESP_LOG_WARN);
+    esp_log_level_set("gdma",           ESP_LOG_WARN);
+    esp_log_level_set("esp-modem",      ESP_LOG_INFO);
+    esp_log_level_set("wifi",           ESP_LOG_WARN);
+
     gpio_set_direction(PIN_MDB_RX, GPIO_MODE_INPUT);
 	gpio_set_direction(PIN_MDB_TX, GPIO_MODE_INPUT);  // idle: high-Z (tri-state)
 
