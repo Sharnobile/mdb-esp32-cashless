@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="de">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -7,287 +7,120 @@
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA0OCA0OCIgd2lkdGg9IjQ4IiBoZWlnaHQ9IjQ4Ij4KICA8cmVjdCB3aWR0aD0iNDgiIGhlaWdodD0iNDgiIHJ4PSIxMCIgZmlsbD0iIzBGMTcyQSIvPgogIDxnIHRyYW5zZm9ybT0idHJhbnNsYXRlKDgsMTEpIj4KICAgIDxyZWN0IHg9IjAiICB5PSIwIiB3aWR0aD0iNSIgaGVpZ2h0PSIyMiIgcng9IjEuNSIgZmlsbD0iI2ZmZiIvPgogICAgPHJlY3QgeD0iOCIgIHk9IjAiIHdpZHRoPSI1IiBoZWlnaHQ9IjE0IiByeD0iMS41IiBmaWxsPSIjZmZmIi8+CiAgICA8cmVjdCB4PSIxNiIgeT0iMCIgd2lkdGg9IjUiIGhlaWdodD0iMjIiIHJ4PSIxLjUiIGZpbGw9IiNBM0U2MzUiLz4KICAgIDxyZWN0IHg9IjI0IiB5PSIwIiB3aWR0aD0iNSIgaGVpZ2h0PSIxNCIgcng9IjEuNSIgZmlsbD0iI0EzRTYzNSIvPgogICAgPHBhdGggZD0iTTAgMjggTDMwIDI4IE0yNi41IDI1IEwzMCAyOCBMMjYuNSAzMSIgc3Ryb2tlPSIjQTNFNjM1IiBzdHJva2Utd2lkdGg9IjIuNSIgZmlsbD0ibm9uZSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+CiAgPC9nPgo8L3N2Zz4K">
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:Arial,sans-serif;background:#f0f0f0;padding:16px}
-    .card{max-width:480px;margin:0 auto;background:#fff;padding:20px;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,.1);margin-bottom:16px}
-    .brand{display:flex;align-items:center;gap:10px;margin-bottom:12px}
-    .brand-mark{width:40px;height:40px;flex-shrink:0;border-radius:9px}
-    h1{font-size:20px;margin-bottom:4px}
-    .sub{color:#666;font-size:13px;margin-bottom:20px}
-    label{display:block;font-size:13px;font-weight:600;margin-bottom:4px;margin-top:12px}
-    input{width:100%;padding:8px 10px;border:1px solid #ccc;border-radius:4px;font-size:14px}
-    input:focus{outline:2px solid #0066cc;border-color:transparent}
-    .hint{font-size:12px;color:#888;margin-top:3px}
-    .divider{border:none;border-top:1px solid #eee;margin:16px 0}
-    button{display:block;width:100%;margin-top:16px;padding:10px;background:#0066cc;color:#fff;border:none;border-radius:4px;font-size:15px;cursor:pointer}
-    button:active{background:#0052a3}
-    #status{margin-top:12px;font-size:13px;min-height:18px;text-align:center}
-    .ok{color:#198754}.err{color:#dc3545}
-
-    /* WiFi scanner */
-    .wifi-header{display:flex;align-items:center;justify-content:space-between;margin-top:12px;margin-bottom:4px}
-    .wifi-header label{margin:0}
-    .scan-btn{display:inline-block;width:auto;margin:0;padding:4px 12px;font-size:12px;background:#e9ecef;color:#333;border:1px solid #ccc;border-radius:4px;cursor:pointer}
-    .scan-btn:active{background:#d3d6d9}
-    .scan-btn:disabled{opacity:.5;cursor:not-allowed}
-    .wifi-list{max-height:220px;overflow-y:auto;border:1px solid #ddd;border-radius:4px;margin-bottom:4px}
-    .wifi-list:empty::after{content:"No networks found";display:block;text-align:center;padding:16px;color:#888;font-size:13px}
-    .wifi-item{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid #f0f0f0;cursor:pointer;transition:background .15s}
+    html,body{background:#0F172A;color:#fff;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;min-height:100%}
+    body{padding:14px;font-size:14px;line-height:1.4}
+    .wrap{max-width:480px;margin:0 auto}
+    .panel{background:#1E293B;border-radius:10px;padding:16px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+    .brand{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+    .brand-mark{width:36px;height:36px;flex-shrink:0;border-radius:8px}
+    .brand h1{font-size:18px;font-weight:600}
+    .muted{color:#94A3B8;font-size:12px}
+    .accent{color:#A3E635}
+    .err-text{color:#F87171}
+    h2{font-size:15px;font-weight:600;margin-bottom:10px}
+    label{display:block;font-size:12px;font-weight:600;margin-bottom:4px;margin-top:12px;color:#CBD5E1;letter-spacing:.02em;text-transform:uppercase}
+    label:first-child,label.first{margin-top:0}
+    input,select{width:100%;padding:10px;background:#0F172A;color:#fff;border:1px solid #334155;border-radius:6px;font-size:14px;font-family:inherit}
+    input:focus,select:focus{outline:none;border-color:#A3E635}
+    input::placeholder{color:#475569}
+    .hint{font-size:11px;color:#94A3B8;margin-top:4px}
+    button{display:block;width:100%;margin-top:14px;padding:11px;background:#A3E635;color:#0F172A;border:none;border-radius:6px;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit}
+    button:hover{background:#84CC16}
+    button:active{background:#65A30D}
+    button:disabled{background:#475569;color:#94A3B8;cursor:not-allowed}
+    button.ghost{background:transparent;color:#A3E635;border:1px solid #334155}
+    button.ghost:hover{background:#0F172A}
+    button.ghost:disabled{color:#94A3B8;border-color:#334155;background:transparent}
+    .err-banner{display:none;background:#7F1D1D;color:#FECACA;border:1px solid #B91C1C;border-radius:6px;padding:9px 11px;margin-top:12px;font-size:13px;line-height:1.4}
+    .err-banner.show{display:block}
+    .info-banner{background:#0F172A;color:#CBD5E1;border:1px solid #334155;border-radius:6px;padding:10px 12px;margin-top:12px;font-size:13px;line-height:1.4}
+    .info-banner.warn{background:#451A03;color:#FED7AA;border-color:#B45309}
+    .row{display:flex;align-items:center;gap:8px}
+    .row+.row{margin-top:6px}
+    .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;background:#0F172A;color:#94A3B8;border:1px solid #334155}
+    .badge.ok{background:#14532D;color:#BBF7D0;border-color:#166534}
+    .badge.warn{background:#7C2D12;color:#FED7AA;border-color:#9A3412}
+    .badge.err{background:#7F1D1D;color:#FECACA;border-color:#B91C1C}
+    .icon{font-size:18px;line-height:1}
+    /* signal bars */
+    .signal-bars{display:inline-flex;align-items:flex-end;gap:2px;height:14px}
+    .signal-bars span{width:3px;background:#334155;border-radius:1px;display:inline-block}
+    .signal-bars span.on{background:#A3E635}
+    .signal-bars span:nth-child(1){height:3px}
+    .signal-bars span:nth-child(2){height:6px}
+    .signal-bars span:nth-child(3){height:10px}
+    .signal-bars span:nth-child(4){height:14px}
+    /* loading spinner */
+    .spinner{width:24px;height:24px;border:3px solid #334155;border-top-color:#A3E635;border-radius:50%;animation:spin 1s linear infinite;display:inline-block;vertical-align:middle}
+    .spinner.sm{width:14px;height:14px;border-width:2px;margin-right:6px}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .center{text-align:center;padding:18px 4px}
+    /* WiFi picker (used in wifi_connecting view only) */
+    .wifi-list{max-height:180px;overflow-y:auto;border:1px solid #334155;border-radius:6px;background:#0F172A;margin-bottom:6px}
+    .wifi-list:empty::after{content:"Keine Netze gefunden";display:block;text-align:center;padding:14px;color:#64748B;font-size:12px}
+    .wifi-item{display:flex;align-items:center;gap:8px;padding:9px 11px;border-bottom:1px solid #1E293B;cursor:pointer}
     .wifi-item:last-child{border-bottom:none}
-    .wifi-item:hover{background:#f5f8ff}
-    .wifi-item.selected{background:#e8f0fe;font-weight:600}
-    .wifi-name{flex:1;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    .wifi-lock{font-size:12px;color:#888;flex-shrink:0}
-    .signal-bars{display:flex;align-items:flex-end;gap:1px;height:16px;flex-shrink:0}
-    .signal-bars .bar{width:3px;background:#ccc;border-radius:1px}
-    .signal-bars .bar.active{background:#0066cc}
-    .signal-bars .bar:nth-child(1){height:4px}
-    .signal-bars .bar:nth-child(2){height:8px}
-    .signal-bars .bar:nth-child(3){height:12px}
-    .signal-bars .bar:nth-child(4){height:16px}
-    .manual-toggle{display:inline-block;font-size:12px;color:#0066cc;cursor:pointer;margin-top:2px;border:none;background:none;padding:0;width:auto;text-decoration:underline}
-    .manual-toggle:active{color:#0052a3}
-    .scanning-msg{text-align:center;padding:16px;color:#888;font-size:13px}
-
+    .wifi-item:hover{background:#1E293B}
+    .wifi-item.selected{background:#1E293B;outline:1px solid #A3E635;outline-offset:-2px}
+    .wifi-name{flex:1;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .wifi-lock{font-size:11px;color:#94A3B8;flex-shrink:0}
+    .wifi-header-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+    .wifi-header-row label{margin:0}
+    .scan-btn{width:auto;display:inline-block;margin:0;padding:5px 10px;font-size:12px;background:transparent;color:#A3E635;border:1px solid #334155;font-weight:500}
+    .scan-btn:hover{background:#0F172A}
+    .scan-btn:disabled{color:#94A3B8;border-color:#334155;background:transparent}
+    .scanning-msg{text-align:center;padding:14px;color:#64748B;font-size:12px}
+    /* Status banner uplink details */
+    .uplink-details{margin-top:8px;padding-top:8px;border-top:1px solid #334155;font-size:12px;color:#94A3B8;display:grid;grid-template-columns:auto 1fr;gap:4px 10px}
+    .uplink-details dt{font-weight:500;color:#94A3B8}
+    .uplink-details dd{color:#CBD5E1;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;overflow-wrap:anywhere}
   </style>
 </head>
 <body>
 
-<div class="card">
-  <div class="brand">
-    <svg class="brand-mark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" aria-hidden="true">
-      <rect width="48" height="48" rx="10" fill="#0F172A"/>
-      <g transform="translate(8,11)">
-        <rect x="0"  y="0" width="5" height="22" rx="1.5" fill="#fff"/>
-        <rect x="8"  y="0" width="5" height="14" rx="1.5" fill="#fff"/>
-        <rect x="16" y="0" width="5" height="22" rx="1.5" fill="#A3E635"/>
-        <rect x="24" y="0" width="5" height="14" rx="1.5" fill="#A3E635"/>
-        <path d="M0 28 L30 28 M26.5 25 L30 28 L26.5 31" stroke="#A3E635" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-      </g>
-    </svg>
-    <div>
-      <h1>VMFlow</h1>
-      <p class="sub">Device setup — connect to your network and register with your account</p>
+<div class="wrap">
+
+  <!-- ============ STATUS BANNER ============ -->
+  <div class="panel" id="status_banner">
+    <div class="brand">
+      <svg class="brand-mark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" aria-hidden="true">
+        <rect width="48" height="48" rx="10" fill="#0F172A"/>
+        <g transform="translate(8,11)">
+          <rect x="0"  y="0" width="5" height="22" rx="1.5" fill="#fff"/>
+          <rect x="8"  y="0" width="5" height="14" rx="1.5" fill="#fff"/>
+          <rect x="16" y="0" width="5" height="22" rx="1.5" fill="#A3E635"/>
+          <rect x="24" y="0" width="5" height="14" rx="1.5" fill="#A3E635"/>
+          <path d="M0 28 L30 28 M26.5 25 L30 28 L26.5 31" stroke="#A3E635" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        </g>
+      </svg>
+      <div>
+        <h1>VMFlow</h1>
+        <p class="muted">Geräte-Einrichtung</p>
+      </div>
     </div>
-  </div>
 
-  <!-- WiFi network selector -->
-  <div class="wifi-header">
-    <label>WiFi Network</label>
-    <button class="scan-btn" id="scan_btn" onclick="scanWifi()">Scan</button>
-  </div>
-  <div id="wifi_list_container">
-    <div class="wifi-list" id="wifi_list">
-      <div class="scanning-msg" id="scanning_msg">Scanning…</div>
+    <div class="row" style="margin-top:10px">
+      <span class="icon" id="sb_icon">…</span>
+      <span id="sb_state" style="font-weight:600">Lade Status…</span>
+      <span class="badge" id="sb_claim_badge" style="margin-left:auto;display:none">Nicht registriert</span>
     </div>
-    <button class="manual-toggle" onclick="toggleManual()">Enter manually</button>
-  </div>
-  <div id="wifi_manual_container" style="display:none">
-    <input id="wifi_ssid_input" type="text" placeholder="Your WiFi name" autocomplete="off">
-    <button class="manual-toggle" onclick="toggleManual()">Select from list</button>
-  </div>
-  <input type="hidden" id="wifi_ssid">
 
-  <label for="wifi_password">WiFi Password</label>
-  <input id="wifi_password" type="password" placeholder="WiFi password" autocomplete="off">
-
-  <hr class="divider">
-
-  <!-- Already-registered banner + toggle (shown only when claimed=true) -->
-  <div id="claimed_banner" style="display:none;background:#e8f5ee;border:1px solid #b7e0c5;color:#155724;padding:10px 12px;border-radius:4px;font-size:13px;margin-top:4px">
-    <strong>Device already registered.</strong>
-    You only need to update the WiFi credentials.
-    <button type="button" class="manual-toggle" style="display:block;margin-top:4px" onclick="toggleProvSection()">Change registration</button>
+    <dl class="uplink-details" id="sb_details" style="display:none"></dl>
   </div>
 
-  <!-- Provisioning section (hidden by default when claimed, shown otherwise) -->
-  <div id="prov_section">
-    <label>Provisioning Code
-      <span class="hint" style="font-weight:normal"> — from the management dashboard</span>
-    </label>
-    <input id="prov_code" type="text" placeholder="e.g. AB3KMNPQ" autocomplete="off"
-           style="text-transform:uppercase;letter-spacing:0.1em;font-size:18px">
-    <p class="hint" id="prov_hint">Leave empty to skip registration (use if device is already registered)</p>
+  <!-- ============ DYNAMIC VIEW MOUNT POINT ============ -->
+  <div id="view"></div>
 
-    <label>Server URL</label>
-    <input id="srv_url" type="text" placeholder="https://your-server.com" autocomplete="off">
-    <p class="hint">The URL of your VMFlow backend</p>
-  </div>
-
-  <button onclick="saveSettings()">Save &amp; Connect</button>
-  <div id="status"></div>
 </div>
 
 <script>
-  const $ = id => document.getElementById(id);
-
-  const DEFAULTS = { srv_url: 'https://supabase.vmflow.xyz' };
-  let manualMode = false;
-  let selectedSsid = '';
-  let deviceClaimed = false;
-
-  window.addEventListener('DOMContentLoaded', () => {
-    fetch('/api/v1/system/info')
-      .then(r => r.json())
-      .then(d => {
-        selectedSsid = d.wifi_ssid || '';
-        $('wifi_ssid').value = selectedSsid;
-        $('wifi_ssid_input').value = selectedSsid;
-        $('wifi_password').value = d.wifi_password || '';
-        $('srv_url').value       = d.srv_url       || DEFAULTS.srv_url;
-        $('prov_code').value     = d.prov_code     || '';
-        deviceClaimed            = !!d.claimed;
-
-        /* Hide provisioning section by default if device is already claimed.
-         * The user can reveal it via the "Change registration" toggle. */
-        if (deviceClaimed) {
-          $('claimed_banner').style.display = '';
-          $('prov_section').style.display   = 'none';
-        } else {
-          $('claimed_banner').style.display = 'none';
-          $('prov_section').style.display   = '';
-        }
-
-        /* Auto-scan after loading saved settings */
-        scanWifi();
-      })
-      .catch(() => {
-        $('srv_url').value = DEFAULTS.srv_url;
-        scanWifi();
-      });
-  });
-
-  function toggleProvSection() {
-    const sec = $('prov_section');
-    sec.style.display = sec.style.display === 'none' ? '' : 'none';
-  }
-
-  function scanWifi() {
-    const btn = $('scan_btn');
-    const list = $('wifi_list');
-    btn.disabled = true;
-    btn.textContent = 'Scanning…';
-    list.innerHTML = '<div class="scanning-msg">Scanning…</div>';
-
-    fetch('/api/v1/wifi/scan')
-      .then(r => r.json())
-      .then(d => {
-        renderNetworks(d.networks || []);
-      })
-      .catch(() => {
-        list.innerHTML = '';
-      })
-      .finally(() => {
-        btn.disabled = false;
-        btn.textContent = 'Scan';
-      });
-  }
-
-  function renderNetworks(networks) {
-    const list = $('wifi_list');
-    list.innerHTML = '';
-
-    networks.forEach(net => {
-      const item = document.createElement('div');
-      item.className = 'wifi-item' + (net.ssid === selectedSsid ? ' selected' : '');
-      item.onclick = () => selectNetwork(net.ssid);
-
-      const name = document.createElement('span');
-      name.className = 'wifi-name';
-      name.textContent = net.ssid;
-
-      const lock = document.createElement('span');
-      lock.className = 'wifi-lock';
-      lock.textContent = net.secure ? '\uD83D\uDD12' : '';
-
-      const bars = signalBars(net.rssi);
-
-      item.appendChild(name);
-      item.appendChild(lock);
-      item.appendChild(bars);
-      list.appendChild(item);
-    });
-  }
-
-  function signalBars(rssi) {
-    const level = rssi > -50 ? 4 : rssi > -60 ? 3 : rssi > -70 ? 2 : 1;
-    const container = document.createElement('div');
-    container.className = 'signal-bars';
-    for (let i = 1; i <= 4; i++) {
-      const bar = document.createElement('div');
-      bar.className = 'bar' + (i <= level ? ' active' : '');
-      container.appendChild(bar);
-    }
-    return container;
-  }
-
-  function selectNetwork(ssid) {
-    selectedSsid = ssid;
-    $('wifi_ssid').value = ssid;
-    $('wifi_ssid_input').value = ssid;
-    /* Update selected state */
-    const items = $('wifi_list').querySelectorAll('.wifi-item');
-    items.forEach(el => {
-      el.className = 'wifi-item' + (el.querySelector('.wifi-name').textContent === ssid ? ' selected' : '');
-    });
-    /* Focus password field for convenience */
-    $('wifi_password').focus();
-  }
-
-  function toggleManual() {
-    manualMode = !manualMode;
-    $('wifi_list_container').style.display = manualMode ? 'none' : '';
-    $('wifi_manual_container').style.display = manualMode ? '' : 'none';
-    if (manualMode) {
-      $('wifi_ssid_input').focus();
-    }
-  }
-
-  function saveSettings() {
-    /* In manual mode, use the text input value */
-    if (manualMode) {
-      $('wifi_ssid').value = $('wifi_ssid_input').value.trim();
-    }
-
-    const ssid    = $('wifi_ssid').value.trim();
-    const pass    = $('wifi_password').value;
-    const srvUrl  = $('srv_url').value.trim();
-
-    /* If the device is already claimed and the user did not reveal the
-     * provisioning section, do not send prov_code at all — this keeps
-     * an already-registered device from attempting a fresh claim. */
-    const provVisible = $('prov_section').style.display !== 'none';
-    const code        = provVisible ? $('prov_code').value.trim().toUpperCase() : '';
-
-    if (!ssid) { setStatus('WiFi SSID is required', false); return; }
-
-    setStatus('Saving…', null);
-
-    const body = { ssid, password: pass, srv_url: srvUrl };
-    if (code) body.prov_code = code;
-
-    fetch('/api/v1/settings/set', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    })
-    .then(r => r.json())
-    .then(d => {
-      if (d.error) { setStatus(d.error, false); return; }
-      if (code) {
-        setStatus('Saved! Connecting to WiFi and registering device… this may take 15 s', true);
-      } else {
-        setStatus('Saved! Connecting to WiFi…', true);
-      }
-    })
-    .catch(() => setStatus('Failed to save. Try again.', false));
-  }
-
-  function setStatus(msg, ok) {
-    const el = $('status');
-    el.textContent = msg;
-    el.className = ok === true ? 'ok' : ok === false ? 'err' : '';
-  }
-
+  /* Bootstrap stub. Full SPA logic ships in Task 6. */
+  document.getElementById('view').innerHTML =
+    '<div class="panel center">' +
+      '<div class="spinner"></div>' +
+      '<p class="muted" style="margin-top:10px">Initialisiere…</p>' +
+    '</div>';
 </script>
+
 </body>
 </html>
