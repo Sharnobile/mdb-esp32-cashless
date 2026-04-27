@@ -377,6 +377,28 @@ static esp_err_t captive_handler(httpd_req_t *req) {
     return ESP_OK;
 }
 
+/* Catch-all 404 handler. Returns a 302 redirect to '/' so iOS, Android,
+ * macOS, Windows, and Linux captive-portal probes that hit any path we
+ * don't explicitly register still trigger the OS's "Sign in to network"
+ * popup.
+ *
+ * Without this, only the specific probe URLs we list as exact handlers
+ * worked — modern OS captive portal detection uses many paths (and they
+ * change between releases). iOS 26 in particular probes additional paths
+ * like /library/test/success.html under captive.apple.com.
+ *
+ * We intentionally redirect rather than serve the index inline: a 302
+ * is the most reliable trigger for the captive-portal popup across all
+ * OS versions in the field. */
+static esp_err_t catchall_404_handler(httpd_req_t *req, httpd_err_code_t err) {
+    (void)err;
+    ESP_LOGI(TAG, "captive 404 → redirect: %s", req->uri);
+    httpd_resp_set_status(req, "302 Found");
+    httpd_resp_set_hdr(req, "Location", "/");
+    httpd_resp_send(req, NULL, 0);
+    return ESP_OK;
+}
+
 /* ---------- DNS ---------- */
 
 void stop_dns_server(void) {
@@ -406,6 +428,9 @@ void start_rest_server(void) {
     if (rest_server != NULL) return;
 
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
+    /* Allow more handler slots than the default 8 — we register seven
+     * exact API URIs plus a clutch of captive-portal probe paths. */
+    config.max_uri_handlers = 16;
     httpd_start(&rest_server, &config);
 
     static const httpd_uri_t uris[] = {
@@ -415,13 +440,41 @@ void start_rest_server(void) {
         { .uri = "/api/v1/cellular/configure", .method = HTTP_POST, .handler = cellular_configure_handler },
         { .uri = "/api/v1/wifi/configure",     .method = HTTP_POST, .handler = wifi_configure_handler     },
         { .uri = "/api/v1/claim",              .method = HTTP_POST, .handler = claim_handler              },
+
+        /* OS captive-portal probe paths.
+         *
+         * Each OS picks one (or several) of these to detect whether the
+         * network requires sign-in. Returning a 302 to '/' triggers the
+         * "Sign in to network" auto-popup on every modern OS:
+         *   Android:    /generate_204               (gstatic, kindle, etc.)
+         *   iOS/macOS:  /hotspot-detect.html        (captive.apple.com)
+         *   iOS 16+:    /library/test/success.html  (newer paths)
+         *   Windows:    /connecttest.txt            (msftconnecttest.com)
+         *               /ncsi.txt                   (msftncsi.com)
+         *   Linux:      /                           (NetworkManager) — handled by index
+         *               /generate_204               (also used)
+         *               /canonical.html             (Ubuntu)
+         *   Firefox:    /success.txt                (detectportal.firefox.com)
+         *
+         * The catch-all 404 handler below covers any probe paths we
+         * forget — but explicit handlers log nicer for debugging. */
         { .uri = "/generate_204",              .method = HTTP_GET,  .handler = captive_handler            },
         { .uri = "/hotspot-detect.html",       .method = HTTP_GET,  .handler = captive_handler            },
+        { .uri = "/library/test/success.html", .method = HTTP_GET,  .handler = captive_handler            },
+        { .uri = "/connecttest.txt",           .method = HTTP_GET,  .handler = captive_handler            },
+        { .uri = "/ncsi.txt",                  .method = HTTP_GET,  .handler = captive_handler            },
+        { .uri = "/canonical.html",            .method = HTTP_GET,  .handler = captive_handler            },
+        { .uri = "/success.txt",               .method = HTTP_GET,  .handler = captive_handler            },
     };
 
     for (int i = 0; i < sizeof(uris) / sizeof(uris[0]); i++) {
         httpd_register_uri_handler(rest_server, &uris[i]);
     }
+
+    /* Last line of defence: any GET we don't explicitly handle gets the
+     * same 302 → '/' redirect. Covers OS-specific probes we don't know
+     * about (and future ones). */
+    httpd_register_err_handler(rest_server, HTTPD_404_NOT_FOUND, catchall_404_handler);
 }
 
 /* ---------- SoftAP ---------- */
