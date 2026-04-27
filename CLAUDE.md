@@ -49,6 +49,19 @@ Single main file `main/mdb-slave-esp32s3.c` runs these concurrent FreeRTOS tasks
 - `mqtt_port` – MQTT broker port
 - `mqtt_user` – MQTT username
 - `mqtt_pass` – MQTT password
+- `mdb_addr` – MDB peripheral address selector (1=0x10, 2=0x60), set via config cmd 0x31
+- `restart_reason` – set by `tracked_restart()` before reboot, erased on next boot after publish
+- `last_uptime` – uptime at the moment of `tracked_restart()`, paired with `restart_reason`
+- `apn` – cellular APN (P1+, set via captive portal `/api/v1/cellular/configure`)
+- `sim_pin` – optional cellular SIM PIN (P1+; empty for PIN-less SIMs)
+- `lte_mode` – cellular LTE mode selector u8 (1=Cat-M, 2=NB-IoT, 3=Both)
+
+**Reset paths and what they erase:**
+- **Factory reset** (boot button held 5 s, `factory_reset_task` in main.c) → `nvs_flash_erase()` wipes the **entire NVS partition** including all keys above. The only way to fully clear cellular config without overwriting it.
+- **NVS corruption recovery** (NVS init fails with `NO_FREE_PAGES`/`NEW_VERSION_FOUND`) → also a full `nvs_flash_erase`.
+- **Successful claim** (`provision_claim_task`) → erases only `prov_code`. Cellular config persists across the post-claim reboot, which is the intended behaviour (post-claim devices keep their APN).
+- **Soft restarts** (OTA, MQTT watchdog, config cmd 0x30, provision-failure retry loop) → reboot only, no NVS keys touched. Cellular config persists, which is intended (so the device re-attaches to the same APN automatically).
+- **`/api/v1/cellular/configure`** rejects empty APN — once set, an APN can only be **overwritten** (with a new value), not gap-deleted via the captive portal. Factory reset is the only way to fully clear it.
 
 **WiFi / provisioning boot flow**:
 1. On `WIFI_EVENT_STA_START`, calls `esp_wifi_connect()`. If it returns an error (no saved credentials), immediately starts SoftAP + captive portal DNS + HTTP server.
