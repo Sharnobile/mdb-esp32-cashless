@@ -2392,8 +2392,15 @@ void app_main(void) {
     gpio_set_direction(PIN_MDB_RX, GPIO_MODE_INPUT);
 	gpio_set_direction(PIN_MDB_TX, GPIO_MODE_INPUT);  // idle: high-Z (tri-state)
 
+	/* On the LilyGo T-SIM7080G-S3, GPIO 12 is the modem POWERON pin
+	 * (gates VBAT to the SIM7080G via an external MOSFET). On the
+	 * production WiFi-only PCB, GPIO 12 drives a buzzer. We assert it
+	 * HIGH at boot so a cellular board's modem gets power immediately;
+	 * the production buzzer briefly being ON is a tolerable side-effect.
+	 * If a future board variant needs different behaviour, gate this on
+	 * a Kconfig BOARD_VARIANT option. */
 	gpio_set_direction(PIN_BUZZER_PWR, GPIO_MODE_OUTPUT);
-	gpio_set_level(PIN_BUZZER_PWR, 0);
+	gpio_set_level(PIN_BUZZER_PWR, 1);
 
 	//---------------- Strip LED configuration -----------------//
 	//----------------------------------------------------------//

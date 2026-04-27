@@ -124,42 +124,6 @@ esp_err_t modem_nvs_save(const char *apn, const char *pin, modem_lte_mode_t mode
     return err;
 }
 
-/*
- * Read PWRKEY quiescent state as a *necessary-but-not-sufficient*
- * sanity check before deciding to issue a power-pulse. On a board
- * with the SIM7080G wired to GPIO 14, the modem's internal pull-up
- * keeps the line HIGH while VBAT is powered. On a board with no
- * modem, GPIO 14 is floating (returns 0 if internal pull-down is
- * applied).
- *
- * IMPORTANT: this is a heuristic, not a hardware barrier. If the
- * production WiFi-only PCB happens to wire GPIO 14 to a stable HIGH
- * source (3V3 pull-up, output of another peripheral), this check
- * would falsely report "modem present" and modem_probe() would then
- * pulse the GPIO as an output. **The empirical confirmation in Task
- * 13 is the load-bearing safety mechanism, not this code.** If Task
- * 13 fails (production board reads 5/5 high), see that task's
- * recovery section for what to do.
- */
-static bool modem_pwrkey_quiescent_looks_attached(void) {
-    gpio_config_t io = {
-        .pin_bit_mask = 1ULL << MODEM_PIN_PWR,
-        .mode         = GPIO_MODE_INPUT,
-        .pull_up_en   = GPIO_PULLUP_DISABLE,
-        .pull_down_en = GPIO_PULLDOWN_DISABLE,
-        .intr_type    = GPIO_INTR_DISABLE,
-    };
-    gpio_config(&io);
-
-    int high_samples = 0;
-    for (int i = 0; i < 5; i++) {
-        if (gpio_get_level(MODEM_PIN_PWR) == 1) high_samples++;
-        vTaskDelay(pdMS_TO_TICKS(10));
-    }
-    ESP_LOGI(TAG, "PWRKEY quiescent: %d/5 high", high_samples);
-    return high_samples == 5;
-}
-
 /* The actual probe body — runs in a CPU-1-pinned helper task to dodge
  * an ESP-IDF v5.5.1 bug where iterating CPU-0 shared-vector descriptors
  * inside esp_intr_alloc trips an assert (find_desc_for_source
@@ -206,7 +170,42 @@ bool modem_probe(void) {
     return args.result;
 }
 
+/* LilyGo T-SIM7080G boards gate the SIM7080G's VBAT through an external
+ * MOSFET driven by a separate "POWERON" GPIO. Without that pin asserted
+ * HIGH the modem has no power, ignores PWRKEY pulses, and never replies
+ * to AT. Different LilyGo revisions wire different GPIOs:
+ *   - T-SIM7080G-S3 (most common):    GPIO 12
+ *   - some S3 revs:                   GPIO 47
+ *   - some S3 sense-board revs:       GPIO 48
+ *
+ * Asserting all candidates at boot is harmless on boards that don't
+ * use a given pin (it just becomes an idle-high output). On the
+ * existing production WiFi-only PCB GPIO 12 is wired to a buzzer
+ * which beeps briefly when held HIGH — annoying but not damaging.
+ * Once the specific pin is known for a deployed board, narrow this
+ * list to just that pin. */
+static const gpio_num_t kPoweronCandidates[] = {
+    GPIO_NUM_12,    /* LilyGo T-SIM7080G-S3 typical */
+    GPIO_NUM_47,    /* some S3 revs */
+    GPIO_NUM_48,    /* some S3 sense-board revs */
+};
+
+static void modem_assert_poweron_candidates(void) {
+    for (size_t i = 0; i < sizeof(kPoweronCandidates) / sizeof(kPoweronCandidates[0]); i++) {
+        gpio_num_t pin = kPoweronCandidates[i];
+        gpio_set_direction(pin, GPIO_MODE_OUTPUT);
+        gpio_set_level(pin, 1);
+        ESP_LOGI(TAG, "POWERON candidate GPIO %d → HIGH", (int)pin);
+    }
+    /* SIM7080G typically wants VBAT stable for >= 50ms before PWRKEY.
+     * 200ms gives the MOSFET + decoupling caps room to settle. */
+    vTaskDelay(pdMS_TO_TICKS(200));
+}
+
 static bool modem_probe_body(void) {
+    /* First make sure the modem actually has VBAT. */
+    modem_assert_poweron_candidates();
+
     /* Build the temporary DTE/DCE. */
     esp_modem_dte_config_t dte_config = ESP_MODEM_DTE_DEFAULT_CONFIG();
     dte_config.uart_config.port_num   = MODEM_UART_PORT;
