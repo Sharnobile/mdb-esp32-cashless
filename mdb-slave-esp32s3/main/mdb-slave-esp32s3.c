@@ -34,6 +34,7 @@
 #include "nimble.h"
 #include "webui_server.h"
 #include "sale_queue.h"
+#include "network.h"
 
 #include "esp_system.h"
 #include "esp_http_client.h"
@@ -73,18 +74,6 @@
 #define BIT_MODE_SET 	0b100000000
 #define BIT_ADD_SET   	0b011111000
 #define BIT_CMD_SET   	0b000000111
-
-#define WIFI_SOFTAP_AFTER  5          // start SoftAP after this many failures
-#define WIFI_RECONNECT_INTERVAL_SEC 60 // retry WiFi every 60s while in SoftAP
-
-static int wifi_retry_num = 0;
-static bool softap_active = false;
-static esp_timer_handle_t wifi_reconnect_timer = NULL;
-
-static void wifi_reconnect_timer_cb(void *arg) {
-    ESP_LOGI(TAG, "WiFi reconnect timer: retrying esp_wifi_connect()");
-    esp_wifi_connect();
-}
 
 enum BIT_EVENTS {
     BIT_EVT_INTERNET    = (1 << 0),
@@ -2273,130 +2262,39 @@ static void provision_claim_task(void *arg) {
     tracked_restart("provision");
 }
 
-static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data) {
+/*
+ * Network manager event consumer. The network_init / handler in
+ * network.c owns WIFI_EVENT and IP_EVENT directly; this callback is
+ * the seam where uplink-up/down translates into MQTT + SNTP + watchdog
+ * lifecycle. Keep it brief — runs in the network task context.
+ */
+static void network_event_cb(network_event_t event, void *user_data) {
+    (void)user_data;
+    switch (event) {
+        case NETWORK_EVENT_UPLINK_UP:
+            ESP_LOGI(TAG, "uplink up — starting MQTT + provisioning if needed");
 
-	if (event_base == WIFI_EVENT)
-		switch (event_id) {
-		case WIFI_EVENT_STA_START: {
-
-		    wifi_retry_num = 0;
-		    ESP_LOGI(TAG, "WIFI STA started");
-
-		    /* Check whether there is a saved SSID before attempting to connect.
-		     * esp_wifi_connect() with an empty SSID may return ESP_OK on some
-		     * IDF versions without ever emitting STA_DISCONNECTED, leaving the
-		     * SoftAP fallback unreachable. */
-		    wifi_config_t sta_cfg = {0};
-		    esp_wifi_get_config(WIFI_IF_STA, &sta_cfg);
-		    ESP_LOGI(TAG, "Saved SSID: \"%s\"", (char *)sta_cfg.sta.ssid);
-
-		    if (strlen((char *)sta_cfg.sta.ssid) == 0) {
-		        ESP_LOGI(TAG, "No saved WiFi credentials — starting SoftAP");
-		        start_softap();
-		        start_dns_server();
-		        start_rest_server();
-		        softap_active = true;
-		    } else {
-		        esp_err_t conn_err = esp_wifi_connect();
-		        ESP_LOGI(TAG, "esp_wifi_connect() → %s", esp_err_to_name(conn_err));
-		        if (conn_err != ESP_OK) {
-		            ESP_LOGW(TAG, "Connect failed immediately — starting SoftAP");
-		            start_softap();
-		            start_dns_server();
-		            start_rest_server();
-		            softap_active = true;
-		        }
-		    }
-			break;
-		}
-		case WIFI_EVENT_AP_START:
-		    ESP_LOGI(TAG, "WIFI AP started — SSID \"" AP_SSID "\" should now be visible");
-		    break;
-		case WIFI_EVENT_AP_STOP:
-		    ESP_LOGI(TAG, "WIFI AP stopped");
-		    break;
-		case WIFI_EVENT_AP_STACONNECTED:
-		    ESP_LOGI(TAG, "Client connected to SoftAP");
-		    break;
-		case WIFI_EVENT_STA_CONNECTED:
-			break;
-		case WIFI_EVENT_STA_DISCONNECTED:
-
-		    // Don't explicitly disconnect MQTT here — the MQTT client
-		    // detects the TCP loss itself and fires MQTT_EVENT_DISCONNECTED,
-		    // which resets mqtt_started. Calling esp_mqtt_client_disconnect()
-		    // on a dead socket can block or cause errors.
-
-		    wifi_retry_num++;
-
-		    if (wifi_retry_num <= WIFI_SOFTAP_AFTER) {
-                // Fast retries first
-                ESP_LOGW(TAG, "WiFi disconnected, retry %d/%d", wifi_retry_num, WIFI_SOFTAP_AFTER);
-                esp_wifi_connect();
-		    } else if (!softap_active) {
-                // Start SoftAP for user access, but keep retrying via timer
-                ESP_LOGW(TAG, "WiFi retries exhausted — starting SoftAP + reconnect timer (every %ds)", WIFI_RECONNECT_INTERVAL_SEC);
-                start_softap();
-                start_dns_server();
-                start_rest_server();
-                softap_active = true;
-
-                // Start periodic reconnect timer
-                if (wifi_reconnect_timer == NULL) {
-                    const esp_timer_create_args_t timer_args = {
-                        .callback = wifi_reconnect_timer_cb,
-                        .name = "wifi_reconnect"
-                    };
-                    esp_timer_create(&timer_args, &wifi_reconnect_timer);
-                }
-                esp_timer_start_periodic(wifi_reconnect_timer, WIFI_RECONNECT_INTERVAL_SEC * 1000000ULL);
-            } else {
-                // SoftAP already active, timer handles retries — nothing to do
-                ESP_LOGI(TAG, "WiFi disconnected (SoftAP active, timer will retry)");
-            }
-
-			break;
-		}
-
-	if (event_base == IP_EVENT)
-		switch (event_id) {
-		case IP_EVENT_STA_GOT_IP: {
-
-		    ip_event_got_ip_t *event_ip = (ip_event_got_ip_t *)event_data;
-		    ESP_LOGW(TAG, "GOT IP: " IPSTR, IP2STR(&event_ip->ip_info.ip));
-
-		    wifi_retry_num = 0;
-
-            // Stop reconnect timer if running
-            if (wifi_reconnect_timer != NULL) {
-                esp_timer_stop(wifi_reconnect_timer);
-            }
-
-            stop_rest_server();
-            stop_dns_server();
-            softap_active = false;
-
-            // Switch to STA-only mode now that we have a connection
-            esp_wifi_set_mode(WIFI_MODE_STA);
-
-            /* If a provisioning code is waiting, claim the device first.
-             * The claim task will call esp_restart() on success, so normal
-             * MQTT startup is intentionally skipped here. */
+            /* If a provisioning code is in NVS and we don't have a passkey
+             * yet, this is the first-boot claim flow. Spawn the claim task;
+             * MQTT starts after the claim succeeds + restart. */
             {
-                nvs_handle_t pnvs;
-                size_t pc_len = 0;
-                bool needs_prov = false;
-                if (nvs_open("vmflow", NVS_READONLY, &pnvs) == ESP_OK) {
-                    needs_prov = (nvs_get_str(pnvs, "prov_code", NULL, &pc_len) == ESP_OK && pc_len > 1);
-                    nvs_close(pnvs);
-                }
-                if (needs_prov) {
-                    ESP_LOGW(TAG, "Provisioning pending — spawning claim task");
-                    xTaskCreate(provision_claim_task, "prov_claim", 8192, NULL, 5, NULL);
-                    break;
+                nvs_handle_t h;
+                if (nvs_open("vmflow", NVS_READONLY, &h) == ESP_OK) {
+                    char prov_code[16] = {0};
+                    size_t s = sizeof(prov_code);
+                    bool has_prov = (nvs_get_str(h, "prov_code", prov_code, &s) == ESP_OK
+                                      && strlen(prov_code) > 0);
+                    nvs_close(h);
+                    if (has_prov && strlen(my_passkey) == 0) {
+                        ESP_LOGI(TAG, "spawning provision_claim_task");
+                        xTaskCreate(provision_claim_task, "prov_claim", 8192, NULL, 5, NULL);
+                        return;
+                    }
                 }
             }
 
+            /* Steady-state: kick MQTT + SNTP + watchdog (same logic the
+             * old IP_EVENT_STA_GOT_IP branch ran). */
             if (!sntp_started) {
                 esp_sntp_setoperatingmode(ESP_SNTP_OPMODE_POLL);
                 esp_sntp_setservername(0, "pool.ntp.org");
@@ -2404,24 +2302,12 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t e
                 sntp_started = true;
             }
 
-            // Start MQTT — the client handles connection asynchronously.
-            // mqtt_started is only set to true on MQTT_EVENT_CONNECTED.
-            //
-            // Reset mqtt_last_connected_tick to "now" on every fresh GOT_IP:
-            // this is our baseline for measuring MQTT offline time. Without
-            // this reset, a long WiFi outage could leave a stale tick value
-            // that would cause the watchdog to immediately hard-reboot right
-            // after WiFi recovery, before MQTT had a chance to connect.
-            // The soft-reconnect path in mqtt_watchdog_cb() must NOT reset
-            // this tick — only a genuine connect success (MQTT_EVENT_CONNECTED)
-            // or a fresh network recovery (this branch) resets it.
-            if (!mqtt_started) {
-                ESP_LOGW(TAG, "MQTT: starting client (company='%s' device='%s', client=%p)", my_company_id, my_device_id, mqttClient);
+            if (!mqtt_started && mqttClient) {
+                ESP_LOGW(TAG, "MQTT: starting client");
                 esp_mqtt_client_start(mqttClient);
                 mqtt_last_connected_tick = xTaskGetTickCount();
             }
 
-            // Start MQTT watchdog timer (checks periodically if MQTT is still alive)
             if (mqtt_watchdog_timer == NULL) {
                 const esp_timer_create_args_t wdt_args = {
                     .callback = mqtt_watchdog_cb,
@@ -2429,14 +2315,19 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t e
                 };
                 if (esp_timer_create(&wdt_args, &mqtt_watchdog_timer) == ESP_OK) {
                     esp_timer_start_periodic(mqtt_watchdog_timer, MQTT_WATCHDOG_INTERVAL_SEC * 1000000ULL);
-                    ESP_LOGI(TAG, "MQTT watchdog timer started (every %ds, timeout %ds)",
-                             MQTT_WATCHDOG_INTERVAL_SEC, MQTT_WATCHDOG_TIMEOUT_SEC);
+                    ESP_LOGI(TAG, "MQTT watchdog timer started");
                 }
             }
+            break;
 
-			break;
-		}
-		}
+        case NETWORK_EVENT_UPLINK_DOWN:
+            ESP_LOGW(TAG, "uplink down — MQTT will reconnect when uplink returns");
+            break;
+
+        case NETWORK_EVENT_SOFTAP_STARTED:
+        case NETWORK_EVENT_SOFTAP_STOPPED:
+            break;
+    }
 }
 
 void request_pax_counter(void *arg) {
@@ -2570,14 +2461,11 @@ void app_main(void) {
 	esp_netif_init();
 	esp_event_loop_create_default();
 
-	esp_netif_create_default_wifi_sta();
-    esp_netif_create_default_wifi_ap();
-
-	wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-	esp_wifi_init(&cfg);
-
-	esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID, wifi_event_handler, NULL, NULL);
-	esp_event_handler_instance_register(IP_EVENT, ESP_EVENT_ANY_ID, wifi_event_handler, NULL, NULL);
+	/* Network manager owns WiFi events, SoftAP lifecycle, modem probe,
+	 * and the boot-time cellular vs WiFi branch. The callback below
+	 * receives UPLINK_UP/DOWN and is the seam where MQTT + SNTP +
+	 * watchdog get started/stopped. */
+	network_register_callback(network_event_cb, NULL);
 
 	//---------- NVS device config (before WiFi starts) -------//
 	//----------------------------------------------------------//
@@ -2776,10 +2664,13 @@ void app_main(void) {
 	sale_queue_init();
 	sale_queue_start(mqttClient);
 
-	//-- Start WiFi now that MQTT client is ready for events ---//
-	//----------------------------------------------------------//
-	esp_wifi_set_mode(WIFI_MODE_APSTA);
-	esp_wifi_start();
+	//-- Start network now that MQTT client is ready for events --//
+	//-----------------------------------------------------------//
+	/* network_init() probes the modem, takes the WiFi-vs-cellular
+	 * branch, sets up esp_netif + esp_wifi_init + handler registration,
+	 * and calls esp_wifi_start(). Once IP_EVENT_STA_GOT_IP fires, the
+	 * UPLINK_UP callback above starts MQTT/SNTP/watchdog. */
+	network_init();
 
 	//--------------- Factory reset (BOOT button) --------------//
 	//----------------------------------------------------------//
