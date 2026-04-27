@@ -2239,11 +2239,26 @@ void provision_claim_task(void *arg) {
     for (int attempt = 1; attempt <= PROV_MAX_ATTEMPTS; attempt++) {
         char resp_buf[512] = {0};
 
+        /* timeout_ms gates the entire TLS handshake + HTTP exchange.
+         * Field testing on Telekom IoT cellular showed legit TLS
+         * handshakes to Cloudflare-fronted endpoints take ~15-20 s
+         * (cert validation alone is ~1.4 s, and the post-cert finish
+         * round-trip can stall for many seconds while packets cross
+         * the carrier's deep PPP buffer). 15 s killed every attempt:
+         *
+         *   D esp-tls: handshake in progress...
+         *   I esp-x509-crt-bundle: Certificate validated   (+1.4 s)
+         *   E esp-tls-mbedtls: mbedtls_ssl_handshake returned -0x7280
+         *                                                  (+15.2 s total)
+         *
+         * mbedTLS interpreted our select() timeout as a server FIN
+         * (CONN_EOF). 60 s gives realistic cellular handshakes room
+         * without unbounding the wait. */
         esp_http_client_config_t http_cfg = {
             .url               = url,
             .method            = HTTP_METHOD_POST,
             .crt_bundle_attach = use_tls ? esp_crt_bundle_attach : NULL,
-            .timeout_ms        = 15000,
+            .timeout_ms        = 60000,
         };
 
         esp_http_client_handle_t client = esp_http_client_init(&http_cfg);
