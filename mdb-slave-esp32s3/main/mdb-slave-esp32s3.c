@@ -2615,6 +2615,30 @@ void app_main(void) {
 	}
 	ESP_LOGI(TAG, "MQTT broker: %s (user=%s)", mqtt_uri, mqtt_user);
 
+	/* Cellular link is more latent than WiFi — bump keepalive (saves
+	 * data quota) and timeouts (LTE-M latency). The watchdog still fires
+	 * after MQTT_WATCHDOG_TIMEOUT_SEC if the broker is unreachable, so
+	 * the longer keepalive only delays detection by ~2 minutes.
+	 *
+	 * Known limitation: at this point in app_main, network_init() has not
+	 * yet been called (it runs after esp_mqtt_client_init below), so
+	 * `modem_present` is still false and on_cellular evaluates to false
+	 * even on cellular boards. Cellular boards therefore boot with the
+	 * WiFi-tuned values on the first MQTT connect. The branch is kept
+	 * because (a) it documents intent, and (b) any future refactor that
+	 * moves network_init() earlier will pick up the cellular tuning
+	 * automatically without code changes. Re-init'ing the MQTT client
+	 * after NETWORK_EVENT_UPLINK_UP would give true cellular tuning on
+	 * first boot, but is out of scope for P4. */
+	network_status_t net_st;
+	network_get_status(&net_st);
+	bool on_cellular         = net_st.modem_present;
+	int  mqtt_keepalive       = on_cellular ? 180   : 60;
+	int  mqtt_network_timeout = on_cellular ? 30000 : 10000;
+	int  mqtt_reconnect       = on_cellular ? 20000 : 5000;
+	ESP_LOGI(TAG, "MQTT tuning: keepalive=%ds netto=%dms recto=%dms (cellular=%d)",
+	         mqtt_keepalive, mqtt_network_timeout, mqtt_reconnect, on_cellular);
+
 	const esp_mqtt_client_config_t mqttCfg = {
 		.broker.address.uri = mqtt_uri,
         .credentials = {
@@ -2638,20 +2662,23 @@ void app_main(void) {
 		.session.last_will.msg = "offline",
 		.session.last_will.qos = 1,
 		.session.last_will.retain = 1,
-		/* MQTT-level keepalive: client sends PINGREQ every 60s; if the broker
-		 * fails to answer with PINGRESP within ~1.5x keepalive (~90s) the
-		 * client closes the socket and fires MQTT_EVENT_DISCONNECTED, which
-		 * the watchdog (mqtt_watchdog_cb) then picks up.
+		/* MQTT-level keepalive: client sends PINGREQ every keepalive seconds;
+		 * if the broker fails to answer with PINGRESP within ~1.5x keepalive
+		 * the client closes the socket and fires MQTT_EVENT_DISCONNECTED,
+		 * which the watchdog (mqtt_watchdog_cb) then picks up.
 		 *
 		 * We set this explicitly instead of relying on the ESP-IDF default
 		 * (120s) so the dead-connection detection window is bounded and
-		 * doesn't shift silently between IDF versions. */
-		.session.keepalive = 60,
+		 * doesn't shift silently between IDF versions. Cellular bumps it to
+		 * 180s to reduce data-plan PINGREQ traffic. */
+		.session.keepalive = mqtt_keepalive,
 		.session.disable_keepalive = false,
 		/* Tighter network timeouts so a half-open TCP connection or a
-		 * stalled DNS lookup fails fast and the watchdog can react. */
-		.network.timeout_ms = 10000,
-		.network.reconnect_timeout_ms = 5000,
+		 * stalled DNS lookup fails fast and the watchdog can react.
+		 * Cellular relaxes both because LTE-M / NB-IoT round-trips can
+		 * legitimately take 5-10s. */
+		.network.timeout_ms = mqtt_network_timeout,
+		.network.reconnect_timeout_ms = mqtt_reconnect,
 	};
 
 	mqtt_publish_mutex = xSemaphoreCreateMutex();
