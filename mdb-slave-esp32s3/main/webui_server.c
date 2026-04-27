@@ -1,8 +1,11 @@
 #include <string.h>
+#include <stdio.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_wifi.h"
 #include "esp_http_server.h"
+#include "esp_timer.h"
+#include "esp_app_desc.h"
 #include "nvs_flash.h"
 #include "cJSON.h"
 #include <esp_log.h>
@@ -86,15 +89,26 @@ static esp_err_t system_info_get_handler(httpd_req_t *req) {
     network_status_t st;
     network_get_status(&st);
 
-    /* Read claim status from NVS */
+    /* Read claim + provisioning state + diagnostic identifiers from NVS.
+     * Surfaced in /system/info so the captive-portal "claimed" view can
+     * show the user who they are, where they're talking to, and what
+     * firmware is running — useful for field debugging without a
+     * serial cable. */
     char company_id[40] = "";
+    char device_id[40]  = "";
     char prov_code[16]  = "";
+    char srv_url[128]   = "";
+    char mqtt_host[64]  = "";
+    char mqtt_port[8]   = "";
     nvs_handle_t h;
     if (nvs_open("vmflow", NVS_READONLY, &h) == ESP_OK) {
-        size_t sl = sizeof(company_id);
-        nvs_get_str(h, "company_id", company_id, &sl);
-        sl = sizeof(prov_code);
-        nvs_get_str(h, "prov_code", prov_code, &sl);
+        size_t sl;
+        sl = sizeof(company_id); nvs_get_str(h, "company_id", company_id, &sl);
+        sl = sizeof(device_id);  nvs_get_str(h, "device_id",  device_id,  &sl);
+        sl = sizeof(prov_code);  nvs_get_str(h, "prov_code",  prov_code,  &sl);
+        sl = sizeof(srv_url);    nvs_get_str(h, "srv_url",    srv_url,    &sl);
+        sl = sizeof(mqtt_host);  nvs_get_str(h, "mqtt_host",  mqtt_host,  &sl);
+        sl = sizeof(mqtt_port);  nvs_get_str(h, "mqtt_port",  mqtt_port,  &sl);
         nvs_close(h);
     }
     bool claimed       = (strlen(company_id) > 0);
@@ -147,6 +161,34 @@ static esp_err_t system_info_get_handler(httpd_req_t *req) {
     cJSON *claim = cJSON_AddObjectToObject(root, "claim");
     cJSON_AddBoolToObject(claim, "claimed",       claimed);
     cJSON_AddBoolToObject(claim, "prov_code_set", prov_code_set);
+    /* Identifiers + endpoints exposed only when actually claimed —
+     * pre-claim they're empty/uninteresting and would clutter the UI. */
+    if (claimed) {
+        cJSON_AddStringToObject(claim, "company_id", company_id);
+        cJSON_AddStringToObject(claim, "device_id",  device_id);
+        cJSON_AddStringToObject(claim, "srv_url",    srv_url);
+        cJSON_AddStringToObject(claim, "mqtt_host",  mqtt_host);
+        cJSON_AddStringToObject(claim, "mqtt_port",  mqtt_port);
+    }
+
+    /* Device block — always populated. Useful even pre-claim so the
+     * user can identify the physical device (MAC) and firmware build. */
+    cJSON *device = cJSON_AddObjectToObject(root, "device");
+    {
+        uint8_t mac[6] = { 0 };
+        esp_wifi_get_mac(WIFI_IF_STA, mac);
+        char mac_str[18];
+        snprintf(mac_str, sizeof(mac_str), "%02x:%02x:%02x:%02x:%02x:%02x",
+                 mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+        cJSON_AddStringToObject(device, "mac", mac_str);
+
+        const esp_app_desc_t *app = esp_app_get_description();
+        cJSON_AddStringToObject(device, "firmware",  app ? app->version : "");
+        cJSON_AddStringToObject(device, "build_date", app ? app->date    : "");
+
+        int uptime_s = (int)(esp_timer_get_time() / 1000000LL);
+        cJSON_AddNumberToObject(device, "uptime_s", uptime_s);
+    }
 
     char *json_str = cJSON_PrintUnformatted(root);
     httpd_resp_set_type(req, "application/json");

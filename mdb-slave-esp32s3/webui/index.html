@@ -355,8 +355,88 @@
         '<div style="font-size:48px;margin-bottom:8px">✓</div>' +
         '<h2>Setup abgeschlossen</h2>' +
         '<p class="muted" style="margin-top:6px">Das Gerät ist angemeldet und betriebsbereit.</p>' +
+        '<div id="claimed_diag" style="margin-top:18px;text-align:left"></div>' +
+        '<button type="button" id="diag_copy" class="ghost" style="margin-top:10px">Diagnose-Infos kopieren</button>' +
       '</div>'
     );
+  }
+
+  /* Renders the diagnostic block under the Setup-abgeschlossen view.
+   * Pure read of `info` — re-runs every poll while the claimed view is
+   * mounted, so RSSI / IP / uptime stay live. Click handler on the
+   * copy button is wired in renderClaimedDiagnostics on first render. */
+  function renderClaimedDiagnostics(info) {
+    var box = el("claimed_diag");
+    if (!box) return;
+    var c = (info.claim || {});
+    var d = (info.device || {});
+    var u = (info.uplink || {});
+
+    function row(label, value) {
+      if (!value && value !== 0) value = "—";
+      return '<dt>' + escapeHtml(label) + '</dt>' +
+             '<dd style="word-break:break-all;font-family:ui-monospace,monospace;font-size:12px">' +
+               escapeHtml(String(value)) +
+             '</dd>';
+    }
+
+    var rows = "";
+    rows += row("MAC-Adresse",  d.mac);
+    rows += row("Geräte-ID",    c.device_id);
+    rows += row("Firma",        c.company_id);
+    rows += row("Server-URL",   c.srv_url);
+    var mqtt = c.mqtt_host ? (c.mqtt_host + (c.mqtt_port ? ":" + c.mqtt_port : "")) : "";
+    rows += row("MQTT-Broker",  mqtt);
+    rows += row("Firmware",     d.firmware + (d.build_date ? "  (" + d.build_date + ")" : ""));
+    var upMins = d.uptime_s ? Math.floor(d.uptime_s / 60) + " min " + (d.uptime_s % 60) + " s" : "";
+    rows += row("Uptime",       upMins);
+    if (u.cellular) {
+      rows += row("Operator",   u.cellular.operator + (u.cellular.mode ? "  ·  " + u.cellular.mode : ""));
+      rows += row("Signal",     (u.cellular.rssi_dbm ? u.cellular.rssi_dbm + " dBm" : ""));
+      rows += row("PPP-IP",     u.cellular.ip);
+    } else if (u.wifi) {
+      rows += row("WLAN-SSID",  u.wifi.ssid);
+      rows += row("WLAN-IP",    u.wifi.ip);
+      rows += row("WLAN-RSSI",  u.wifi.rssi ? u.wifi.rssi + " dBm" : "");
+    }
+
+    box.innerHTML = '<dl class="uplink-details" style="display:grid;border-top:none;padding-top:0">' + rows + '</dl>';
+
+    /* Wire the copy button once. Plain-text dump for pasting into a
+     * support ticket. */
+    var btn = el("diag_copy");
+    if (btn && !btn._wired) {
+      btn._wired = true;
+      btn.addEventListener("click", function () {
+        var text = "VMflow Geräte-Diagnose\n";
+        text += "MAC:        " + (d.mac        || "-") + "\n";
+        text += "Device-ID:  " + (c.device_id  || "-") + "\n";
+        text += "Firma:      " + (c.company_id || "-") + "\n";
+        text += "Server:     " + (c.srv_url    || "-") + "\n";
+        text += "MQTT:       " + (mqtt         || "-") + "\n";
+        text += "Firmware:   " + (d.firmware   || "-") + " (" + (d.build_date || "-") + ")\n";
+        text += "Uptime:     " + (upMins       || "-") + "\n";
+        if (u.cellular) {
+          text += "Operator:   " + (u.cellular.operator || "-") + " · " + (u.cellular.mode || "-") + "\n";
+          text += "Signal:     " + (u.cellular.rssi_dbm ? u.cellular.rssi_dbm + " dBm" : "-") + "\n";
+          text += "PPP-IP:     " + (u.cellular.ip || "-") + "\n";
+        }
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(function () {
+            btn.textContent = "Kopiert ✓";
+            setTimeout(function () { btn.textContent = "Diagnose-Infos kopieren"; }, 2000);
+          });
+        } else {
+          /* Fallback: select text in a temp textarea */
+          var ta = document.createElement("textarea");
+          ta.value = text; document.body.appendChild(ta);
+          ta.select(); document.execCommand("copy");
+          document.body.removeChild(ta);
+          btn.textContent = "Kopiert ✓";
+          setTimeout(function () { btn.textContent = "Diagnose-Infos kopieren"; }, 2000);
+        }
+      });
+    }
   }
 
   /* ---------- WiFi scan handling ---------- */
@@ -569,6 +649,13 @@
   function render(info) {
     renderBanner(info);
     renderView(info);
+    /* Live-update the diagnostic block while the claimed view is
+     * mounted. View itself only changes on state transition, but the
+     * inner KV list refreshes every poll so RSSI / uptime / IP stay
+     * accurate. */
+    if (currentView === "claimed") {
+      renderClaimedDiagnostics(info);
+    }
   }
 
   /* ---------- Polling loop ---------- */
