@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
@@ -57,7 +57,7 @@
     .center{text-align:center;padding:18px 4px}
     /* WiFi picker (used in wifi_connecting view only) */
     .wifi-list{max-height:180px;overflow-y:auto;border:1px solid #334155;border-radius:6px;background:#0F172A;margin-bottom:6px}
-    .wifi-list:empty::after{content:"Keine Netze gefunden";display:block;text-align:center;padding:14px;color:#64748B;font-size:12px}
+    .wifi-list:empty::after{content:"No networks found";display:block;text-align:center;padding:14px;color:#64748B;font-size:12px}
     .wifi-item{display:flex;align-items:center;gap:8px;padding:9px 11px;border-bottom:1px solid #1E293B;cursor:pointer}
     .wifi-item:last-child{border-bottom:none}
     .wifi-item:hover{background:#1E293B}
@@ -95,14 +95,14 @@
       </svg>
       <div>
         <h1>VMFlow</h1>
-        <p class="muted">Geräte-Einrichtung</p>
+        <p class="muted">Device setup</p>
       </div>
     </div>
 
     <div class="row" style="margin-top:10px">
       <span class="icon" id="sb_icon">…</span>
-      <span id="sb_state" style="font-weight:600">Lade Status…</span>
-      <span class="badge" id="sb_claim_badge" style="margin-left:auto;display:none">Nicht registriert</span>
+      <span id="sb_state" style="font-weight:600">Loading status…</span>
+      <span class="badge" id="sb_claim_badge" style="margin-left:auto;display:none">Not registered</span>
     </div>
 
     <dl class="uplink-details" id="sb_details" style="display:none"></dl>
@@ -121,21 +121,21 @@
    * and /api/v1/claim.
    * ============================================================ */
 
-  /* ---------- State labels (German) ----------
+  /* ---------- State labels ----------
    *
-   * "cellular_registering" = das Modem versucht sich beim Mobilfunkmast
-   * einzubuchen (3GPP CEREG). Das ist NICHT die Anmeldung beim Backend
-   * — die kommt später im Schritt "ready_to_claim". Wording bewusst auf
-   * "Verbindung wird aufgebaut" um Verwechslung mit der Geräte-
-   * Anmeldung zu vermeiden. */
+   * "cellular_registering" = the modem is attaching to the mobile
+   * network (3GPP CEREG). This is NOT the device registration with
+   * the backend — that comes later in "ready_to_claim". Wording
+   * intentionally avoids "registering" to prevent confusion with
+   * the backend device registration. */
   var STATE_LABELS = {
-    booting:              "Bootet…",
-    offline:              "Kein Uplink",
-    cellular_config:      "SIM nicht konfiguriert",
-    cellular_registering: "Mobilfunk-Verbindung wird aufgebaut…",
-    wifi_connecting:      "WiFi verbindet…",
-    ready_to_claim:       "Bereit zur Geräte-Anmeldung",
-    claimed:              "Online — angemeldet"
+    booting:              "Booting…",
+    offline:              "No uplink",
+    cellular_config:      "SIM not configured",
+    cellular_registering: "Establishing mobile connection…",
+    wifi_connecting:      "WiFi connecting…",
+    ready_to_claim:       "Ready to register device",
+    claimed:              "Online — registered"
   };
 
   /* ---------- Module state ---------- */
@@ -189,13 +189,13 @@
       claimBadge.style.display = "";
       if (info.claim.claimed) {
         claimBadge.className = "badge ok";
-        claimBadge.textContent = "Angemeldet ✓";
+        claimBadge.textContent = "Registered ✓";
       } else if (info.claim.prov_code_set) {
         claimBadge.className = "badge warn";
-        claimBadge.textContent = "Registriere…";
+        claimBadge.textContent = "Registering…";
       } else {
         claimBadge.className = "badge";
-        claimBadge.textContent = "Nicht registriert";
+        claimBadge.textContent = "Not registered";
       }
     } else {
       hide(claimBadge);
@@ -210,7 +210,7 @@
       var sigText = (c.rssi_dbm ? c.rssi_dbm + " dBm " : "") + signalBars(c.rssi_dbm || -113);
       rows.push("<dt>Signal</dt><dd>" + sigText + "</dd>");
       if (c.operator) rows.push("<dt>Operator</dt><dd>" + escapeHtml(c.operator) + " · " + escapeHtml(c.mode || "—") + "</dd>");
-      else            rows.push("<dt>Operator</dt><dd class=\"muted\">— sucht —</dd>");
+      else            rows.push("<dt>Operator</dt><dd class=\"muted\">— searching —</dd>");
       if (c.ip)       rows.push("<dt>IP</dt><dd>" + escapeHtml(c.ip) + "</dd>");
     } else if (variant === "wifi" && u.wifi) {
       var w = u.wifi;
@@ -250,30 +250,30 @@
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body)
     }).then(function (r) {
-      return r.json().catch(function () { return { error: "ungültige Antwort vom Gerät" }; });
+      return r.json().catch(function () { return { error: "invalid response from device" }; });
     });
   }
 
   /* ---------- View renders ---------- */
   function viewLoading() {
     return '<div class="panel center"><div class="spinner"></div>' +
-           '<p class="muted" style="margin-top:10px">Lade…</p></div>';
+           '<p class="muted" style="margin-top:10px">Loading…</p></div>';
   }
 
   function viewCellularConfig() {
     return (
       '<div class="panel" id="form_cell">' +
-        '<h2>Mobilfunk konfigurieren</h2>' +
-        '<p class="muted" style="margin-bottom:10px">SIM-Karte erkannt. APN deines Mobilfunkanbieters eintragen.</p>' +
+        '<h2>Configure mobile connection</h2>' +
+        '<p class="muted" style="margin-bottom:10px">SIM card detected. Enter the APN of your mobile carrier.</p>' +
         '<form id="cell_form" autocomplete="off">' +
           '<label class="first">APN</label>' +
-          '<input id="i_apn" name="apn" required placeholder="z.B. internet" autocapitalize="none" autocorrect="off">' +
-          '<div class="hint">Standard für viele Provider: <code>internet</code></div>' +
+          '<input id="i_apn" name="apn" required placeholder="e.g. internet" autocapitalize="none" autocorrect="off">' +
+          '<div class="hint">Default for many carriers: <code>internet</code></div>' +
 
-          '<label>SIM-PIN <span class="muted" style="font-weight:400">(optional)</span></label>' +
-          '<input id="i_pin" name="pin" inputmode="numeric" pattern="[0-9]*" maxlength="8" placeholder="leer wenn keine PIN">' +
+          '<label>SIM PIN <span class="muted" style="font-weight:400">(optional)</span></label>' +
+          '<input id="i_pin" name="pin" inputmode="numeric" pattern="[0-9]*" maxlength="8" placeholder="leave empty if no PIN">' +
 
-          '<label>LTE-Modus</label>' +
+          '<label>LTE mode</label>' +
           '<select id="i_mode" name="lte_mode">' +
             '<option value="3">Auto (LTE-M + NB-IoT)</option>' +
             '<option value="1">LTE-M (Cat-M1)</option>' +
@@ -281,7 +281,7 @@
           '</select>' +
 
           '<div class="err-banner"></div>' +
-          '<button type="submit">Verbinden</button>' +
+          '<button type="submit">Connect</button>' +
         '</form>' +
       '</div>'
     );
@@ -291,8 +291,8 @@
     return (
       '<div class="panel center">' +
         '<div class="spinner"></div>' +
-        '<h2 style="margin-top:14px">Mobilfunk-Verbindung wird aufgebaut…</h2>' +
-        '<p class="muted" style="margin-top:6px">Das Modem bucht sich beim Mobilfunkmast ein und holt eine IP-Adresse. Kann bis zu 60 Sekunden dauern.</p>' +
+        '<h2 style="margin-top:14px">Establishing mobile connection…</h2>' +
+        '<p class="muted" style="margin-top:6px">The modem is attaching to the cellular network and obtaining an IP address. This can take up to 60 seconds.</p>' +
       '</div>'
     );
   }
@@ -300,27 +300,27 @@
   function viewWifiAndClaim() {
     return (
       '<div class="panel" id="form_wifi">' +
-        '<h2>WiFi + Geräte-Anmeldung</h2>' +
+        '<h2>WiFi + Device Registration</h2>' +
         '<form id="wifi_form" autocomplete="off">' +
 
           '<div class="wifi-header-row">' +
-            '<label class="first">WiFi-Netzwerk</label>' +
+            '<label class="first">WiFi network</label>' +
             '<button type="button" class="scan-btn" id="scan_btn">Scan</button>' +
           '</div>' +
           '<div id="wifi_list" class="wifi-list"></div>' +
-          '<input id="i_ssid" name="ssid" required placeholder="SSID manuell eingeben oder aus Liste wählen" autocapitalize="none" autocorrect="off">' +
+          '<input id="i_ssid" name="ssid" required placeholder="Enter SSID manually or pick from list" autocapitalize="none" autocorrect="off">' +
 
-          '<label>Passwort</label>' +
-          '<input id="i_pwd" name="password" type="password" placeholder="leer für offene Netze">' +
+          '<label>Password</label>' +
+          '<input id="i_pwd" name="password" type="password" placeholder="leave empty for open networks">' +
 
-          '<label>Provisioning-Code</label>' +
-          '<input id="i_prov" name="prov_code" required placeholder="8 Zeichen vom Backend" maxlength="16" autocapitalize="characters" autocorrect="off">' +
+          '<label>Provisioning code</label>' +
+          '<input id="i_prov" name="prov_code" required placeholder="8 characters from the backend" maxlength="16" autocapitalize="characters" autocorrect="off">' +
 
-          '<label>Server-URL</label>' +
+          '<label>Server URL</label>' +
           '<input id="i_srv" name="srv_url" required value="https://api.vmflow.xyz" autocapitalize="none" autocorrect="off">' +
 
           '<div class="err-banner"></div>' +
-          '<button type="submit">WiFi verbinden + anmelden</button>' +
+          '<button type="submit">Connect WiFi + register</button>' +
         '</form>' +
       '</div>'
     );
@@ -329,21 +329,21 @@
   function viewClaim() {
     return (
       '<div class="panel" id="form_claim">' +
-        '<h2>Gerät anmelden</h2>' +
-        '<p class="muted" style="margin-bottom:10px">Verbindung steht. Provisioning-Code eingeben, um das Gerät dem Backend zuzuweisen.</p>' +
+        '<h2>Register device</h2>' +
+        '<p class="muted" style="margin-bottom:10px">Connection established. Enter the provisioning code to register this device with the backend.</p>' +
         '<form id="claim_form" autocomplete="off">' +
 
-          '<label class="first">Provisioning-Code</label>' +
-          '<input id="i_prov" name="prov_code" required placeholder="8 Zeichen vom Backend" maxlength="16" autocapitalize="characters" autocorrect="off">' +
+          '<label class="first">Provisioning code</label>' +
+          '<input id="i_prov" name="prov_code" required placeholder="8 characters from the backend" maxlength="16" autocapitalize="characters" autocorrect="off">' +
 
-          '<label>Server-URL</label>' +
+          '<label>Server URL</label>' +
           '<input id="i_srv" name="srv_url" required value="https://api.vmflow.xyz" autocapitalize="none" autocorrect="off">' +
 
           '<div class="err-banner"></div>' +
-          '<button type="submit">Anmelden</button>' +
+          '<button type="submit">Register</button>' +
         '</form>' +
         '<div class="info-banner" id="claim_progress" style="display:none">' +
-          '<span class="spinner sm"></span><span id="claim_progress_text">Anfrage gesendet…</span>' +
+          '<span class="spinner sm"></span><span id="claim_progress_text">Request sent…</span>' +
         '</div>' +
       '</div>'
     );
@@ -353,15 +353,15 @@
     return (
       '<div class="panel center">' +
         '<div style="font-size:48px;margin-bottom:8px">✓</div>' +
-        '<h2>Setup abgeschlossen</h2>' +
-        '<p class="muted" style="margin-top:6px">Das Gerät ist angemeldet und betriebsbereit.</p>' +
+        '<h2>Setup complete</h2>' +
+        '<p class="muted" style="margin-top:6px">The device is registered and ready.</p>' +
         '<div id="claimed_diag" style="margin-top:18px;text-align:left"></div>' +
-        '<button type="button" id="diag_copy" class="ghost" style="margin-top:10px">Diagnose-Infos kopieren</button>' +
+        '<button type="button" id="diag_copy" class="ghost" style="margin-top:10px">Copy diagnostics</button>' +
       '</div>'
     );
   }
 
-  /* Renders the diagnostic block under the Setup-abgeschlossen view.
+  /* Renders the diagnostic block under the "Setup complete" view.
    * Pure read of `info` — re-runs every poll while the claimed view is
    * mounted, so RSSI / IP / uptime stay live. Click handler on the
    * copy button is wired in renderClaimedDiagnostics on first render. */
@@ -381,23 +381,23 @@
     }
 
     var rows = "";
-    rows += row("MAC-Adresse",  d.mac);
-    rows += row("Geräte-ID",    c.device_id);
-    rows += row("Firma",        c.company_id);
-    rows += row("Server-URL",   c.srv_url);
+    rows += row("MAC address", d.mac);
+    rows += row("Device ID",   c.device_id);
+    rows += row("Company",     c.company_id);
+    rows += row("Server URL",  c.srv_url);
     var mqtt = c.mqtt_host ? (c.mqtt_host + (c.mqtt_port ? ":" + c.mqtt_port : "")) : "";
-    rows += row("MQTT-Broker",  mqtt);
-    rows += row("Firmware",     d.firmware + (d.build_date ? "  (" + d.build_date + ")" : ""));
+    rows += row("MQTT broker", mqtt);
+    rows += row("Firmware",    d.firmware + (d.build_date ? "  (" + d.build_date + ")" : ""));
     var upMins = d.uptime_s ? Math.floor(d.uptime_s / 60) + " min " + (d.uptime_s % 60) + " s" : "";
-    rows += row("Uptime",       upMins);
+    rows += row("Uptime",      upMins);
     if (u.cellular) {
-      rows += row("Operator",   u.cellular.operator + (u.cellular.mode ? "  ·  " + u.cellular.mode : ""));
-      rows += row("Signal",     (u.cellular.rssi_dbm ? u.cellular.rssi_dbm + " dBm" : ""));
-      rows += row("PPP-IP",     u.cellular.ip);
+      rows += row("Operator",  u.cellular.operator + (u.cellular.mode ? "  ·  " + u.cellular.mode : ""));
+      rows += row("Signal",    (u.cellular.rssi_dbm ? u.cellular.rssi_dbm + " dBm" : ""));
+      rows += row("PPP IP",    u.cellular.ip);
     } else if (u.wifi) {
-      rows += row("WLAN-SSID",  u.wifi.ssid);
-      rows += row("WLAN-IP",    u.wifi.ip);
-      rows += row("WLAN-RSSI",  u.wifi.rssi ? u.wifi.rssi + " dBm" : "");
+      rows += row("WiFi SSID", u.wifi.ssid);
+      rows += row("WiFi IP",   u.wifi.ip);
+      rows += row("WiFi RSSI", u.wifi.rssi ? u.wifi.rssi + " dBm" : "");
     }
 
     box.innerHTML = '<dl class="uplink-details" style="display:grid;border-top:none;padding-top:0">' + rows + '</dl>';
@@ -408,10 +408,10 @@
     if (btn && !btn._wired) {
       btn._wired = true;
       btn.addEventListener("click", function () {
-        var text = "VMflow Geräte-Diagnose\n";
+        var text = "VMflow device diagnostics\n";
         text += "MAC:        " + (d.mac        || "-") + "\n";
-        text += "Device-ID:  " + (c.device_id  || "-") + "\n";
-        text += "Firma:      " + (c.company_id || "-") + "\n";
+        text += "Device ID:  " + (c.device_id  || "-") + "\n";
+        text += "Company:    " + (c.company_id || "-") + "\n";
         text += "Server:     " + (c.srv_url    || "-") + "\n";
         text += "MQTT:       " + (mqtt         || "-") + "\n";
         text += "Firmware:   " + (d.firmware   || "-") + " (" + (d.build_date || "-") + ")\n";
@@ -419,12 +419,12 @@
         if (u.cellular) {
           text += "Operator:   " + (u.cellular.operator || "-") + " · " + (u.cellular.mode || "-") + "\n";
           text += "Signal:     " + (u.cellular.rssi_dbm ? u.cellular.rssi_dbm + " dBm" : "-") + "\n";
-          text += "PPP-IP:     " + (u.cellular.ip || "-") + "\n";
+          text += "PPP IP:     " + (u.cellular.ip || "-") + "\n";
         }
         if (navigator.clipboard && navigator.clipboard.writeText) {
           navigator.clipboard.writeText(text).then(function () {
-            btn.textContent = "Kopiert ✓";
-            setTimeout(function () { btn.textContent = "Diagnose-Infos kopieren"; }, 2000);
+            btn.textContent = "Copied ✓";
+            setTimeout(function () { btn.textContent = "Copy diagnostics"; }, 2000);
           });
         } else {
           /* Fallback: select text in a temp textarea */
@@ -432,8 +432,8 @@
           ta.value = text; document.body.appendChild(ta);
           ta.select(); document.execCommand("copy");
           document.body.removeChild(ta);
-          btn.textContent = "Kopiert ✓";
-          setTimeout(function () { btn.textContent = "Diagnose-Infos kopieren"; }, 2000);
+          btn.textContent = "Copied ✓";
+          setTimeout(function () { btn.textContent = "Copy diagnostics"; }, 2000);
         }
       });
     }
@@ -447,12 +447,12 @@
     var scanBtn = el("scan_btn");
     wifiScanInFlight = true;
     if (scanBtn) scanBtn.disabled = true;
-    listEl.innerHTML = '<div class="scanning-msg"><span class="spinner sm"></span>Scanne…</div>';
+    listEl.innerHTML = '<div class="scanning-msg"><span class="spinner sm"></span>Scanning…</div>';
     fetch("/api/v1/wifi/scan").then(function (r) { return r.json(); }).then(function (j) {
       wifiNetworks = (j && j.networks) || [];
       renderWifiList();
     }).catch(function () {
-      listEl.innerHTML = '<div class="scanning-msg err-text">Scan fehlgeschlagen</div>';
+      listEl.innerHTML = '<div class="scanning-msg err-text">Scan failed</div>';
     }).then(function () {
       wifiScanInFlight = false;
       if (scanBtn) scanBtn.disabled = false;
@@ -494,7 +494,7 @@
     var pin  = el("i_pin").value.trim();
     var mode = parseInt(el("i_mode").value, 10) || 3;
     if (!apn) {
-      setError("#form_cell", "APN ist erforderlich.");
+      setError("#form_cell", "APN is required.");
       disableSubmit("#form_cell", false);
       return;
     }
@@ -503,12 +503,12 @@
         if (j && j.ok) {
           /* leave button disabled — polling will replace the view when state advances to cellular_registering */
         } else {
-          setError("#form_cell", (j && j.error) || "Fehler beim Senden.");
+          setError("#form_cell", (j && j.error) || "Failed to submit.");
           disableSubmit("#form_cell", false);
         }
       })
       .catch(function () {
-        setError("#form_cell", "Netzwerkfehler — bitte erneut versuchen.");
+        setError("#form_cell", "Network error — please try again.");
         disableSubmit("#form_cell", false);
       });
   }
@@ -520,7 +520,7 @@
     var prov = el("i_prov").value.trim();
     var srv  = el("i_srv").value.trim();
     if (!prov || !srv) {
-      setError("#form_claim", "Provisioning-Code und Server-URL sind erforderlich.");
+      setError("#form_claim", "Provisioning code and server URL are required.");
       disableSubmit("#form_claim", false);
       return;
     }
@@ -536,17 +536,17 @@
              * goes down for ~10-30s, phone's auto-join may not always
              * trigger, so we tell them what to do. */
             el("claim_progress_text").innerHTML =
-              "Anmeldung läuft, Gerät startet danach neu.<br>" +
-              "<span class=\"muted\">Das WLAN wird kurz getrennt. Falls dein Gerät nicht automatisch erneut verbindet, " +
-              "wähle <b>VMflow</b> im WLAN-Menü erneut aus.</span>";
+              "Registering device, the device will reboot afterwards.<br>" +
+              "<span class=\"muted\">The WiFi will disconnect briefly. If your phone doesn't reconnect automatically, " +
+              "pick <b>VMflow</b> from the WiFi menu again.</span>";
           }
         } else {
-          setError("#form_claim", (j && j.error) || "Fehler beim Senden.");
+          setError("#form_claim", (j && j.error) || "Failed to submit.");
           disableSubmit("#form_claim", false);
         }
       })
       .catch(function () {
-        setError("#form_claim", "Netzwerkfehler — bitte erneut versuchen.");
+        setError("#form_claim", "Network error — please try again.");
         disableSubmit("#form_claim", false);
       });
   }
@@ -560,14 +560,14 @@
     var prov = el("i_prov").value.trim();
     var srv  = el("i_srv").value.trim();
     if (!ssid || !prov || !srv) {
-      setError("#form_wifi", "SSID, Provisioning-Code und Server-URL sind erforderlich.");
+      setError("#form_wifi", "SSID, provisioning code and server URL are required.");
       disableSubmit("#form_wifi", false);
       return;
     }
     postJson("/api/v1/wifi/configure", { ssid: ssid, password: pwd })
       .then(function (j) {
         if (!j || !j.ok) {
-          setError("#form_wifi", (j && j.error) || "WiFi-Konfiguration fehlgeschlagen.");
+          setError("#form_wifi", (j && j.error) || "WiFi configuration failed.");
           disableSubmit("#form_wifi", false);
           return null;   /* don't submit claim */
         }
@@ -579,12 +579,12 @@
           claimSubmittedAt = Date.now();
           /* leave disabled; polling will pick up state change */
         } else {
-          setError("#form_wifi", (j && j.error) || "Anmeldung fehlgeschlagen.");
+          setError("#form_wifi", (j && j.error) || "Registration failed.");
           disableSubmit("#form_wifi", false);
         }
       })
       .catch(function () {
-        setError("#form_wifi", "Netzwerkfehler — bitte erneut versuchen.");
+        setError("#form_wifi", "Network error — please try again.");
         disableSubmit("#form_wifi", false);
       });
   }
@@ -609,9 +609,9 @@
       var pt = el("claim_progress_text");
       if (pt) {
         pt.innerHTML =
-          "Anmeldung dauert ungewöhnlich lange.<br>" +
-          "<span class=\"muted\">Verbinde dich erneut mit <b>VMflow</b> im WLAN-Menü und lade diese Seite neu. " +
-          "Wenn das nicht hilft, prüfe Provisioning-Code und Server-URL.</span>";
+          "Registration is taking unusually long.<br>" +
+          "<span class=\"muted\">Pick <b>VMflow</b> from the WiFi menu again and reload this page. " +
+          "If that doesn't help, check the provisioning code and server URL.</span>";
       }
     }
 
