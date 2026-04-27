@@ -65,6 +65,30 @@ static esp_modem_dce_t  *s_dce  = NULL;
 static esp_netif_t      *s_netif = NULL;
 static bool              s_probed_present = false;
 
+/* Status cache.
+ *
+ * The captive portal polls /api/v1/system/info every ~2s, which calls
+ * network_get_status → modem_status. The original implementation issued
+ * three AT commands (AT+CSQ, AT+CEREG?, AT+COPS?) on every read with
+ * 2s timeouts each. While cellular_bring_up_task was hammering AT+CFUN=1
+ * (now 30s) and AT+CEREG? in a 2s polling loop, those three reads
+ * queued behind it for tens of seconds — making the wizard look frozen.
+ *
+ * Fix: maintain a snapshot updated only from contexts that already own
+ * the DCE (modem_wait_registered + post-registration finalisation), and
+ * have modem_status() return it without issuing any AT. The mutex
+ * guards readers that don't run on the bring-up task. */
+static struct {
+    SemaphoreHandle_t mtx;
+    bool              registered;
+    int               rssi_dbm;
+    char              operator_name[32];
+    modem_lte_mode_t  active_mode;
+} s_status_cache = { 0 };
+
+static void status_cache_lock(void)   { if (s_status_cache.mtx) xSemaphoreTake(s_status_cache.mtx, portMAX_DELAY); }
+static void status_cache_unlock(void) { if (s_status_cache.mtx) xSemaphoreGive(s_status_cache.mtx); }
+
 /* Load cellular config from NVS. Returns ESP_OK on success and fills the
  * outputs; returns ESP_ERR_NVS_NOT_FOUND if either the vmflow namespace
  * does not exist yet OR the apn key is missing/empty (caller treats both
@@ -138,6 +162,7 @@ esp_err_t modem_nvs_save(const char *apn, const char *pin, modem_lte_mode_t mode
  * end up bound to CPU 1, but that's fine — interrupts on either core
  * service the same UART hardware. */
 static bool modem_probe_body(void);
+static int8_t csq_to_dbm(int raw);
 
 typedef struct {
     SemaphoreHandle_t done;
@@ -307,6 +332,14 @@ static esp_err_t modem_enable_pmu_rails(void) {
 }
 
 static bool modem_probe_body(void) {
+    /* Status cache mutex — created lazily so callers from non-bring-up
+     * contexts (e.g. /api/v1/system/info HTTP handler) can read the
+     * snapshot the moment we start populating it. */
+    if (!s_status_cache.mtx) {
+        s_status_cache.mtx = xSemaphoreCreateMutex();
+        s_status_cache.active_mode = MODEM_LTE_MODE_BOTH;
+    }
+
     /* First enable modem power rails via the AXP2101 PMU. On a board
      * without the PMU (production WiFi-only) this is a no-op + warning;
      * on the LilyGo it's load-bearing. */
@@ -410,6 +443,10 @@ esp_err_t modem_init(const char *apn, const char *pin, modem_lte_mode_t mode) {
         return ESP_ERR_INVALID_ARG;
     }
 
+    status_cache_lock();
+    s_status_cache.active_mode = mode;
+    status_cache_unlock();
+
     esp_err_t err;
 
     /* SIM PIN, if provided. AT+CPIN expects only the PIN if it's needed;
@@ -464,7 +501,12 @@ static int parse_cereg_stat(const char *resp) {
 
 /* Poll AT+CEREG? until stat == 1 (home) or 5 (roaming). Up to 60 s.
  * Uses positional parsing rather than strstr(",1") to avoid false
- * positives on trailing AcT or location fields. */
+ * positives on trailing AcT or location fields.
+ *
+ * Side effect: each iteration also samples AT+CSQ and updates the
+ * shared status cache (registered + rssi_dbm). modem_status() reads
+ * only that cache, so the captive portal can poll /system/info every
+ * 2s without queueing AT commands behind us. */
 static esp_err_t modem_wait_registered(void) {
     /* esp_modem_at copies up to CONFIG_ESP_MODEM_C_API_STR_MAX (128) bytes
      * regardless of buffer size — match that to avoid stack overflow on
@@ -473,12 +515,33 @@ static esp_err_t modem_wait_registered(void) {
     for (int i = 0; i < 30; i++) {
         memset(resp, 0, sizeof(resp));
         esp_err_t err = esp_modem_at(s_dce, "AT+CEREG?", resp, 3000);
+        bool registered = false;
         if (err == ESP_OK) {
             int stat = parse_cereg_stat(resp);
-            if (stat == 1 || stat == 5) {
-                ESP_LOGI(TAG, "EPS registered (stat=%d): %s", stat, resp);
-                return ESP_OK;
+            registered = (stat == 1 || stat == 5);
+        }
+
+        /* Sample CSQ on every tick — cheap (~50 ms) and gives the
+         * captive portal a live signal-strength readout while waiting. */
+        char csq[64] = {0};
+        int rssi_dbm_now = 0;
+        if (esp_modem_at(s_dce, "AT+CSQ", csq, 1500) == ESP_OK) {
+            const char *p = strstr(csq, "+CSQ:");
+            int rssi_raw = -1, ber = -1;
+            if (p && sscanf(p, "+CSQ: %d,%d", &rssi_raw, &ber) >= 1 &&
+                rssi_raw >= 0 && rssi_raw <= 31) {
+                rssi_dbm_now = csq_to_dbm(rssi_raw);
             }
+        }
+
+        status_cache_lock();
+        s_status_cache.registered = registered;
+        if (rssi_dbm_now != 0) s_status_cache.rssi_dbm = rssi_dbm_now;
+        status_cache_unlock();
+
+        if (registered) {
+            ESP_LOGI(TAG, "EPS registered: %s", resp);
+            return ESP_OK;
         }
         ESP_LOGW(TAG, "not registered (attempt %d/30): %s", i + 1, resp);
         vTaskDelay(pdMS_TO_TICKS(2000));
@@ -506,6 +569,27 @@ esp_err_t modem_connect(void) {
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "registration timeout");
         return err;
+    }
+
+    /* Pull operator name into the cache while we're still in COMMAND
+     * mode — once we switch to DATA, AT becomes expensive (PPP escape).
+     * Best-effort: ignore failure, the cache just stays empty. */
+    {
+        char resp[128] = {0};
+        if (esp_modem_at(s_dce, "AT+COPS?", resp, 2000) == ESP_OK) {
+            const char *first  = strchr(resp, '"');
+            const char *second = first ? strchr(first + 1, '"') : NULL;
+            if (first && second && second > first + 1) {
+                size_t len = second - first - 1;
+                if (len >= sizeof(s_status_cache.operator_name)) {
+                    len = sizeof(s_status_cache.operator_name) - 1;
+                }
+                status_cache_lock();
+                memcpy(s_status_cache.operator_name, first + 1, len);
+                s_status_cache.operator_name[len] = '\0';
+                status_cache_unlock();
+            }
+        }
     }
 
     /* PPP params already set in modem_probe — just enter DATA mode. */
@@ -562,47 +646,27 @@ void modem_status(modem_status_t *out) {
 
     if (!s_dce) return;
 
-    /* Buffer size matches CONFIG_ESP_MODEM_C_API_STR_MAX (128) — see
-     * modem_wait_registered() for the rationale. */
-    char resp[128];
+    /* Pure cache read — no AT commands. Issuing AT here would queue
+     * behind cellular_bring_up_task's CFUN=1 / CEREG-poll loop and
+     * stall the captive portal HTTP server for tens of seconds.
+     *
+     * The cache is filled by:
+     *   - modem_wait_registered (registered + rssi, every 2s during
+     *     registration)
+     *   - modem_connect post-registration (operator name, one-shot
+     *     before DATA-mode switch)
+     *   - watchdog tick post-PPP could refresh, but in DATA mode an
+     *     AT requires PPP escape and is expensive — we accept slightly
+     *     stale RSSI/operator in steady state.
+     */
+    status_cache_lock();
+    out->registered  = s_status_cache.registered;
+    out->rssi_dbm    = s_status_cache.rssi_dbm;
+    out->active_mode = s_status_cache.active_mode;
+    strncpy(out->operator_name, s_status_cache.operator_name, sizeof(out->operator_name) - 1);
+    status_cache_unlock();
 
-    /* Signal quality. Response shape varies between firmwares — esp_modem
-     * may strip the AT echo entirely and return just "+CSQ: 14,99\r\n",
-     * or it may include a leading "\r\n+CSQ: ...". Use strstr to find
-     * the prefix instead of a positional sscanf format. */
-    if (esp_modem_at(s_dce, "AT+CSQ", resp, 2000) == ESP_OK) {
-        const char *p = strstr(resp, "+CSQ:");
-        if (p) {
-            int rssi_raw = -1, ber = -1;
-            if (sscanf(p, "+CSQ: %d,%d", &rssi_raw, &ber) >= 1) {
-                out->rssi_dbm = csq_to_dbm(rssi_raw);
-            }
-        }
-    }
-
-    /* Registration — positional parse to avoid false positives on
-     * trailing AcT/location fields. */
-    if (esp_modem_at(s_dce, "AT+CEREG?", resp, 2000) == ESP_OK) {
-        int stat = parse_cereg_stat(resp);
-        out->registered = (stat == 1 || stat == 5);
-    }
-
-    /* Operator name */
-    if (esp_modem_at(s_dce, "AT+COPS?", resp, 2000) == ESP_OK) {
-        /* Response: +COPS: 0,0,"Vodafone DE",7  — extract the quoted string */
-        char *first = strchr(resp, '"');
-        if (first) {
-            char *second = strchr(first + 1, '"');
-            if (second) {
-                size_t len = second - first - 1;
-                if (len >= sizeof(out->operator_name)) len = sizeof(out->operator_name) - 1;
-                memcpy(out->operator_name, first + 1, len);
-                out->operator_name[len] = '\0';
-            }
-        }
-    }
-
-    /* IP address (only valid in PPP/data mode) */
+    /* IP address comes from the netif (no AT involved, always safe). */
     if (s_netif) {
         esp_netif_ip_info_t ip_info;
         if (esp_netif_get_ip_info(s_netif, &ip_info) == ESP_OK && ip_info.ip.addr != 0) {
