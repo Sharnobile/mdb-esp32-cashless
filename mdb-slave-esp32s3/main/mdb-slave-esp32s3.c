@@ -2310,7 +2310,24 @@ static void network_event_cb(network_event_t event, void *user_data) {
             }
 
             /* Steady-state: kick MQTT + SNTP + watchdog (same logic the
-             * old IP_EVENT_STA_GOT_IP branch ran). */
+             * old IP_EVENT_STA_GOT_IP branch ran).
+             *
+             * MQTT requires a claimed device — without company_id /
+             * device_id / passkey, payload XOR encryption can't work
+             * and the topic prefix is empty. Starting the client anyway
+             * just spins on getaddrinfo() against the default broker
+             * URL and pollutes logs. Hold MQTT until the captive portal
+             * (or an existing claim in NVS) has provided all three. */
+            bool claimed = (strlen(my_company_id) > 0 &&
+                            strlen(my_device_id)  > 0 &&
+                            strlen(my_passkey)    > 0);
+            if (!claimed) {
+                ESP_LOGW(TAG, "uplink up but device unclaimed — MQTT held off "
+                              "(company='%s' device='%s' passkey_len=%u)",
+                         my_company_id, my_device_id, (unsigned)strlen(my_passkey));
+                break;
+            }
+
             if (!sntp_started) {
                 esp_sntp_setoperatingmode(ESP_SNTP_OPMODE_POLL);
                 esp_sntp_setservername(0, "pool.ntp.org");
