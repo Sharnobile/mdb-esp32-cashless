@@ -126,6 +126,17 @@ esp_err_t network_cellular_configure(const char *apn, const char *pin, modem_lte
  */
 esp_err_t network_wifi_configure(const char *ssid, const char *password);
 
+/*
+ * Quick TCP-connect probe. Returns true if SYN-ACK comes back from
+ * `host:port` within `timeout_ms`. Closes the socket immediately
+ * regardless of outcome — used to nudge the carrier's data path into
+ * RRC-CONNECTED state and refresh NAT-mapping aging just before a
+ * latency-sensitive operation (e.g. before the first claim HTTPS
+ * attempt on a flaky LTE-M link). Fast — typical successful probe
+ * completes in 200-800 ms, failure burns the full timeout.
+ */
+bool network_probe_tcp(const char *host, int port, int timeout_ms);
+
 #ifdef __cplusplus
 }
 #endif

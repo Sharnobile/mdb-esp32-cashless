@@ -58,6 +58,8 @@
  * from any cellular APN, low RTT, never blocked by corporate filters
  * the way port 80/443 sometimes are. SYN-ACK on port 53 confirms
  * outbound + inbound TCP both work end-to-end through the carrier. */
+bool network_probe_tcp(const char *host, int port, int timeout_ms);
+
 static bool probe_internet_tcp(const char *host, int port, int timeout_ms) {
     struct addrinfo hints = { 0 };
     hints.ai_family   = AF_INET;
@@ -102,6 +104,13 @@ static bool probe_internet_tcp(const char *host, int port, int timeout_ms) {
 
     close(sock);
     return ok;
+}
+
+/* Public alias — exposes the same probe to callers in mdb-slave-esp32s3.c
+ * (e.g. provision_claim_task pre-claim warm-up). Kept as a thin wrapper
+ * so internal callers continue to use the static name. */
+bool network_probe_tcp(const char *host, int port, int timeout_ms) {
+    return probe_internet_tcp(host, port, timeout_ms);
 }
 
 /* PPP synchronisation: esp_modem_set_mode(DATA) returns as soon as PPP

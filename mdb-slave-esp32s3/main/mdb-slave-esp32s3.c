@@ -2252,8 +2252,57 @@ void provision_claim_task(void *arg) {
 
     bool use_tls = (strncmp(url, "https://", 8) == 0);
 
+    /* Parse host + port out of the URL once, for the pre-attempt warm-up
+     * probe below. Format: "scheme://host[:port]/path". On parse failure
+     * we leave probe_host empty and skip the warm-up — the HTTPS attempt
+     * still runs unguarded. */
+    char probe_host[128] = {0};
+    int  probe_port      = use_tls ? 443 : 80;
+    {
+        const char *p = url;
+        if (use_tls)                                 p += 8;   /* "https://" */
+        else if (strncmp(url, "http://", 7) == 0)    p += 7;
+        const char *slash = strchr(p, '/');
+        size_t      h_len = slash ? (size_t)(slash - p) : strlen(p);
+        const char *colon = memchr(p, ':', h_len);
+        if (colon) {
+            size_t prefix_len = (size_t)(colon - p);
+            if (prefix_len < sizeof(probe_host)) {
+                memcpy(probe_host, p, prefix_len);
+                probe_host[prefix_len] = '\0';
+                probe_port = atoi(colon + 1);
+                if (probe_port <= 0 || probe_port > 65535) probe_port = use_tls ? 443 : 80;
+            }
+        } else if (h_len < sizeof(probe_host)) {
+            memcpy(probe_host, p, h_len);
+            probe_host[h_len] = '\0';
+        }
+    }
+
     for (int attempt = 1; attempt <= PROV_MAX_ATTEMPTS; attempt++) {
         char resp_buf[512] = {0};
+
+        /* Pre-attempt path warm-up. Field log 2026-04-28 (firmware
+         * 9ca049f, Telekom IoT/sensor.net/1NCE) showed the TLS handshake
+         * stalling intermittently AFTER the server certificate had
+         * already arrived — symptom of LTE-M packet loss + Cloudflare's
+         * ~13-15 s edge timeout fighting each other. User reports
+         * "ab und zu funktioniert es" — when the path happens to be
+         * clean we get through, when it doesn't we EOF.
+         *
+         * A short TCP connect to the same host kicks the carrier into
+         * RRC-CONNECTED and refreshes any stale NAT mapping BEFORE the
+         * heavy TLS round-trip starts. Doesn't fix the underlying
+         * packet loss, but tightens the window where Cloudflare's edge
+         * timer races our retransmits. The probe itself takes ~200-800
+         * ms on success, full 5 s on failure (in which case we still
+         * try the actual handshake — sometimes paths come back
+         * mid-attempt). */
+        if (probe_host[0] != '\0') {
+            bool reachable = network_probe_tcp(probe_host, probe_port, 5000);
+            ESP_LOGI(TAG, "PROV: warm-up probe %s:%d → %s (attempt %d)",
+                     probe_host, probe_port, reachable ? "ok" : "FAIL", attempt);
+        }
 
         /* timeout_ms gates the entire TLS handshake + HTTP exchange.
          * Field testing on Telekom IoT cellular showed legit TLS
