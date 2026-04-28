@@ -34,7 +34,9 @@
 #include <esp_event.h>
 #include <esp_netif.h>
 #include <esp_netif_ip_addr.h>
+#include <esp_netif_net_stack.h>
 #include <esp_timer.h>
+#include <lwip/netif.h>
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -575,6 +577,44 @@ static void network_ppp_event_handler(void *arg, esp_event_base_t event_base,
          * (route_prio 10) competes with PPP (20) — usually PPP wins,
          * but we set it explicitly to remove ambiguity. */
         esp_netif_set_default_netif(ev->esp_netif);
+
+        /* Clamp PPP MTU to 1280 → advertised TCP MSS = 1240.
+         *
+         * Field log 2026-04-28 (firmware dc9a2dc, Telekom IoT/sensor.net,
+         * 1NCE SIM): TCP connect to Cloudflare-fronted Supabase backend
+         * succeeded ("handshake in progress"), then the TLS handshake
+         * silently stalled for 60 s. Path: ClientHello (~500 B) leaves
+         * fine, but ServerHello + Certificate + ServerKeyExchange comes
+         * back across multiple TCP segments, some of which exceed the
+         * carrier's effective IP MTU. Telekom's GTP-U encapsulation eats
+         * ~70 B from the 1500-byte PPP MTU, and the carrier silently
+         * drops the over-sized inbound segments — TCP retransmit doesn't
+         * help because the carrier keeps dropping them at the same
+         * threshold. ICMP "fragmentation needed" never reaches us
+         * (filtered upstream), so PMTU discovery is a non-starter.
+         *
+         * 1280 is the IPv6 minimum and the safest universal-fit value
+         * for cellular paths. Throughput cost vs the default 1500: ~3-5%
+         * on bulk transfers, negligible on our mostly-small MQTT and
+         * claim payloads.
+         *
+         * Setting netif->mtu directly is the standard lwIP idiom (see
+         * slipif.c, ppp_init.c). It must happen BEFORE the first TCP
+         * connection on this netif so the SYN's MSS option carries the
+         * clamped value. We're inside the GOT_IP handler which fires
+         * before NETWORK_EVENT_UPLINK_UP, which is what gates MQTT/claim
+         * — so this is the correct moment. */
+        struct netif *lwip_netif = (struct netif *)esp_netif_get_netif_impl(ev->esp_netif);
+        if (lwip_netif) {
+            const u16_t prev_mtu = lwip_netif->mtu;
+            lwip_netif->mtu = 1280;
+#if LWIP_IPV6
+            lwip_netif->mtu6 = 1280;
+#endif
+            ESP_LOGI(TAG, "PPP MTU clamped %u → 1280 (TCP MSS = 1240)", prev_mtu);
+        } else {
+            ESP_LOGW(TAG, "PPP MTU clamp: esp_netif_get_netif_impl returned NULL");
+        }
 
         /* Make sure DNS works.
          *
