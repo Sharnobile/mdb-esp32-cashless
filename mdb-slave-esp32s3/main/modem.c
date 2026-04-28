@@ -517,48 +517,31 @@ esp_err_t modem_init(const char *apn, const char *pin, modem_lte_mode_t mode) {
     esp_modem_at(s_dce, "AT+CEDRXS=0,5", NULL, 5000);
     ESP_LOGI(TAG, "PSM + eDRX disabled (IoT power-save off)");
 
-    /* Tear down any leftover internal TCP/IP stack state.
+    /* Phantom-PPP defence — see field log at commit 0cbcc1e for the
+     * full saga of why we're NOT proactively running CIPSHUT/CNACT
+     * cleanup here:
      *
-     * SIM7080G has TWO independent network stacks: the host-managed PPP
-     * stack we use, and an internal stack (AT+CIP-, AT+CNACT-, AT+SH-
-     * command families) that the modem firmware can run in parallel.
-     * Both share the underlying
-     * PDP context. If the modem retains residue from a previous session
-     * (open CIP socket, dangling CNACT, half-init AT+SHCONN) the PDP
-     * binding can split: PPP negotiates IPCP successfully and inbound
-     * packets flow (because the air-side bearer cached state still
-     * forwards them), but outbound TX gets routed to the dead internal
-     * stack and silently dropped at the GTP encapsulation layer.
+     *   1. Phantom-PPP first observed: TLS cert downloads ok, CKE
+     *      never reaches server. Theory: SIM7080G dual stack residue.
+     *   2. Added AT+CIPSHUT + AT+CNACT=0,0 to clear residue.
+     *   3. Field test showed those ATs leave the modem unresponsive
+     *      for 60+ s on warm boots, AND detach from PS network.
+     *   4. Added AT+CGATT=1 to force re-attach. Made it worse — modem
+     *      doesn't even ack CGATT=1 in 30 s.
      *
-     * Field symptom: cert downloads ok, ClientKeyExchange never reaches
-     * server, server FINs the half-handshake at its 15 s timeout.
+     * The cleanups did more harm than good. Removed.
      *
-     * Both ATs are best-effort (return ERROR if the stack wasn't
-     * active, which is fine). They MUST run before set_mode(DATA). */
-    esp_modem_at(s_dce, "AT+CIPSHUT",  NULL, 5000);   /* legacy SIM7000 stack */
-    esp_modem_at(s_dce, "AT+CNACT=0,0", NULL, 5000);  /* SIM7080G app PDP */
-    ESP_LOGI(TAG, "internal TCPIP stack cleared");
-
-    /* Force PS re-attach after cleanup.
+     * Phantom-PPP is now caught REACTIVELY by two layers:
      *
-     * AT+CIPSHUT and AT+CNACT=0,0 don't just clear the internal stack —
-     * on a warm modem with an active PDP they also DETACH from the PS
-     * network. AT+CFUN=1 in modem_connect doesn't re-trigger attach
-     * when the radio is already on (no-op for already-active state),
-     * so the modem stays detached and modem_wait_registered keeps
-     * polling CEREG forever.
+     *   a) cellular_bring_up_task probes 1.1.1.1:53 with 5 s timeout
+     *      after IP_EVENT_PPP_GOT_IP, BEFORE firing UPLINK_UP.
+     *      Failed probe → recovery ladder fires.
+     *   b) Recovery ladder (PDP→RF→Soft→Hard reset) at the right
+     *      modem state where each reset is appropriate for the level
+     *      of breakage observed.
      *
-     * Field symptom (post-claim reboot): "modem not registered" in the
-     * captive portal banner, no PPP IP, MQTT can't connect. Worked on
-     * cold boot because PWRKEY pulse → modem boots fresh → auto-attach.
-     * Failed on warm reboot because cleanup detached + CFUN=1 didn't
-     * re-attach.
-     *
-     * AT+CGATT=1 is idempotent: if already attached, returns OK fast.
-     * If detached, triggers a fresh attach cycle (~5-15 s). 30 s
-     * timeout covers slow attach on roaming or weak signal. */
-    esp_modem_at(s_dce, "AT+CGATT=1", NULL, 30000);
-    ESP_LOGI(TAG, "PS attach requested");
+     * Net effect: same protection, no aggressive proactive ATs that
+     * the modem firmware mishandles. */
 
     return ESP_OK;
 }
