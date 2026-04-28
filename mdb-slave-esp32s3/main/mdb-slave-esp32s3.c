@@ -2170,8 +2170,24 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
  * new credentials). On persistent failure → log + exit. The captive
  * portal stays up. The user can resubmit /api/v1/claim with corrected
  * input, which spawns a fresh task. */
-#define PROV_MAX_ATTEMPTS  3
-#define PROV_RETRY_DELAY_S 5
+/* Retry budget — sized for the "cold cellular" startup pattern.
+ *
+ * Field measurements on Telekom IoT (sensor.net) showed that a fresh
+ * cellular session needs several minutes to reach full performance:
+ * the first TLS handshake to a Cloudflare-fronted endpoint routinely
+ * exceeds CF's 15 s edge timeout, but ~5 minutes later the *same*
+ * handshake completes in <8 s. Reasons live at the carrier side
+ * (cell selection optimisation, PDP context realisation, NAT entry
+ * caching) — we can't speed them up, only wait through them.
+ *
+ * Backoff schedule (ms): 5 s, 15 s, 30 s, 60 s, 60 s, 60 s, 60 s
+ * Total: ~5 minutes of retries before giving up. Matches the
+ * empirically observed "warm-up" window. After exhaustion the AP
+ * stays online and the user can retry via captive portal. */
+#define PROV_MAX_ATTEMPTS  7
+static const int PROV_RETRY_DELAYS_S[PROV_MAX_ATTEMPTS - 1] = {
+    5, 15, 30, 60, 60, 60
+};
 
 /* Single-flight guard so concurrent /api/v1/claim submits + boot-time
  * re-spawn don't run two tasks against the same NVS state. */
@@ -2332,11 +2348,15 @@ void provision_claim_task(void *arg) {
             break;
         }
 
-        /* Transport / 5xx error — retry with a backoff unless this was
-         * the last attempt. */
+        /* Transport / 5xx error — back off and retry. The schedule
+         * grows so we ride out the cellular warm-up window: short
+         * gap on the first retry (covers transient blips), then
+         * longer waits as we let the carrier settle. */
         if (attempt < PROV_MAX_ATTEMPTS) {
-            ESP_LOGI(TAG, "PROV: retrying in %d s...", PROV_RETRY_DELAY_S);
-            vTaskDelay(pdMS_TO_TICKS(PROV_RETRY_DELAY_S * 1000));
+            int delay_s = PROV_RETRY_DELAYS_S[attempt - 1];
+            ESP_LOGI(TAG, "PROV: retrying in %d s (attempt %d/%d)...",
+                     delay_s, attempt + 1, PROV_MAX_ATTEMPTS);
+            vTaskDelay(pdMS_TO_TICKS(delay_s * 1000));
         }
     }
 
