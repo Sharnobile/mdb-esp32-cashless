@@ -539,6 +539,27 @@ esp_err_t modem_init(const char *apn, const char *pin, modem_lte_mode_t mode) {
     esp_modem_at(s_dce, "AT+CNACT=0,0", NULL, 5000);  /* SIM7080G app PDP */
     ESP_LOGI(TAG, "internal TCPIP stack cleared");
 
+    /* Force PS re-attach after cleanup.
+     *
+     * AT+CIPSHUT and AT+CNACT=0,0 don't just clear the internal stack —
+     * on a warm modem with an active PDP they also DETACH from the PS
+     * network. AT+CFUN=1 in modem_connect doesn't re-trigger attach
+     * when the radio is already on (no-op for already-active state),
+     * so the modem stays detached and modem_wait_registered keeps
+     * polling CEREG forever.
+     *
+     * Field symptom (post-claim reboot): "modem not registered" in the
+     * captive portal banner, no PPP IP, MQTT can't connect. Worked on
+     * cold boot because PWRKEY pulse → modem boots fresh → auto-attach.
+     * Failed on warm reboot because cleanup detached + CFUN=1 didn't
+     * re-attach.
+     *
+     * AT+CGATT=1 is idempotent: if already attached, returns OK fast.
+     * If detached, triggers a fresh attach cycle (~5-15 s). 30 s
+     * timeout covers slow attach on roaming or weak signal. */
+    esp_modem_at(s_dce, "AT+CGATT=1", NULL, 30000);
+    ESP_LOGI(TAG, "PS attach requested");
+
     return ESP_OK;
 }
 
