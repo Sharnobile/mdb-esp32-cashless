@@ -310,12 +310,27 @@ static void cellular_bring_up_task(void *arg) {
         return;
     }
 
+    /* Serialise against parallel recovery paths (watchdog Layer-2,
+     * ppp_reconnect_task). Any of those holding the lock means a
+     * recovery is in flight — we wait for it to finish before starting
+     * ours. By the time we acquire, state may already be CELLULAR_UP;
+     * re-check below. */
+    modem_op_lock();
+
+    if (s_state == NETWORK_STATE_CELLULAR_UP) {
+        ESP_LOGI(TAG, "cellular bring-up: state already CELLULAR_UP after lock — skipping");
+        modem_op_unlock();
+        vTaskDelete(NULL);
+        return;
+    }
+
     s_state = NETWORK_STATE_CELLULAR_REGISTERING;
 
     err = modem_init(apn, pin, mode);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "modem_init failed: %s", esp_err_to_name(err));
         s_state = NETWORK_STATE_OFFLINE;
+        modem_op_unlock();
         vTaskDelete(NULL);
         return;
     }
@@ -423,6 +438,7 @@ static void cellular_bring_up_task(void *arg) {
         s_state = NETWORK_STATE_OFFLINE;
         network_fire_event(NETWORK_EVENT_UPLINK_DOWN);
         schedule_offline_retry();
+        modem_op_unlock();
         vTaskDelete(NULL);
         return;
     }
@@ -434,6 +450,7 @@ static void cellular_bring_up_task(void *arg) {
      * the task. Gated to this task ONLY so WiFi-only boards never spawn it. */
     modem_start_watchdog();
     network_fire_event(NETWORK_EVENT_UPLINK_UP);
+    modem_op_unlock();
     vTaskDelete(NULL);
 }
 
@@ -446,6 +463,22 @@ static int s_ppp_reconnect_attempts = 0;
 
 static void ppp_reconnect_task(void *arg) {
     (void)arg;
+
+    /* Acquire the recovery lock. Watchdog Layer-2 or another bring-up
+     * may already be running — wait for it. By the time we acquire,
+     * state may have transitioned to CELLULAR_UP (recovery succeeded
+     * elsewhere) — bail out so we don't tear down a freshly-restored
+     * PPP link via our own modem_disconnect call. */
+    modem_op_lock();
+
+    if (s_state == NETWORK_STATE_CELLULAR_UP) {
+        ESP_LOGI(TAG, "PPP reconnect: state already CELLULAR_UP after lock — skipping");
+        s_ppp_reconnect_attempts = 0;
+        modem_op_unlock();
+        vTaskDelete(NULL);
+        return;
+    }
+
     while (s_ppp_reconnect_attempts < PPP_RECONNECT_ATTEMPTS) {
         s_ppp_reconnect_attempts++;
         ESP_LOGW(TAG, "PPP reconnect attempt %d/%d",
@@ -470,6 +503,7 @@ static void ppp_reconnect_task(void *arg) {
             s_state = NETWORK_STATE_CELLULAR_UP;
             s_ppp_reconnect_attempts = 0;
             network_fire_event(NETWORK_EVENT_UPLINK_UP);
+            modem_op_unlock();
             vTaskDelete(NULL);
             return;
         }
@@ -492,6 +526,7 @@ static void ppp_reconnect_task(void *arg) {
     s_state = NETWORK_STATE_OFFLINE;
     network_fire_event(NETWORK_EVENT_UPLINK_DOWN);
     schedule_offline_retry();
+    modem_op_unlock();
     vTaskDelete(NULL);
 }
 

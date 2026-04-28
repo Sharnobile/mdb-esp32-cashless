@@ -145,6 +145,32 @@ esp_err_t modem_nvs_load(char *apn_out, size_t apn_size,
  */
 esp_err_t modem_nvs_save(const char *apn, const char *pin, modem_lte_mode_t mode);
 
+/* ---- Recovery serialisation ----
+ *
+ * All recovery primitives (modem_init / modem_connect / modem_disconnect
+ * / modem_pdp_reset / modem_rf_reset / modem_soft_restart /
+ * modem_hard_reset) interact with the same DCE state machine and must
+ * not run in parallel from different tasks. The DCE has its own DTE
+ * lock that serialises individual AT calls, but it does NOT prevent
+ * one task from issuing AT+CFUN=0 while another is mid-CEREG-poll —
+ * the result is interleaved state churn that the SIM7080G handles
+ * poorly (modem ends up in an undefined RAT/CFUN/CGATT combination).
+ *
+ * Field symptom (captured 2026-04-28 in initial provisioning):
+ *   - watchdog Layer-2 hard-reset starts at t=263s (3x AT timeouts)
+ *   - lwIP fires PPP_LOST_IP at t=304s (LCP echo died ~150s ago)
+ *   - ppp_reconnect_task spawns and calls modem_disconnect on a modem
+ *     that watchdog is mid-init'ing — both run concurrently, modem is
+ *     left wedged for 90+ s before either completes
+ *
+ * Callers that drive a multi-step recovery (cellular_bring_up_task,
+ * ppp_reconnect_task, the watchdog) MUST wrap their entire flow in
+ * modem_op_lock/unlock. The mutex is recursive (same task can take it
+ * multiple times). Hold time can be tens of seconds; do not call from
+ * latency-sensitive paths. */
+void modem_op_lock(void);
+void modem_op_unlock(void);
+
 /* ---- Watchdog ---- */
 
 /*

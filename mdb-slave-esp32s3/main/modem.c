@@ -65,6 +65,42 @@ static esp_modem_dce_t  *s_dce  = NULL;
 static esp_netif_t      *s_netif = NULL;
 static bool              s_probed_present = false;
 
+/* Track which esp_modem_set_mode we last issued — set after a successful
+ * DATA transition, cleared by every primitive that re-enters COMMAND or
+ * power-cycles the modem. The watchdog uses this flag (NOT
+ * esp_netif_get_ip_info) to gate AT-pings: lwIP can clear the netif's
+ * IP after LCP-echo timeout but before IP_EVENT_PPP_LOST_IP fires,
+ * which created a window where the watchdog AT-pinged a still-up PPP
+ * link (bytes interpreted as PPP frames, response never came back),
+ * timed out 3x in 90s, and triggered a false hard-reset while the
+ * Layer-1 PPP reconnect path was still about to start. */
+static volatile bool     s_in_data_mode = false;
+
+/* Recovery-path serialisation mutex — see modem.h for the full saga. */
+static SemaphoreHandle_t s_modem_op_mtx = NULL;
+
+void modem_op_lock(void) {
+    /* Lazy init so the first caller wins regardless of task creation
+     * order. xSemaphoreCreateRecursiveMutex is allocation-safe before
+     * the scheduler starts (FreeRTOS allocates from the static heap),
+     * but we only ever call this from running tasks. */
+    if (!s_modem_op_mtx) {
+        s_modem_op_mtx = xSemaphoreCreateRecursiveMutex();
+    }
+    if (s_modem_op_mtx) {
+        /* 5 minute ceiling — generous enough for the worst-case
+         * recovery ladder traversal (~3-4 min) but bounded so a stuck
+         * holder eventually fails-loud rather than wedging forever. */
+        if (xSemaphoreTakeRecursive(s_modem_op_mtx, pdMS_TO_TICKS(300000)) != pdTRUE) {
+            ESP_LOGE(TAG, "modem_op_lock: 5min timeout — holder is wedged");
+        }
+    }
+}
+
+void modem_op_unlock(void) {
+    if (s_modem_op_mtx) xSemaphoreGiveRecursive(s_modem_op_mtx);
+}
+
 /* Status cache.
  *
  * The captive portal polls /api/v1/system/info every ~2s, which calls
@@ -163,6 +199,7 @@ esp_err_t modem_nvs_save(const char *apn, const char *pin, modem_lte_mode_t mode
  * service the same UART hardware. */
 static bool modem_probe_body(void);
 static int8_t csq_to_dbm(int raw);
+static void pwrkey_pulse(void);
 
 typedef struct {
     SemaphoreHandle_t done;
@@ -340,6 +377,14 @@ static bool modem_probe_body(void) {
         s_status_cache.active_mode = MODEM_LTE_MODE_BOTH;
     }
 
+    /* Recovery-serialisation mutex — pre-create here while we're still
+     * on the single boot task, so the lazy init in modem_op_lock never
+     * races between watchdog + cellular_bring_up_task + ppp_reconnect_task
+     * on first-use. */
+    if (!s_modem_op_mtx) {
+        s_modem_op_mtx = xSemaphoreCreateRecursiveMutex();
+    }
+
     /* First enable modem power rails via the AXP2101 PMU. On a board
      * without the PMU (production WiFi-only) this is a no-op + warning;
      * on the LilyGo it's load-bearing. */
@@ -380,33 +425,66 @@ static bool modem_probe_body(void) {
         return false;
     }
 
-    /* Try sync: modem may already be powered (warm reset, prior session). */
+    /* Modem detection ladder, ordered by likelihood + cost.
+     *
+     * Three realistic states the modem can be in when we reach here:
+     *   (A) warm-COMMAND — modem is on, in AT command mode (e.g. after
+     *       a soft esp_restart while modem stayed powered via AXP2101).
+     *       Cheapest detection: a single sync responds in ~500 ms.
+     *   (B) cold        — modem is off. PMU just enabled DC3+BLDO1 ~200 ms
+     *       ago, but the modem also needs a PWRKEY pulse to actually boot.
+     *       After the pulse, SIM7080G needs 4-12 s before AT works
+     *       (signal scan + SIM read + radio bring-up).
+     *   (C) warm-DATA   — modem is on, stuck in PPP DATA mode from a prior
+     *       session. Sync fails because AT bytes get eaten as PPP frames.
+     *       Recovery: PPP escape via "+++" sequence (esp_modem internally
+     *       does up to 3 retries × ~2 s each = ~7 s).
+     *
+     * Previous order was (A) → (C) → (B), which on a cold LilyGo wasted
+     * ~20 s in the (C) escape branch waiting for a non-existent PPP link
+     * to reply — the escape's internal retries happened to give the
+     * modem enough time to boot, so the eventual sync succeeded, but
+     * for the wrong reason. Field log 2026-04-28 shows initial probe
+     * taking 23 s instead of the achievable ~5-8 s.
+     *
+     * New order: (A) → (B) → (C). Cold-boot path becomes the fast path
+     * because it covers the common "user just powered the device on"
+     * case. Warm-DATA fallback runs only if cold-boot polling didn't
+     * find the modem. */
+
+    /* (A) Warm-COMMAND fast-path — single sync attempt. */
     esp_err_t ret = esp_modem_sync(s_dce);
-    ESP_LOGI(TAG, "esp_modem_sync (cold try): %s", esp_err_to_name(ret));
+    ESP_LOGI(TAG, "esp_modem_sync (warm-COMMAND probe): %s", esp_err_to_name(ret));
 
     if (ret != ESP_OK) {
-        /* Could be stuck in PPP mode from a prior boot. Escape and retry. */
-        esp_modem_set_mode(s_dce, ESP_MODEM_MODE_COMMAND);
-        vTaskDelay(pdMS_TO_TICKS(1000));
-        ret = esp_modem_sync(s_dce);
-        ESP_LOGI(TAG, "esp_modem_sync (after PPP escape): %s", esp_err_to_name(ret));
+        /* (B) Cold-boot path — pulse PWRKEY, poll for AT readiness up
+         * to 15 s (covers typical 4-8 s plus weak-signal margin). Each
+         * sync attempt has its own ~500 ms internal timeout, so worst-
+         * case we burn the full window before falling through. */
+        ESP_LOGI(TAG, "issuing PWRKEY pulse for cold-boot...");
+        pwrkey_pulse();
+        for (int i = 0; i < 15; i++) {
+            vTaskDelay(pdMS_TO_TICKS(1000));
+            ret = esp_modem_sync(s_dce);
+            if (ret == ESP_OK) {
+                ESP_LOGI(TAG, "esp_modem_sync (after PWRKEY + %d s): ESP_OK", i + 1);
+                break;
+            }
+        }
     }
 
     if (ret != ESP_OK) {
-        /* Modem either off (LilyGo cold boot) or absent. Pulse PWRKEY:
-         * if a modem is wired up this turns it on; if not, the pulse
-         * is harmless on most boards (revisit if a production PCB
-         * connects GPIO 41 to something sensitive). */
-        ESP_LOGI(TAG, "issuing PWRKEY pulse...");
-        modem_power_cycle();
+        /* (C) Warm-DATA recovery — the modem may have been in PPP DATA
+         * mode and the PWRKEY pulse above turned it OFF (PWRKEY is a
+         * toggle: ON-while-DATA → OFF). Pulse again to bring it back
+         * up, settle, then PPP-escape the (now-dead) data session. */
+        ESP_LOGW(TAG, "cold-boot path failed; trying warm-DATA recovery");
+        pwrkey_pulse();
+        vTaskDelay(pdMS_TO_TICKS(5000));
+        esp_modem_set_mode(s_dce, ESP_MODEM_MODE_COMMAND);
+        vTaskDelay(pdMS_TO_TICKS(1000));
         ret = esp_modem_sync(s_dce);
-        ESP_LOGI(TAG, "esp_modem_sync (after pulse): %s", esp_err_to_name(ret));
-
-        if (ret != ESP_OK) {
-            vTaskDelay(pdMS_TO_TICKS(2000));
-            ret = esp_modem_sync(s_dce);
-            ESP_LOGI(TAG, "esp_modem_sync (after pulse + 2 s): %s", esp_err_to_name(ret));
-        }
+        ESP_LOGI(TAG, "esp_modem_sync (after warm-DATA recovery): %s", esp_err_to_name(ret));
     }
 
     if (ret != ESP_OK) {
@@ -714,11 +792,20 @@ esp_err_t modem_connect(void) {
     /* PPP params already set in modem_probe — just enter DATA mode. */
     err = esp_modem_set_mode(s_dce, ESP_MODEM_MODE_DATA);
     ESP_LOGI(TAG, "set DATA mode: %s", esp_err_to_name(err));
+    if (err == ESP_OK) {
+        s_in_data_mode = true;
+    }
     return err;
 }
 
 esp_err_t modem_disconnect(void) {
     if (!s_dce) return ESP_OK;
+    /* Clear the flag eagerly — once we initiate the COMMAND transition,
+     * any in-flight watchdog ping must see "not in DATA" so the AT goes
+     * out via the right path. set_mode itself can take seconds (PPP
+     * teardown round-trips); the modem stops eating AT bytes the moment
+     * the +++/ATH escape sequence completes mid-call. */
+    s_in_data_mode = false;
     esp_err_t err = esp_modem_set_mode(s_dce, ESP_MODEM_MODE_COMMAND);
     ESP_LOGI(TAG, "set COMMAND mode: %s", esp_err_to_name(err));
     return err;
@@ -784,6 +871,7 @@ esp_err_t modem_pdp_reset(void) {
     if (!s_dce) return ESP_ERR_INVALID_STATE;
 
     /* Must be in COMMAND mode to issue AT. If we're in DATA, escape. */
+    s_in_data_mode = false;
     esp_modem_set_mode(s_dce, ESP_MODEM_MODE_COMMAND);
     vTaskDelay(pdMS_TO_TICKS(500));
 
@@ -801,6 +889,7 @@ esp_err_t modem_pdp_reset(void) {
 esp_err_t modem_rf_reset(void) {
     if (!s_dce) return ESP_ERR_INVALID_STATE;
 
+    s_in_data_mode = false;
     esp_modem_set_mode(s_dce, ESP_MODEM_MODE_COMMAND);
     vTaskDelay(pdMS_TO_TICKS(500));
 
@@ -820,6 +909,7 @@ esp_err_t modem_rf_reset(void) {
 esp_err_t modem_soft_restart(void) {
     if (!s_dce) return ESP_ERR_INVALID_STATE;
 
+    s_in_data_mode = false;
     esp_modem_set_mode(s_dce, ESP_MODEM_MODE_COMMAND);
     vTaskDelay(pdMS_TO_TICKS(500));
 
@@ -838,6 +928,11 @@ esp_err_t modem_soft_restart(void) {
  * On boards without AXP2101 PMU, falls back to a PWRKEY toggle pair (two
  * pulses with a gap), which is the best we can do without power-gating. */
 void modem_hard_reset(void) {
+    /* Power-cycling the modem makes any prior DATA-mode binding moot —
+     * clear the flag first so a watchdog tick during the boot wait
+     * doesn't see "PPP up" and skip its AT-ping. */
+    s_in_data_mode = false;
+
     /* Try PMU-based DC3 cut first (LilyGo T-SIM7080G route). */
     ESP_LOGW(TAG, "L3 recovery: cutting modem power via PMU DC3 for 2 s");
     esp_err_t pmu_err = axp_rmw_reg(AXP2101_REG_DC_ONOFF, 0x04, 0);
@@ -860,8 +955,37 @@ void modem_hard_reset(void) {
         pwrkey_pulse();                    /* turn on (if off) */
     }
 
-    ESP_LOGI(TAG, "L3 recovery: waiting 8 s for modem boot...");
-    vTaskDelay(pdMS_TO_TICKS(8000));
+    /* Poll for modem readiness instead of a fixed wait. SIM7080G boot
+     * after a PMU-DC3-cut + PWRKEY pulse takes typically 6-12 s, but
+     * has been observed up to 18 s on cold cells (signal scan +
+     * SIM-read on weak coverage). The previous fixed 8 s wait was
+     * shorter than the typical case — every subsequent AT (modem_init's
+     * CNMP/CMNB/CFUN) timed out for 16-25 s into the not-yet-booted
+     * modem (field log 2026-04-28 lines 283358-391858), turning a
+     * 15 s recovery into a 2-minute cascade.
+     *
+     * Initial 5 s settle is below the practical floor — no point
+     * polling earlier than that. Each poll uses esp_modem_sync's
+     * default 500 ms timeout, so worst-case 20 polls = ~25 s total
+     * after settle. */
+    ESP_LOGI(TAG, "L3 recovery: polling for modem readiness (initial 5 s settle)...");
+    vTaskDelay(pdMS_TO_TICKS(5000));
+
+    if (!s_dce) {
+        /* Probe failed — nothing to sync against. Give the rails the
+         * old fixed wait as a fallback courtesy. */
+        vTaskDelay(pdMS_TO_TICKS(8000));
+        return;
+    }
+
+    for (int i = 0; i < 20; i++) {
+        if (esp_modem_sync(s_dce) == ESP_OK) {
+            ESP_LOGI(TAG, "L3 recovery: modem responsive after %d s post-settle", i + 1);
+            return;
+        }
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+    ESP_LOGW(TAG, "L3 recovery: modem still not responsive after 25 s — proceeding anyway");
 }
 
 /* Convert AT+CSQ raw value (0-31, 99 = unknown) to dBm. Per 3GPP 27.007:
@@ -950,12 +1074,19 @@ esp_err_t modem_at_keepalive_ping(void) {
      * modem. If the PPP link drops, IP_EVENT_PPP_LOST_IP fires and
      * Layer-1 reconnect handles it. So: skip the AT ping in DATA mode
      * and report OK — the PPP layer is the authoritative liveness
-     * signal there. */
-    if (s_netif) {
-        esp_netif_ip_info_t ip_info;
-        if (esp_netif_get_ip_info(s_netif, &ip_info) == ESP_OK && ip_info.ip.addr != 0) {
-            return ESP_OK;
-        }
+     * signal there.
+     *
+     * IMPORTANT: we use the s_in_data_mode flag (set/cleared on
+     * application-side esp_modem_set_mode transitions) rather than
+     * esp_netif_get_ip_info. lwIP can clear the netif's IP after an
+     * LCP-echo failure but before IP_EVENT_PPP_LOST_IP fires, leaving
+     * a window where the IP-based gate would say "no IP, AT-ping is
+     * fine" — and the AT bytes would be eaten by the still-up PPP
+     * link, time out 3x in 90 s, and trigger a false hard-reset (field
+     * 2026-04-28). The mode flag tracks intent independently of lwIP
+     * timing and never reports a false negative. */
+    if (s_in_data_mode) {
+        return ESP_OK;
     }
 
     /* COMMAND mode (registration phase or recovery): AT works directly. */
@@ -1007,6 +1138,17 @@ static void modem_watchdog_task(void *arg) {
 
         ESP_LOGW(TAG, "watchdog: Layer 2 — modem_hard_reset + re-init (#%d)",
                  s_power_cycles + 1);
+
+        /* Take the recovery lock for the entire hard-reset → init →
+         * connect sequence so a parallel ppp_reconnect_task or
+         * cellular_bring_up_task (driven by an in-flight PPP_LOST_IP)
+         * can't interleave its own modem_disconnect/modem_connect with
+         * ours. Field log 2026-04-28 captured exactly this race: at
+         * t=263 s watchdog ran modem_init while at t=304 s
+         * ppp_reconnect_task ran modem_disconnect on the same DCE,
+         * leaving the modem wedged for 90+ s. */
+        modem_op_lock();
+
         modem_hard_reset();
         s_power_cycles++;
 
@@ -1017,18 +1159,22 @@ static void modem_watchdog_task(void *arg) {
         modem_lte_mode_t mode;
         if (modem_nvs_load(apn, sizeof(apn), pin, sizeof(pin), &mode) != ESP_OK) {
             ESP_LOGE(TAG, "watchdog: no NVS config to re-init with");
+            modem_op_unlock();
             continue;
         }
         if (modem_init(apn, pin, mode) != ESP_OK) {
             ESP_LOGE(TAG, "watchdog: modem_init after pulse failed");
+            modem_op_unlock();
             continue;
         }
         if (modem_connect() != ESP_OK) {
             ESP_LOGE(TAG, "watchdog: modem_connect after pulse failed");
+            modem_op_unlock();
             continue;
         }
         ESP_LOGI(TAG, "watchdog: recovered via Layer 2");
         s_consec_fails = 0;
+        modem_op_unlock();
         /* leave s_power_cycles as-is so the limit binds across rapid retries */
     }
 }
