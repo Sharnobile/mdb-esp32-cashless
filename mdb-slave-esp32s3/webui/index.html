@@ -209,8 +209,16 @@
       var c = u.cellular;
       var sigText = (c.rssi_dbm ? c.rssi_dbm + " dBm " : "") + signalBars(c.rssi_dbm || -113);
       rows.push("<dt>Signal</dt><dd>" + sigText + "</dd>");
-      if (c.operator) rows.push("<dt>Operator</dt><dd>" + escapeHtml(c.operator) + " · " + escapeHtml(c.mode || "—") + "</dd>");
-      else            rows.push("<dt>Operator</dt><dd class=\"muted\">— searching —</dd>");
+      if (c.operator) {
+        /* Highlight NB-IoT in red — its 1.5–10 s RTT makes a TLS 1.2
+         * handshake to a Cloudflare-fronted endpoint exceed CF's 15 s
+         * edge timeout; claim will consistently fail on NB-IoT. */
+        var modeColour = (c.mode === "NB-IoT") ? "color:#F87171" : "";
+        rows.push("<dt>Operator</dt><dd>" + escapeHtml(c.operator) +
+                  " · <span style=\"" + modeColour + "\">" + escapeHtml(c.mode || "—") + "</span></dd>");
+      } else {
+        rows.push("<dt>Operator</dt><dd class=\"muted\">— searching —</dd>");
+      }
       if (c.ip)       rows.push("<dt>IP</dt><dd>" + escapeHtml(c.ip) + "</dd>");
     } else if (variant === "wifi" && u.wifi) {
       var w = u.wifi;
@@ -327,10 +335,29 @@
   }
 
   function viewClaim() {
+    /* NB-IoT warning. NB-IoT round-trips are 1.5–10 s; a TLS handshake
+     * to a Cloudflare-fronted endpoint typically needs 3 round-trips
+     * and CF has a hard 15 s edge timeout, so the claim will fail
+     * deterministically. We tell the user up front so they don't
+     * spend 5 minutes watching retries fail. */
+    var nbiotWarning = "";
+    if (lastInfo && lastInfo.uplink && lastInfo.uplink.cellular &&
+        lastInfo.uplink.cellular.mode === "NB-IoT") {
+      nbiotWarning =
+        '<div class="info-banner warn" style="margin-bottom:10px">' +
+          '<b>⚠ NB-IoT detected.</b><br>' +
+          '<span style="font-weight:400">NB-IoT round-trips are too slow ' +
+          'for TLS handshakes to Cloudflare-fronted endpoints — the ' +
+          'claim will likely fail. Try moving to a location with LTE-M ' +
+          'coverage, or set LTE mode to <b>LTE-M (Cat-M1)</b> instead ' +
+          'of Auto and reboot.</span>' +
+        '</div>';
+    }
     return (
       '<div class="panel" id="form_claim">' +
         '<h2>Register device</h2>' +
         '<p class="muted" style="margin-bottom:10px">Connection established. Enter the provisioning code to register this device with the backend.</p>' +
+        nbiotWarning +
         '<form id="claim_form" autocomplete="off">' +
 
           '<label class="first">Provisioning code</label>' +
