@@ -428,39 +428,53 @@ static bool modem_probe_body(void) {
     /* Modem detection ladder, ordered by likelihood + cost.
      *
      * Three realistic states the modem can be in when we reach here:
-     *   (A) warm-COMMAND — modem is on, in AT command mode (e.g. after
-     *       a soft esp_restart while modem stayed powered via AXP2101).
-     *       Cheapest detection: a single sync responds in ~500 ms.
-     *   (B) cold        — modem is off. PMU just enabled DC3+BLDO1 ~200 ms
-     *       ago, but the modem also needs a PWRKEY pulse to actually boot.
-     *       After the pulse, SIM7080G needs 4-12 s before AT works
-     *       (signal scan + SIM read + radio bring-up).
-     *   (C) warm-DATA   — modem is on, stuck in PPP DATA mode from a prior
-     *       session. Sync fails because AT bytes get eaten as PPP frames.
-     *       Recovery: PPP escape via "+++" sequence (esp_modem internally
-     *       does up to 3 retries × ~2 s each = ~7 s).
+     *   (A) warm-COMMAND — modem is on, in AT command mode. Single sync
+     *       responds in ~500 ms.
+     *   (B) warm-DATA    — modem is on, stuck in PPP DATA mode from a
+     *       prior session (AXP2101 retains DC3 across ESP soft-reset, so
+     *       any reboot — claim restart, watchdog reboot, OTA — lands here).
+     *       Sync fails because AT bytes get eaten as PPP frames. Recovery:
+     *       PPP escape via "+++" sequence (~7 s for esp_modem's internal
+     *       3 retries).
+     *   (C) cold         — modem has no power. PMU just enabled DC3+BLDO1
+     *       ~200 ms ago, modem still needs a PWRKEY pulse + ~4-12 s boot
+     *       wait before AT works.
      *
-     * Previous order was (A) → (C) → (B), which on a cold LilyGo wasted
-     * ~20 s in the (C) escape branch waiting for a non-existent PPP link
-     * to reply — the escape's internal retries happened to give the
-     * modem enough time to boot, so the eventual sync succeeded, but
-     * for the wrong reason. Field log 2026-04-28 shows initial probe
-     * taking 23 s instead of the achievable ~5-8 s.
+     * Order matters because each path has a different cost on the wrong
+     * state. Earlier (firmware dc9a2dc) we tried (B) by reordering to
+     * cold-first, hoping to optimise initial provisioning. Field log
+     * 2026-04-28 (firmware 9ca049f) showed the trade-off was wrong:
+     * cold-first added 24 s on every soft-reset (warm-DATA case)
+     * because PWRKEY-pulse on a running modem powers it OFF and the
+     * 15 s poll then runs against a dead modem. Warm-DATA is the more
+     * common case (every reboot after first boot) so we put it second
+     * to PPP-escape it cheaply.
      *
-     * New order: (A) → (B) → (C). Cold-boot path becomes the fast path
-     * because it covers the common "user just powered the device on"
-     * case. Warm-DATA fallback runs only if cold-boot polling didn't
-     * find the modem. */
+     * Path costs:
+     *   (A) ~0.5 s     — sync hit
+     *   (B) ~7-8 s     — escape + sync
+     *   (C) ~13-17 s   — escape miss + PWRKEY + boot poll */
 
     /* (A) Warm-COMMAND fast-path — single sync attempt. */
     esp_err_t ret = esp_modem_sync(s_dce);
     ESP_LOGI(TAG, "esp_modem_sync (warm-COMMAND probe): %s", esp_err_to_name(ret));
 
     if (ret != ESP_OK) {
-        /* (B) Cold-boot path — pulse PWRKEY, poll for AT readiness up
-         * to 15 s (covers typical 4-8 s plus weak-signal margin). Each
-         * sync attempt has its own ~500 ms internal timeout, so worst-
-         * case we burn the full window before falling through. */
+        /* (B) Warm-DATA recovery — escape PPP via "+++". esp_modem's
+         * set_mode(COMMAND) sends the escape, waits, retries up to 3x.
+         * On a cold modem this still takes ~7 s (escape misses 3x) but
+         * sets up the next path correctly. */
+        esp_modem_set_mode(s_dce, ESP_MODEM_MODE_COMMAND);
+        vTaskDelay(pdMS_TO_TICKS(500));
+        ret = esp_modem_sync(s_dce);
+        ESP_LOGI(TAG, "esp_modem_sync (after PPP escape): %s", esp_err_to_name(ret));
+    }
+
+    if (ret != ESP_OK) {
+        /* (C) Cold-boot path — PWRKEY pulse + poll for AT readiness up
+         * to 15 s. Each sync attempt has its own ~500 ms internal
+         * timeout, so worst-case we burn the full window before
+         * falling through. */
         ESP_LOGI(TAG, "issuing PWRKEY pulse for cold-boot...");
         pwrkey_pulse();
         for (int i = 0; i < 15; i++) {
@@ -471,20 +485,6 @@ static bool modem_probe_body(void) {
                 break;
             }
         }
-    }
-
-    if (ret != ESP_OK) {
-        /* (C) Warm-DATA recovery — the modem may have been in PPP DATA
-         * mode and the PWRKEY pulse above turned it OFF (PWRKEY is a
-         * toggle: ON-while-DATA → OFF). Pulse again to bring it back
-         * up, settle, then PPP-escape the (now-dead) data session. */
-        ESP_LOGW(TAG, "cold-boot path failed; trying warm-DATA recovery");
-        pwrkey_pulse();
-        vTaskDelay(pdMS_TO_TICKS(5000));
-        esp_modem_set_mode(s_dce, ESP_MODEM_MODE_COMMAND);
-        vTaskDelay(pdMS_TO_TICKS(1000));
-        ret = esp_modem_sync(s_dce);
-        ESP_LOGI(TAG, "esp_modem_sync (after warm-DATA recovery): %s", esp_err_to_name(ret));
     }
 
     if (ret != ESP_OK) {
