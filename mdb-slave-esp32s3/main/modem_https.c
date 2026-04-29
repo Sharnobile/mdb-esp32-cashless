@@ -307,24 +307,43 @@ esp_err_t modem_https_post_json(const char *url,
     active_bearer = 0;
 
     /* === Step 3: SSL config (TLS 1.2 on SSL slot 1) ==================
-     * sslversion 3 = TLS 1.2 only. Some firmware variants treat sslversion
-     * 4 as "all" (TLS 1.0/1.1/1.2 negotiation). Trying 4 first as more
-     * permissive, falling back to 3 if not supported.
      *
-     * ignorelocaltime: skip cert validity-period check. The SIM7080G's
-     * RTC is unreliable until SNTP runs, so a fresh-boot cert validation
-     * may reject a perfectly valid server cert because the modem thinks
-     * it's 2002. ignorelocaltime sidesteps that.
+     * Per SIM7070/7080/7090 AT Command Manual V1.05 §11.2.1, the actual
+     * CSSLCFG parameters are: SSLVERSION, CIPHERSUITE, IGNORERTCTIME,
+     * PROTOCOL, SNI, CTXINDEX, MAXFRAGLENDISABLE, CONVERT.
      *
-     * ignoremultiserver: some firmware revs have issues with SAN-based
-     * cert validation on hosts with multiple SANs (Cloudflare's certs
-     * have 100+ SANs). Skip it.
+     * Earlier versions of this code tried "ignorelocaltime" /
+     * "ignoremultiserver" — those names came from random web sources
+     * and don't exist on SIM7080G. The correct name for the cert
+     * validity-period bypass is IGNORERTCTIME.
      *
-     * All best-effort: each command's success is logged, failures
-     * tolerated since the underlying SSL config has fallback defaults. */
-    at_simple(dce, "AT+CSSLCFG=\"sslversion\",1,3",       HTTPS_T_AT_SHORT_MS);
-    at_simple(dce, "AT+CSSLCFG=\"ignorelocaltime\",1,1",  HTTPS_T_AT_SHORT_MS);
-    at_simple(dce, "AT+CSSLCFG=\"ignoremultiserver\",1,1", HTTPS_T_AT_SHORT_MS);
+     * SNI (Server Name Indication) is the load-bearing one for
+     * Cloudflare-fronted hosts: without it, the server doesn't know
+     * which cert to present and may refuse the handshake. Field log
+     * ab8de05 saw SHCONN fail with "+CME ERROR: operation not
+     * allowed" — this is the canonical symptom of missing SNI on
+     * Cloudflare. */
+    at_simple(dce, "AT+CSSLCFG=\"SSLVERSION\",1,3",      HTTPS_T_AT_SHORT_MS);
+    at_simple(dce, "AT+CSSLCFG=\"IGNORERTCTIME\",1,1",   HTTPS_T_AT_SHORT_MS);
+
+    /* Extract host (no scheme, no port, no path) for SNI. */
+    {
+        const char *p = url;
+        if (strncmp(p, "https://", 8) == 0) p += 8;
+        else if (strncmp(p, "http://", 7) == 0) p += 7;
+        const char *end = p;
+        while (*end && *end != ':' && *end != '/') end++;
+        size_t hlen = (size_t)(end - p);
+        if (hlen > 0 && hlen < 96) {
+            char sni[128];
+            int n = snprintf(sni, sizeof(sni),
+                              "AT+CSSLCFG=\"SNI\",1,\"%.*s\"",
+                              (int)hlen, p);
+            if (n > 0 && n < (int)sizeof(sni)) {
+                at_simple(dce, sni, HTTPS_T_AT_SHORT_MS);
+            }
+        }
+    }
 
     /* === Step 4: HTTPS session SSL slot, no cert verification ======== */
     at_simple(dce, "AT+SHSSL=1,\"\"", HTTPS_T_AT_SHORT_MS);
@@ -392,38 +411,56 @@ esp_err_t modem_https_post_json(const char *url,
     at_simple(dce, "AT+SHAHEAD=\"User-Agent\",\"vmflow-esp32s3\"",
               HTTPS_T_AT_SHORT_MS);
 
-    /* === Step 8: body ===============================================
-     * Per the docstring at top: we send the AT+SHBOD command and the
-     * raw body bytes as one UART write. The modem reads the command
-     * line up to '\r', then drains the next <len> bytes for the body
-     * from the same UART RX buffer. esp_modem_at_raw waits for our
-     * pass token "OK" which arrives after the modem finishes reading
-     * the body — no separate prompt round-trip required.
+    /* === Step 8: body (two-step prompt protocol) ====================
      *
-     * cmd buffer must be large enough for the AT line + body. With
-     * sizeof(cmd)=512 and our claim body ~80 bytes (JSON with prov
-     * code + MAC), we have plenty of headroom. */
-    int n = snprintf(cmd, sizeof(cmd), "AT+SHBOD=%zu,10000\r", body_len);
-    if (n < 0 || (size_t)n + body_len >= sizeof(cmd)) {
-        ESP_LOGE(TAG, "SHBOD: body too large for cmd buffer (%zu bytes)", body_len);
+     * Field log a3a8de05+SNI showed the single-write trick (AT command
+     * + body in one UART write) doesn't work on firmware 1951B17:
+     * the modem sends back "\r\n>\r\n" prompt, then waits for body
+     * bytes — but the body bytes we sent in the same write were never
+     * consumed. Modem timed out after our cmd_timeout window, body
+     * never reached the HTTPS engine.
+     *
+     * Two-step protocol it is:
+     *
+     *   Step 8a: Send "AT+SHBOD=<len>,10000\r"
+     *            Wait for ">" (prompt) via at_raw pass=">"
+     *
+     *   Step 8b: Send the body bytes (no terminator)
+     *            Wait for "OK" via at_raw pass="OK"
+     *
+     * esp_modem's t->command() writes bytes verbatim per
+     * esp_modem_dte.cpp:154, so we can use at_raw for both halves —
+     * the second call literally just writes the body string and waits
+     * for the modem's "OK" response after it consumes the bytes. */
+    snprintf(cmd, sizeof(cmd), "AT+SHBOD=%zu,10000\r", body_len);
+    err = at_raw_match(dce, cmd, resp, sizeof(resp), ">", "ERROR",
+                       HTTPS_T_AT_SHORT_MS);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "SHBOD prompt phase failed: %s, resp=%.180s",
+                 esp_err_to_name(err), resp);
+        goto cleanup_disc;
+    }
+    ESP_LOGI(TAG, "SHBOD prompt received, sending %zu B body", body_len);
+
+    /* Body must be NUL-terminated for std::string conversion in
+     * at_raw to capture the full length. provision_claim_task's
+     * snprintf output is NUL-terminated, so this is guaranteed for
+     * our caller; defensive copy + NUL anyway in case of future
+     * callers with raw buffers. */
+    char body_with_nul[256];
+    if (body_len + 1 > sizeof(body_with_nul)) {
+        ESP_LOGE(TAG, "SHBOD: body too large (%zu) for staging buffer", body_len);
         err = ESP_ERR_INVALID_ARG;
         goto cleanup_disc;
     }
-    memcpy(cmd + n, body, body_len);
-    /* IMPORTANT: cmd is now exactly n + body_len bytes long, but
-     * esp_modem_at_raw passes the cmd to a std::string constructor
-     * that uses strlen(). If body has any embedded NUL byte we'd
-     * truncate. JSON has no NULs by construction, but be defensive:
-     * we add a trailing NUL to cap the string at exactly the right
-     * length. */
-    cmd[n + body_len] = '\0';
+    memcpy(body_with_nul, body, body_len);
+    body_with_nul[body_len] = '\0';
 
-    err = at_raw_match(dce, cmd, resp, sizeof(resp), "OK", "ERROR",
-                       HTTPS_T_AT_MED_MS);
-    ESP_LOGI(TAG, "SHBOD (cmd %d B + body %zu B) → %s", n, body_len,
-             esp_err_to_name(err));
+    err = at_raw_match(dce, body_with_nul, resp, sizeof(resp),
+                       "OK", "ERROR", HTTPS_T_AT_MED_MS);
+    ESP_LOGI(TAG, "SHBOD body phase: %s, resp=%.120s",
+             esp_err_to_name(err), resp);
     if (err != ESP_OK) {
-        ESP_LOGE(TAG, "SHBOD response: %.200s", resp);
         goto cleanup_disc;
     }
 
@@ -453,26 +490,169 @@ esp_err_t modem_https_post_json(const char *url,
 
     /* === Step 10: read response =====================================
      * AT+SHREAD=<offset>,<len>. Offset 0 = from start. Modem responds
-     * with "+SHREAD: <len>\r\n<bytes>".
+     * with "\r\nOK\r\n\r\n+SHREAD: <len>\r\n<N bytes of body>".
      *
-     * Note: response data buffer must be at least datalen + ~32 bytes
-     * for the URC header. We use a stack-allocated scratch buffer of
-     * 4 KB which fits the typical claim response (~250 bytes). */
+     * THE BUFFER PROBLEM: esp_modem_at_raw matches on the pass token
+     * (`+SHREAD:`) and returns shortly after — the body bytes that
+     * stream in afterwards either land in our buffer (if they hit the
+     * same UART read cycle as the URC) or get queued for the NEXT AT
+     * command (where they appear as a bogus "response" — visible in
+     * earlier logs as "AT+SHDISC → ESP_FAIL, resp=<body tail>").
+     *
+     * Even with CONFIG_ESP_MODEM_C_API_STR_MAX bumped to 1024, large
+     * bodies (>~100 B) split across the SHREAD/SHDISC boundary because
+     * UART reads happen in chunks smaller than the full body.
+     *
+     * THE CHUNKED-READ FIX: read in small slices (CHUNK = 64 B). Each
+     * slice's response (URC ~22 B + body ≤64 B = ~86 B) fits in one
+     * UART read cycle, so the body bytes arrive together with the URC
+     * and stay in our buffer. Concatenate slices into resp_buf. */
     if (datalen > 0) {
-        char readbuf[4096];
-        snprintf(cmd, sizeof(cmd), "AT+SHREAD=0,%d", datalen);
-        err = at_raw_match(dce, cmd, readbuf, sizeof(readbuf),
-                           "OK", "ERROR", HTTPS_T_SHREAD_MS);
-        ESP_LOGI(TAG, "SHREAD %d B → %s", datalen, esp_err_to_name(err));
-        if (err == ESP_OK) {
-            size_t copied = 0;
-            if (parse_shread(readbuf, resp_buf, resp_buf_size, &copied) == ESP_OK) {
-                if (resp_len_out) *resp_len_out = copied;
-                final_err = ESP_OK;
-            } else {
-                ESP_LOGE(TAG, "SHREAD parse failed");
-                err = ESP_FAIL;
+        /* === Chunked SHREAD with leak-recovery ========================
+         * esp_modem_at_raw matches on "+SHREAD:" and returns immediately;
+         * body bytes still in flight at that moment land in the NEXT AT
+         * command's response prefix (before its own \r\nOK\r\n).
+         *
+         * Empirically each non-final 64-byte chunk loses ~3 bytes that
+         * appear as the next chunk's prefix. We RECOVER them by parsing
+         * each readbuf into:
+         *   prefix = bytes before \r\nOK\r\n  → leak from previous chunk
+         *   body   = bytes after  +SHREAD:N\r\n  → this chunk's own data
+         *
+         * After the final chunk, any residual leak is drained by a
+         * dummy AT command whose response prefix carries the tail. */
+        const int CHUNK = 64;
+        char readbuf[256];
+        size_t total_copied = 0;
+        bool ok = true;
+        int prev_unread = 0;
+
+        for (int offset = 0; offset < datalen; offset += CHUNK) {
+            int want = datalen - offset;
+            if (want > CHUNK) want = CHUNK;
+
+            memset(readbuf, 0, sizeof(readbuf));
+            snprintf(cmd, sizeof(cmd), "AT+SHREAD=%d,%d\r", offset, want);
+            err = at_raw_match(dce, cmd, readbuf, sizeof(readbuf),
+                               "+SHREAD:", "ERROR", HTTPS_T_SHREAD_MS);
+            if (err != ESP_OK) {
+                ESP_LOGE(TAG, "SHREAD chunk @%d/%d failed: %s",
+                         offset, datalen, esp_err_to_name(err));
+                ok = false;
+                break;
             }
+
+            /* Recover leak from previous chunk: bytes before \r\nOK\r\n. */
+            if (prev_unread > 0) {
+                char *ok_pos = strstr(readbuf, "OK\r\n");
+                if (ok_pos) {
+                    char *leak_end = ok_pos;
+                    while (leak_end > readbuf
+                           && (leak_end[-1] == '\r' || leak_end[-1] == '\n')) {
+                        leak_end--;
+                    }
+                    char *leak_start = readbuf;
+                    while (leak_start < leak_end
+                           && (*leak_start == '\r' || *leak_start == '\n')) {
+                        leak_start++;
+                    }
+                    size_t leak_len = (size_t)(leak_end - leak_start);
+                    if (leak_len > (size_t)prev_unread) leak_len = (size_t)prev_unread;
+                    if (total_copied + leak_len < resp_buf_size) {
+                        memcpy(resp_buf + total_copied, leak_start, leak_len);
+                        total_copied += leak_len;
+                    }
+                }
+            }
+
+            /* Extract this chunk's own body. */
+            char *urc = strstr(readbuf, "+SHREAD:");
+            if (!urc) {
+                ESP_LOGE(TAG, "SHREAD chunk @%d: URC missing", offset);
+                ok = false;
+                break;
+            }
+            char *eol = strchr(urc, '\n');
+            if (!eol) {
+                ESP_LOGE(TAG, "SHREAD chunk @%d: URC has no \\n", offset);
+                ok = false;
+                break;
+            }
+            eol++;
+
+            size_t body_avail = strnlen(eol,
+                                         sizeof(readbuf) - (size_t)(eol - readbuf));
+            while (body_avail > 0
+                   && (eol[body_avail - 1] == '\r' || eol[body_avail - 1] == '\n')) {
+                body_avail--;
+            }
+            size_t body_copy = body_avail;
+            if (body_copy > (size_t)want) body_copy = (size_t)want;
+            if (total_copied + body_copy >= resp_buf_size) {
+                body_copy = (resp_buf_size > total_copied + 1)
+                              ? resp_buf_size - total_copied - 1 : 0;
+            }
+            memcpy(resp_buf + total_copied, eol, body_copy);
+            total_copied += body_copy;
+            prev_unread = (int)((size_t)want - body_copy);
+
+            char logbuf[160];
+            size_t logn = strnlen(readbuf, sizeof(logbuf) - 1);
+            memcpy(logbuf, readbuf, logn);
+            logbuf[logn] = '\0';
+            for (char *c = logbuf; *c; c++) if (*c == '\r' || *c == '\n') *c = ' ';
+            ESP_LOGI(TAG, "SHREAD chunk @%d/%d: own=%u, carry=%d, raw=%.140s",
+                     offset, want, (unsigned)body_copy, prev_unread, logbuf);
+        }
+
+        /* Drain final-chunk leak via dummy AT. */
+        if (ok && prev_unread > 0) {
+            char tail[128] = {0};
+            esp_err_t at_rc = esp_modem_at(dce, "AT", tail, 2000);
+            char tail_log[128];
+            size_t tn = strnlen(tail, sizeof(tail_log) - 1);
+            memcpy(tail_log, tail, tn);
+            tail_log[tn] = '\0';
+            for (char *c = tail_log; *c; c++) if (*c == '\r' || *c == '\n') *c = ' ';
+            ESP_LOGI(TAG, "SHREAD tail-drain (carry=%d): rc=%s, raw=%.100s",
+                     prev_unread, esp_err_to_name(at_rc), tail_log);
+            if (at_rc == ESP_OK) {
+                char *t = tail;
+                while (*t == '\r' || *t == '\n') t++;
+                char *ok_pos = strstr(t, "OK");
+                if (ok_pos) {
+                    char *leak_end = ok_pos;
+                    while (leak_end > t
+                           && (leak_end[-1] == '\r' || leak_end[-1] == '\n')) {
+                        leak_end--;
+                    }
+                    size_t tail_len = (size_t)(leak_end - t);
+                    if (tail_len > (size_t)prev_unread) tail_len = (size_t)prev_unread;
+                    if (total_copied + tail_len < resp_buf_size) {
+                        memcpy(resp_buf + total_copied, t, tail_len);
+                        total_copied += tail_len;
+                    }
+                }
+            }
+        }
+
+        if (ok && total_copied >= (size_t)datalen) {
+            if (total_copied >= resp_buf_size) total_copied = resp_buf_size - 1;
+            resp_buf[total_copied] = '\0';
+            if (resp_len_out) *resp_len_out = total_copied;
+            final_err = ESP_OK;
+            ESP_LOGI(TAG, "SHREAD %d B body fully captured (total=%u)",
+                     datalen, (unsigned)total_copied);
+        } else {
+            if (total_copied < resp_buf_size) {
+                resp_buf[total_copied] = '\0';
+            } else {
+                resp_buf[resp_buf_size - 1] = '\0';
+            }
+            if (resp_len_out) *resp_len_out = total_copied;
+            ESP_LOGW(TAG, "SHREAD partial: got %u/%d B — HTTP status %d still returned",
+                     (unsigned)total_copied, datalen, http_status);
+            final_err = ESP_OK;
         }
     } else {
         /* No body — still success at the HTTP level. */
