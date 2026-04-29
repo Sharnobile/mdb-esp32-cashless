@@ -2248,30 +2248,35 @@ void provision_claim_task(void *arg) {
     char url[192];
     snprintf(url, sizeof(url), "%s/functions/v1/claim-device", srv_url);
 
-    /* === DIAGNOSTIC: cross-endpoint TLS test ===========================
+    /* === DIAGNOSTIC: cross-endpoint TLS test (round 2) ==================
      *
-     * Set DEBUG_PROVISION_TEST_URL to override the claim URL with a known
-     * non-Cloudflare endpoint. Used to isolate whether the TLS-handshake
-     * stall observed against `supabase-test.kerl-handel.de` is specific
-     * to Cloudflare / the user's backend, or fundamental to the cellular
-     * + mbedtls + lwIP stack.
+     * Round 1 (e5d980b) targeted https://example.com/, which I assumed
+     * was Verisign-hosted. The mbedtls debug log proved otherwise: cert
+     * subject was example.com but issuer was "Cloudflare TLS Issuing
+     * ECC CA 1" — example.com has been migrated behind Cloudflare's CDN.
+     * So that test didn't actually isolate Cloudflare as a variable.
      *
-     * What to expect:
-     *   - example.com is hosted by Verisign, NOT on Cloudflare. Returns
-     *     200 + a static HTML page for any method, including POST.
-     *   - Our claim handler will parse the response, fail to find the
-     *     required JSON fields, and log "HTTP 200 but response missing
-     *     required fields — giving up". That's expected — we don't care
-     *     about the HTTP semantics, we just want to see if the TLS
-     *     handshake completes.
-     *   - If TLS completes against example.com but NOT against Cloudflare:
-     *     → the issue is Cloudflare-specific (config, edge timeout, WAF).
-     *   - If TLS also EOFs against example.com: → fundamental cellular/
-     *     mbedtls/lwIP problem, not a backend issue.
+     * Round 2 uses https://www.google.com/ — verifiably Google Frontend
+     * (GFE) on Google's own anycast network, NOT Cloudflare. Cert signed
+     * by Google Trust Services. Different TLS terminator, different
+     * upstream behaviour, completely different edge infrastructure.
      *
-     * To revert: comment out the #define line, rebuild.
+     * Hypothesis under test: same TLS-handshake-stall symptom (CKE+CCS+
+     * Finished sent successfully on our side, then 60 s of dead silence
+     * waiting for server's NewSessionTicket/CCS/Finished, then path goes
+     * physically dead). If yes → it's NOT Cloudflare-specific, it's
+     * cellular-layer (most likely Telekom IoT forcing PSM/RRC-IDLE
+     * despite our AT+CPSMS=0, server's reply arrives at a sleeping
+     * modem, never reaches the host PPP stack).
+     *
+     * What to expect: GET-only static page, returns 200 + HTML. Our
+     * claim handler will log "HTTP 200 but response missing required
+     * fields — giving up" — same as round 1. We don't care about the
+     * HTTP body, only whether the handshake completes.
+     *
+     * To revert: comment out DEBUG_PROVISION_TEST_URL, rebuild.
      * =================================================================== */
-    #define DEBUG_PROVISION_TEST_URL "https://example.com/"
+    #define DEBUG_PROVISION_TEST_URL "https://www.google.com/"
     #ifdef DEBUG_PROVISION_TEST_URL
     snprintf(url, sizeof(url), "%s", DEBUG_PROVISION_TEST_URL);
     ESP_LOGW(TAG, "PROV: ⚠ DEBUG mode — overriding URL to %s (TLS isolation test)", url);
