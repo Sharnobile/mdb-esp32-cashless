@@ -222,64 +222,91 @@ esp_err_t modem_https_post_json(const char *url,
 
     char cmd[512];
     char resp[512];
-    esp_err_t err;
+    esp_err_t err = ESP_OK;
     esp_err_t final_err = ESP_FAIL;
+    int active_bearer = -1;   /* -1 = unknown/inactive; set in step 2 */
 
-    /* === Step 0: release the dial-up PDP context + defensive cleanup
+    /* === Step 0: pre-flight diagnostic ===============================
      *
-     * Field log 2026-04-29 (commit 524c92c) showed AT+CNACT=0,1
-     * succeeding then the modem becoming completely unresponsive —
-     * neither our cnact_wait_active polls nor the watchdog AT pings
-     * could reach it for 90 s. Diagnosis: the PPP teardown only
-     * detached our host PPP layer; the modem-side PDP context (CID 1)
-     * stayed auto-attached on LTE. CNACT bearer 0 then tried to bind
-     * to the same PDP context, conflicting with the still-bound dial-up
-     * service, and the modem firmware locked up while resolving the
-     * conflict.
+     * Field log 2026-04-29 (commit e366435) revealed that AT+CNACT?
+     * only returns bearer 3 on this SIM7080G — bearer 0 (which we've
+     * been targeting per SIMCom's reference flow) doesn't appear in
+     * the response. Either esp_modem truncates the multi-line CNACT?
+     * response keeping only the last line, OR this firmware variant
+     * uses bearer 3 instead of bearer 0 for the internal stack.
      *
-     * Fix: explicitly release PDP context 1 via AT+CGACT=0,1 BEFORE
-     * touching CNACT. SIMCom's warning against CGACT applies to
-     * CGACT=1,1 (manual ACTIVATE — they say "for simulators only");
-     * CGACT=0,1 (deactivate) is fine on real networks and is the
-     * proper way to release a dial-up bearer. After this, the next
-     * CFUN cycle or registration will auto-reattach if needed; the
-     * internal stack (CNACT) gets a clean PDP slot.
-     *
-     * Followed by a defensive SHDISC + CNACT=0,0 in case any prior
-     * session left state behind. Both best-effort. */
-    at_simple(dce, "AT+CGACT=0,1",  HTTPS_T_AT_MED_MS);
+     * One-shot diagnostic block: log firmware ID + the relevant context
+     * states so we have ground-truth for the next decision. After this
+     * dataset comes back from the field we'll know whether to switch
+     * bearer index, fix the response capture, or try a different
+     * approach entirely. */
+    at_simple(dce, "AT+SIMCOMATI",  HTTPS_T_AT_SHORT_MS);
+    at_simple(dce, "AT+CGMR",       HTTPS_T_AT_SHORT_MS);
+    at_simple(dce, "AT+CGATT?",     HTTPS_T_AT_SHORT_MS);
+    at_simple(dce, "AT+CGACT?",     HTTPS_T_AT_SHORT_MS);
+    at_simple(dce, "AT+CNACT?",     HTTPS_T_AT_SHORT_MS);
+
+    /* === Step 1: defensive cleanup ===================================
+     * SHDISC + CNACT=0,0 + CNACT=3,0 — disable any lingering session
+     * on either bearer 0 or bearer 3. Best-effort. */
     at_simple(dce, "AT+SHDISC",     HTTPS_T_AT_SHORT_MS);
     at_simple(dce, "AT+CNACT=0,0",  HTTPS_T_AT_SHORT_MS);
-    vTaskDelay(pdMS_TO_TICKS(2000));
+    at_simple(dce, "AT+CNACT=3,0",  HTTPS_T_AT_SHORT_MS);
+    vTaskDelay(pdMS_TO_TICKS(1000));
 
-    /* === Step 1: configure internal-bearer APN ====================== */
+    /* === Step 2: configure + activate internal bearer ================
+     * Two-pass strategy: try bearer 0 first (SIMCom canonical), then
+     * fall back to bearer 3 if 0 doesn't appear active within 5 s.
+     * Field log e366435 showed only bearer 3 visible in CNACT? on this
+     * firmware — but until we know if that's a parser artefact or real
+     * firmware behaviour, we try both. */
+
+    /* Try bearer 0 first. */
     snprintf(cmd, sizeof(cmd), "AT+CNCFG=0,1,\"%s\"", apn);
-    err = at_simple(dce, cmd, HTTPS_T_AT_SHORT_MS);
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "CNCFG failed");
-        final_err = err;
-        goto cleanup_disc;
+    at_simple(dce, cmd, HTTPS_T_AT_SHORT_MS);
+    at_simple(dce, "AT+CNACT=0,1", HTTPS_T_AT_SHORT_MS);
+
+    /* Fast 5 s probe: did bearer 0 come up? */
+    {
+        TickType_t end = xTaskGetTickCount() + pdMS_TO_TICKS(5000);
+        while (xTaskGetTickCount() < end) {
+            char r[256] = {0};
+            if (esp_modem_at(dce, "AT+CNACT?", r, 2000) == ESP_OK) {
+                for (char *c = r; *c; c++) if (*c == '\r' || *c == '\n') *c = ' ';
+                ESP_LOGI(TAG, "CNACT? probe: %.180s", r);
+                if (strstr(r, "+CNACT: 0,1")) { active_bearer = 0; break; }
+                if (strstr(r, "+CNACT: 3,1")) { active_bearer = 3; break; }
+            }
+            vTaskDelay(pdMS_TO_TICKS(1000));
+        }
     }
 
-    /* === Step 2: activate internal bearer ============================
-     * AT+CNACT=0,1 returns OK on command-accept, but the bearer isn't
-     * actually usable until the "+APP PDP: 0,ACTIVE" URC arrives — and
-     * even that can lag the IP assignment. We poll AT+CNACT? until the
-     * status byte for bearer 0 reports 1 (active), with up to 30 s
-     * budget. SHCONN against an inactive bearer fails in ~600 ms with
-     * a misleading error — gating on actual status is much more
-     * reliable than the fixed-sleep version we had before. */
-    err = at_simple(dce, "AT+CNACT=0,1", HTTPS_T_AT_SHORT_MS);
-    if (err != ESP_OK) {
-        ESP_LOGW(TAG, "CNACT command rejected — may already be active or busy");
-        /* Don't bail — proceed to poll, the bearer might come up anyway. */
+    /* If bearer 0 didn't activate, try bearer 3 explicitly. */
+    if (active_bearer < 0) {
+        ESP_LOGW(TAG, "bearer 0 didn't activate — falling back to bearer 3");
+        snprintf(cmd, sizeof(cmd), "AT+CNCFG=3,1,\"%s\"", apn);
+        at_simple(dce, cmd, HTTPS_T_AT_SHORT_MS);
+        at_simple(dce, "AT+CNACT=3,1", HTTPS_T_AT_SHORT_MS);
+
+        TickType_t end = xTaskGetTickCount() + pdMS_TO_TICKS(15000);
+        while (xTaskGetTickCount() < end && active_bearer < 0) {
+            char r[256] = {0};
+            if (esp_modem_at(dce, "AT+CNACT?", r, 2000) == ESP_OK) {
+                for (char *c = r; *c; c++) if (*c == '\r' || *c == '\n') *c = ' ';
+                ESP_LOGI(TAG, "CNACT? probe (b3): %.180s", r);
+                if (strstr(r, "+CNACT: 0,1")) { active_bearer = 0; break; }
+                if (strstr(r, "+CNACT: 3,1")) { active_bearer = 3; break; }
+            }
+            vTaskDelay(pdMS_TO_TICKS(1000));
+        }
     }
-    err = cnact_wait_active(dce, HTTPS_T_BEARER_MS);
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "bearer never reached ACTIVE state");
-        final_err = err;
+
+    if (active_bearer < 0) {
+        ESP_LOGE(TAG, "neither bearer 0 nor bearer 3 ever became active");
+        final_err = ESP_ERR_TIMEOUT;
         goto cleanup_disc;
     }
+    ESP_LOGI(TAG, "active bearer = %d", active_bearer);
 
     /* === Step 3: SSL config (TLS 1.2 on SSL slot 1) ================== */
     at_simple(dce, "AT+CSSLCFG=\"sslversion\",1,3", HTTPS_T_AT_SHORT_MS);
@@ -420,9 +447,14 @@ cleanup_disc:
     at_simple(dce, "AT+SHDISC", HTTPS_T_AT_SHORT_MS);
 
     /* === Step 12: deactivate internal bearer ========================
-     * Cleanup. Returns OK immediately, "+APP PDP: 0,DEACTIVE" arrives
-     * later as URC — we don't wait for it. */
-    at_simple(dce, "AT+CNACT=0,0", HTTPS_T_AT_SHORT_MS);
+     * Cleanup. Returns OK immediately, "+APP PDP: <n>,DEACTIVE" arrives
+     * later as URC — we don't wait for it. Deactivate whichever bearer
+     * was active (or both as a defensive measure). */
+    if (active_bearer == 3) {
+        at_simple(dce, "AT+CNACT=3,0", HTTPS_T_AT_SHORT_MS);
+    } else {
+        at_simple(dce, "AT+CNACT=0,0", HTTPS_T_AT_SHORT_MS);
+    }
 
     return final_err == ESP_OK ? ESP_OK : (err != ESP_OK ? err : ESP_FAIL);
 }
