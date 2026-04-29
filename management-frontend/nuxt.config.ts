@@ -48,6 +48,8 @@ export default defineNuxtConfig({
       appVersion: pkg.version,
       gitHash: process.env.GIT_HASH ?? 'dev',
       buildDate: process.env.BUILD_DATE ?? '',
+      envName: process.env.ENV_NAME ?? '',
+      envColor: process.env.ENV_COLOR ?? 'amber',
     },
   },
   i18n: {
