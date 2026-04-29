@@ -527,18 +527,17 @@ esp_err_t modem_init(const char *apn, const char *pin, modem_lte_mode_t mode) {
 
     esp_err_t err;
 
-    /* AT+CSCLK=0: disable the modem's slow-clock / sleep-on-UART-idle
-     * mode. SIM7080G default is CSCLK=2 (auto-sleep based on UART
-     * inactivity). On a plug-powered MDB cashless device we never want
-     * the modem CPU to sleep — sleep transitions cost milliseconds of
-     * wake-up latency on every inbound packet, which compounds with
-     * Telekom IoT's already-aggressive carrier-side timers and produces
-     * the "TLS handshake stalls after final flight" symptom (field log
-     * 2026-04-29: keep-warm probes to 1.1.1.1:53 saw 90 % loss after
-     * the cellular path's initial activity window).
+    /* AT+CSCLK=0: disable the modem's slow-clock / DTR-controlled sleep
+     * mode. SIMCom AT Command Manual V1.05 §5.2.7 documents two modes:
+     * 0 = disable, 1 = DTR-controlled. On a plug-powered MDB cashless
+     * device we never want sleep, so 0 is correct. (Earlier code comment
+     * here referenced a "CSCLK=2 = auto-sleep on UART idle" mode — that
+     * does NOT exist in the documented SIM7080G AT manual; it was likely
+     * confusion with older SIM800-series modules. Sending CSCLK=0 still
+     * helps because it ensures the value is set even if some firmware
+     * rev defaults to 1 with floating DTR.)
      *
-     * Best-effort: we don't bail if it fails — some firmware revs
-     * either lack the command or default to 0 anyway. */
+     * Best-effort. */
     err = esp_modem_at(s_dce, "AT+CSCLK=0", NULL, 5000);
     ESP_LOGI(TAG, "AT+CSCLK=0: %s", esp_err_to_name(err));
 
@@ -552,23 +551,36 @@ esp_err_t modem_init(const char *apn, const char *pin, modem_lte_mode_t mode) {
     ESP_LOGI(TAG, "AT+CGEREP=2,1: %s", esp_err_to_name(err));
 
     /* SIM PIN, if provided. AT+CPIN expects only the PIN if it's needed;
-     * if the SIM is PIN-less, sending AT+CPIN errors and we ignore that. */
+     * if the SIM is PIN-less, sending AT+CPIN errors and we ignore that.
+     * Done before the CFUN=0 cycle so the SIM is unlocked early — CPIN
+     * needs the SIM powered, which is most reliable at default CFUN=1. */
     if (pin && strlen(pin) > 0) {
         err = esp_modem_set_pin(s_dce, pin);
         ESP_LOGI(TAG, "esp_modem_set_pin: %s", esp_err_to_name(err));
         /* Tolerate failure — SIM may not require PIN. */
     }
 
-    /* Network mode: 38 = LTE only (we don't want GSM fallback).
-     * CNMP/CMNB/CEREG=1 are best-effort — some SIM7080G firmware revisions
-     * accept the value but still negotiate the right RAT, others reject
-     * the command and pick a default that's good enough. We log the
-     * outcome but do not fail modem_init() on it; the registration check
-     * in modem_connect() is the load-bearing gate.
+    /* Vendor-canonical RAT-change cycle: CFUN=0 → set network mode →
+     * (modem_connect later does CFUN=1 to re-attach with new config).
      *
-     * Bumped to 8s timeout: a freshly-booted SIM7080G often takes 4-6s
-     * to acknowledge config commands while internal init is still
-     * running. With 3s some firmware revs always look "broken". */
+     * SIMCom AT Command Manual + Low-Power-Mode Application Note §6.2
+     * publishes this exact pattern as the recommended way to apply
+     * CNMP/CMNB/CGDCONT cleanly. The values are all AUTO_SAVE per S1
+     * §5.2.16/5.2.17, so technically they apply immediately, but every
+     * vendor reference (SIMCom S6, LilyGo MinimalModemNBIOTExample)
+     * wraps the changes in a CFUN=0/1 cycle to force a clean detach +
+     * re-attach with the new RAT. Without the cycle, the running radio
+     * may stay on the previous RAT until the next involuntary
+     * re-attach, leading to inconsistent behaviour across boots.
+     *
+     * Best-effort: if CFUN=0 fails (modem already in CFUN=0 from boot,
+     * or some firmware revs that error on no-op state changes) we
+     * still proceed — the worst case is the cycle didn't happen and
+     * we end up where we started. */
+    err = esp_modem_at(s_dce, "AT+CFUN=0", NULL, 15000);
+    ESP_LOGI(TAG, "AT+CFUN=0 (radio off for clean RAT change): %s", esp_err_to_name(err));
+
+    /* Network mode: 38 = LTE only (we don't want GSM fallback). */
     err = esp_modem_at(s_dce, "AT+CNMP=38", NULL, 8000);
     ESP_LOGI(TAG, "AT+CNMP=38: %s", esp_err_to_name(err));
 
@@ -579,13 +591,16 @@ esp_err_t modem_init(const char *apn, const char *pin, modem_lte_mode_t mode) {
     ESP_LOGI(TAG, "%s: %s", cmnb_cmd, esp_err_to_name(err));
 
     /* Configure APN via the esp_modem helper (writes AT+CGDCONT). This
-     * one IS load-bearing — without an APN the modem cannot attach. */
+     * one IS load-bearing — without an APN the modem cannot attach.
+     * Set with radio off (CFUN=0) so the next CFUN=1 attaches cleanly
+     * with the new APN, matching SIMCom S6 §6.2 reference flow. */
     err = esp_modem_set_apn(s_dce, apn);
     ESP_LOGI(TAG, "esp_modem_set_apn(%s): %s", apn, esp_err_to_name(err));
     if (err != ESP_OK) return err;
 
-    /* Enable +CEREG URC so we can poll registration cleanly later.
-     * Best-effort like CNMP/CMNB. */
+    /* Enable +CEREG URC BEFORE the next CFUN=1 (in modem_connect) so
+     * the URC fires on the post-attach registration event. If we set
+     * it after CFUN=1, the URC may be missed for a fast attach. */
     esp_modem_at(s_dce, "AT+CEREG=1", NULL, 8000);
 
     /* Disable PSM (Power Save Mode) and eDRX (extended Discontinuous
@@ -890,7 +905,25 @@ void modem_power_cycle(void) {
  * before bailing OFFLINE. The ppp_reconnect_task / cellular_bring_up_task
  * paths drive this ladder. */
 
-/* L1.5: PDP context cycle. Cheapest reset — keeps RF + registration. */
+/* L1.5: PDP context deactivation. Cheapest reset — keeps RF + registration.
+ *
+ * IMPORTANT: We deliberately do NOT call AT+CGACT=1,1 to re-activate.
+ * SIMCom AT Command Manual V1.05 §6.2.3 NOTE explicitly states:
+ *
+ *   "This command is used to test PDPs with network simulators.
+ *    Successful activation of PDP on real network is not guaranteed."
+ *
+ * On LTE/Cat-M/NB-IoT the default PDP context auto-activates with EPS
+ * registration — we just need to deactivate cleanly. The next CFUN=1
+ * cycle (or even just registration time) re-binds the bearer
+ * automatically. Manually issuing CGACT=1,1 is exactly what creates
+ * the half-bound "phantom-PPP" state where IPCP completes but outbound
+ * traffic silently drops at the GTP layer — see CLAUDE.md "LTE PDP
+ * context auto-activates" memory.
+ *
+ * Caller is responsible for the modem_connect() call afterwards which
+ * does CFUN=1 → CEREG poll → CGCONTRDP verify. That's the path
+ * SIMCom's own §6.2 reference flow uses. */
 esp_err_t modem_pdp_reset(void) {
     if (!s_dce) return ESP_ERR_INVALID_STATE;
 
@@ -900,12 +933,11 @@ esp_err_t modem_pdp_reset(void) {
     vTaskDelay(pdMS_TO_TICKS(500));
 
     char resp[64];
-    ESP_LOGW(TAG, "L1.5 recovery: AT+CGACT=0,1 (deactivate PDP)");
-    esp_modem_at(s_dce, "AT+CGACT=0,1", resp, 5000);
+    ESP_LOGW(TAG, "L1.5 recovery: AT+CGACT=0,1 (deactivate PDP — auto-reattach via CFUN cycle)");
+    esp_err_t err = esp_modem_at(s_dce, "AT+CGACT=0,1", resp, 5000);
     vTaskDelay(pdMS_TO_TICKS(1000));
-    ESP_LOGW(TAG, "L1.5 recovery: AT+CGACT=1,1 (re-activate PDP)");
-    esp_err_t err = esp_modem_at(s_dce, "AT+CGACT=1,1", resp, 10000);
-    ESP_LOGI(TAG, "L1.5 recovery: result=%s", esp_err_to_name(err));
+    ESP_LOGI(TAG, "L1.5 recovery: result=%s (re-activation deferred to next modem_connect)",
+             esp_err_to_name(err));
     return err;
 }
 

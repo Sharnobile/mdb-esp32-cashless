@@ -2379,9 +2379,21 @@ void provision_claim_task(void *arg) {
         }
 
         /* timeout_ms gates the entire TLS handshake + HTTP exchange.
-         * Field testing on Telekom IoT cellular showed legit TLS
-         * handshakes to Cloudflare-fronted endpoints take ~15-20 s
-         * (cert validation alone is ~1.4 s, and the post-cert finish
+         *
+         * Bumped 60 → 90 s on 2026-04-29 to match the upper-bound
+         * recommendation Nordic Semi published for LPWAN+TLS field
+         * deployments (devzone post on nRF9160 / BG96 NB-IoT TCP
+         * retransmissions): "the modem seems to not accept any further
+         * segments for a period of approximately 20 seconds after
+         * receiving the first TCP segment of a large data packet."
+         * A 60 s budget is on the edge once you account for our 1.4 s
+         * cert validation + 20 s post-burst pause + actual handshake
+         * round-trips; 90 s gives proper headroom for marginal
+         * LTE-M/NB-IoT cells without unbounding the wait.
+         *
+         * Background: field testing on Telekom IoT cellular showed
+         * legit TLS handshakes to Cloudflare-fronted endpoints take
+         * ~15-20 s (cert validation alone is ~1.4 s, post-cert finish
          * round-trip can stall for many seconds while packets cross
          * the carrier's deep PPP buffer). 15 s killed every attempt:
          *
@@ -2391,8 +2403,7 @@ void provision_claim_task(void *arg) {
          *                                                  (+15.2 s total)
          *
          * mbedTLS interpreted our select() timeout as a server FIN
-         * (CONN_EOF). 60 s gives realistic cellular handshakes room
-         * without unbounding the wait. */
+         * (CONN_EOF). */
         /* TCP keepalive on the claim socket — fixes the LTE-M
          * "TLS-handshake stalls after we send Finished" symptom.
          *
@@ -2435,7 +2446,7 @@ void provision_claim_task(void *arg) {
             .url                 = url,
             .method              = HTTP_METHOD_POST,
             .crt_bundle_attach   = use_tls ? esp_crt_bundle_attach : NULL,
-            .timeout_ms          = 60000,
+            .timeout_ms          = 90000,
             .keep_alive_enable   = true,
             .keep_alive_idle     = 3,
             .keep_alive_interval = 1,
