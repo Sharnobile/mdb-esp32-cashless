@@ -560,25 +560,28 @@ esp_err_t modem_init(const char *apn, const char *pin, modem_lte_mode_t mode) {
         /* Tolerate failure — SIM may not require PIN. */
     }
 
-    /* Vendor-canonical RAT-change cycle: CFUN=0 → set network mode →
-     * (modem_connect later does CFUN=1 to re-attach with new config).
+    /* NOTE on the missing AT+CFUN=0 cycle: SIMCom's S6 §6.2 reference
+     * flow wraps CNMP/CMNB/CGDCONT in CFUN=0 → ... → CFUN=1, and an
+     * earlier version of this code did so too (commit 497d3f7). Field
+     * log 2026-04-29 (firmware f5d34bf) showed that introducing the
+     * CFUN=0 cycle caused the FIRST PPP attempt after boot to fail
+     * with IPCP timeout (30 s wait) — the post-CFUN=1 reattach left
+     * the PDP context in a half-bound state where CGCONTRDP reports
+     * the bearer "active" but the actual data plane isn't yet ready
+     * for ATD*99##. The L1.5 recovery (now just CGACT=0,1, no
+     * re-activate) then fixed it on the second try.
      *
-     * SIMCom AT Command Manual + Low-Power-Mode Application Note §6.2
-     * publishes this exact pattern as the recommended way to apply
-     * CNMP/CMNB/CGDCONT cleanly. The values are all AUTO_SAVE per S1
-     * §5.2.16/5.2.17, so technically they apply immediately, but every
-     * vendor reference (SIMCom S6, LilyGo MinimalModemNBIOTExample)
-     * wraps the changes in a CFUN=0/1 cycle to force a clean detach +
-     * re-attach with the new RAT. Without the cycle, the running radio
-     * may stay on the previous RAT until the next involuntary
-     * re-attach, leading to inconsistent behaviour across boots.
+     * That regression cost ~70 s on every cold boot for a "vendor
+     * conformity" benefit that doesn't apply to PPP — Espressif's own
+     * esp_modem ESP_MODEM_DCE_SIM7070 example does NOT do the cycle,
+     * because for PPP the ATD*99## itself triggers the data-plane
+     * bind, not CFUN=1. The S6 canonical flow is for the modem's
+     * INTERNAL TCP stack (CNACT/CIPSTART), not host PPP.
      *
-     * Best-effort: if CFUN=0 fails (modem already in CFUN=0 from boot,
-     * or some firmware revs that error on no-op state changes) we
-     * still proceed — the worst case is the cycle didn't happen and
-     * we end up where we started. */
-    err = esp_modem_at(s_dce, "AT+CFUN=0", NULL, 15000);
-    ESP_LOGI(TAG, "AT+CFUN=0 (radio off for clean RAT change): %s", esp_err_to_name(err));
+     * So we deliberately do NOT cycle CFUN here. CNMP/CMNB are
+     * AUTO_SAVE per S1 §5.2.16/5.2.17 — they apply immediately
+     * without a cycle, and modem_connect's CFUN=1 (which is a no-op
+     * if already at 1) handles the registration. */
 
     /* Network mode: 38 = LTE only (we don't want GSM fallback). */
     err = esp_modem_at(s_dce, "AT+CNMP=38", NULL, 8000);
