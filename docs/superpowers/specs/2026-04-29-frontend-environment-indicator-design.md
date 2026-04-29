@@ -15,6 +15,7 @@ We need an unmistakable, persistent visual indicator on every non-production dep
 - Configurable label (`dev`, `test`, `staging`, ...) and color via runtime env vars
 - Production default is "no banner" — an unconfigured deployment is never falsely shown as dev
 - No build-time coupling — one frontend image deploys to all environments
+- Banner stays pinned to the top of the viewport while content scrolls
 - Interactive prompt in `setup.sh` for fresh installs; no behavior change for existing prod installs on `update.sh`
 
 ## Non-Goals
@@ -33,7 +34,7 @@ Two new `NUXT_PUBLIC_*` env vars, following the existing pattern (placeholder bu
 | `NUXT_PUBLIC_ENV_NAME` | any string, or empty / `prod` / `production` | empty | Empty / `prod` / `production` (case-insensitive) → no banner. Anything else → banner with this name in uppercase. |
 | `NUXT_PUBLIC_ENV_COLOR` | `red`, `amber`, `orange`, `purple`, `blue` | `amber` | Banner color. Unrecognized value → falls back to `amber`. |
 
-Safe-default rationale: a fresh install or forgotten variable produces no banner (production-safe). The opposite failure mode — a real production instance falsely marked as dev — is impossible without explicit miscofiguration.
+Safe-default rationale: a fresh install or forgotten variable produces no banner (production-safe). The opposite failure mode — a real production instance falsely marked as dev — is impossible without explicit misconfiguration.
 
 ## Architecture
 
@@ -58,10 +59,11 @@ useEnvironment() → {
 
 Self-contained UI. Renders nothing when `!showBanner` (zero footprint in production). Otherwise:
 
-- Thin full-width strip at the very top of the viewport
-- `pt-[env(safe-area-inset-top)]` so iOS notch / status-bar area is also colored
+- `sticky top-0 z-50` so it stays pinned at the top of the viewport while content scrolls — keeping the indicator visible at all times is part of the goal
+- Full-width, `pt-[env(safe-area-inset-top)]` so the iOS notch / status-bar area is also colored
 - Centered content: warning icon (`IconAlertTriangle` from `@tabler/icons-vue`) + env name in uppercase, semibold
 - Total content height ~28 px (plus safe-area padding when present)
+- Colors are intentionally identical in light and dark mode — a warning indicator must remain prominent regardless of theme
 - Color resolved through a static class map so Tailwind 4 JIT picks the literal class names:
 
   ```ts
@@ -89,7 +91,19 @@ Banner is rendered once at the top level, before `<NuxtLayout>`:
 </template>
 ```
 
-Single mount point covers every layout — `default.vue`, `blank.vue` (auth / onboarding), and any future layout — without per-layout edits. Because the banner is the first child, it occupies the top of the viewport in natural document flow; the existing layouts' internal scroll containers (`SidebarInset`, `<slot />`) live below it and behave unchanged.
+Single mount point covers every layout — `default.vue`, `blank.vue` (auth / onboarding), and any future layout — without per-layout edits. The banner is `sticky` to its scroll container, so it stays at the top of the viewport while page content scrolls. Vue 3 multi-root templates are supported; the `<EnvironmentBanner />` sibling of `<NuxtLayout>` is intentional.
+
+#### Interaction with `SiteHeader`'s safe-area padding
+
+`app/components/SiteHeader.vue:11` currently uses `pt-[env(safe-area-inset-top)]` so the iOS notch is handled when the header is at the top of the viewport. With the banner inserted above the header (and absorbing the safe-area inset itself), the header's existing padding becomes redundant on iOS PWA / standalone — both elements would each insert one safe-area-height of empty space, producing visible dead-space below the banner.
+
+The implementation must address this. Acceptable approaches (planner picks one):
+
+1. **CSS-only via `:has()` / `has-*` Tailwind variant** — change `SiteHeader`'s class to `has-[~_.env-banner]:pt-0` or use a body-level class set when the banner is rendered, and override `SiteHeader`'s padding to `0` in that case.
+2. **Prop-driven** — `SiteHeader` accepts an optional `:hasBannerAbove` prop and conditionally drops its `pt-[env(safe-area-inset-top)]`. The `default.vue` layout passes `:has-banner-above="showBanner"` from `useEnvironment()`.
+3. **CSS variable** — banner sets `--env-banner-height` on `:root`; `SiteHeader` uses `pt-[max(0px,env(safe-area-inset-top)_-_var(--env-banner-height,0px))]` to avoid double-counting.
+
+Option 2 is the most explicit and easiest to reason about; option 1 is the least invasive to existing layouts. The planner should choose and document the choice.
 
 ### Runtime config wiring
 
@@ -123,7 +137,12 @@ ENV_NAME=
 ENV_COLOR=
 ```
 
-`management-frontend/.env.example` — same two lines for local dev.
+`management-frontend/.env.example` — append the same two lines for local dev:
+
+```env
+ENV_NAME=
+ENV_COLOR=
+```
 
 `Dockerfile` — **no change**. Both vars are runtime-only; the build does not need them, so the generic image still deploys everywhere.
 
@@ -176,7 +195,8 @@ if ! grep -q "^ENV_NAME=" .env; then
     cat >> .env << ENVNAMEEOF
 
 ##########
-# Frontend Environment Indicator (added by update.sh)
+# Frontend Environment Indicator
+# Auto-generated by update.sh on $(date -u +"%Y-%m-%d %H:%M:%S UTC")
 # Set ENV_NAME to "dev" / "test" / "staging" to show a colored banner.
 # Leave empty / "prod" / "production" for production deployments.
 # Color: red, amber, orange, purple, blue (default: amber)
@@ -222,6 +242,10 @@ Vitest, in line with the existing test setup (`management-frontend/vitest.config
 - Falls back to `amber` class for invalid color
 
 No E2E test needed — the banner has no interactivity.
+
+## Future polish (out of scope for v1)
+
+- **PWA `theme-color` matching the env color**: the static `theme-color` meta tags in `nuxt.config.ts` would not change with the banner; the iOS PWA chrome would still show the prod theme color even with a dev banner. Could be addressed later via a `useHead()` override driven by `useEnvironment()`.
 
 ## What this change does NOT touch
 
