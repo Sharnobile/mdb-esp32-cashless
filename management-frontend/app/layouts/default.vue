@@ -7,6 +7,7 @@ import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 
 const { showBanner, isIOS, canInstall, dismiss, promptInstall } = useInstallPrompt()
 const { updateAvailable, applyUpdate } = useAppUpdate()
+const { showBanner: showEnvBanner } = useEnvironment()
 </script>
 
 <template>
@@ -18,7 +19,7 @@ const { updateAvailable, applyUpdate } = useAppUpdate()
   >
     <AppSidebar variant="inset" />
     <SidebarInset>
-      <SiteHeader />
+      <SiteHeader :has-banner-above="showEnvBanner" />
 
       <!-- App update toast -->
       <Transition

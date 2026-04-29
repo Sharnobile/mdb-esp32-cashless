@@ -5,10 +5,19 @@ import { Separator } from '@/components/ui/separator'
 import { SidebarTrigger } from '@/components/ui/sidebar'
 
 const { isDark, toggleTheme } = useTheme()
+
+defineProps<{
+  hasBannerAbove?: boolean
+}>()
 </script>
 
 <template>
-  <header class="flex min-h-(--header-height) shrink-0 items-end gap-2 border-b pt-[env(safe-area-inset-top)] transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:min-h-(--header-height)">
+  <header
+    :class="[
+      'flex min-h-(--header-height) shrink-0 items-end gap-2 border-b transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:min-h-(--header-height)',
+      hasBannerAbove ? 'pt-0' : 'pt-[env(safe-area-inset-top)]',
+    ]"
+  >
     <div class="flex w-full items-center gap-1 px-4 py-2 lg:gap-2 lg:px-6">
       <!-- Sidebar toggle: hidden on mobile where BottomTabBar "More" replaces it -->
       <SidebarTrigger class="-ml-1 hidden md:inline-flex" />
