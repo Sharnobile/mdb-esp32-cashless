@@ -2193,6 +2193,75 @@ static const int PROV_RETRY_DELAYS_S[PROV_MAX_ATTEMPTS - 1] = {
  * re-spawn don't run two tasks against the same NVS state. */
 static volatile bool s_prov_claim_running = false;
 
+/* === Cellular keep-warm task =========================================
+ *
+ * Diagnostic round-3 (commit 2d345c8 + Google test) showed the LTE-M
+ * path goes bi-directionally dark after our final TLS handshake flight,
+ * AND that lwIP TCP keepalive probes (3 s idle / 1 s interval / 5 retries)
+ * also fail to get ACKs. Symptom: mbedtls returns NET_RECV_FAILED at
+ * ~14 s after we send Finished — that's TCP-keepalive declaring the
+ * socket dead because no probe got an ACK.
+ *
+ * Per-socket SO_KEEPALIVE wasn't enough. The hypothesis is that the
+ * Telekom IoT / sensor.net carrier puts the entire LTE-M radio into a
+ * state where small isolated probe packets get dropped/delayed —
+ * possibly RRC-IDLE with aggressive paging timers, possibly per-flow
+ * NAT aging that's faster than per-host-IP aging.
+ *
+ * Fix: a parallel low-priority FreeRTOS task that probes 1.1.1.1:53
+ * (Cloudflare anycast DNS, always reachable) every 1 s while the
+ * provision claim is in flight. This is a SEPARATE TCP socket from the
+ * HTTPS connection, so it generates outbound traffic on a different
+ * 5-tuple. Effect:
+ *   - LTE-M radio stays in RRC-CONNECTED (continuous outbound activity)
+ *   - Carrier per-IP NAT stays warm
+ *   - Our HTTPS socket's keepalive probes also start ACKing because
+ *     the radio path is alive
+ *
+ * Cost: ~84 bytes outbound per second. Over a 30 s claim attempt =
+ * 2.5 KB extra. Negligible on any cellular plan, including 1NCE's
+ * 50 MB/month.
+ *
+ * Lifecycle: started by provision_claim_task at entry, stopped at exit
+ * (success, all-attempts-failed, or task duplicate-skip). The task
+ * checks the active flag on each iteration and self-deletes when
+ * cleared. */
+static volatile bool s_keep_warm_active = false;
+static TaskHandle_t  s_keep_warm_handle = NULL;
+
+static void cellular_keep_warm_task(void *arg) {
+    (void)arg;
+    int probe_count_ok = 0, probe_count_fail = 0;
+    while (s_keep_warm_active) {
+        bool reachable = network_probe_tcp("1.1.1.1", 53, 2000);
+        if (reachable) probe_count_ok++; else probe_count_fail++;
+        /* Log every 10 probes to avoid log spam — enough to see if the
+         * keep-warm is itself failing (which would tell us the path is
+         * really dead, not just our HTTPS-specific). */
+        if (((probe_count_ok + probe_count_fail) % 10) == 0) {
+            ESP_LOGI(TAG, "keep-warm: %d ok / %d fail", probe_count_ok, probe_count_fail);
+        }
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+    ESP_LOGI(TAG, "keep-warm: stopping (final %d ok / %d fail)",
+             probe_count_ok, probe_count_fail);
+    s_keep_warm_handle = NULL;
+    vTaskDelete(NULL);
+}
+
+static void cellular_keep_warm_start(void) {
+    if (s_keep_warm_handle) return;   /* idempotent */
+    s_keep_warm_active = true;
+    xTaskCreate(cellular_keep_warm_task, "keep_warm", 4096, NULL, 3, &s_keep_warm_handle);
+}
+
+static void cellular_keep_warm_stop(void) {
+    s_keep_warm_active = false;
+    /* Don't vTaskDelete here — let the task self-delete on its next
+     * iteration so it logs the final probe stats. The active flag is
+     * the primary signal; the task checks it once per second. */
+}
+
 void provision_claim_task(void *arg) {
     if (s_prov_claim_running) {
         ESP_LOGW(TAG, "PROV: task already running — skipping duplicate spawn");
@@ -2312,6 +2381,11 @@ void provision_claim_task(void *arg) {
             probe_host[h_len] = '\0';
         }
     }
+
+    /* Start the parallel cellular keep-warm task — see definition above
+     * for full rationale. Stopped before every exit point of this
+     * function. */
+    cellular_keep_warm_start();
 
     for (int attempt = 1; attempt <= PROV_MAX_ATTEMPTS; attempt++) {
         char resp_buf[512] = {0};
@@ -2454,6 +2528,7 @@ void provision_claim_task(void *arg) {
                     cJSON_Delete(root);
                     esp_http_client_cleanup(client);
                     s_prov_claim_running = false;
+                    cellular_keep_warm_stop();
                     tracked_restart("provision");
                     /* not reached */
                 }
@@ -2493,6 +2568,7 @@ void provision_claim_task(void *arg) {
                   "available for retry (or factory reset to start over)",
              PROV_MAX_ATTEMPTS);
     s_prov_claim_running = false;
+    cellular_keep_warm_stop();
     vTaskDelete(NULL);
 }
 
