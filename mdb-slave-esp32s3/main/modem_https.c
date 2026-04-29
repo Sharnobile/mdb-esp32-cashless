@@ -74,12 +74,56 @@
 
 /* Helper: fire-and-forget AT command with default OK/ERROR matching.
  * Returns ESP_OK on OK in response, ESP_FAIL otherwise (timeout,
- * ERROR, etc.). Logs the result. */
+ * ERROR, etc.). Logs the result and the response text on non-OK. */
 static esp_err_t at_simple(esp_modem_dce_t *dce, const char *cmd, int timeout_ms) {
-    char resp[128] = {0};
+    char resp[256] = {0};
     esp_err_t err = esp_modem_at(dce, cmd, resp, timeout_ms);
-    ESP_LOGI(TAG, "%s → %s", cmd, esp_err_to_name(err));
+    if (err == ESP_OK) {
+        ESP_LOGI(TAG, "%s → %s", cmd, esp_err_to_name(err));
+    } else {
+        /* Log the actual response text — many SIMCom commands return
+         * a +URC line with an error code before "OK"/"ERROR", e.g.
+         * "+SHCONN: 4" then ERROR. We need to see that to diagnose. */
+        ESP_LOGW(TAG, "%s → %s, resp=%.220s", cmd, esp_err_to_name(err), resp);
+    }
     return err;
+}
+
+/* Poll AT+CNACT? until bearer 0 reports status=1 (active), or timeout.
+ * Returns ESP_OK if active before timeout, ESP_ERR_TIMEOUT otherwise.
+ * Format of CNACT? reply: "+CNACT: 0,<status>,\"<ip>\"" with one line
+ * per bearer (0..3). We only check bearer 0. */
+static esp_err_t cnact_wait_active(esp_modem_dce_t *dce, int timeout_ms) {
+    char resp[256];
+    int waited = 0;
+    while (waited < timeout_ms) {
+        memset(resp, 0, sizeof(resp));
+        if (esp_modem_at(dce, "AT+CNACT?", resp, 3000) == ESP_OK) {
+            /* Look for "+CNACT: 0," followed by digit. */
+            const char *p = strstr(resp, "+CNACT: 0,");
+            if (p) {
+                char status_char = p[10];
+                if (status_char == '1') {
+                    /* Extract IP from the rest of the line for logging. */
+                    const char *q = strchr(p + 10, '"');
+                    char ip[24] = {0};
+                    if (q) {
+                        const char *q2 = strchr(q + 1, '"');
+                        if (q2 && (size_t)(q2 - q - 1) < sizeof(ip)) {
+                            memcpy(ip, q + 1, q2 - q - 1);
+                        }
+                    }
+                    ESP_LOGI(TAG, "CNACT bearer 0 ACTIVE (IP=%s) after %d ms",
+                             ip[0] ? ip : "?", waited);
+                    return ESP_OK;
+                }
+            }
+        }
+        vTaskDelay(pdMS_TO_TICKS(500));
+        waited += 500;
+    }
+    ESP_LOGE(TAG, "CNACT bearer 0 still inactive after %d ms", timeout_ms);
+    return ESP_ERR_TIMEOUT;
 }
 
 /* Helper: AT command with custom pass/fail strings via at_raw. The
@@ -163,24 +207,46 @@ esp_err_t modem_https_post_json(const char *url,
     esp_err_t err;
     esp_err_t final_err = ESP_FAIL;
 
-    /* === Step 1: configure internal-bearer APN =========================
-     * AT+CNCFG sets the APN profile for AT+CNACT bearer 0 (the modem's
-     * internal IP stack). On many SIM7080G firmware revs this can be
-     * called even if bearer 0 is already activated — it updates the
-     * stored APN for subsequent activations. Best-effort. */
+    /* === Step 0: defensive cleanup =================================
+     * Field log 2026-04-29 (commit b8312e7): first attempt had
+     * AT+CNACT=0,1 returning ESP_FAIL. Cause was likely lingering
+     * state from the PPP teardown — the modem firmware needs a clean
+     * deactivate-then-activate cycle to bring the internal bearer up
+     * reliably. Also defensively close any HTTPS session that might
+     * be lingering. Both are best-effort — failures are expected on
+     * a clean boot. */
+    at_simple(dce, "AT+SHDISC",     HTTPS_T_AT_SHORT_MS);
+    at_simple(dce, "AT+CNACT=0,0",  HTTPS_T_AT_SHORT_MS);
+    vTaskDelay(pdMS_TO_TICKS(1000));
+
+    /* === Step 1: configure internal-bearer APN ====================== */
     snprintf(cmd, sizeof(cmd), "AT+CNCFG=0,1,\"%s\"", apn);
-    at_simple(dce, cmd, HTTPS_T_AT_SHORT_MS);
+    err = at_simple(dce, cmd, HTTPS_T_AT_SHORT_MS);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "CNCFG failed");
+        final_err = err;
+        goto cleanup_disc;
+    }
 
     /* === Step 2: activate internal bearer ============================
-     * AT+CNACT=0,1 brings the bearer up. Returns OK immediately, with
-     * "+APP PDP: 0,ACTIVE" arriving as a URC shortly after. We don't
-     * gate on the URC — instead we rely on the next SH-step's failure
-     * mode (SHCONN will fail without bearer) to detect activation
-     * issues. Best-effort: if the bearer was already active from a
-     * previous attempt, this is a no-op. */
-    at_simple(dce, "AT+CNACT=0,1", HTTPS_T_BEARER_MS);
-    /* Brief settle so +APP PDP: ACTIVE has time to arrive. */
-    vTaskDelay(pdMS_TO_TICKS(2000));
+     * AT+CNACT=0,1 returns OK on command-accept, but the bearer isn't
+     * actually usable until the "+APP PDP: 0,ACTIVE" URC arrives — and
+     * even that can lag the IP assignment. We poll AT+CNACT? until the
+     * status byte for bearer 0 reports 1 (active), with up to 30 s
+     * budget. SHCONN against an inactive bearer fails in ~600 ms with
+     * a misleading error — gating on actual status is much more
+     * reliable than the fixed-sleep version we had before. */
+    err = at_simple(dce, "AT+CNACT=0,1", HTTPS_T_AT_SHORT_MS);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "CNACT command rejected — may already be active or busy");
+        /* Don't bail — proceed to poll, the bearer might come up anyway. */
+    }
+    err = cnact_wait_active(dce, HTTPS_T_BEARER_MS);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "bearer never reached ACTIVE state");
+        final_err = err;
+        goto cleanup_disc;
+    }
 
     /* === Step 3: SSL config (TLS 1.2 on SSL slot 1) ================== */
     at_simple(dce, "AT+CSSLCFG=\"sslversion\",1,3", HTTPS_T_AT_SHORT_MS);
