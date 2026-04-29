@@ -87,8 +87,32 @@ esp_err_t modem_connect(void);
 /*
  * Tear down the PPP link cleanly and return to AT command mode. Safe
  * to call even if PPP is not currently active.
+ *
+ * NOTE: This is a FULL teardown — esp_modem's set_mode(COMMAND) waits
+ * up to 30 s for lwIP PPP to gracefully exit. For short AT-command
+ * windows (signal-quality query, one-shot HTTPS), prefer modem_pause()
+ * which is ~1 s instead of ~30 s. Reserve modem_disconnect() for paths
+ * that genuinely need to switch the modem out of DATA mode permanently
+ * (e.g. before a power cycle, or within the recovery ladder).
  */
 esp_err_t modem_disconnect(void);
+
+/*
+ * Pause the PPP netif and switch the modem to COMMAND mode for a
+ * short AT-command window. Much faster than modem_disconnect (~1 s
+ * vs ~30 s) because it does NOT tear down the lwIP PPP state — the
+ * netif is suspended and resumed in place.
+ *
+ * Use modem_resume() to release. While paused:
+ *   - PPP cannot send/receive traffic (MQTT, HTTP, etc. block)
+ *   - AT commands work normally via esp_modem_at / esp_modem_at_raw
+ *   - The PDP context binding to PPP is preserved, so resume is fast
+ *
+ * Returns ESP_OK on success, ESP_FAIL if the modem is not in DATA
+ * mode (no PPP active to pause).
+ */
+esp_err_t modem_pause(void);
+esp_err_t modem_resume(void);
 
 /*
  * Single PWRKEY pulse + 8 s boot wait. Designed for the cold-boot path
@@ -113,6 +137,22 @@ esp_err_t modem_pdp_reset(void);
 esp_err_t modem_rf_reset(void);
 esp_err_t modem_soft_restart(void);
 void      modem_hard_reset(void);
+
+/*
+ * Lightweight power-cycle for use immediately before esp_restart().
+ * Cuts DC3 (modem off), short cap-drain delay, re-enables DC3, fires
+ * one PWRKEY pulse — and returns. Does NOT poll for modem readiness.
+ * The host should call esp_restart() right after; modem boot
+ * (~6-12 s) overlaps with ESP32 boot (~2 s) + modem_probe's own
+ * readiness polling on the new boot.
+ *
+ * Use case: after `tracked_restart("provision")` etc., the modem is
+ * left in a dirty state (PPP DATA mode, internal CNACT bearer up).
+ * Without a power kick, the next boot's PPP fails IPCP and the
+ * recovery ladder eats 3-4 minutes. With this kick, the next boot
+ * sees a clean cold-booted modem and PPP comes up first try.
+ */
+void modem_kick_for_host_reboot(void);
 
 /*
  * Refresh and return current modem status. Cheap to call (issues

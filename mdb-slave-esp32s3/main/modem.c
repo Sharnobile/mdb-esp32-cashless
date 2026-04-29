@@ -857,6 +857,44 @@ esp_err_t modem_disconnect(void) {
     return err;
 }
 
+/* Lightweight pause/resume — uses esp_modem's pause_netif which suspends
+ * the lwIP PPP netif (no full teardown) and switches the modem to
+ * COMMAND mode in ~1 s. Resume is also ~1 s. Total round-trip cost for
+ * a quick AT-command window is ~2 s vs ~32 s for modem_disconnect +
+ * modem_connect.
+ *
+ * Field rationale: claim flow over modem-internal HTTPS used to call
+ * modem_disconnect (32 s teardown) → AT commands (4 s) →
+ * modem_connect (6 s) = ~42 s. Switching to pause/resume cuts that
+ * to ~6 s end-to-end. */
+esp_err_t modem_pause(void) {
+    if (!s_dce) return ESP_ERR_INVALID_STATE;
+    if (!s_in_data_mode) {
+        ESP_LOGW(TAG, "modem_pause: not in DATA mode — nothing to pause");
+        return ESP_FAIL;
+    }
+    esp_err_t err = esp_modem_pause_net(s_dce, true);
+    if (err == ESP_OK) {
+        s_in_data_mode = false;
+        ESP_LOGI(TAG, "PPP paused (modem in COMMAND mode)");
+    } else {
+        ESP_LOGW(TAG, "esp_modem_pause_net(true) failed: %s", esp_err_to_name(err));
+    }
+    return err;
+}
+
+esp_err_t modem_resume(void) {
+    if (!s_dce) return ESP_ERR_INVALID_STATE;
+    esp_err_t err = esp_modem_pause_net(s_dce, false);
+    if (err == ESP_OK) {
+        s_in_data_mode = true;
+        ESP_LOGI(TAG, "PPP resumed (modem in DATA mode)");
+    } else {
+        ESP_LOGW(TAG, "esp_modem_pause_net(false) failed: %s", esp_err_to_name(err));
+    }
+    return err;
+}
+
 /* PWRKEY pulse helper. Single 1.2s press — that's a TOGGLE on SIM7080G:
  * if the modem is off it powers it on; if on, it powers it off (graceful
  * shutdown, ~3s before STATUS goes low).
@@ -1049,6 +1087,34 @@ void modem_hard_reset(void) {
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
     ESP_LOGW(TAG, "L3 recovery: modem still not responsive after 25 s — proceeding anyway");
+}
+
+/* Lightweight power-kick — fire-and-forget cycle for use just before
+ * esp_restart(). No readiness polling: host is about to reboot anyway,
+ * and modem_probe on the next boot does its own sync polling. Total
+ * blocking time: ~1.5 s (DC3 cut + drain + re-enable + PWRKEY pulse). */
+void modem_kick_for_host_reboot(void) {
+    s_in_data_mode = false;
+
+    /* PMU DC3 cut. Best-effort: if PMU isn't accessible (non-LilyGo
+     * board), skip silently — caller is rebooting host either way. */
+    esp_err_t pmu_err = axp_rmw_reg(AXP2101_REG_DC_ONOFF, 0x04, 0);
+    if (pmu_err == ESP_OK) {
+        ESP_LOGW(TAG, "kick-reboot: DC3 cut (modem off)");
+        vTaskDelay(pdMS_TO_TICKS(1000));   /* short cap drain */
+        axp_rmw_reg(AXP2101_REG_DC_ONOFF, 0, 0x04);
+        vTaskDelay(pdMS_TO_TICKS(300));    /* power rails settle */
+        pwrkey_pulse();                    /* ~500 ms low pulse */
+        ESP_LOGI(TAG, "kick-reboot: PWRKEY fired, modem booting in parallel with host");
+    } else {
+        /* No PMU. PWRKEY-only fallback: a single pulse will toggle
+         * the modem (on→off if it was on). The next boot's
+         * modem_probe will warm-DATA-test then do its own PWRKEY if
+         * the modem ends up off. Not as clean as a true cycle but
+         * non-blocking. */
+        ESP_LOGW(TAG, "kick-reboot: no PMU, single PWRKEY toggle");
+        pwrkey_pulse();
+    }
 }
 
 /* Convert AT+CSQ raw value (0-31, 99 = unknown) to dBm. Per 3GPP 27.007:

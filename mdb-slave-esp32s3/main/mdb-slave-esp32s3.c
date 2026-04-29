@@ -174,6 +174,14 @@ static bool restart_info_published = false;
 
 // Save restart reason + current uptime to NVS, then call esp_restart().
 // reason must be a string literal (not freed).
+//
+// On cellular boards we ALSO cycle the modem power before rebooting.
+// Without this, the modem stays in whatever state the previous session
+// left it (PPP DATA mode + internal CNACT bearer up after the claim
+// flow), and the next boot's PPP fails IPCP — recovery ladder then
+// burns 3-4 minutes. modem_kick_for_host_reboot is fire-and-forget
+// (~1.5 s blocking), then ESP32 reboot proceeds in parallel with the
+// modem's own boot.
 static void tracked_restart(const char *reason) {
     nvs_handle_t h;
     if (nvs_open("vmflow", NVS_READWRITE, &h) == ESP_OK) {
@@ -184,6 +192,14 @@ static void tracked_restart(const char *reason) {
         nvs_close(h);
     }
     ESP_LOGW(TAG, "Tracked restart: reason=%s", reason);
+
+    /* Kick modem power if a modem is present so the next boot starts
+     * with a cold-booted modem. modem_get_dce() returns NULL on WiFi-
+     * only boards, in which case skip silently. */
+    if (modem_get_dce() != NULL) {
+        modem_kick_for_host_reboot();
+    }
+
     vTaskDelay(pdMS_TO_TICKS(100));
     esp_restart();
 }
@@ -2308,11 +2324,24 @@ void provision_claim_task(void *arg) {
         return;
     }
 
-    /* Serialise against parallel recovery paths and tear down PPP. */
+    /* Serialise against parallel recovery paths and pause PPP for the
+     * AT-mode HTTPS window. modem_pause is ~1 s vs ~32 s for the full
+     * teardown via modem_disconnect — the netif is suspended in place,
+     * not torn down. modem_resume on failure path restores it equally
+     * fast. On success we tracked_restart anyway, so the resume is
+     * unused. */
     modem_op_lock();
-    ESP_LOGI(TAG, "PROV: tearing PPP down for AT-mode HTTPS");
-    modem_disconnect();
-    vTaskDelay(pdMS_TO_TICKS(2000));   /* settle */
+    ESP_LOGI(TAG, "PROV: pausing PPP for AT-mode HTTPS");
+    esp_err_t pause_rc = modem_pause();
+    if (pause_rc != ESP_OK) {
+        /* Pause path failed — fall back to full teardown (slow but
+         * always available). This branch fires on cold boots where PPP
+         * was never up, or on modems that don't support pause_net. */
+        ESP_LOGW(TAG, "PROV: pause failed (%s) — falling back to full disconnect",
+                 esp_err_to_name(pause_rc));
+        modem_disconnect();
+    }
+    vTaskDelay(pdMS_TO_TICKS(500));   /* short settle vs. 2 s before */
 
     bool gave_up_permanently = false;
 
@@ -2412,8 +2441,14 @@ void provision_claim_task(void *arg) {
         ESP_LOGE(TAG, "PROV: %d attempts exhausted — restoring PPP",
                  PROV_MAX_ATTEMPTS);
     }
-    ESP_LOGI(TAG, "PROV: re-establishing PPP via modem_connect");
-    modem_connect();   /* best-effort; if it fails, watchdog/recovery handles it */
+    /* If we paused (the fast path), resume is ~1 s. If we fell back to
+     * full disconnect, modem_resume returns FAIL (no DATA mode active)
+     * and we re-establish via modem_connect (~6 s). */
+    ESP_LOGI(TAG, "PROV: resuming PPP");
+    if (modem_resume() != ESP_OK) {
+        ESP_LOGI(TAG, "PROV: resume failed — full re-establish via modem_connect");
+        modem_connect();
+    }
     modem_op_unlock();
     s_prov_claim_running = false;
     vTaskDelete(NULL);
