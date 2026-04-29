@@ -145,6 +145,17 @@ esp_err_t modem_nvs_load(char *apn_out, size_t apn_size,
  */
 esp_err_t modem_nvs_save(const char *apn, const char *pin, modem_lte_mode_t mode);
 
+/* ---- Direct DCE access (advanced) ----
+ *
+ * Returns the internal esp_modem_dce_t handle, or NULL if the modem
+ * has not been probed. Used by modem_https.c to issue raw AT commands
+ * for the modem-internal HTTPS path. Most callers should NOT use this —
+ * it's a deliberate violation of the modem.h abstraction, justified
+ * only for the one-shot claim flow that needs direct AT access.
+ */
+struct esp_modem_dce;
+struct esp_modem_dce *modem_get_dce(void);
+
 /* ---- Recovery serialisation ----
  *
  * All recovery primitives (modem_init / modem_connect / modem_disconnect

@@ -39,6 +39,7 @@
 #include "esp_system.h"
 #include "esp_http_client.h"
 #include "esp_crt_bundle.h"
+#include "modem_https.h"
 #include "esp_https_ota.h"
 #include "esp_ota_ops.h"
 #include "esp_app_desc.h"
@@ -2193,74 +2194,16 @@ static const int PROV_RETRY_DELAYS_S[PROV_MAX_ATTEMPTS - 1] = {
  * re-spawn don't run two tasks against the same NVS state. */
 static volatile bool s_prov_claim_running = false;
 
-/* === Cellular keep-warm task =========================================
- *
- * Diagnostic round-3 (commit 2d345c8 + Google test) showed the LTE-M
- * path goes bi-directionally dark after our final TLS handshake flight,
- * AND that lwIP TCP keepalive probes (3 s idle / 1 s interval / 5 retries)
- * also fail to get ACKs. Symptom: mbedtls returns NET_RECV_FAILED at
- * ~14 s after we send Finished — that's TCP-keepalive declaring the
- * socket dead because no probe got an ACK.
- *
- * Per-socket SO_KEEPALIVE wasn't enough. The hypothesis is that the
- * Telekom IoT / sensor.net carrier puts the entire LTE-M radio into a
- * state where small isolated probe packets get dropped/delayed —
- * possibly RRC-IDLE with aggressive paging timers, possibly per-flow
- * NAT aging that's faster than per-host-IP aging.
- *
- * Fix: a parallel low-priority FreeRTOS task that probes 1.1.1.1:53
- * (Cloudflare anycast DNS, always reachable) every 1 s while the
- * provision claim is in flight. This is a SEPARATE TCP socket from the
- * HTTPS connection, so it generates outbound traffic on a different
- * 5-tuple. Effect:
- *   - LTE-M radio stays in RRC-CONNECTED (continuous outbound activity)
- *   - Carrier per-IP NAT stays warm
- *   - Our HTTPS socket's keepalive probes also start ACKing because
- *     the radio path is alive
- *
- * Cost: ~84 bytes outbound per second. Over a 30 s claim attempt =
- * 2.5 KB extra. Negligible on any cellular plan, including 1NCE's
- * 50 MB/month.
- *
- * Lifecycle: started by provision_claim_task at entry, stopped at exit
- * (success, all-attempts-failed, or task duplicate-skip). The task
- * checks the active flag on each iteration and self-deletes when
- * cleared. */
-static volatile bool s_keep_warm_active = false;
-static TaskHandle_t  s_keep_warm_handle = NULL;
-
-static void cellular_keep_warm_task(void *arg) {
-    (void)arg;
-    int probe_count_ok = 0, probe_count_fail = 0;
-    while (s_keep_warm_active) {
-        bool reachable = network_probe_tcp("1.1.1.1", 53, 2000);
-        if (reachable) probe_count_ok++; else probe_count_fail++;
-        /* Log every 10 probes to avoid log spam — enough to see if the
-         * keep-warm is itself failing (which would tell us the path is
-         * really dead, not just our HTTPS-specific). */
-        if (((probe_count_ok + probe_count_fail) % 10) == 0) {
-            ESP_LOGI(TAG, "keep-warm: %d ok / %d fail", probe_count_ok, probe_count_fail);
-        }
-        vTaskDelay(pdMS_TO_TICKS(1000));
-    }
-    ESP_LOGI(TAG, "keep-warm: stopping (final %d ok / %d fail)",
-             probe_count_ok, probe_count_fail);
-    s_keep_warm_handle = NULL;
-    vTaskDelete(NULL);
-}
-
-static void cellular_keep_warm_start(void) {
-    if (s_keep_warm_handle) return;   /* idempotent */
-    s_keep_warm_active = true;
-    xTaskCreate(cellular_keep_warm_task, "keep_warm", 4096, NULL, 3, &s_keep_warm_handle);
-}
-
-static void cellular_keep_warm_stop(void) {
-    s_keep_warm_active = false;
-    /* Don't vTaskDelete here — let the task self-delete on its next
-     * iteration so it logs the final probe stats. The active flag is
-     * the primary signal; the task checks it once per second. */
-}
+/* (The cellular keep-warm task that lived here was a diagnostic for
+ * the PPP-based claim path. It probed 1.1.1.1:53 every 1 s during a
+ * claim attempt, hoping to keep the LTE-M radio in RRC-CONNECTED.
+ * Field log 2026-04-29 showed it had no measurable effect — 90 % of
+ * its own probes failed with the same loss pattern as the HTTPS
+ * connection — confirming the bug was below lwIP/PPP. The claim flow
+ * was subsequently moved to the modem-internal HTTPS path, which
+ * doesn't go through lwIP at all. The keep-warm task is no longer
+ * needed and was removed in the same commit that wired in
+ * modem_https_post_json.) */
 
 void provision_claim_task(void *arg) {
     if (s_prov_claim_running) {
@@ -2314,221 +2257,141 @@ void provision_claim_task(void *arg) {
     snprintf(body, sizeof(body),
              "{\"short_code\":\"%s\",\"mac_address\":\"%s\"}", prov_code, mac_str);
 
-    char url[192];
-    snprintf(url, sizeof(url), "%s/functions/v1/claim-device", srv_url);
+    /* === Modem-internal HTTPS claim path =============================
+     *
+     * Field test 2026-04-29: the same 1NCE SIM works cleanly in a
+     * separate LTE router (which uses the modem's offloaded TCP/IP
+     * stack), while our PPP+lwIP+mbedtls path on this SIM7080G stalls
+     * TLS handshakes after the server certificate. Diagnostic narrows
+     * to a defect in the host-side stack (PPP framing, UART buffer
+     * pressure, esp_modem 1.4.0 + lwIP edge case, or some combination
+     * thereof) — NOT the carrier and NOT the modem firmware itself.
+     *
+     * Switching the claim flow to the modem's internal HTTPS engine
+     * via AT+SHCONN/SHREQ/SHREAD bypasses our entire host TCP/IP path.
+     * The modem opens TCP, performs the TLS handshake, sends the
+     * request, and reads the response — we only see the final HTTP
+     * status + body via AT. This is the same path every consumer
+     * cellular router uses.
+     *
+     * Steady-state MQTT continues over PPP after the claim succeeds
+     * and the device reboots. Small-payload MQTT doesn't trigger the
+     * failure mode (no 3 KB cert burst, no long-lived TLS handshake),
+     * so PPP is fine for it.
+     *
+     * Caller flow:
+     *   1. PPP is currently UP (we got here on UPLINK_UP)
+     *   2. Take modem_op_lock so concurrent recovery paths don't
+     *      interfere with our internal-stack operations
+     *   3. Tear down PPP (modem_disconnect → COMMAND mode)
+     *   4. Loop modem_https_post_json attempts with the same backoff
+     *      schedule as the previous PPP path
+     *   5. On 200 + valid JSON: save NVS, tracked_restart (PPP comes
+     *      back fresh after reboot)
+     *   6. On exhaustion: re-establish PPP via modem_connect so
+     *      captive-portal /api/v1/claim retry stays viable */
 
-    ESP_LOGI(TAG, "PROV: claiming device at %s body=%s", url, body);
+    ESP_LOGI(TAG, "PROV: claim via modem-internal HTTPS (bypassing PPP)");
+    ESP_LOGI(TAG, "PROV: srv_url=%s body=%s", srv_url, body);
 
-    bool use_tls = (strncmp(url, "https://", 8) == 0);
-
-    /* Parse host + port out of the URL once, for the pre-attempt warm-up
-     * probe below. Format: "scheme://host[:port]/path". On parse failure
-     * we leave probe_host empty and skip the warm-up — the HTTPS attempt
-     * still runs unguarded. */
-    char probe_host[128] = {0};
-    int  probe_port      = use_tls ? 443 : 80;
-    {
-        const char *p = url;
-        if (use_tls)                                 p += 8;   /* "https://" */
-        else if (strncmp(url, "http://", 7) == 0)    p += 7;
-        const char *slash = strchr(p, '/');
-        size_t      h_len = slash ? (size_t)(slash - p) : strlen(p);
-        const char *colon = memchr(p, ':', h_len);
-        if (colon) {
-            size_t prefix_len = (size_t)(colon - p);
-            if (prefix_len < sizeof(probe_host)) {
-                memcpy(probe_host, p, prefix_len);
-                probe_host[prefix_len] = '\0';
-                probe_port = atoi(colon + 1);
-                if (probe_port <= 0 || probe_port > 65535) probe_port = use_tls ? 443 : 80;
-            }
-        } else if (h_len < sizeof(probe_host)) {
-            memcpy(probe_host, p, h_len);
-            probe_host[h_len] = '\0';
-        }
+    /* Need the APN to (re)configure the internal bearer. modem_nvs_load
+     * was populated during the captive-portal cellular_configure, so
+     * this should always succeed at this point in the flow. */
+    char apn_buf[MODEM_APN_MAX] = {0};
+    char pin_buf[MODEM_PIN_MAX] = {0};
+    modem_lte_mode_t lte_mode_unused;
+    if (modem_nvs_load(apn_buf, sizeof(apn_buf), pin_buf, sizeof(pin_buf),
+                       &lte_mode_unused) != ESP_OK || apn_buf[0] == '\0') {
+        ESP_LOGE(TAG, "PROV: no APN in NVS — cannot run modem-internal HTTPS");
+        s_prov_claim_running = false;
+        vTaskDelete(NULL);
+        return;
     }
 
-    /* Start the parallel cellular keep-warm task — see definition above
-     * for full rationale. Stopped before every exit point of this
-     * function. */
-    cellular_keep_warm_start();
+    /* Serialise against parallel recovery paths and tear down PPP. */
+    modem_op_lock();
+    ESP_LOGI(TAG, "PROV: tearing PPP down for AT-mode HTTPS");
+    modem_disconnect();
+    vTaskDelay(pdMS_TO_TICKS(2000));   /* settle */
+
+    bool gave_up_permanently = false;
 
     for (int attempt = 1; attempt <= PROV_MAX_ATTEMPTS; attempt++) {
-        char resp_buf[512] = {0};
+        char   resp_buf[1024] = {0};
+        size_t resp_len       = 0;
+        int    http_status    = 0;
 
-        /* Pre-attempt path warm-up. Field log 2026-04-28 (firmware
-         * 9ca049f, Telekom IoT/sensor.net/1NCE) showed the TLS handshake
-         * stalling intermittently AFTER the server certificate had
-         * already arrived — symptom of LTE-M packet loss + Cloudflare's
-         * ~13-15 s edge timeout fighting each other. User reports
-         * "ab und zu funktioniert es" — when the path happens to be
-         * clean we get through, when it doesn't we EOF.
-         *
-         * A short TCP connect to the same host kicks the carrier into
-         * RRC-CONNECTED and refreshes any stale NAT mapping BEFORE the
-         * heavy TLS round-trip starts. Doesn't fix the underlying
-         * packet loss, but tightens the window where Cloudflare's edge
-         * timer races our retransmits. The probe itself takes ~200-800
-         * ms on success, full 5 s on failure (in which case we still
-         * try the actual handshake — sometimes paths come back
-         * mid-attempt). */
-        if (probe_host[0] != '\0') {
-            bool reachable = network_probe_tcp(probe_host, probe_port, 5000);
-            ESP_LOGI(TAG, "PROV: warm-up probe %s:%d → %s (attempt %d)",
-                     probe_host, probe_port, reachable ? "ok" : "FAIL", attempt);
-        }
+        ESP_LOGI(TAG, "PROV: attempt %d/%d via modem-internal HTTPS",
+                 attempt, PROV_MAX_ATTEMPTS);
 
-        /* timeout_ms gates the entire TLS handshake + HTTP exchange.
-         *
-         * Bumped 60 → 90 s on 2026-04-29 to match the upper-bound
-         * recommendation Nordic Semi published for LPWAN+TLS field
-         * deployments (devzone post on nRF9160 / BG96 NB-IoT TCP
-         * retransmissions): "the modem seems to not accept any further
-         * segments for a period of approximately 20 seconds after
-         * receiving the first TCP segment of a large data packet."
-         * A 60 s budget is on the edge once you account for our 1.4 s
-         * cert validation + 20 s post-burst pause + actual handshake
-         * round-trips; 90 s gives proper headroom for marginal
-         * LTE-M/NB-IoT cells without unbounding the wait.
-         *
-         * Background: field testing on Telekom IoT cellular showed
-         * legit TLS handshakes to Cloudflare-fronted endpoints take
-         * ~15-20 s (cert validation alone is ~1.4 s, post-cert finish
-         * round-trip can stall for many seconds while packets cross
-         * the carrier's deep PPP buffer). 15 s killed every attempt:
-         *
-         *   D esp-tls: handshake in progress...
-         *   I esp-x509-crt-bundle: Certificate validated   (+1.4 s)
-         *   E esp-tls-mbedtls: mbedtls_ssl_handshake returned -0x7280
-         *                                                  (+15.2 s total)
-         *
-         * mbedTLS interpreted our select() timeout as a server FIN
-         * (CONN_EOF). */
-        /* TCP keepalive on the claim socket — fixes the LTE-M
-         * "TLS-handshake stalls after we send Finished" symptom.
-         *
-         * Diagnostic round 2 (commit 924f8b5, https://www.google.com)
-         * proved this is NOT Cloudflare-specific: against Google's own
-         * non-Cloudflare infrastructure we see the same exact failure —
-         * we successfully write CKE+CCS+Finished (lwIP f_send accepts
-         * all bytes), then 60 s of dead silence on recv, then the
-         * cellular path is physically dead (next TCP probe fails
-         * immediately). Conclusion: the ~30 ms gap between our final
-         * send-burst and the server's reply is enough for Telekom IoT's
-         * LTE-M radio to drop into RRC-IDLE / Connected-DRX, and the
-         * carrier's paging delivery of the inbound reply is so
-         * aggressive on `sensor.net` that the packets get dropped
-         * before they can wake the modem.
-         *
-         * SO_KEEPALIVE on the TCP socket forces lwIP to send a
-         * keepalive probe after `keep_alive_idle` seconds of no
-         * activity. Each probe is outbound traffic, which keeps the
-         * radio in RRC-CONNECTED, which keeps the carrier delivering
-         * inbound packets immediately instead of via paging.
-         *
-         * Tuning:
-         *   - keep_alive_idle = 3 s : shorter than typical RRC-IDLE
-         *     timer (5-10 s) so we always nudge before transition
-         *   - keep_alive_interval = 1 s : retransmit the probe quickly
-         *     if first one is lost (LTE-M packet loss is real)
-         *   - keep_alive_count = 5 : 5 unacked probes = give up. With
-         *     1 s interval that's a 5 s detection window for a truly
-         *     dead path.
-         *
-         * Cost: ~80 bytes outbound every 3 s during idle-wait windows.
-         * On a 50 MB/month IoT data plan this is negligible — at most
-         * a few KB extra per provisioning attempt.
-         *
-         * Per-socket setting (via esp_http_client_config_t fields).
-         * No global lwIP config change needed; LWIP_TCP_KEEPALIVE is
-         * already enabled by default in ESP-IDF lwipopts.h. */
-        esp_http_client_config_t http_cfg = {
-            .url                 = url,
-            .method              = HTTP_METHOD_POST,
-            .crt_bundle_attach   = use_tls ? esp_crt_bundle_attach : NULL,
-            .timeout_ms          = 90000,
-            .keep_alive_enable   = true,
-            .keep_alive_idle     = 3,
-            .keep_alive_interval = 1,
-            .keep_alive_count    = 5,
-        };
+        esp_err_t err = modem_https_post_json(srv_url,
+                                               "/functions/v1/claim-device",
+                                               apn_buf,
+                                               body, strlen(body),
+                                               resp_buf, sizeof(resp_buf),
+                                               &resp_len, &http_status,
+                                               90000);
 
-        esp_http_client_handle_t client = esp_http_client_init(&http_cfg);
-        esp_http_client_set_header(client, "Content-Type", "application/json");
-
-        esp_err_t http_err = esp_http_client_open(client, strlen(body));
-        int status = -1;
-        if (http_err == ESP_OK) {
-            esp_http_client_write(client, body, strlen(body));
-            esp_http_client_fetch_headers(client);
-            status = esp_http_client_get_status_code(client);
-            int read_len = esp_http_client_read_response(client, resp_buf, sizeof(resp_buf) - 1);
-            if (read_len >= 0) resp_buf[read_len] = '\0';
-            ESP_LOGW(TAG, "PROV: attempt %d/%d HTTP %d body=%s",
-                     attempt, PROV_MAX_ATTEMPTS, status, resp_buf);
+        if (err != ESP_OK) {
+            ESP_LOGW(TAG, "PROV: attempt %d/%d transport error: %s",
+                     attempt, PROV_MAX_ATTEMPTS, esp_err_to_name(err));
         } else {
-            ESP_LOGE(TAG, "PROV: attempt %d/%d HTTP transport error: %s",
-                     attempt, PROV_MAX_ATTEMPTS, esp_err_to_name(http_err));
-        }
+            ESP_LOGI(TAG, "PROV: attempt %d/%d HTTP %d (%zu B body): %.200s",
+                     attempt, PROV_MAX_ATTEMPTS, http_status, resp_len, resp_buf);
 
-        if (status == 200) {
-            cJSON *root = cJSON_Parse(resp_buf);
-            if (root) {
-                cJSON *j_company = cJSON_GetObjectItem(root, "company_id");
-                cJSON *j_device  = cJSON_GetObjectItem(root, "device_id");
-                cJSON *j_pass    = cJSON_GetObjectItem(root, "passkey");
+            if (http_status == 200) {
+                cJSON *root = cJSON_Parse(resp_buf);
+                if (root) {
+                    cJSON *j_company = cJSON_GetObjectItem(root, "company_id");
+                    cJSON *j_device  = cJSON_GetObjectItem(root, "device_id");
+                    cJSON *j_pass    = cJSON_GetObjectItem(root, "passkey");
 
-                if (j_company && cJSON_IsString(j_company) &&
-                    j_device  && cJSON_IsString(j_device) &&
-                    j_pass    && cJSON_IsString(j_pass)) {
+                    if (j_company && cJSON_IsString(j_company) &&
+                        j_device  && cJSON_IsString(j_device) &&
+                        j_pass    && cJSON_IsString(j_pass)) {
 
-                    nvs_handle_t h;
-                    if (nvs_open("vmflow", NVS_READWRITE, &h) == ESP_OK) {
-                        nvs_set_str(h, "company_id", j_company->valuestring);
-                        nvs_set_str(h, "device_id",  j_device->valuestring);
-                        nvs_set_str(h, "passkey",    j_pass->valuestring);
-                        cJSON *j_mqtt = cJSON_GetObjectItem(root, "mqtt_host");
-                        if (j_mqtt && cJSON_IsString(j_mqtt) && strlen(j_mqtt->valuestring) > 0) {
-                            nvs_set_str(h, "mqtt_host", j_mqtt->valuestring);
+                        nvs_handle_t h;
+                        if (nvs_open("vmflow", NVS_READWRITE, &h) == ESP_OK) {
+                            nvs_set_str(h, "company_id", j_company->valuestring);
+                            nvs_set_str(h, "device_id",  j_device->valuestring);
+                            nvs_set_str(h, "passkey",    j_pass->valuestring);
+                            cJSON *j_mqtt = cJSON_GetObjectItem(root, "mqtt_host");
+                            if (j_mqtt && cJSON_IsString(j_mqtt) && strlen(j_mqtt->valuestring) > 0) {
+                                nvs_set_str(h, "mqtt_host", j_mqtt->valuestring);
+                            }
+                            cJSON *j_mqtt_port = cJSON_GetObjectItem(root, "mqtt_port");
+                            if (j_mqtt_port && cJSON_IsString(j_mqtt_port) && strlen(j_mqtt_port->valuestring) > 0) {
+                                nvs_set_str(h, "mqtt_port", j_mqtt_port->valuestring);
+                            }
+                            nvs_erase_key(h, "prov_code");
+                            nvs_commit(h);
+                            nvs_close(h);
                         }
-                        cJSON *j_mqtt_port = cJSON_GetObjectItem(root, "mqtt_port");
-                        if (j_mqtt_port && cJSON_IsString(j_mqtt_port) && strlen(j_mqtt_port->valuestring) > 0) {
-                            nvs_set_str(h, "mqtt_port", j_mqtt_port->valuestring);
-                        }
-                        nvs_erase_key(h, "prov_code");
-                        nvs_commit(h);
-                        nvs_close(h);
+
+                        ESP_LOGI(TAG, "PROV: claimed, company=%s device=%s — restarting",
+                                 j_company->valuestring, j_device->valuestring);
+                        cJSON_Delete(root);
+                        s_prov_claim_running = false;
+                        modem_op_unlock();
+                        tracked_restart("provision");
+                        /* not reached */
                     }
-
-                    ESP_LOGI(TAG, "PROV: claimed, company=%s device=%s — restarting",
-                             j_company->valuestring, j_device->valuestring);
                     cJSON_Delete(root);
-                    esp_http_client_cleanup(client);
-                    s_prov_claim_running = false;
-                    cellular_keep_warm_stop();
-                    tracked_restart("provision");
-                    /* not reached */
                 }
-                cJSON_Delete(root);
+                ESP_LOGE(TAG, "PROV: HTTP 200 but response missing required fields — giving up");
+                gave_up_permanently = true;
+                break;
             }
-            ESP_LOGE(TAG, "PROV: HTTP 200 but response missing required fields — giving up");
-            esp_http_client_cleanup(client);
-            break;   /* server replied OK but with garbage — retrying won't help */
+
+            if (http_status >= 400 && http_status < 500) {
+                ESP_LOGW(TAG, "PROV: server rejected (HTTP %d) — not retrying", http_status);
+                gave_up_permanently = true;
+                break;
+            }
+            /* 5xx or 0 → fall through to backoff + retry. */
         }
 
-        esp_http_client_cleanup(client);
-
-        /* 4xx = client problem (bad/expired/used code, wrong URL). No
-         * point retrying — the user must fix the captive portal input. */
-        if (status >= 400 && status < 500) {
-            ESP_LOGW(TAG, "PROV: server rejected the claim (HTTP %d) — not retrying", status);
-            break;
-        }
-
-        /* Transport / 5xx error — back off and retry. The schedule
-         * grows so we ride out the cellular warm-up window: short
-         * gap on the first retry (covers transient blips), then
-         * longer waits as we let the carrier settle. */
+        /* Backoff between retries. */
         if (attempt < PROV_MAX_ATTEMPTS) {
             int delay_s = PROV_RETRY_DELAYS_S[attempt - 1];
             ESP_LOGI(TAG, "PROV: retrying in %d s (attempt %d/%d)...",
@@ -2537,15 +2400,22 @@ void provision_claim_task(void *arg) {
         }
     }
 
-    /* Persistent failure. DO NOT reboot — that would loop forever
-     * because prov_code stays in NVS. The captive portal AP is still
-     * up; the user can correct their input and POST /api/v1/claim
-     * again, which spawns a fresh task. */
-    ESP_LOGE(TAG, "PROV: giving up after %d attempts — captive portal remains "
-                  "available for retry (or factory reset to start over)",
-             PROV_MAX_ATTEMPTS);
+    /* All attempts exhausted (or terminal 4xx/garbage). Restart PPP so
+     * the device returns to a normal cellular state — captive portal
+     * stays reachable on the SoftAP side, and the user can either
+     * factory-reset or POST /api/v1/claim again with a corrected code,
+     * which spawns a fresh provision_claim_task. */
+    if (gave_up_permanently) {
+        ESP_LOGE(TAG, "PROV: terminal failure (%s) — restoring PPP",
+                 "4xx or invalid JSON");
+    } else {
+        ESP_LOGE(TAG, "PROV: %d attempts exhausted — restoring PPP",
+                 PROV_MAX_ATTEMPTS);
+    }
+    ESP_LOGI(TAG, "PROV: re-establishing PPP via modem_connect");
+    modem_connect();   /* best-effort; if it fails, watchdog/recovery handles it */
+    modem_op_unlock();
     s_prov_claim_running = false;
-    cellular_keep_warm_stop();
     vTaskDelete(NULL);
 }
 

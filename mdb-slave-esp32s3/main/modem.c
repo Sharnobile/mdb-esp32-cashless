@@ -511,6 +511,10 @@ bool modem_is_present(void) {
     return s_probed_present;
 }
 
+struct esp_modem_dce *modem_get_dce(void) {
+    return (struct esp_modem_dce *)s_dce;
+}
+
 esp_err_t modem_init(const char *apn, const char *pin, modem_lte_mode_t mode) {
     if (!s_dce) {
         ESP_LOGE(TAG, "modem_init called before successful modem_probe");
