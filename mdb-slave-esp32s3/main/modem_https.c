@@ -91,12 +91,13 @@ static esp_err_t at_simple(esp_modem_dce_t *dce, const char *cmd, int timeout_ms
 
 /* Poll AT+CNACT? until bearer 0 reports status=1 (active), or timeout.
  * Returns ESP_OK if active before timeout, ESP_ERR_TIMEOUT otherwise.
- * Format of CNACT? reply: "+CNACT: 0,<status>,\"<ip>\"" with one line
- * per bearer (0..3). We only check bearer 0.
  *
- * Uses real wall-clock budgeting via xTaskGetTickCount: each iteration
- * takes ~3-3.5 s (AT timeout + 500 ms sleep) so a naive `waited += 500`
- * counter would over-poll by 6×. */
+ * Verbose logging: every 3rd iteration we log the actual modem
+ * response so field debugging can see whether the modem is rejecting
+ * the query (ERROR), reporting bearer-0 status=0 (still bringing up),
+ * or genuinely not responding (timeout). Earlier versions logged a
+ * generic "modem unresponsive" message that was misleading because
+ * the modem was actually responding fast — just with errors. */
 static esp_err_t cnact_wait_active(esp_modem_dce_t *dce, int timeout_ms) {
     char resp[256];
     TickType_t start = xTaskGetTickCount();
@@ -106,8 +107,11 @@ static esp_err_t cnact_wait_active(esp_modem_dce_t *dce, int timeout_ms) {
         iter++;
         memset(resp, 0, sizeof(resp));
         esp_err_t at_err = esp_modem_at(dce, "AT+CNACT?", resp, 2000);
+
+        /* Strip CR/LF for cleaner logging. */
+        for (char *c = resp; *c; c++) if (*c == '\r' || *c == '\n') *c = ' ';
+
         if (at_err == ESP_OK) {
-            /* Look for "+CNACT: 0," followed by status digit. */
             const char *p = strstr(resp, "+CNACT: 0,");
             if (p) {
                 char status_char = p[10];
@@ -126,19 +130,16 @@ static esp_err_t cnact_wait_active(esp_modem_dce_t *dce, int timeout_ms) {
                              ip[0] ? ip : "?", elapsed_ms, iter);
                     return ESP_OK;
                 }
-                /* status != 1 — still inactive, log every 5 iterations */
-                if (iter % 5 == 0) {
-                    ESP_LOGI(TAG, "CNACT poll %d: bearer 0 still inactive (resp=%.100s)",
-                             iter, resp);
-                }
             }
-        } else if (iter % 5 == 0) {
-            ESP_LOGW(TAG, "CNACT poll %d: AT timeout (modem unresponsive)", iter);
+        }
+        if (iter <= 3 || iter % 3 == 0) {
+            ESP_LOGI(TAG, "CNACT poll %d: at_err=%s, resp=%.180s",
+                     iter, esp_err_to_name(at_err), resp);
         }
         vTaskDelay(pdMS_TO_TICKS(500));
     }
     int elapsed_ms = (int)((xTaskGetTickCount() - start) * portTICK_PERIOD_MS);
-    ESP_LOGE(TAG, "CNACT bearer 0 still inactive after %d ms / %d polls",
+    ESP_LOGE(TAG, "CNACT bearer 0 never reached ACTIVE after %d ms / %d polls",
              elapsed_ms, iter);
     return ESP_ERR_TIMEOUT;
 }
