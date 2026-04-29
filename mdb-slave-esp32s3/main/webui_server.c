@@ -318,7 +318,7 @@ static esp_err_t claim_handler(httpd_req_t *req) {
     }
     cJSON_Delete(root);
 
-    xTaskCreate(provision_claim_task, "prov_claim", 8192, NULL, 5, NULL);
+    xTaskCreate(provision_claim_task, "prov_claim", 16384, NULL, 5, NULL);
     return send_ok(req);
 }
 

@@ -2444,7 +2444,7 @@ static void network_event_cb(network_event_t event, void *user_data) {
                     nvs_close(h);
                     if (has_prov && strlen(my_passkey) == 0) {
                         ESP_LOGI(TAG, "spawning provision_claim_task");
-                        xTaskCreate(provision_claim_task, "prov_claim", 8192, NULL, 5, NULL);
+                        xTaskCreate(provision_claim_task, "prov_claim", 16384, NULL, 5, NULL);
                         return;
                     }
                 }
