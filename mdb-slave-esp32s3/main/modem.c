@@ -527,6 +527,30 @@ esp_err_t modem_init(const char *apn, const char *pin, modem_lte_mode_t mode) {
 
     esp_err_t err;
 
+    /* AT+CSCLK=0: disable the modem's slow-clock / sleep-on-UART-idle
+     * mode. SIM7080G default is CSCLK=2 (auto-sleep based on UART
+     * inactivity). On a plug-powered MDB cashless device we never want
+     * the modem CPU to sleep — sleep transitions cost milliseconds of
+     * wake-up latency on every inbound packet, which compounds with
+     * Telekom IoT's already-aggressive carrier-side timers and produces
+     * the "TLS handshake stalls after final flight" symptom (field log
+     * 2026-04-29: keep-warm probes to 1.1.1.1:53 saw 90 % loss after
+     * the cellular path's initial activity window).
+     *
+     * Best-effort: we don't bail if it fails — some firmware revs
+     * either lack the command or default to 0 anyway. */
+    err = esp_modem_at(s_dce, "AT+CSCLK=0", NULL, 5000);
+    ESP_LOGI(TAG, "AT+CSCLK=0: %s", esp_err_to_name(err));
+
+    /* AT+CGEREP=2,1: report PDP context unsolicited events (mode 2:
+     * buffer URCs while MT-TE link is reserved, forward when freed;
+     * bfr 1: store URCs that arrive during reserved windows). Useful
+     * as a diagnostic if the carrier is detaching us — events would
+     * surface during PPP-COMMAND escapes (e.g. on watchdog ping or
+     * recovery ladder). Best-effort. */
+    err = esp_modem_at(s_dce, "AT+CGEREP=2,1", NULL, 5000);
+    ESP_LOGI(TAG, "AT+CGEREP=2,1: %s", esp_err_to_name(err));
+
     /* SIM PIN, if provided. AT+CPIN expects only the PIN if it's needed;
      * if the SIM is PIN-less, sending AT+CPIN errors and we ignore that. */
     if (pin && strlen(pin) > 0) {

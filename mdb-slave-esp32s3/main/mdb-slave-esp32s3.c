@@ -2317,40 +2317,6 @@ void provision_claim_task(void *arg) {
     char url[192];
     snprintf(url, sizeof(url), "%s/functions/v1/claim-device", srv_url);
 
-    /* === DIAGNOSTIC: cross-endpoint TLS test (round 2) ==================
-     *
-     * Round 1 (e5d980b) targeted https://example.com/, which I assumed
-     * was Verisign-hosted. The mbedtls debug log proved otherwise: cert
-     * subject was example.com but issuer was "Cloudflare TLS Issuing
-     * ECC CA 1" — example.com has been migrated behind Cloudflare's CDN.
-     * So that test didn't actually isolate Cloudflare as a variable.
-     *
-     * Round 2 uses https://www.google.com/ — verifiably Google Frontend
-     * (GFE) on Google's own anycast network, NOT Cloudflare. Cert signed
-     * by Google Trust Services. Different TLS terminator, different
-     * upstream behaviour, completely different edge infrastructure.
-     *
-     * Hypothesis under test: same TLS-handshake-stall symptom (CKE+CCS+
-     * Finished sent successfully on our side, then 60 s of dead silence
-     * waiting for server's NewSessionTicket/CCS/Finished, then path goes
-     * physically dead). If yes → it's NOT Cloudflare-specific, it's
-     * cellular-layer (most likely Telekom IoT forcing PSM/RRC-IDLE
-     * despite our AT+CPSMS=0, server's reply arrives at a sleeping
-     * modem, never reaches the host PPP stack).
-     *
-     * What to expect: GET-only static page, returns 200 + HTML. Our
-     * claim handler will log "HTTP 200 but response missing required
-     * fields — giving up" — same as round 1. We don't care about the
-     * HTTP body, only whether the handshake completes.
-     *
-     * To revert: comment out DEBUG_PROVISION_TEST_URL, rebuild.
-     * =================================================================== */
-    #define DEBUG_PROVISION_TEST_URL "https://www.google.com/"
-    #ifdef DEBUG_PROVISION_TEST_URL
-    snprintf(url, sizeof(url), "%s", DEBUG_PROVISION_TEST_URL);
-    ESP_LOGW(TAG, "PROV: ⚠ DEBUG mode — overriding URL to %s (TLS isolation test)", url);
-    #endif
-
     ESP_LOGI(TAG, "PROV: claiming device at %s body=%s", url, body);
 
     bool use_tls = (strncmp(url, "https://", 8) == 0);
