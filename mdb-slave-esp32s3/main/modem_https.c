@@ -235,7 +235,14 @@ esp_err_t modem_https_post_json(const char *url,
      * Log firmware ID + bearer/PDP state once. Useful for bug reports.
      * Note: AT+CNACT? returns multi-line, but esp_modem 1.4.0 only
      * preserves the LAST line in our captured output (see at_simple
-     * comment) — the log is informational only, don't parse it. */
+     * comment) — the log is informational only, don't parse it.
+     *
+     * AT+CMEE=2 enables verbose +CME ERROR codes — without it,
+     * SHCONN failures come back as bare "ERROR" with no code, which
+     * is what we got in the c2a5a11 / 4205fc7 field logs. With CMEE=2,
+     * we'll see e.g. "+CME ERROR: operation not allowed" or specific
+     * service-error codes that point at the actual problem. */
+    at_simple(dce, "AT+CMEE=2",    HTTPS_T_AT_SHORT_MS);
     at_simple(dce, "AT+SIMCOMATI", HTTPS_T_AT_SHORT_MS);
     at_simple(dce, "AT+CGMR",      HTTPS_T_AT_SHORT_MS);
     at_simple(dce, "AT+CGATT?",    HTTPS_T_AT_SHORT_MS);
@@ -299,33 +306,74 @@ esp_err_t modem_https_post_json(const char *url,
     vTaskDelay(pdMS_TO_TICKS(8000));
     active_bearer = 0;
 
-    /* === Step 3: SSL config (TLS 1.2 on SSL slot 1) ================== */
-    at_simple(dce, "AT+CSSLCFG=\"sslversion\",1,3", HTTPS_T_AT_SHORT_MS);
+    /* === Step 3: SSL config (TLS 1.2 on SSL slot 1) ==================
+     * sslversion 3 = TLS 1.2 only. Some firmware variants treat sslversion
+     * 4 as "all" (TLS 1.0/1.1/1.2 negotiation). Trying 4 first as more
+     * permissive, falling back to 3 if not supported.
+     *
+     * ignorelocaltime: skip cert validity-period check. The SIM7080G's
+     * RTC is unreliable until SNTP runs, so a fresh-boot cert validation
+     * may reject a perfectly valid server cert because the modem thinks
+     * it's 2002. ignorelocaltime sidesteps that.
+     *
+     * ignoremultiserver: some firmware revs have issues with SAN-based
+     * cert validation on hosts with multiple SANs (Cloudflare's certs
+     * have 100+ SANs). Skip it.
+     *
+     * All best-effort: each command's success is logged, failures
+     * tolerated since the underlying SSL config has fallback defaults. */
+    at_simple(dce, "AT+CSSLCFG=\"sslversion\",1,3",       HTTPS_T_AT_SHORT_MS);
+    at_simple(dce, "AT+CSSLCFG=\"ignorelocaltime\",1,1",  HTTPS_T_AT_SHORT_MS);
+    at_simple(dce, "AT+CSSLCFG=\"ignoremultiserver\",1,1", HTTPS_T_AT_SHORT_MS);
 
-    /* === Step 4: HTTPS session SSL slot, no cert verification ========
-     * Empty cert filename ("") means: don't validate server cert. The
-     * prov_code carried in the body is single-use and short-lived; the
-     * security model accepts a one-shot MitM risk on this one call in
-     * exchange for compatibility with arbitrary CAs (Cloudflare, GTS,
-     * etc.) without uploading certs to the modem's filesystem. The
-     * passkey we receive in the response is then used for XOR-encrypted
-     * MQTT traffic going forward. */
+    /* === Step 4: HTTPS session SSL slot, no cert verification ======== */
     at_simple(dce, "AT+SHSSL=1,\"\"", HTTPS_T_AT_SHORT_MS);
 
-    /* === Step 5: HTTPS session config ================================ */
-    snprintf(cmd, sizeof(cmd), "AT+SHCONF=\"URL\",\"%s\"", url);
+    /* === Step 5: HTTPS session config ================================
+     *
+     * URL: include the explicit ":443" port. Some SIM7080G firmware
+     * revisions don't infer the port from the scheme — observed in
+     * field log 4205fc7 where SHCONN returned bare "ERROR" with no
+     * +SHCONN: error code, suggesting the URL parsing rejected before
+     * the connection even attempted. */
+    char url_with_port[256];
+    if (strstr(url, "://") && !strstr(url + 8, ":")) {
+        /* No port in URL; add :443 (HTTPS) explicitly. */
+        snprintf(url_with_port, sizeof(url_with_port), "%s:443", url);
+    } else {
+        snprintf(url_with_port, sizeof(url_with_port), "%s", url);
+    }
+    snprintf(cmd, sizeof(cmd), "AT+SHCONF=\"URL\",\"%s\"", url_with_port);
     err = at_simple(dce, cmd, HTTPS_T_AT_SHORT_MS);
     if (err != ESP_OK) goto cleanup_disc;
 
     at_simple(dce, "AT+SHCONF=\"BODYLEN\",1024",   HTTPS_T_AT_SHORT_MS);
     at_simple(dce, "AT+SHCONF=\"HEADERLEN\",350",  HTTPS_T_AT_SHORT_MS);
+    at_simple(dce, "AT+SHCONF=\"TIMEOUT\",60",     HTTPS_T_AT_SHORT_MS);
+
+    /* SHSTATE? before connect — confirms session slot is in expected
+     * state (0 = disconnected, ready). Log only; don't gate on it. */
+    at_simple(dce, "AT+SHSTATE?", HTTPS_T_AT_SHORT_MS);
 
     /* === Step 6: connect ============================================
      * AT+SHCONN returns OK after the TCP+TLS handshake completes.
-     * Long timeout — TLS handshake over LTE-M can take 5-30 s. */
-    err = at_simple(dce, "AT+SHCONN", HTTPS_T_SHCONN_MS);
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "SHCONN failed");
+     * Long timeout — TLS handshake over LTE-M can take 5-30 s.
+     *
+     * Use at_raw with explicit pass="OK" fail="ERROR" so any error
+     * URC arriving before/with ERROR (like "+CME ERROR: <code>")
+     * gets captured in the response buffer for diagnostic logging. */
+    char shconn_resp[512] = {0};
+    err = esp_modem_at_raw(dce, "AT+SHCONN\r", shconn_resp,
+                            "OK", "ERROR", HTTPS_T_SHCONN_MS);
+    for (char *c = shconn_resp; *c; c++) if (*c == '\r' || *c == '\n') *c = ' ';
+    if (err == ESP_OK) {
+        ESP_LOGI(TAG, "AT+SHCONN → OK%s%.220s",
+                 shconn_resp[0] ? ", resp=" : "", shconn_resp);
+    } else {
+        ESP_LOGE(TAG, "AT+SHCONN → %s, resp=%.220s",
+                 esp_err_to_name(err), shconn_resp);
+        /* Query SHSTATE for additional diagnostic info. */
+        at_simple(dce, "AT+SHSTATE?", HTTPS_T_AT_SHORT_MS);
         goto cleanup_disc;
     }
 
