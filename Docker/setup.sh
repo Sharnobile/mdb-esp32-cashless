@@ -258,6 +258,36 @@ if prompt_yes_no "Disable public signup? (Recommended for private deployments)" 
     DISABLE_SIGNUP="true"
 fi
 
+# ─── Environment indicator ─────────────────────────────────────────────────────
+echo
+echo -e "${BOLD}Environment Indicator${NC}"
+echo -e "${DIM}A colored banner can be shown at the top of the frontend on every page${NC}"
+echo -e "${DIM}to clearly mark non-production environments (dev / test / staging).${NC}"
+echo -e "${DIM}Production deployments should leave this disabled.${NC}"
+echo
+
+ENV_NAME=""
+ENV_COLOR=""
+if prompt_yes_no "Is this a non-production system (dev / test / staging)?" "n"; then
+    ENV_NAME=$(prompt_with_default "Environment label (shown on banner, uppercase)" "test")
+    echo
+    echo -e "${DIM}Available colors:${NC}"
+    echo -e "  ${RED}red${NC}     — strongest warning, use for unstable / dev"
+    echo -e "  ${YELLOW}amber${NC}   — caution (default)"
+    echo -e "  orange  — alternative warm tone"
+    echo -e "  purple  — neutral attention, e.g. for staging"
+    echo -e "  ${BLUE}blue${NC}    — informational, least alarming"
+    echo
+    ENV_COLOR=$(prompt_with_default "Banner color" "amber")
+    case "$ENV_COLOR" in
+        red|amber|orange|purple|blue) ;;
+        *) warn "Unknown color '$ENV_COLOR' — falling back to 'amber'"; ENV_COLOR="amber" ;;
+    esac
+    success "Frontend will show '${ENV_NAME}' banner in ${ENV_COLOR}"
+else
+    info "Production mode — no environment banner will be shown"
+fi
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # Generate Secrets
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -454,6 +484,15 @@ VAPID_SUBJECT=${VAPID_SUBJECT}
 #########
 
 GITHUB_FIRMWARE_REPO=
+
+##########
+# Frontend Environment Indicator
+# Empty / "prod" / "production" → no banner. Otherwise → banner with this name.
+# Color: red, amber, orange, purple, blue (default: amber)
+#########
+
+ENV_NAME=${ENV_NAME}
+ENV_COLOR=${ENV_COLOR}
 ENVEOF
 
 success ".env written successfully"
@@ -479,6 +518,8 @@ if [ -d "${SCRIPT_DIR}/../management-frontend" ]; then
 SUPABASE_URL=${SUPABASE_PUBLIC_URL}
 SUPABASE_KEY=${ANON_KEY}
 VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY}
+ENV_NAME=${ENV_NAME}
+ENV_COLOR=${ENV_COLOR}
 FEENVEOF
     success "management-frontend/.env written"
 else
