@@ -74,17 +74,22 @@
 
 /* Helper: fire-and-forget AT command with default OK/ERROR matching.
  * Returns ESP_OK on OK in response, ESP_FAIL otherwise (timeout,
- * ERROR, etc.). Logs the result and the response text on non-OK. */
+ * ERROR, etc.). Always logs result + response text. NB: esp_modem
+ * 1.4.0's generic_get_string() OVERWRITES `output` for each non-OK
+ * line in a multi-line response (see esp_modem_command_library.cpp
+ * line 103, str_copy::set not append), so for commands like CNACT?
+ * we only see the LAST line of a multi-line reply. Don't rely on
+ * this captured output for parsing multi-bearer state. */
 static esp_err_t at_simple(esp_modem_dce_t *dce, const char *cmd, int timeout_ms) {
     char resp[256] = {0};
     esp_err_t err = esp_modem_at(dce, cmd, resp, timeout_ms);
+    /* Strip CR/LF for cleaner one-line logs. */
+    for (char *c = resp; *c; c++) if (*c == '\r' || *c == '\n') *c = ' ';
     if (err == ESP_OK) {
-        ESP_LOGI(TAG, "%s → %s", cmd, esp_err_to_name(err));
+        ESP_LOGI(TAG, "%s → OK%s%.180s", cmd,
+                 resp[0] ? ", resp=" : "", resp);
     } else {
-        /* Log the actual response text — many SIMCom commands return
-         * a +URC line with an error code before "OK"/"ERROR", e.g.
-         * "+SHCONN: 4" then ERROR. We need to see that to diagnose. */
-        ESP_LOGW(TAG, "%s → %s, resp=%.220s", cmd, esp_err_to_name(err), resp);
+        ESP_LOGW(TAG, "%s → %s, resp=%.180s", cmd, esp_err_to_name(err), resp);
     }
     return err;
 }
@@ -227,86 +232,72 @@ esp_err_t modem_https_post_json(const char *url,
     int active_bearer = -1;   /* -1 = unknown/inactive; set in step 2 */
 
     /* === Step 0: pre-flight diagnostic ===============================
+     * Log firmware ID + bearer/PDP state once. Useful for bug reports.
+     * Note: AT+CNACT? returns multi-line, but esp_modem 1.4.0 only
+     * preserves the LAST line in our captured output (see at_simple
+     * comment) — the log is informational only, don't parse it. */
+    at_simple(dce, "AT+SIMCOMATI", HTTPS_T_AT_SHORT_MS);
+    at_simple(dce, "AT+CGMR",      HTTPS_T_AT_SHORT_MS);
+    at_simple(dce, "AT+CGATT?",    HTTPS_T_AT_SHORT_MS);
+    at_simple(dce, "AT+CGACT?",    HTTPS_T_AT_SHORT_MS);
+    at_simple(dce, "AT+CNACT?",    HTTPS_T_AT_SHORT_MS);
+
+    /* === Step 1: cleanup ============================================
+     * SHDISC closes any lingering HTTPS session, CNACT=0,0 deactivates
+     * bearer 0 if up. Both best-effort.
      *
-     * Field log 2026-04-29 (commit e366435) revealed that AT+CNACT?
-     * only returns bearer 3 on this SIM7080G — bearer 0 (which we've
-     * been targeting per SIMCom's reference flow) doesn't appear in
-     * the response. Either esp_modem truncates the multi-line CNACT?
-     * response keeping only the last line, OR this firmware variant
-     * uses bearer 3 instead of bearer 0 for the internal stack.
+     * REMOVED in this revision: the CNACT=3,0 cleanup. Field log
+     * c2a5a11 showed it picked up a stale "+APP PDP: 0,DEACTIVE" URC
+     * from the prior CNACT=0,0 and reported it as the response —
+     * confusing the diagnostic, and probably contributing to the
+     * downstream lockup. Sticking with bearer 0 throughout removes
+     * the URC cross-contamination. */
+    at_simple(dce, "AT+SHDISC",    HTTPS_T_AT_SHORT_MS);
+    at_simple(dce, "AT+CNACT=0,0", HTTPS_T_AT_SHORT_MS);
+    vTaskDelay(pdMS_TO_TICKS(1500));
+
+    /* === Step 2: configure + activate bearer 0, then trust + sleep ==
      *
-     * One-shot diagnostic block: log firmware ID + the relevant context
-     * states so we have ground-truth for the next decision. After this
-     * dataset comes back from the field we'll know whether to switch
-     * bearer index, fix the response capture, or try a different
-     * approach entirely. */
-    at_simple(dce, "AT+SIMCOMATI",  HTTPS_T_AT_SHORT_MS);
-    at_simple(dce, "AT+CGMR",       HTTPS_T_AT_SHORT_MS);
-    at_simple(dce, "AT+CGATT?",     HTTPS_T_AT_SHORT_MS);
-    at_simple(dce, "AT+CGACT?",     HTTPS_T_AT_SHORT_MS);
-    at_simple(dce, "AT+CNACT?",     HTTPS_T_AT_SHORT_MS);
-
-    /* === Step 1: defensive cleanup ===================================
-     * SHDISC + CNACT=0,0 + CNACT=3,0 — disable any lingering session
-     * on either bearer 0 or bearer 3. Best-effort. */
-    at_simple(dce, "AT+SHDISC",     HTTPS_T_AT_SHORT_MS);
-    at_simple(dce, "AT+CNACT=0,0",  HTTPS_T_AT_SHORT_MS);
-    at_simple(dce, "AT+CNACT=3,0",  HTTPS_T_AT_SHORT_MS);
-    vTaskDelay(pdMS_TO_TICKS(1000));
-
-    /* === Step 2: configure + activate internal bearer ================
-     * Two-pass strategy: try bearer 0 first (SIMCom canonical), then
-     * fall back to bearer 3 if 0 doesn't appear active within 5 s.
-     * Field log e366435 showed only bearer 3 visible in CNACT? on this
-     * firmware — but until we know if that's a parser artefact or real
-     * firmware behaviour, we try both. */
-
-    /* Try bearer 0 first. */
+     * Critical realisation from c2a5a11 field log: AT+CNACT? polling is
+     * pointless on this esp_modem version. The library's
+     * generic_get_string() callback OVERWRITES the captured output
+     * per-line (str_copy::set, not append) — so a 4-line CNACT?
+     * response only delivers the LAST line, which is bearer 3, never
+     * the bearer 0 line we'd want to see. We literally CANNOT read
+     * bearer 0's state through esp_modem.
+     *
+     * Pragmatic alternative: trust the AT+CNACT=0,1 OK return as
+     * "command accepted", sleep a generous 8 s for the modem to bring
+     * the bearer up internally (the "+APP PDP: 0,ACTIVE" URC arrives
+     * during this window but we don't try to capture it — esp_modem's
+     * URC routing is also fragile here), and proceed straight to
+     * SHCONN. SHCONN's own success/failure is the authoritative
+     * signal: if the bearer was active and TLS works, it succeeds; if
+     * the bearer never came up or DNS/TLS fails, SHCONN tells us
+     * exactly which step failed via its response code.
+     *
+     * Field log will show whether SHCONN actually works once we
+     * stop second-guessing it through the broken CNACT? channel. */
     snprintf(cmd, sizeof(cmd), "AT+CNCFG=0,1,\"%s\"", apn);
-    at_simple(dce, cmd, HTTPS_T_AT_SHORT_MS);
-    at_simple(dce, "AT+CNACT=0,1", HTTPS_T_AT_SHORT_MS);
-
-    /* Fast 5 s probe: did bearer 0 come up? */
-    {
-        TickType_t end = xTaskGetTickCount() + pdMS_TO_TICKS(5000);
-        while (xTaskGetTickCount() < end) {
-            char r[256] = {0};
-            if (esp_modem_at(dce, "AT+CNACT?", r, 2000) == ESP_OK) {
-                for (char *c = r; *c; c++) if (*c == '\r' || *c == '\n') *c = ' ';
-                ESP_LOGI(TAG, "CNACT? probe: %.180s", r);
-                if (strstr(r, "+CNACT: 0,1")) { active_bearer = 0; break; }
-                if (strstr(r, "+CNACT: 3,1")) { active_bearer = 3; break; }
-            }
-            vTaskDelay(pdMS_TO_TICKS(1000));
-        }
+    err = at_simple(dce, cmd, HTTPS_T_AT_SHORT_MS);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "CNCFG rejected — proceeding anyway");
     }
 
-    /* If bearer 0 didn't activate, try bearer 3 explicitly. */
-    if (active_bearer < 0) {
-        ESP_LOGW(TAG, "bearer 0 didn't activate — falling back to bearer 3");
-        snprintf(cmd, sizeof(cmd), "AT+CNCFG=3,1,\"%s\"", apn);
-        at_simple(dce, cmd, HTTPS_T_AT_SHORT_MS);
-        at_simple(dce, "AT+CNACT=3,1", HTTPS_T_AT_SHORT_MS);
-
-        TickType_t end = xTaskGetTickCount() + pdMS_TO_TICKS(15000);
-        while (xTaskGetTickCount() < end && active_bearer < 0) {
-            char r[256] = {0};
-            if (esp_modem_at(dce, "AT+CNACT?", r, 2000) == ESP_OK) {
-                for (char *c = r; *c; c++) if (*c == '\r' || *c == '\n') *c = ' ';
-                ESP_LOGI(TAG, "CNACT? probe (b3): %.180s", r);
-                if (strstr(r, "+CNACT: 0,1")) { active_bearer = 0; break; }
-                if (strstr(r, "+CNACT: 3,1")) { active_bearer = 3; break; }
-            }
-            vTaskDelay(pdMS_TO_TICKS(1000));
-        }
-    }
-
-    if (active_bearer < 0) {
-        ESP_LOGE(TAG, "neither bearer 0 nor bearer 3 ever became active");
-        final_err = ESP_ERR_TIMEOUT;
+    err = at_simple(dce, "AT+CNACT=0,1", HTTPS_T_AT_SHORT_MS);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "CNACT=0,1 rejected — bearer activation failed");
+        final_err = err;
         goto cleanup_disc;
     }
-    ESP_LOGI(TAG, "active bearer = %d", active_bearer);
+
+    /* 8 s settle for "+APP PDP: 0,ACTIVE" URC to arrive and bearer to
+     * become usable. Empirically derived from c2a5a11 timing — bearer
+     * activation appears to take 1-3 s on a clean network, plus
+     * margin for slow attaches. */
+    ESP_LOGI(TAG, "CNACT=0,1 accepted — sleeping 8 s for bearer to come up");
+    vTaskDelay(pdMS_TO_TICKS(8000));
+    active_bearer = 0;
 
     /* === Step 3: SSL config (TLS 1.2 on SSL slot 1) ================== */
     at_simple(dce, "AT+CSSLCFG=\"sslversion\",1,3", HTTPS_T_AT_SHORT_MS);
