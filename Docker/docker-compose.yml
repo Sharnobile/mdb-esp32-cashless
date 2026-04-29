@@ -27,6 +27,8 @@ services:
       NUXT_PUBLIC_SUPABASE_KEY: ${ANON_KEY}
       NUXT_PUBLIC_VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       NUXT_PUBLIC_GITHUB_FIRMWARE_REPO: ${GITHUB_FIRMWARE_REPO:-}
+      NUXT_PUBLIC_ENV_NAME: ${ENV_NAME:-}
+      NUXT_PUBLIC_ENV_COLOR: ${ENV_COLOR:-amber}
 
   # ==========================================================================
   # MQTT Broker & Forwarder
