@@ -92,19 +92,26 @@ static esp_err_t at_simple(esp_modem_dce_t *dce, const char *cmd, int timeout_ms
 /* Poll AT+CNACT? until bearer 0 reports status=1 (active), or timeout.
  * Returns ESP_OK if active before timeout, ESP_ERR_TIMEOUT otherwise.
  * Format of CNACT? reply: "+CNACT: 0,<status>,\"<ip>\"" with one line
- * per bearer (0..3). We only check bearer 0. */
+ * per bearer (0..3). We only check bearer 0.
+ *
+ * Uses real wall-clock budgeting via xTaskGetTickCount: each iteration
+ * takes ~3-3.5 s (AT timeout + 500 ms sleep) so a naive `waited += 500`
+ * counter would over-poll by 6×. */
 static esp_err_t cnact_wait_active(esp_modem_dce_t *dce, int timeout_ms) {
     char resp[256];
-    int waited = 0;
-    while (waited < timeout_ms) {
+    TickType_t start = xTaskGetTickCount();
+    TickType_t deadline = start + pdMS_TO_TICKS(timeout_ms);
+    int iter = 0;
+    while (xTaskGetTickCount() < deadline) {
+        iter++;
         memset(resp, 0, sizeof(resp));
-        if (esp_modem_at(dce, "AT+CNACT?", resp, 3000) == ESP_OK) {
-            /* Look for "+CNACT: 0," followed by digit. */
+        esp_err_t at_err = esp_modem_at(dce, "AT+CNACT?", resp, 2000);
+        if (at_err == ESP_OK) {
+            /* Look for "+CNACT: 0," followed by status digit. */
             const char *p = strstr(resp, "+CNACT: 0,");
             if (p) {
                 char status_char = p[10];
                 if (status_char == '1') {
-                    /* Extract IP from the rest of the line for logging. */
                     const char *q = strchr(p + 10, '"');
                     char ip[24] = {0};
                     if (q) {
@@ -113,16 +120,26 @@ static esp_err_t cnact_wait_active(esp_modem_dce_t *dce, int timeout_ms) {
                             memcpy(ip, q + 1, q2 - q - 1);
                         }
                     }
-                    ESP_LOGI(TAG, "CNACT bearer 0 ACTIVE (IP=%s) after %d ms",
-                             ip[0] ? ip : "?", waited);
+                    int elapsed_ms = (int)((xTaskGetTickCount() - start) *
+                                            portTICK_PERIOD_MS);
+                    ESP_LOGI(TAG, "CNACT bearer 0 ACTIVE (IP=%s) after %d ms / %d polls",
+                             ip[0] ? ip : "?", elapsed_ms, iter);
                     return ESP_OK;
                 }
+                /* status != 1 — still inactive, log every 5 iterations */
+                if (iter % 5 == 0) {
+                    ESP_LOGI(TAG, "CNACT poll %d: bearer 0 still inactive (resp=%.100s)",
+                             iter, resp);
+                }
             }
+        } else if (iter % 5 == 0) {
+            ESP_LOGW(TAG, "CNACT poll %d: AT timeout (modem unresponsive)", iter);
         }
         vTaskDelay(pdMS_TO_TICKS(500));
-        waited += 500;
     }
-    ESP_LOGE(TAG, "CNACT bearer 0 still inactive after %d ms", timeout_ms);
+    int elapsed_ms = (int)((xTaskGetTickCount() - start) * portTICK_PERIOD_MS);
+    ESP_LOGE(TAG, "CNACT bearer 0 still inactive after %d ms / %d polls",
+             elapsed_ms, iter);
     return ESP_ERR_TIMEOUT;
 }
 
@@ -207,17 +224,32 @@ esp_err_t modem_https_post_json(const char *url,
     esp_err_t err;
     esp_err_t final_err = ESP_FAIL;
 
-    /* === Step 0: defensive cleanup =================================
-     * Field log 2026-04-29 (commit b8312e7): first attempt had
-     * AT+CNACT=0,1 returning ESP_FAIL. Cause was likely lingering
-     * state from the PPP teardown — the modem firmware needs a clean
-     * deactivate-then-activate cycle to bring the internal bearer up
-     * reliably. Also defensively close any HTTPS session that might
-     * be lingering. Both are best-effort — failures are expected on
-     * a clean boot. */
+    /* === Step 0: release the dial-up PDP context + defensive cleanup
+     *
+     * Field log 2026-04-29 (commit 524c92c) showed AT+CNACT=0,1
+     * succeeding then the modem becoming completely unresponsive —
+     * neither our cnact_wait_active polls nor the watchdog AT pings
+     * could reach it for 90 s. Diagnosis: the PPP teardown only
+     * detached our host PPP layer; the modem-side PDP context (CID 1)
+     * stayed auto-attached on LTE. CNACT bearer 0 then tried to bind
+     * to the same PDP context, conflicting with the still-bound dial-up
+     * service, and the modem firmware locked up while resolving the
+     * conflict.
+     *
+     * Fix: explicitly release PDP context 1 via AT+CGACT=0,1 BEFORE
+     * touching CNACT. SIMCom's warning against CGACT applies to
+     * CGACT=1,1 (manual ACTIVATE — they say "for simulators only");
+     * CGACT=0,1 (deactivate) is fine on real networks and is the
+     * proper way to release a dial-up bearer. After this, the next
+     * CFUN cycle or registration will auto-reattach if needed; the
+     * internal stack (CNACT) gets a clean PDP slot.
+     *
+     * Followed by a defensive SHDISC + CNACT=0,0 in case any prior
+     * session left state behind. Both best-effort. */
+    at_simple(dce, "AT+CGACT=0,1",  HTTPS_T_AT_MED_MS);
     at_simple(dce, "AT+SHDISC",     HTTPS_T_AT_SHORT_MS);
     at_simple(dce, "AT+CNACT=0,0",  HTTPS_T_AT_SHORT_MS);
-    vTaskDelay(pdMS_TO_TICKS(1000));
+    vTaskDelay(pdMS_TO_TICKS(2000));
 
     /* === Step 1: configure internal-bearer APN ====================== */
     snprintf(cmd, sizeof(cmd), "AT+CNCFG=0,1,\"%s\"", apn);
