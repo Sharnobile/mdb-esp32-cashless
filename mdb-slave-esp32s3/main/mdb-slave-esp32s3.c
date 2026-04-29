@@ -2248,6 +2248,35 @@ void provision_claim_task(void *arg) {
     char url[192];
     snprintf(url, sizeof(url), "%s/functions/v1/claim-device", srv_url);
 
+    /* === DIAGNOSTIC: cross-endpoint TLS test ===========================
+     *
+     * Set DEBUG_PROVISION_TEST_URL to override the claim URL with a known
+     * non-Cloudflare endpoint. Used to isolate whether the TLS-handshake
+     * stall observed against `supabase-test.kerl-handel.de` is specific
+     * to Cloudflare / the user's backend, or fundamental to the cellular
+     * + mbedtls + lwIP stack.
+     *
+     * What to expect:
+     *   - example.com is hosted by Verisign, NOT on Cloudflare. Returns
+     *     200 + a static HTML page for any method, including POST.
+     *   - Our claim handler will parse the response, fail to find the
+     *     required JSON fields, and log "HTTP 200 but response missing
+     *     required fields — giving up". That's expected — we don't care
+     *     about the HTTP semantics, we just want to see if the TLS
+     *     handshake completes.
+     *   - If TLS completes against example.com but NOT against Cloudflare:
+     *     → the issue is Cloudflare-specific (config, edge timeout, WAF).
+     *   - If TLS also EOFs against example.com: → fundamental cellular/
+     *     mbedtls/lwIP problem, not a backend issue.
+     *
+     * To revert: comment out the #define line, rebuild.
+     * =================================================================== */
+    #define DEBUG_PROVISION_TEST_URL "https://example.com/"
+    #ifdef DEBUG_PROVISION_TEST_URL
+    snprintf(url, sizeof(url), "%s", DEBUG_PROVISION_TEST_URL);
+    ESP_LOGW(TAG, "PROV: ⚠ DEBUG mode — overriding URL to %s (TLS isolation test)", url);
+    #endif
+
     ESP_LOGI(TAG, "PROV: claiming device at %s body=%s", url, body);
 
     bool use_tls = (strncmp(url, "https://", 8) == 0);
