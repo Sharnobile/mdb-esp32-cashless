@@ -2353,11 +2353,53 @@ void provision_claim_task(void *arg) {
          * mbedTLS interpreted our select() timeout as a server FIN
          * (CONN_EOF). 60 s gives realistic cellular handshakes room
          * without unbounding the wait. */
+        /* TCP keepalive on the claim socket — fixes the LTE-M
+         * "TLS-handshake stalls after we send Finished" symptom.
+         *
+         * Diagnostic round 2 (commit 924f8b5, https://www.google.com)
+         * proved this is NOT Cloudflare-specific: against Google's own
+         * non-Cloudflare infrastructure we see the same exact failure —
+         * we successfully write CKE+CCS+Finished (lwIP f_send accepts
+         * all bytes), then 60 s of dead silence on recv, then the
+         * cellular path is physically dead (next TCP probe fails
+         * immediately). Conclusion: the ~30 ms gap between our final
+         * send-burst and the server's reply is enough for Telekom IoT's
+         * LTE-M radio to drop into RRC-IDLE / Connected-DRX, and the
+         * carrier's paging delivery of the inbound reply is so
+         * aggressive on `sensor.net` that the packets get dropped
+         * before they can wake the modem.
+         *
+         * SO_KEEPALIVE on the TCP socket forces lwIP to send a
+         * keepalive probe after `keep_alive_idle` seconds of no
+         * activity. Each probe is outbound traffic, which keeps the
+         * radio in RRC-CONNECTED, which keeps the carrier delivering
+         * inbound packets immediately instead of via paging.
+         *
+         * Tuning:
+         *   - keep_alive_idle = 3 s : shorter than typical RRC-IDLE
+         *     timer (5-10 s) so we always nudge before transition
+         *   - keep_alive_interval = 1 s : retransmit the probe quickly
+         *     if first one is lost (LTE-M packet loss is real)
+         *   - keep_alive_count = 5 : 5 unacked probes = give up. With
+         *     1 s interval that's a 5 s detection window for a truly
+         *     dead path.
+         *
+         * Cost: ~80 bytes outbound every 3 s during idle-wait windows.
+         * On a 50 MB/month IoT data plan this is negligible — at most
+         * a few KB extra per provisioning attempt.
+         *
+         * Per-socket setting (via esp_http_client_config_t fields).
+         * No global lwIP config change needed; LWIP_TCP_KEEPALIVE is
+         * already enabled by default in ESP-IDF lwipopts.h. */
         esp_http_client_config_t http_cfg = {
-            .url               = url,
-            .method            = HTTP_METHOD_POST,
-            .crt_bundle_attach = use_tls ? esp_crt_bundle_attach : NULL,
-            .timeout_ms        = 60000,
+            .url                 = url,
+            .method              = HTTP_METHOD_POST,
+            .crt_bundle_attach   = use_tls ? esp_crt_bundle_attach : NULL,
+            .timeout_ms          = 60000,
+            .keep_alive_enable   = true,
+            .keep_alive_idle     = 3,
+            .keep_alive_interval = 1,
+            .keep_alive_count    = 5,
         };
 
         esp_http_client_handle_t client = esp_http_client_init(&http_cfg);
