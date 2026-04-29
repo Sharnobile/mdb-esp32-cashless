@@ -1,4 +1,5 @@
 <template>
+  <EnvironmentBanner />
   <NuxtLayout>
     <NuxtPage />
   </NuxtLayout>
