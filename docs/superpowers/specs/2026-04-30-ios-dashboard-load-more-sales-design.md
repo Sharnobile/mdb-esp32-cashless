@@ -96,9 +96,14 @@ func loadMoreRecentSales() async {
 
 Umbau von `loadRecentSales()`:
 - Statt `.limit(20)` → `.gte("created_at", value: ...)` mit dem berechneten Window-Start.
-- Window-Start: `Calendar.current.startOfDay(for: Date()) − recentSalesDaysBack days`.
+- Window-Start: `Calendar.current.date(byAdding: .day, value: -recentSalesDaysBack, to: Calendar.current.startOfDay(for: Date()))!`.
+- Bei `recentSalesDaysBack == 0` ist Window-Start exakt `start_of_today` → die Query liefert nur heutige Sales (keine letzten 24 h, sondern alles seit Mitternacht).
 - Kein Limit mehr — alle Sales im Zeitfenster werden geladen.
 - Order bleibt `.order("created_at", ascending: false)`.
+
+`loadRecentSales()` bleibt `private` — wird ausschließlich von `loadDashboard()` (parallel via `async let`) und von `loadMoreRecentSales()` aufgerufen, beide leben in der gleichen Klasse.
+
+**Concurrency:** Wenn ein Realtime-Trigger während eines laufenden `loadMoreRecentSales`-Calls feuert, läuft `loadDashboard()` parallel und kann auf `recentSales` racen. Das ist konsistent mit dem bestehenden Verhalten (Dashboard-Reloads stacken bereits via Realtime); akzeptiert wird *last-write-wins* auf `recentSales`. SwiftUI canceled bestehende `refreshable`-Tasks bei Bedarf via `CancellationError`.
 
 `loadDashboard()` ändert sich konzeptionell nicht — `loadRecentSales()` wird wie gehabt parallel aufgerufen und nutzt automatisch den aktuellen `recentSalesDaysBack`-Wert.
 
@@ -106,6 +111,8 @@ Umbau von `loadRecentSales()`:
 - Pull-to-Refresh: lädt das aktuelle Fenster neu (User-Erwartung, da sie das Fenster bewusst gesetzt haben).
 - Realtime-Trigger: lädt das aktuelle Fenster neu, ohne den State zu resetten.
 - App-Restart resettet implizit (frisches `DashboardViewModel` mit `daysBack = 0`).
+
+**`hasMoreSales` Recovery:** Wenn ein Reload (Pull-to-Refresh oder Realtime) **mehr** Sales zurückbringt als zuvor (z. B. neuer Sale via Realtime kam rein, oder ein Backfill), wird `hasMoreSales = true` gesetzt — egal ob es vorher false war. Das verhindert, dass der Button für immer verschwindet, wenn das Konto initial leer war und später Sales reinkommen.
 
 ### UI in `DashboardView`
 
@@ -163,13 +170,13 @@ private var loadMoreButton: some View {
                 } else {
                     Image(systemName: "arrow.down.circle")
                 }
-                Text("Mehr laden")
+                Text("Load more")
             }
         }
         .buttonStyle(.bordered)
         .disabled(viewModel.isLoadingMoreSales)
 
-        Text("Letzte \(nextDaysTotal) Tage anzeigen")
+        Text("Show last \(nextDaysTotal) days")
             .font(.caption2)
             .foregroundStyle(.secondary)
     }
@@ -178,7 +185,7 @@ private var loadMoreButton: some View {
 }
 ```
 
-i18n: Die Strings "Mehr laden", "Letzte X Tage anzeigen" und "No recent sales" werden mit `String(localized:)` umschlossen, konsistent mit den restlichen UI-Strings im Dashboard.
+**i18n-Konvention:** Base-Sprache der iOS-App ist Englisch — die Strings "Load more", "Show last X days" werden mit `String(localized: ...)` deklariert. Lokalisierte deutsche Varianten ("Mehr laden", "Letzte X Tage anzeigen") werden über `.strings`-Files / String Catalog gepflegt, konsistent mit den restlichen Dashboard-Strings ("Today", "Yesterday", "No recent sales", "Recent Sales", "Loading dashboard...").
 
 ## Data Flow
 
@@ -212,7 +219,7 @@ RealtimeService          →       loadDashboard()              →    created_a
 
 - **Server-Fehler beim "Mehr laden":** `recentSalesDaysBack` wird zum vorherigen Wert zurückgesetzt, damit ein erneuter Tap die gleiche Aktion wiederholt. Die `error`-Property wird gesetzt (aber nicht weiter UI-mäßig hervorgehoben — das bestehende Dashboard zeigt Errors auch nur über `error.localizedDescription`).
 - **CancellationError:** Bestehender Pattern in `loadDashboard` (catch is CancellationError) bleibt — falls SwiftUI die Task während eines Refresh canceled, ist das kein User-Error.
-- **Empty result auf erstem Tap (heute hat keine Sales und letzte 7 Tage auch keine):** `hasMoreSales` wird false, Button verschwindet. User kann via Pull-to-Refresh neu starten.
+- **Empty result auf erstem Tap (heute hat keine Sales und letzte 7 Tage auch keine):** `hasMoreSales` wird false, Button verschwindet. Recovery: Sobald via Realtime oder Pull-to-Refresh ein neuer Sale ins Window fällt und `recentSales.count` größer wird, wird `hasMoreSales = true` zurückgesetzt (siehe "`hasMoreSales` Recovery" oben). Im Worst Case (Account hat permanent null Sales) startet App-Restart implizit auch wieder bei 0.
 
 ## Testing Strategy
 
