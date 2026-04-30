@@ -342,8 +342,8 @@ static esp_err_t claim_handler(httpd_req_t *req) {
         return send_err_json(req, "srv_url required");
     }
 
-    /* Persist + spawn the claim task. The task reads from NVS and
-     * reboots on success. */
+    /* Persist prov_code + srv_url to NVS so the claim task can pick
+     * them up. */
     nvs_handle_t h;
     if (nvs_open("vmflow", NVS_READWRITE, &h) == ESP_OK) {
         nvs_set_str(h, "prov_code", jcode->valuestring);
@@ -353,7 +353,24 @@ static esp_err_t claim_handler(httpd_req_t *req) {
     }
     cJSON_Delete(root);
 
-    xTaskCreate(provision_claim_task, "prov_claim", 16384, NULL, 5, NULL);
+    /* Spawn strategy: the claim task does an HTTPS POST that needs an
+     * uplink with DNS. On a WiFi board, the captive portal is hit
+     * BEFORE STA finishes connecting — spawning here would race the
+     * STA bring-up and fail with getaddrinfo() = EAI_AGAIN. Instead:
+     *
+     *   - Already up (cellular registered, or STA already had IP from
+     *     a prior connect): spawn now.
+     *   - Not up yet: don't spawn here. The network event handler in
+     *     mdb-slave-esp32s3.c spawns the task on NETWORK_EVENT_UPLINK_UP,
+     *     which fires when STA gets IP / PPP completes IPCP — at which
+     *     point DNS resolves cleanly. */
+    network_status_t st;
+    network_get_status(&st);
+    if (st.uplink_up) {
+        xTaskCreate(provision_claim_task, "prov_claim", 16384, NULL, 5, NULL);
+    } else {
+        ESP_LOGI(TAG, "claim: uplink not yet up — task will spawn on UPLINK_UP");
+    }
     return send_ok(req);
 }
 

@@ -305,13 +305,20 @@ static void network_wifi_event_handler(void *arg, esp_event_base_t event_base, i
                 esp_timer_stop(s_wifi_reconnect_timer);
             }
 
-            stop_rest_server();
-            stop_dns_server();
-            s_softap_active = false;
-
-            /* Switch to STA-only mode now that we have a connection */
-            esp_wifi_set_mode(WIFI_MODE_STA);
-
+            /* SoftAP persistence: keep "VMflow" + DNS hijack + REST
+             * server alive after STA gets IP. The captive-portal page
+             * the user opened during initial setup must remain
+             * reachable so they can watch the
+             * claimed_connecting → claimed transition (and longer-
+             * term, see status / re-provision without re-flashing).
+             *
+             * Earlier this handler tore down REST/DNS and switched
+             * mode to STA-only — which kicked iOS off the captive-
+             * portal page exactly when we wanted them to see "Setup
+             * complete" populate. Mode stays APSTA, AP stays up.
+             * Cellular path doesn't tear AP down either (PPP_GOT_IP
+             * handler doesn't touch s_softap_active), so this aligns
+             * the two uplink types. */
             s_state = NETWORK_STATE_WIFI_UP;
             network_fire_event(NETWORK_EVENT_UPLINK_UP);
 
