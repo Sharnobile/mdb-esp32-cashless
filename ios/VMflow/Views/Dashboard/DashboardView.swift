@@ -213,10 +213,16 @@ struct DashboardView: View {
                     .padding(.vertical, 20)
             } else {
                 let grouped = groupDashboardSalesByDay(viewModel.recentSales)
-                ForEach(grouped, id: \.date) { group in
-                    DaySectionHeader(label: dayLabel(for: group.date), count: group.sales.count)
-                    ForEach(group.sales) { item in
-                        RecentSaleRow(item: item)
+                // LazyVStack: only the rows visible in the ScrollView's viewport are
+                // instantiated. Without it, large windows (e.g. 21+ days) render
+                // hundreds of RecentSaleRows eagerly, each spawning an AsyncImage
+                // HTTP request — iOS kills the app under memory pressure.
+                LazyVStack(alignment: .leading, spacing: 12) {
+                    ForEach(grouped, id: \.date) { group in
+                        DaySectionHeader(label: dayLabel(for: group.date), count: group.sales.count)
+                        ForEach(group.sales) { item in
+                            RecentSaleRow(item: item)
+                        }
                     }
                 }
             }
