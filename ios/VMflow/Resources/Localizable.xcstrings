@@ -1436,6 +1436,16 @@
         }
       }
     },
+    "Load more" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mehr laden"
+          }
+        }
+      }
+    },
     "Loading dashboard..." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2467,6 +2477,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Einstellungen"
+          }
+        }
+      }
+    },
+    "Show last %lld days" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Letzte %lld Tage anzeigen"
           }
         }
       }
