@@ -126,16 +126,26 @@ static esp_err_t system_info_get_handler(httpd_req_t *req) {
     /* Wizard state mapping. SOFTAP_ONLY needs special handling because it
      * means different things on the two variants.
      *
-     * SPECIAL CASE: while the synchronous modem_probe is still running
-     * (first ~5 s of boot), report wizard_state="probing". Without this,
-     * the captive portal would briefly render the WiFi setup form
-     * (because modem_present=false until probe completes), then
-     * flicker to the cellular form once the modem is detected — a
-     * confusing UX after a tracked_restart where the iPhone is still
-     * on the SoftAP. */
+     * Two special cases that wrap normal state mapping:
+     *
+     * (1) PROBING: while the synchronous modem_probe is still running
+     *     (first ~5 s of boot), report wizard_state="probing". Without
+     *     this, the UI would briefly render the WiFi setup form (because
+     *     modem_present=false until probe completes), then flicker to
+     *     the cellular form once the modem is detected.
+     *
+     * (2) CLAIMED_CONNECTING: device has NVS credentials (claimed) but
+     *     uplink isn't up yet. Happens during the window between
+     *     post-claim tracked_restart's reboot and CELLULAR_UP — modem
+     *     is rebooting, registering, doing IPCP. Without this state
+     *     the UI would render "Setup complete" with empty signal/IP
+     *     fields, looking broken even though things are progressing.
+     *     We render a "Establishing connection…" view instead. */
     const char *ws;
     if (claimed) {
-        ws = "claimed";
+        bool uplink_up = (st.state == NETWORK_STATE_CELLULAR_UP ||
+                          st.state == NETWORK_STATE_WIFI_UP);
+        ws = uplink_up ? "claimed" : "claimed_connecting";
     } else if (!network_modem_probe_complete()) {
         ws = "probing";
     } else if (st.state == NETWORK_STATE_SOFTAP_ONLY) {

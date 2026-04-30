@@ -136,6 +136,7 @@
     cellular_registering: "Establishing mobile connection…",
     wifi_connecting:      "WiFi connecting…",
     ready_to_claim:       "Ready to register device",
+    claimed_connecting:   "Establishing connection…",
     claimed:              "Online — registered"
   };
 
@@ -423,6 +424,74 @@
     );
   }
 
+  /* Shown right after a successful claim, while the device is rebooting
+   * and bringing the cellular link back up. This window is typically
+   * 10-30 s on Telekom.de sensor.net. We render a friendly progress
+   * panel so the user doesn't see "Setup complete" with empty signal/
+   * IP fields and conclude something's broken.
+   *
+   * The substatus line below the spinner is updated live by
+   * renderClaimedConnecting(info) — shows "Modem booting…" → "Connecting
+   * to operator…" → "Negotiating IP…" based on whatever we know from
+   * the latest /system/info response. */
+  function viewClaimedConnecting() {
+    return (
+      '<div class="panel center">' +
+        '<div style="font-size:48px;margin-bottom:8px">✓</div>' +
+        '<h2>Setup complete</h2>' +
+        '<p class="muted" style="margin-top:6px;margin-bottom:18px">' +
+          'Registration successful. The device is now establishing its connection.' +
+        '</p>' +
+        '<div class="spinner"></div>' +
+        '<p id="cc_substatus" class="muted" style="margin-top:14px">Establishing connection…</p>' +
+        '<p id="cc_hint" class="muted" style="margin-top:6px;font-size:12px">' +
+          'This usually takes 10-30 seconds.' +
+        '</p>' +
+      '</div>'
+    );
+  }
+
+  /* Update the substatus + hint live while viewClaimedConnecting is mounted.
+   * Each /system/info poll re-runs this against the latest data. */
+  function renderClaimedConnecting(info) {
+    var sub = el("cc_substatus");
+    var hint = el("cc_hint");
+    if (!sub) return;
+
+    var u = (info.uplink || {});
+    var c = u.cellular || null;
+
+    /* Progress hierarchy:
+     *   1. No cellular block → modem still booting / probing on this restart
+     *   2. cellular but operator empty + rssi 0 → modem coming up, not registered
+     *   3. operator known + rssi present → registering / IPCP in flight
+     *   4. (state CELLULAR_UP — handled in router, this view unmounts)
+     */
+    var msg;
+    if (!c) {
+      msg = "Restarting modem…";
+    } else if (!c.operator || c.rssi_dbm === 0) {
+      msg = "Booting cellular modem…";
+    } else {
+      msg = "Connecting to " + escapeHtml(c.operator) + "…";
+    }
+    sub.textContent = msg;
+
+    /* After ~45 s without uplink, show a help hint instead of the
+     * generic "10-30 seconds" line. Anchor to a module-level start
+     * tick (set when this view mounts). */
+    if (hint && claimedConnectingStart) {
+      var elapsed = Date.now() - claimedConnectingStart;
+      if (elapsed > 45000) {
+        hint.innerHTML =
+          'Connection is taking unusually long.<br>' +
+          '<span style="font-size:12px">Check that the SIM is active and has signal at the device location. ' +
+          'You can also power-cycle the device.</span>';
+      }
+    }
+  }
+  var claimedConnectingStart = 0;
+
   /* Renders the diagnostic block under the "Setup complete" view.
    * Pure read of `info` — re-runs every poll while the claimed view is
    * mounted, so RSSI / IP / uptime stay live. Click handler on the
@@ -657,6 +726,7 @@
     var variant = info.variant;
     var nextView;
     if (state === "claimed")                     nextView = "claimed";
+    else if (state === "claimed_connecting")     nextView = "claimed_connecting";
     else if (state === "probing")                nextView = "probing";
     else if (state === "cellular_config")        nextView = "cellular_config";
     else if (state === "cellular_registering")   nextView = "cellular_registering";
@@ -705,6 +775,10 @@
         view.innerHTML = viewClaim();
         el("claim_form").onsubmit = submitClaim;
         break;
+      case "claimed_connecting":
+        view.innerHTML = viewClaimedConnecting();
+        claimedConnectingStart = Date.now();
+        break;
       case "claimed":
         view.innerHTML = viewClaimed();
         break;
@@ -721,6 +795,8 @@
      * accurate. */
     if (currentView === "claimed") {
       renderClaimedDiagnostics(info);
+    } else if (currentView === "claimed_connecting") {
+      renderClaimedConnecting(info);
     }
   }
 
@@ -736,6 +812,10 @@
       } else if (lastInfo && currentView === "claim" && claimSubmittedAt) {
         /* state didn't change but we're waiting on a claim — re-evaluate stuck warning */
         renderView(lastInfo);
+      } else if (lastInfo && currentView === "claimed_connecting") {
+        /* json unchanged but we still want the 45 s "taking too long"
+         * hint to fire — re-render the substatus on every tick. */
+        renderClaimedConnecting(lastInfo);
       }
     }).catch(function () {
       /* network error — likely user disconnected from SoftAP. Keep retrying silently. */
