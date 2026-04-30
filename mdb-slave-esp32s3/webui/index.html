@@ -667,9 +667,10 @@
              * goes down for ~10-30s, phone's auto-join may not always
              * trigger, so we tell them what to do. */
             el("claim_progress_text").innerHTML =
-              "Registering device, the device will reboot afterwards.<br>" +
-              "<span class=\"muted\">The WiFi will disconnect briefly. If your phone doesn't reconnect automatically, " +
-              "pick <b>VMflow</b> from the WiFi menu again.</span>";
+              "Registering device — this can take 30–60 seconds.<br>" +
+              "<span class=\"muted\">The cellular link is briefly torn down for the registration request, " +
+              "and the device will reboot afterwards. The WiFi will disconnect for a moment — " +
+              "if your phone doesn't reconnect automatically, pick <b>VMflow</b> from the WiFi menu again.</span>";
           }
         } else {
           setError("#form_claim", (j && j.error) || "Failed to submit.");
