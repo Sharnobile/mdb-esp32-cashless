@@ -94,60 +94,21 @@ static esp_err_t at_simple(esp_modem_dce_t *dce, const char *cmd, int timeout_ms
     return err;
 }
 
-/* Poll AT+CNACT? until bearer 0 reports status=1 (active), or timeout.
- * Returns ESP_OK if active before timeout, ESP_ERR_TIMEOUT otherwise.
- *
- * Verbose logging: every 3rd iteration we log the actual modem
- * response so field debugging can see whether the modem is rejecting
- * the query (ERROR), reporting bearer-0 status=0 (still bringing up),
- * or genuinely not responding (timeout). Earlier versions logged a
- * generic "modem unresponsive" message that was misleading because
- * the modem was actually responding fast — just with errors. */
-static esp_err_t cnact_wait_active(esp_modem_dce_t *dce, int timeout_ms) {
-    char resp[256];
-    TickType_t start = xTaskGetTickCount();
-    TickType_t deadline = start + pdMS_TO_TICKS(timeout_ms);
-    int iter = 0;
-    while (xTaskGetTickCount() < deadline) {
-        iter++;
-        memset(resp, 0, sizeof(resp));
-        esp_err_t at_err = esp_modem_at(dce, "AT+CNACT?", resp, 2000);
-
-        /* Strip CR/LF for cleaner logging. */
-        for (char *c = resp; *c; c++) if (*c == '\r' || *c == '\n') *c = ' ';
-
-        if (at_err == ESP_OK) {
-            const char *p = strstr(resp, "+CNACT: 0,");
-            if (p) {
-                char status_char = p[10];
-                if (status_char == '1') {
-                    const char *q = strchr(p + 10, '"');
-                    char ip[24] = {0};
-                    if (q) {
-                        const char *q2 = strchr(q + 1, '"');
-                        if (q2 && (size_t)(q2 - q - 1) < sizeof(ip)) {
-                            memcpy(ip, q + 1, q2 - q - 1);
-                        }
-                    }
-                    int elapsed_ms = (int)((xTaskGetTickCount() - start) *
-                                            portTICK_PERIOD_MS);
-                    ESP_LOGI(TAG, "CNACT bearer 0 ACTIVE (IP=%s) after %d ms / %d polls",
-                             ip[0] ? ip : "?", elapsed_ms, iter);
-                    return ESP_OK;
-                }
-            }
-        }
-        if (iter <= 3 || iter % 3 == 0) {
-            ESP_LOGI(TAG, "CNACT poll %d: at_err=%s, resp=%.180s",
-                     iter, esp_err_to_name(at_err), resp);
-        }
-        vTaskDelay(pdMS_TO_TICKS(500));
-    }
-    int elapsed_ms = (int)((xTaskGetTickCount() - start) * portTICK_PERIOD_MS);
-    ESP_LOGE(TAG, "CNACT bearer 0 never reached ACTIVE after %d ms / %d polls",
-             elapsed_ms, iter);
-    return ESP_ERR_TIMEOUT;
-}
+/* Earlier this file had cnact_wait_active() — a poll loop that
+ * queried AT+CNACT? every 500 ms hoping to early-exit the post-
+ * activation settle. Field test showed two issues:
+ *   (1) esp_modem 1.4.0's str_copy::set captures only ONE bearer
+ *       line of the multi-line "+CNACT: x,y,..." response, even
+ *       with CONFIG_ESP_MODEM_C_API_STR_MAX bumped to 1024 — so
+ *       the parser couldn't reliably see "+CNACT: 0,1".
+ *   (2) Polling CNACT? while the bearer is bringing up appears to
+ *       interfere with SIM7080G fw 1951B17's activation work — by
+ *       the third poll the modem stopped responding to any AT
+ *       command for the rest of the session.
+ * Removed; we use a fixed 4 s settle (down from 8 s in the original)
+ * which gives the modem uninterrupted time and is still typically
+ * generous (field activations are 1-3 s).
+ */
 
 /* Helper: AT command with custom pass/fail strings via at_raw. The
  * `out` buffer captures everything between cmd and the matched
@@ -283,16 +244,28 @@ esp_err_t modem_https_post_json(const char *url,
         goto cleanup_disc;
     }
 
-    /* Poll AT+CNACT? until bearer 0 reports status=1 (active), or 8 s
-     * timeout. With CONFIG_ESP_MODEM_C_API_STR_MAX bumped to 1024,
-     * multi-bearer responses fit in one buffer so `+CNACT: 0,1,...`
-     * is reliably parseable. Field-typical activation time on Telekom.de
-     * sensor.net is ~1-3 s, so this saves ~5-7 s vs the fixed 8 s
-     * sleep that came before. */
-    if (cnact_wait_active(dce, 8000) != ESP_OK) {
-        ESP_LOGW(TAG, "CNACT bearer 0 didn't confirm active in 8 s — "
-                      "proceeding anyway (bearer may still come up)");
-    }
+    /* Settle for "+APP PDP: 0,ACTIVE" URC and bearer to become usable.
+     *
+     * We tried polling AT+CNACT? to early-exit (cnact_wait_active),
+     * but field test showed two problems:
+     *   1. CONFIG_ESP_MODEM_C_API_STR_MAX=1024 doesn't actually fix
+     *      the multi-line CNACT? capture — esp_modem's str_copy::set
+     *      still keeps only one bearer line, often the wrong one
+     *      (e.g. "+CNACT: 3,0" instead of "+CNACT: 0,1").
+     *   2. Polling CNACT? every 500 ms while the bearer is still
+     *      coming up *interferes with* the activation — by the third
+     *      poll the modem stopped responding to ANY AT command for
+     *      the rest of the session. SIM7080G firmware 1951B17 seems
+     *      to need uninterrupted background time to bring the bearer
+     *      up cleanly.
+     *
+     * Bumped down from the original 8 s to 4 s based on field timing
+     * data showing typical activation in 1-3 s. If 4 s proves
+     * insufficient on slower attaches, the worst-case is a SHCONN
+     * timeout on this attempt and a retry on the next — which still
+     * lands faster than the old 8 s baseline. */
+    ESP_LOGI(TAG, "CNACT=0,1 accepted — settling 4 s for bearer to come up");
+    vTaskDelay(pdMS_TO_TICKS(4000));
     active_bearer = 0;
 
     /* === Step 3: SSL config (TLS 1.2 on SSL slot 1) ==================
