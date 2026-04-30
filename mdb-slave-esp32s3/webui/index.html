@@ -434,6 +434,33 @@
    * renderClaimedConnecting(info) — shows "Modem booting…" → "Connecting
    * to operator…" → "Negotiating IP…" based on whatever we know from
    * the latest /system/info response. */
+  /* Shown right after the user submits WiFi creds + prov_code (or
+   * cellular APN + prov_code), masking the brief window where the
+   * backend's wizard_state cycles through "wifi_connecting" →
+   * "ready_to_claim" → "claimed_connecting". Without this, the user
+   * would see the WiFi form re-mount, then the standalone Claim form
+   * blink, before finally landing on "Establishing connection…".
+   *
+   * Anchored to claimSubmittedAt — the same timestamp the existing
+   * stuck-warning logic uses. After 90 s without a claimed/connecting
+   * state, the router falls through to the regular form so the user
+   * can retry. */
+  function viewSubmitting() {
+    return (
+      '<div class="panel center">' +
+        '<div class="spinner"></div>' +
+        '<h2 style="margin-top:14px">Saving credentials &amp; registering device…</h2>' +
+        '<p class="muted" style="margin-top:6px">' +
+          'Connecting to the network and contacting the backend. This can take 30–60 seconds.' +
+        '</p>' +
+        '<p class="muted" style="margin-top:12px;font-size:12px">' +
+          'The device will reboot when registration completes. Your phone may briefly disconnect — ' +
+          'pick <b>VMflow</b> again from the WiFi menu if it doesn\'t reconnect automatically.' +
+        '</p>' +
+      '</div>'
+    );
+  }
+
   function viewClaimedConnecting() {
     return (
       '<div class="panel center">' +
@@ -726,11 +753,20 @@
     var state   = info.wizard_state;
     var variant = info.variant;
     var nextView;
+    /* Submission-in-flight gate: from the moment the user submitted
+     * a form (claimSubmittedAt set) until claim takes over via the
+     * "claimed_connecting" / "claimed" path, mask any intermediate
+     * form re-mounts (wifi_connecting → form, ready_to_claim → claim
+     * form). 90 s cap so a stuck submission falls back to the normal
+     * form for retry. */
+    var inflight = claimSubmittedAt && (Date.now() - claimSubmittedAt < 90000);
+
     if (state === "claimed")                     nextView = "claimed";
     else if (state === "claimed_connecting")     nextView = "claimed_connecting";
     else if (state === "probing")                nextView = "probing";
     else if (state === "cellular_config")        nextView = "cellular_config";
     else if (state === "cellular_registering")   nextView = "cellular_registering";
+    else if (inflight)                           nextView = "submitting";
     else if (state === "wifi_connecting")        nextView = (variant === "cellular") ? "loading" : "wifi_and_claim";
     else if (state === "ready_to_claim")         nextView = "claim";
     else                                          nextView = "loading";
@@ -775,6 +811,9 @@
       case "claim":
         view.innerHTML = viewClaim();
         el("claim_form").onsubmit = submitClaim;
+        break;
+      case "submitting":
+        view.innerHTML = viewSubmitting();
         break;
       case "claimed_connecting":
         view.innerHTML = viewClaimedConnecting();
