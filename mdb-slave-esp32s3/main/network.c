@@ -144,6 +144,14 @@ static esp_timer_handle_t   s_wifi_reconnect_timer = NULL;
 static network_event_cb_t   s_event_cb = NULL;
 static void                *s_event_user_data = NULL;
 
+/* Probe-state tracking — consumed by webui_server's /system/info to
+ * render a "Detecting modem…" loading view instead of flicker-
+ * starting in WiFi mode. Set true by network_init after modem_probe
+ * returns (regardless of result). Also flips true when the user
+ * explicitly skips the wait via network_skip_modem_probe. */
+static volatile bool        s_probe_complete = false;
+static volatile bool        s_user_committed_wifi = false;
+
 /* ---- Helpers ---- */
 
 static void network_fire_event(network_event_t event) {
@@ -730,7 +738,17 @@ void network_init(void) {
 
     ESP_LOGI(TAG, "network_init: probing modem...");
     bool modem_present = modem_probe();
+    s_probe_complete = true;
     ESP_LOGI(TAG, "modem_probe → %s", modem_present ? "true" : "false");
+
+    /* User can dismiss the probe wait via /api/v1/system/skip-probe;
+     * if they did, we honour their commitment to WiFi mode regardless
+     * of what the probe actually found. */
+    if (s_user_committed_wifi && modem_present) {
+        ESP_LOGW(TAG, "user committed to WiFi mode during probe — "
+                      "ignoring modem-detected result, taking WiFi branch");
+        modem_present = false;
+    }
 
     if (modem_present) {
         ESP_LOGI(TAG, "cellular branch — WiFi STA will NOT be initialised");
@@ -895,11 +913,33 @@ esp_err_t network_cellular_configure(const char *apn, const char *pin, modem_lte
 esp_err_t network_wifi_configure(const char *ssid, const char *password) {
     if (!ssid || strlen(ssid) == 0) return ESP_ERR_INVALID_ARG;
 
-    /* On cellular boards (modem present) we deliberately ignore WiFi
-     * credentials — policy is cellular-only when modem detected. */
-    if (s_state == NETWORK_STATE_SOFTAP_ONLY ||
-        s_state == NETWORK_STATE_CELLULAR_REGISTERING ||
-        s_state == NETWORK_STATE_CELLULAR_UP) {
+    /* If the caller hits this endpoint during the synchronous modem
+     * probe (e.g. user clicked Skip and submitted WiFi creds quickly),
+     * STA may not yet be initialised. Wait up to 10 s for the probe
+     * + WiFi-branch STA init to complete. Probe itself caps at ~5 s,
+     * STA init is fast — so we typically clear in ~5 s worst case. */
+    int wait_ms = 0;
+    while (!s_probe_complete && wait_ms < 10000) {
+        vTaskDelay(pdMS_TO_TICKS(100));
+        wait_ms += 100;
+    }
+    /* Brief settle for network_init's WiFi-branch (called right after
+     * setting s_probe_complete) to finish esp_netif_create_default_
+     * wifi_sta + esp_wifi_set_mode(APSTA). */
+    if (s_state != NETWORK_STATE_WIFI_CONNECTING &&
+        s_state != NETWORK_STATE_WIFI_UP) {
+        vTaskDelay(pdMS_TO_TICKS(300));
+    }
+
+    /* On cellular boards (modem present, user did NOT commit to WiFi)
+     * we deliberately ignore WiFi credentials — policy is cellular-
+     * only when modem detected.
+     *
+     * Detail: state-based check is wrong post-refactor because
+     * SOFTAP_ONLY is now set on every boot (before probe) — using
+     * modem_is_present() + the user-skip flag gives the right result
+     * regardless of probe-vs-state-transition timing. */
+    if (modem_is_present() && !s_user_committed_wifi) {
         ESP_LOGW(TAG, "network_wifi_configure: ignored on cellular board");
         return ESP_ERR_NOT_SUPPORTED;
     }
@@ -913,4 +953,24 @@ esp_err_t network_wifi_configure(const char *ssid, const char *password) {
     if (err != ESP_OK) return err;
 
     return esp_wifi_connect();
+}
+
+bool network_modem_probe_complete(void) {
+    return s_probe_complete || s_user_committed_wifi;
+}
+
+esp_err_t network_skip_modem_probe(void) {
+    /* If the cellular branch has already been taken (probe finished and
+     * detected a modem before user clicked skip), it's too late — the
+     * STA was never initialised, and undoing cellular bring-up here
+     * would be invasive. Tell the caller to power-cycle. */
+    if (s_state == NETWORK_STATE_CELLULAR_REGISTERING ||
+        s_state == NETWORK_STATE_CELLULAR_UP) {
+        ESP_LOGW(TAG, "skip-probe: cellular branch already committed — "
+                      "user must factory-reset to switch to WiFi");
+        return ESP_ERR_INVALID_STATE;
+    }
+    s_user_committed_wifi = true;
+    ESP_LOGI(TAG, "skip-probe: user committed to WiFi mode");
+    return ESP_OK;
 }

@@ -127,6 +127,29 @@ esp_err_t network_cellular_configure(const char *apn, const char *pin, modem_lte
 esp_err_t network_wifi_configure(const char *ssid, const char *password);
 
 /*
+ * Returns true once modem_probe has finished (regardless of whether
+ * a modem was found). Captive portal polls this to know when it can
+ * stop showing the "Detecting modem…" loading view. Also returns
+ * true if the user explicitly skipped detection via
+ * network_skip_modem_probe.
+ */
+bool network_modem_probe_complete(void);
+
+/*
+ * User-facing skip: tells the captive portal we've decided to treat
+ * this device as WiFi-only without waiting for modem_probe. If the
+ * probe is still running, it continues in the background but its
+ * result is ignored — variant stays "wifi" and WiFi STA bring-up
+ * is forced. If the probe has already concluded with a modem
+ * detected, calling this has no effect (cellular branch is already
+ * committed and STA is not initialised).
+ *
+ * Returns ESP_OK on commit, ESP_ERR_INVALID_STATE if the cellular
+ * branch was already taken.
+ */
+esp_err_t network_skip_modem_probe(void);
+
+/*
  * Quick TCP-connect probe. Returns true if SYN-ACK comes back from
  * `host:port` within `timeout_ms`. Closes the socket immediately
  * regardless of outcome — used to nudge the carrier's data path into

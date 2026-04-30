@@ -124,10 +124,20 @@ static esp_err_t system_info_get_handler(httpd_req_t *req) {
     cJSON_AddStringToObject(root, "variant", modem_present ? "cellular" : "wifi");
 
     /* Wizard state mapping. SOFTAP_ONLY needs special handling because it
-     * means different things on the two variants. */
+     * means different things on the two variants.
+     *
+     * SPECIAL CASE: while the synchronous modem_probe is still running
+     * (first ~5 s of boot), report wizard_state="probing". Without this,
+     * the captive portal would briefly render the WiFi setup form
+     * (because modem_present=false until probe completes), then
+     * flicker to the cellular form once the modem is detected — a
+     * confusing UX after a tracked_restart where the iPhone is still
+     * on the SoftAP. */
     const char *ws;
     if (claimed) {
         ws = "claimed";
+    } else if (!network_modem_probe_complete()) {
+        ws = "probing";
     } else if (st.state == NETWORK_STATE_SOFTAP_ONLY) {
         ws = modem_present ? "cellular_config" : "wifi_connecting";
     } else {
@@ -231,6 +241,21 @@ static esp_err_t send_err_json(httpd_req_t *req, const char *msg) {
     httpd_resp_set_type(req, "application/json");
     httpd_resp_sendstr(req, buf);
     return ESP_OK;
+}
+
+/* POST /api/v1/system/skip-probe — user-facing dismissal of the
+ * "Detecting modem…" loading view in the captive portal. Marks the
+ * device as committed-to-WiFi-mode regardless of what modem_probe
+ * eventually finds. Replies 409 if the cellular branch was already
+ * taken (probe finished and detected a modem before this call). */
+static esp_err_t skip_probe_handler(httpd_req_t *req) {
+    esp_err_t err = network_skip_modem_probe();
+    if (err == ESP_ERR_INVALID_STATE) {
+        httpd_resp_set_status(req, "409 Conflict");
+        return send_err_json(req, "cellular branch already committed — power-cycle to retry");
+    }
+    if (err != ESP_OK) return send_err_json(req, esp_err_to_name(err));
+    return send_ok(req);
 }
 
 /* POST /api/v1/cellular/configure  body: {apn, pin, lte_mode}
@@ -478,6 +503,7 @@ void start_rest_server(void) {
     static const httpd_uri_t uris[] = {
         { .uri = "/",                          .method = HTTP_GET,  .handler = index_get_handler          },
         { .uri = "/api/v1/system/info",        .method = HTTP_GET,  .handler = system_info_get_handler    },
+        { .uri = "/api/v1/system/skip-probe",  .method = HTTP_POST, .handler = skip_probe_handler         },
         { .uri = "/api/v1/wifi/scan",          .method = HTTP_GET,  .handler = wifi_scan_get_handler      },
         { .uri = "/api/v1/cellular/configure", .method = HTTP_POST, .handler = cellular_configure_handler },
         { .uri = "/api/v1/wifi/configure",     .method = HTTP_POST, .handler = wifi_configure_handler     },

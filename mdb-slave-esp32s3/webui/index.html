@@ -131,6 +131,7 @@
   var STATE_LABELS = {
     booting:              "Booting…",
     offline:              "No uplink",
+    probing:              "Detecting mobile modem…",
     cellular_config:      "SIM not configured",
     cellular_registering: "Establishing mobile connection…",
     wifi_connecting:      "WiFi connecting…",
@@ -268,6 +269,40 @@
            '<p class="muted" style="margin-top:10px">Loading…</p></div>';
   }
 
+  function viewProbing() {
+    return (
+      '<div class="panel center">' +
+        '<div class="spinner"></div>' +
+        '<h2 style="margin-top:14px">Detecting mobile modem…</h2>' +
+        '<p class="muted" style="margin-top:6px">Checking whether this device has a SIM card. Usually takes a few seconds.</p>' +
+        '<button id="skip_probe_btn" type="button" class="ghost" style="margin-top:18px" ' +
+                'onclick="skipProbe()">No SIM — set up via WiFi</button>' +
+      '</div>'
+    );
+  }
+
+  /* Called from the "No SIM — set up via WiFi" button in viewProbing. */
+  window.skipProbe = function() {
+    var btn = el("skip_probe_btn");
+    if (btn) { btn.disabled = true; btn.textContent = "Skipping…"; }
+    fetch("/api/v1/system/skip-probe", { method: "POST" })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
+      .then(function (res) {
+        if (!res.ok) {
+          if (btn) { btn.disabled = false; btn.textContent = "No SIM — set up via WiFi"; }
+          alert("Could not skip detection: " + (res.body && res.body.error ? res.body.error : "unknown error"));
+          return;
+        }
+        /* Server-side flag is now set; next /system/info poll will
+         * report a real wizard_state instead of "probing", and the
+         * router will switch us to wifi_and_claim. */
+      })
+      .catch(function () {
+        if (btn) { btn.disabled = false; btn.textContent = "No SIM — set up via WiFi"; }
+        alert("Network error while skipping detection.");
+      });
+  };
+
   function viewCellularConfig() {
     return (
       '<div class="panel" id="form_cell">' +
@@ -325,7 +360,7 @@
           '<input id="i_prov" name="prov_code" required placeholder="8 characters from the backend" maxlength="16" autocapitalize="characters" autocorrect="off">' +
 
           '<label>Server URL</label>' +
-          '<input id="i_srv" name="srv_url" required value="https://api.vmflow.xyz" autocapitalize="none" autocorrect="off">' +
+          '<input id="i_srv" name="srv_url" required value="https://supabase-test.kerl-handel.de" autocapitalize="none" autocorrect="off">' +
 
           '<div class="err-banner"></div>' +
           '<button type="submit">Connect WiFi + register</button>' +
@@ -364,7 +399,7 @@
           '<input id="i_prov" name="prov_code" required placeholder="8 characters from the backend" maxlength="16" autocapitalize="characters" autocorrect="off">' +
 
           '<label>Server URL</label>' +
-          '<input id="i_srv" name="srv_url" required value="https://api.vmflow.xyz" autocapitalize="none" autocorrect="off">' +
+          '<input id="i_srv" name="srv_url" required value="https://supabase-test.kerl-handel.de" autocapitalize="none" autocorrect="off">' +
 
           '<div class="err-banner"></div>' +
           '<button type="submit">Register</button>' +
@@ -622,6 +657,7 @@
     var variant = info.variant;
     var nextView;
     if (state === "claimed")                     nextView = "claimed";
+    else if (state === "probing")                nextView = "probing";
     else if (state === "cellular_config")        nextView = "cellular_config";
     else if (state === "cellular_registering")   nextView = "cellular_registering";
     else if (state === "wifi_connecting")        nextView = (variant === "cellular") ? "loading" : "wifi_and_claim";
@@ -648,6 +684,9 @@
     switch (nextView) {
       case "loading":
         view.innerHTML = viewLoading();
+        break;
+      case "probing":
+        view.innerHTML = viewProbing();
         break;
       case "cellular_config":
         view.innerHTML = viewCellularConfig();
