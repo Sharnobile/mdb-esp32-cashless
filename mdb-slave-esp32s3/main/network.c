@@ -691,11 +691,42 @@ void network_init(void) {
      * probe may toggle PPP state and we want the handler ready for
      * IP_EVENT_PPP_LOST_IP / GOT_IP either way. The WiFi handlers are
      * registered later (and only on the WiFi branch) since cellular-only
-     * boards never run esp_wifi_init. */
+     * boards never run esp_wifi_init in STA mode. */
     esp_event_handler_instance_register(IP_EVENT, IP_EVENT_PPP_GOT_IP,
                                          network_ppp_event_handler, NULL, NULL);
     esp_event_handler_instance_register(IP_EVENT, IP_EVENT_PPP_LOST_IP,
                                          network_ppp_event_handler, NULL, NULL);
+
+    /* === Bring SoftAP up BEFORE modem_probe ===========================
+     *
+     * Why this matters: after a tracked_restart (e.g. post-claim) the
+     * iPhone is still connected to "VMflow" and has the captive-portal
+     * page open. If SoftAP comes back online within ~2 s, iOS keeps
+     * that page alive and the user just sees the data refresh. If we
+     * make iOS wait > 5 s (the time modem_probe takes for the warm-
+     * COMMAND probe + PPP escape), the iPhone drops the AP and the
+     * user has to reconnect manually — userflow broken.
+     *
+     * Order:
+     *   1. Create AP netif + esp_wifi_init + AP-only mode + start →
+     *      SoftAP up at ~400 ms after app_main.
+     *   2. modem_probe runs (~5 s) — SoftAP is already serving.
+     *   3. If WiFi branch detected, add STA netif + register WiFi
+     *      handlers + switch mode to APSTA + esp_wifi_connect.
+     *
+     * The WiFi-driver mode transition AP → APSTA is supported live
+     * (no stop/restart required). esp_wifi_connect() is called
+     * explicitly because the WiFi handler — which would normally
+     * react to WIFI_EVENT_STA_START — is registered AFTER start has
+     * already fired here, so we miss the auto-connect path. */
+    ESP_LOGI(TAG, "network_init: bringing SoftAP up before modem probe");
+    esp_netif_create_default_wifi_ap();
+    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+    esp_wifi_init(&cfg);
+    esp_wifi_set_mode(WIFI_MODE_AP);
+    esp_wifi_start();
+    s_state = NETWORK_STATE_SOFTAP_ONLY;
+    network_start_softap();
 
     ESP_LOGI(TAG, "network_init: probing modem...");
     bool modem_present = modem_probe();
@@ -704,24 +735,8 @@ void network_init(void) {
     if (modem_present) {
         ESP_LOGI(TAG, "cellular branch — WiFi STA will NOT be initialised");
 
-        /* Bring up SoftAP only — the captive portal serves the
-         * cellular config wizard (P3) so the user can enter APN/PIN.
-         * P3 wires this; for now we still need SoftAP up so the user
-         * has something to talk to. We init WiFi in AP-only mode and
-         * start the radio here so network_start_softap() can apply
-         * the AP config. */
-        esp_netif_create_default_wifi_ap();
-        wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-        esp_wifi_init(&cfg);
-        esp_wifi_set_mode(WIFI_MODE_AP);
-        esp_wifi_start();
-        s_state = NETWORK_STATE_SOFTAP_ONLY;
-        network_start_softap();
-
-        /* If the user has previously saved an APN, kick off the
-         * cellular bring-up in a background task. Otherwise wait
-         * here for the captive portal (P3) to call
-         * network_cellular_configure(). */
+        /* SoftAP is already up from the pre-probe stage; just kick off
+         * cellular bring-up if APN is in NVS. */
         char apn[MODEM_APN_MAX], pin[MODEM_PIN_MAX];
         modem_lte_mode_t mode;
         esp_err_t err = modem_nvs_load(apn, sizeof(apn), pin, sizeof(pin), &mode);
@@ -736,23 +751,31 @@ void network_init(void) {
     }
 
     /* ---- WiFi-only branch ---- */
-    s_state = NETWORK_STATE_WIFI_CONNECTING;
-
+    /* SoftAP is already up. Add STA netif, register handlers, switch
+     * mode to APSTA, and trigger the connect attempt manually. */
     esp_netif_create_default_wifi_sta();
-    esp_netif_create_default_wifi_ap();
-
-    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-    esp_wifi_init(&cfg);
 
     esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID,
                                          network_wifi_event_handler, NULL, NULL);
     esp_event_handler_instance_register(IP_EVENT, ESP_EVENT_ANY_ID,
                                          network_wifi_event_handler, NULL, NULL);
 
-    /* APSTA so SoftAP can come up alongside STA on demand. The handler
-     * narrows mode back to STA-only on IP_EVENT_STA_GOT_IP. */
+    /* APSTA so SoftAP stays up alongside STA. The handler narrows mode
+     * back to STA-only on IP_EVENT_STA_GOT_IP. */
+    s_state = NETWORK_STATE_WIFI_CONNECTING;
     esp_wifi_set_mode(WIFI_MODE_APSTA);
-    esp_wifi_start();
+
+    /* WIFI_EVENT_STA_START already fired during the pre-probe
+     * esp_wifi_start, so the handler missed it. Trigger STA connect
+     * directly. If no credentials are saved, this returns an error
+     * and the SoftAP-only fallback path engages via the disconnect
+     * handler (or simply by staying in the current SoftAP-only state). */
+    esp_err_t connect_err = esp_wifi_connect();
+    if (connect_err != ESP_OK) {
+        ESP_LOGW(TAG, "esp_wifi_connect (post-probe) returned %s — "
+                      "SoftAP stays up, captive portal accepts WiFi creds",
+                 esp_err_to_name(connect_err));
+    }
 }
 
 network_state_t network_get_state(void) {
