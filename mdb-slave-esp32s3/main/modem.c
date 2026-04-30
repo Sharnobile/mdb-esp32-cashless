@@ -459,15 +459,26 @@ static bool modem_probe_body(void) {
     esp_err_t ret = esp_modem_sync(s_dce);
     ESP_LOGI(TAG, "esp_modem_sync (warm-COMMAND probe): %s", esp_err_to_name(ret));
 
-    if (ret != ESP_OK) {
+    if (ret != ESP_OK && pmu_err == ESP_OK) {
         /* (B) Warm-DATA recovery — escape PPP via "+++". esp_modem's
          * set_mode(COMMAND) sends the escape, waits, retries up to 3x.
          * On a cold modem this still takes ~7 s (escape misses 3x) but
-         * sets up the next path correctly. */
+         * sets up the next path correctly.
+         *
+         * Gated by `pmu_err == ESP_OK` (same logic as Path C below):
+         * if there's no AXP2101, this is a production WiFi-only board
+         * with no modem hardware. set_mode(COMMAND) on a non-existent
+         * modem would block esp_modem's lwIP-PPP teardown for ~24 s
+         * waiting for a NO CARRIER that never arrives — burning post-
+         * claim boot time and triggering "Haven't to connect to a
+         * suitable AP now" warnings from the WiFi driver while the
+         * radio waits idly. */
         esp_modem_set_mode(s_dce, ESP_MODEM_MODE_COMMAND);
         vTaskDelay(pdMS_TO_TICKS(500));
         ret = esp_modem_sync(s_dce);
         ESP_LOGI(TAG, "esp_modem_sync (after PPP escape): %s", esp_err_to_name(ret));
+    } else if (ret != ESP_OK && pmu_err != ESP_OK) {
+        ESP_LOGI(TAG, "skipping PPP-escape path (no PMU = no modem HW)");
     }
 
     if (ret != ESP_OK && pmu_err == ESP_OK) {

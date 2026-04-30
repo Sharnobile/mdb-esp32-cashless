@@ -487,20 +487,36 @@
 
     var u = (info.uplink || {});
     var c = u.cellular || null;
+    var w = u.wifi || null;
+    var variant = info.variant || "wifi";
 
-    /* Progress hierarchy:
-     *   1. No cellular block → modem still booting / probing on this restart
-     *   2. cellular but operator empty + rssi 0 → modem coming up, not registered
-     *   3. operator known + rssi present → registering / IPCP in flight
-     *   4. (state CELLULAR_UP — handled in router, this view unmounts)
+    /* Progress hierarchy depends on uplink variant:
+     *
+     * Cellular:
+     *   1. no cellular block       → modem still booting / probing
+     *   2. operator empty / rssi 0 → modem coming up, not registered
+     *   3. operator known + rssi   → registering / IPCP in flight
+     *
+     * WiFi:
+     *   1. no wifi block / no ssid → driver coming up
+     *   2. ssid present, no IP     → connecting to AP
+     *   3. (state WIFI_UP → router unmounts this view)
      */
     var msg;
-    if (!c) {
-      msg = "Restarting modem…";
-    } else if (!c.operator || c.rssi_dbm === 0) {
-      msg = "Booting cellular modem…";
+    if (variant === "cellular") {
+      if (!c) {
+        msg = "Restarting modem…";
+      } else if (!c.operator || c.rssi_dbm === 0) {
+        msg = "Booting cellular modem…";
+      } else {
+        msg = "Connecting to " + escapeHtml(c.operator) + "…";
+      }
     } else {
-      msg = "Connecting to " + escapeHtml(c.operator) + "…";
+      if (!w || !w.ssid) {
+        msg = "Restarting WiFi…";
+      } else {
+        msg = "Connecting to " + escapeHtml(w.ssid) + "…";
+      }
     }
     sub.textContent = msg;
 
