@@ -3063,6 +3063,22 @@ void app_main(void) {
 	sale_queue_init();
 	sale_queue_start(mqttClient);
 
+	//--------------- Factory reset (BOOT button) --------------//
+	//----------------------------------------------------------//
+	/* Spawned BEFORE network_init() so the 5-second-hold detection
+	 * works while modem_probe is blocking the main task. modem_probe
+	 * is synchronous and can take 5-30 s (warm-COMMAND fail → PPP
+	 * escape → optional cold-boot poll on cellular boards). Earlier
+	 * this task was created AFTER network_init returned, so any
+	 * BOOT-button hold during the probe window was silently ignored —
+	 * users had to retry the hold after the device finished booting,
+	 * which is the opposite of how a recovery button should feel.
+	 *
+	 * The task itself is a poll loop (no interrupts) so it's safe to
+	 * run concurrently with anything else. GPIO 0 isn't touched
+	 * elsewhere in our code; the BOOT-pin pull-up is enabled here. */
+	xTaskCreate(factory_reset_task, "factory_rst", 4096, NULL, 5, NULL);
+
 	//-- Start network now that MQTT client is ready for events --//
 	//-----------------------------------------------------------//
 	/* network_init() probes the modem, takes the WiFi-vs-cellular
@@ -3070,10 +3086,6 @@ void app_main(void) {
 	 * and calls esp_wifi_start(). Once IP_EVENT_STA_GOT_IP fires, the
 	 * UPLINK_UP callback above starts MQTT/SNTP/watchdog. */
 	network_init();
-
-	//--------------- Factory reset (BOOT button) --------------//
-	//----------------------------------------------------------//
-	xTaskCreate(factory_reset_task, "factory_rst", 4096, NULL, 5, NULL);
 
 	//------------------------ BLUETOOTH -----------------------//
 	//----------------------------------------------------------//
