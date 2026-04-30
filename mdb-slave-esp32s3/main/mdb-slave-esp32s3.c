@@ -2324,24 +2324,22 @@ void provision_claim_task(void *arg) {
         return;
     }
 
-    /* Serialise against parallel recovery paths and pause PPP for the
-     * AT-mode HTTPS window. modem_pause is ~1 s vs ~32 s for the full
-     * teardown via modem_disconnect — the netif is suspended in place,
-     * not torn down. modem_resume on failure path restores it equally
-     * fast. On success we tracked_restart anyway, so the resume is
-     * unused. */
+    /* Serialise against parallel recovery paths and FULL-teardown PPP
+     * for the AT-mode HTTPS window.
+     *
+     * Why full teardown (~32 s) instead of modem_pause (~1 s): the
+     * SIM7080G internal TLS stack (SHCONN) requires the PDP context
+     * to be unbound from PPP. modem_pause keeps the PDP bound to the
+     * suspended PPP netif, so CNACT=0,1 establishes a parallel
+     * binding that confuses the data plane — SHCONN then returns
+     * garbage (HDLC frames leak into the AT response stream:
+     * "AT+SHCONN → ESP_FAIL, resp=~!E"). Full teardown via set_mode
+     * (COMMAND) releases the PDP context, allowing CNACT to take it
+     * over cleanly. We pay the 30 s teardown wait once per claim. */
     modem_op_lock();
-    ESP_LOGI(TAG, "PROV: pausing PPP for AT-mode HTTPS");
-    esp_err_t pause_rc = modem_pause();
-    if (pause_rc != ESP_OK) {
-        /* Pause path failed — fall back to full teardown (slow but
-         * always available). This branch fires on cold boots where PPP
-         * was never up, or on modems that don't support pause_net. */
-        ESP_LOGW(TAG, "PROV: pause failed (%s) — falling back to full disconnect",
-                 esp_err_to_name(pause_rc));
-        modem_disconnect();
-    }
-    vTaskDelay(pdMS_TO_TICKS(500));   /* short settle vs. 2 s before */
+    ESP_LOGI(TAG, "PROV: tearing PPP down for AT-mode HTTPS");
+    modem_disconnect();
+    vTaskDelay(pdMS_TO_TICKS(2000));   /* settle */
 
     bool gave_up_permanently = false;
 
@@ -2441,14 +2439,8 @@ void provision_claim_task(void *arg) {
         ESP_LOGE(TAG, "PROV: %d attempts exhausted — restoring PPP",
                  PROV_MAX_ATTEMPTS);
     }
-    /* If we paused (the fast path), resume is ~1 s. If we fell back to
-     * full disconnect, modem_resume returns FAIL (no DATA mode active)
-     * and we re-establish via modem_connect (~6 s). */
-    ESP_LOGI(TAG, "PROV: resuming PPP");
-    if (modem_resume() != ESP_OK) {
-        ESP_LOGI(TAG, "PROV: resume failed — full re-establish via modem_connect");
-        modem_connect();
-    }
+    ESP_LOGI(TAG, "PROV: re-establishing PPP via modem_connect");
+    modem_connect();   /* best-effort; if it fails, watchdog/recovery handles it */
     modem_op_unlock();
     s_prov_claim_running = false;
     vTaskDelete(NULL);

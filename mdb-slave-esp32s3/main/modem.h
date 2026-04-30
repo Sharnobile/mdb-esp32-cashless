@@ -108,6 +108,17 @@ esp_err_t modem_disconnect(void);
  *   - AT commands work normally via esp_modem_at / esp_modem_at_raw
  *   - The PDP context binding to PPP is preserved, so resume is fast
  *
+ * !!! IMPORTANT — NOT compatible with the SIM7080G internal TLS
+ * stack (AT+SHCONN, AT+CIPSTART, AT+CMQTTSTART, etc.). With PPP
+ * paused-but-bound, the PDP context is still owned by lwIP — when
+ * we then activate AT+CNACT=0,1 to bring up the internal bearer,
+ * the modem creates a parallel binding that confuses the data plane:
+ * SHCONN returns garbled HDLC frames ("~!E"). Anything that uses the
+ * modem-internal IP stack must use the full modem_disconnect path
+ * (releases the PDP context cleanly). modem_pause is only useful for
+ * pure AT-command queries that don't open new sockets (e.g. AT+CSQ,
+ * AT+COPS?, AT+CGSN diagnostic probes).
+ *
  * Returns ESP_OK on success, ESP_FAIL if the modem is not in DATA
  * mode (no PPP active to pause).
  */

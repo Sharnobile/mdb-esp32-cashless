@@ -180,27 +180,12 @@ static esp_err_t parse_shreq(const char *resp, int *status_out, int *datalen_out
     return ESP_OK;
 }
 
-/* Parse the +SHREAD: URC + payload from a response buffer.
- * Format: +SHREAD: <len>\r\n<bytes>
- * Copies up to min(len, dst_size-1) bytes into dst, NUL-terminates. */
-static esp_err_t parse_shread(const char *resp, char *dst, size_t dst_size,
-                               size_t *len_out) {
-    const char *p = strstr(resp, "+SHREAD:");
-    if (!p) return ESP_FAIL;
-    int len;
-    if (sscanf(p, "+SHREAD: %d", &len) != 1) return ESP_FAIL;
-    /* Find the start of the data — skip past the URC line's \r\n. */
-    const char *eol = strchr(p, '\n');
-    if (!eol) return ESP_FAIL;
-    eol++;   /* points at first byte of data */
-
-    size_t to_copy = (size_t)len;
-    if (to_copy >= dst_size) to_copy = dst_size - 1;
-    memcpy(dst, eol, to_copy);
-    dst[to_copy] = '\0';
-    if (len_out) *len_out = to_copy;
-    return ESP_OK;
-}
+/* Earlier this file had a parse_shread() helper that copied N body
+ * bytes from "+SHREAD: <len>\r\n<bytes>" into a destination buffer.
+ * It became unused once the response read switched to chunked +
+ * leak-recovery (see Step 10), where we measure the actual captured
+ * length instead of trusting the URC <len>. Removed to keep the file
+ * lean — the chunked logic does its own inline parsing. */
 
 esp_err_t modem_https_post_json(const char *url,
                                  const char *path,
@@ -298,12 +283,16 @@ esp_err_t modem_https_post_json(const char *url,
         goto cleanup_disc;
     }
 
-    /* 8 s settle for "+APP PDP: 0,ACTIVE" URC to arrive and bearer to
-     * become usable. Empirically derived from c2a5a11 timing — bearer
-     * activation appears to take 1-3 s on a clean network, plus
-     * margin for slow attaches. */
-    ESP_LOGI(TAG, "CNACT=0,1 accepted — sleeping 8 s for bearer to come up");
-    vTaskDelay(pdMS_TO_TICKS(8000));
+    /* Poll AT+CNACT? until bearer 0 reports status=1 (active), or 8 s
+     * timeout. With CONFIG_ESP_MODEM_C_API_STR_MAX bumped to 1024,
+     * multi-bearer responses fit in one buffer so `+CNACT: 0,1,...`
+     * is reliably parseable. Field-typical activation time on Telekom.de
+     * sensor.net is ~1-3 s, so this saves ~5-7 s vs the fixed 8 s
+     * sleep that came before. */
+    if (cnact_wait_active(dce, 8000) != ESP_OK) {
+        ESP_LOGW(TAG, "CNACT bearer 0 didn't confirm active in 8 s — "
+                      "proceeding anyway (bearer may still come up)");
+    }
     active_bearer = 0;
 
     /* === Step 3: SSL config (TLS 1.2 on SSL slot 1) ==================
