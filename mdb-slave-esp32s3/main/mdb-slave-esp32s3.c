@@ -2273,6 +2273,131 @@ void provision_claim_task(void *arg) {
     snprintf(body, sizeof(body),
              "{\"short_code\":\"%s\",\"mac_address\":\"%s\"}", prov_code, mac_str);
 
+    /* Branch by uplink type. The cellular path uses the modem's internal
+     * AT+SH* HTTPS stack (bypasses PPP entirely — see field-debug notes
+     * below). The WiFi path uses esp_http_client over the active STA
+     * connection, which is the simpler and historically-proven route. */
+    bool use_cellular = modem_is_present();
+
+    if (!use_cellular) {
+        /* === WiFi / esp_http_client claim path ========================
+         * Single-attempt POST; on success (HTTP 200 + valid JSON) we
+         * save NVS and tracked_restart. On failure we log + bail —
+         * captive portal stays reachable on the SoftAP side and the
+         * user can resubmit via /api/v1/claim, which spawns another
+         * provision_claim_task. */
+        ESP_LOGI(TAG, "PROV: claim via WiFi/esp_http_client (no modem)");
+        ESP_LOGI(TAG, "PROV: srv_url=%s body=%s", srv_url, body);
+
+        char claim_url[192];
+        snprintf(claim_url, sizeof(claim_url), "%s/functions/v1/claim-device", srv_url);
+
+        bool use_tls = (strncmp(claim_url, "https://", 8) == 0);
+        esp_http_client_config_t http_cfg = {
+            .url               = claim_url,
+            .crt_bundle_attach = use_tls ? esp_crt_bundle_attach : NULL,
+            .method            = HTTP_METHOD_POST,
+            .timeout_ms        = 30000,
+            .buffer_size       = 1024,
+            .buffer_size_tx    = 512,
+        };
+        esp_http_client_handle_t client = esp_http_client_init(&http_cfg);
+        if (!client) {
+            ESP_LOGE(TAG, "PROV: esp_http_client_init failed");
+            s_prov_claim_running = false;
+            vTaskDelete(NULL);
+            return;
+        }
+
+        esp_http_client_set_header(client, "Content-Type", "application/json");
+        esp_http_client_set_post_field(client, body, strlen(body));
+
+        char resp_buf[1024] = {0};
+        size_t resp_len = 0;
+        int http_status = 0;
+
+        esp_err_t err = esp_http_client_open(client, strlen(body));
+        if (err == ESP_OK) {
+            int written = esp_http_client_write(client, body, strlen(body));
+            if (written < 0) {
+                err = ESP_FAIL;
+            } else {
+                int header_len = esp_http_client_fetch_headers(client);
+                if (header_len < 0) {
+                    err = ESP_FAIL;
+                } else {
+                    http_status = esp_http_client_get_status_code(client);
+                    int read_len = esp_http_client_read_response(client, resp_buf,
+                                                                  sizeof(resp_buf) - 1);
+                    if (read_len < 0) read_len = 0;
+                    resp_buf[read_len] = '\0';
+                    resp_len = (size_t)read_len;
+                }
+            }
+        }
+        esp_http_client_close(client);
+        esp_http_client_cleanup(client);
+
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "PROV: WiFi claim transport error: %s", esp_err_to_name(err));
+            s_prov_claim_running = false;
+            vTaskDelete(NULL);
+            return;
+        }
+
+        ESP_LOGI(TAG, "PROV: WiFi HTTP %d (%zu B body): %.200s",
+                 http_status, resp_len, resp_buf);
+
+        if (http_status == 200) {
+            cJSON *root = cJSON_Parse(resp_buf);
+            if (root) {
+                cJSON *j_company = cJSON_GetObjectItem(root, "company_id");
+                cJSON *j_device  = cJSON_GetObjectItem(root, "device_id");
+                cJSON *j_pass    = cJSON_GetObjectItem(root, "passkey");
+
+                if (j_company && cJSON_IsString(j_company) &&
+                    j_device  && cJSON_IsString(j_device) &&
+                    j_pass    && cJSON_IsString(j_pass)) {
+
+                    nvs_handle_t h;
+                    if (nvs_open("vmflow", NVS_READWRITE, &h) == ESP_OK) {
+                        nvs_set_str(h, "company_id", j_company->valuestring);
+                        nvs_set_str(h, "device_id",  j_device->valuestring);
+                        nvs_set_str(h, "passkey",    j_pass->valuestring);
+                        cJSON *j_mqtt = cJSON_GetObjectItem(root, "mqtt_host");
+                        if (j_mqtt && cJSON_IsString(j_mqtt) && strlen(j_mqtt->valuestring) > 0) {
+                            nvs_set_str(h, "mqtt_host", j_mqtt->valuestring);
+                        }
+                        cJSON *j_mqtt_port = cJSON_GetObjectItem(root, "mqtt_port");
+                        if (j_mqtt_port && cJSON_IsString(j_mqtt_port) && strlen(j_mqtt_port->valuestring) > 0) {
+                            nvs_set_str(h, "mqtt_port", j_mqtt_port->valuestring);
+                        }
+                        nvs_erase_key(h, "prov_code");
+                        nvs_commit(h);
+                        nvs_close(h);
+                    }
+
+                    ESP_LOGI(TAG, "PROV: claimed (WiFi), company=%s device=%s — restarting",
+                             j_company->valuestring, j_device->valuestring);
+                    cJSON_Delete(root);
+                    s_prov_claim_running = false;
+                    tracked_restart("provision");
+                    /* not reached */
+                }
+                cJSON_Delete(root);
+                ESP_LOGE(TAG, "PROV: HTTP 200 but missing required fields — giving up");
+            } else {
+                ESP_LOGE(TAG, "PROV: HTTP 200 but invalid JSON — giving up");
+            }
+        } else {
+            ESP_LOGW(TAG, "PROV: server returned HTTP %d — not retrying", http_status);
+        }
+
+        s_prov_claim_running = false;
+        vTaskDelete(NULL);
+        return;
+    }
+
     /* === Modem-internal HTTPS claim path =============================
      *
      * Field test 2026-04-29: the same 1NCE SIM works cleanly in a
