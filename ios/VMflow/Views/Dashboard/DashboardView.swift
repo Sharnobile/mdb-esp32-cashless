@@ -212,14 +212,17 @@ struct DashboardView: View {
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.vertical, 20)
             } else {
-                let items = Array(viewModel.recentSales.prefix(10))
-                let grouped = groupDashboardSalesByDay(items)
+                let grouped = groupDashboardSalesByDay(viewModel.recentSales)
                 ForEach(grouped, id: \.date) { group in
                     DaySectionHeader(label: dayLabel(for: group.date), count: group.sales.count)
                     ForEach(group.sales) { item in
                         RecentSaleRow(item: item)
                     }
                 }
+            }
+
+            if viewModel.hasMoreSales {
+                loadMoreButton
             }
         }
         .padding(16)
@@ -228,6 +231,39 @@ struct DashboardView: View {
                 .fill(.regularMaterial)
                 .shadow(color: .black.opacity(0.06), radius: 6, y: 2)
         }
+    }
+
+    private var loadMoreButton: some View {
+        // Days the *next* tap would show. Current visible window = recentSalesDaysBack + 1 days
+        // (since daysBack counts back from today inclusive). Each tap adds +7 days, except the
+        // very first which goes 1 → 7 (i.e. +6 days).
+        let nextDaysTotal: Int = {
+            if viewModel.recentSalesDaysBack == 0 { return 7 }
+            return (viewModel.recentSalesDaysBack + 1) + 7
+        }()
+
+        return VStack(spacing: 4) {
+            Button {
+                Task { await viewModel.loadMoreRecentSales() }
+            } label: {
+                HStack(spacing: 6) {
+                    if viewModel.isLoadingMoreSales {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Image(systemName: "arrow.down.circle")
+                    }
+                    Text("Load more")
+                }
+            }
+            .buttonStyle(.bordered)
+            .disabled(viewModel.isLoadingMoreSales)
+
+            Text("Show last \(nextDaysTotal) days")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 8)
     }
 
     // MARK: - Helpers
