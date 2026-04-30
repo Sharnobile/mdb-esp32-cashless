@@ -470,11 +470,17 @@ static bool modem_probe_body(void) {
         ESP_LOGI(TAG, "esp_modem_sync (after PPP escape): %s", esp_err_to_name(ret));
     }
 
-    if (ret != ESP_OK) {
+    if (ret != ESP_OK && pmu_err == ESP_OK) {
         /* (C) Cold-boot path — PWRKEY pulse + poll for AT readiness up
          * to 15 s. Each sync attempt has its own ~500 ms internal
          * timeout, so worst-case we burn the full window before
-         * falling through. */
+         * falling through.
+         *
+         * Gated by `pmu_err == ESP_OK`: if the AXP2101 PMU isn't
+         * present, this is a production WiFi-only board with no modem
+         * hardware at all — the PWRKEY GPIO + 15 s wait would just
+         * burn time pulsing nothing. PMU detection is the cleanest
+         * available WiFi-vs-cellular HW signal we have. */
         ESP_LOGI(TAG, "issuing PWRKEY pulse for cold-boot...");
         pwrkey_pulse();
         for (int i = 0; i < 15; i++) {
@@ -485,6 +491,8 @@ static bool modem_probe_body(void) {
                 break;
             }
         }
+    } else if (ret != ESP_OK && pmu_err != ESP_OK) {
+        ESP_LOGI(TAG, "skipping PWRKEY cold-boot path (no PMU = no modem HW)");
     }
 
     if (ret != ESP_OK) {

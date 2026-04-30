@@ -152,6 +152,14 @@ static void                *s_event_user_data = NULL;
 static volatile bool        s_probe_complete = false;
 static volatile bool        s_user_committed_wifi = false;
 
+/* WiFi STA initialisation tracking — toggled true the first time
+ * network_init's WiFi branch (or network_skip_modem_probe) runs the
+ * STA netif + handler + APSTA-mode setup. Both call sites consult
+ * this to avoid double-initialising (esp_netif_create_default_wifi_sta
+ * + esp_event_handler_instance_register would error on the second
+ * pass). */
+static volatile bool        s_wifi_sta_initialised = false;
+
 /* ---- Helpers ---- */
 
 static void network_fire_event(network_event_t event) {
@@ -177,6 +185,12 @@ static void wifi_reconnect_timer_cb(void *arg) {
  *     / mqtt_watchdog_timer setup) now happens in the consumer callback
  *     in mdb-slave-esp32s3.c.
  */
+
+/* Forward declarations — wifi_branch_init_sta is used by both
+ * network_init's WiFi branch and network_skip_modem_probe; the latter
+ * sits below network_init in the file. */
+static void wifi_branch_init_sta(void);
+
 static void network_wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data) {
 
     if (event_base == WIFI_EVENT)
@@ -770,18 +784,11 @@ void network_init(void) {
 
     /* ---- WiFi-only branch ---- */
     /* SoftAP is already up. Add STA netif, register handlers, switch
-     * mode to APSTA, and trigger the connect attempt manually. */
-    esp_netif_create_default_wifi_sta();
-
-    esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID,
-                                         network_wifi_event_handler, NULL, NULL);
-    esp_event_handler_instance_register(IP_EVENT, ESP_EVENT_ANY_ID,
-                                         network_wifi_event_handler, NULL, NULL);
-
-    /* APSTA so SoftAP stays up alongside STA. The handler narrows mode
-     * back to STA-only on IP_EVENT_STA_GOT_IP. */
+     * mode to APSTA, and trigger the connect attempt manually. The
+     * STA setup may already have been done eagerly by
+     * network_skip_modem_probe — wifi_branch_init_sta is idempotent. */
+    wifi_branch_init_sta();
     s_state = NETWORK_STATE_WIFI_CONNECTING;
-    esp_wifi_set_mode(WIFI_MODE_APSTA);
 
     /* WIFI_EVENT_STA_START already fired during the pre-probe
      * esp_wifi_start, so the handler missed it. Trigger STA connect
@@ -959,6 +966,30 @@ bool network_modem_probe_complete(void) {
     return s_probe_complete || s_user_committed_wifi;
 }
 
+/* Idempotent WiFi STA setup. Used by network_init's WiFi branch
+ * (post-probe) and by network_skip_modem_probe (immediately on click)
+ * so the captive portal's WiFi-scan endpoint can run while the
+ * synchronous modem_probe is still finishing.
+ *
+ * Without this, on a WiFi-only board the user clicks Skip → captive
+ * portal renders the WiFi form → form auto-runs a scan → scan fails
+ * with ESP_FAIL because the WiFi driver is still in AP-only mode
+ * (STA isn't initialised until network_init's post-probe code runs,
+ * which can be 20-30 s into a no-modem boot). */
+static void wifi_branch_init_sta(void) {
+    if (s_wifi_sta_initialised) return;
+    s_wifi_sta_initialised = true;
+
+    esp_netif_create_default_wifi_sta();
+    esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID,
+                                         network_wifi_event_handler, NULL, NULL);
+    esp_event_handler_instance_register(IP_EVENT, ESP_EVENT_ANY_ID,
+                                         network_wifi_event_handler, NULL, NULL);
+    /* APSTA so SoftAP stays up alongside STA. The handler narrows
+     * mode back to STA-only on IP_EVENT_STA_GOT_IP. */
+    esp_wifi_set_mode(WIFI_MODE_APSTA);
+}
+
 esp_err_t network_skip_modem_probe(void) {
     /* If the cellular branch has already been taken (probe finished and
      * detected a modem before user clicked skip), it's too late — the
@@ -971,6 +1002,14 @@ esp_err_t network_skip_modem_probe(void) {
         return ESP_ERR_INVALID_STATE;
     }
     s_user_committed_wifi = true;
-    ESP_LOGI(TAG, "skip-probe: user committed to WiFi mode");
+
+    /* Eagerly initialise STA so the WiFi scan + WiFi form work during
+     * the still-running modem_probe. network_init's post-probe code
+     * is now a no-op for these resources thanks to wifi_branch_init_sta's
+     * idempotency. */
+    wifi_branch_init_sta();
+    s_state = NETWORK_STATE_WIFI_CONNECTING;
+
+    ESP_LOGI(TAG, "skip-probe: user committed to WiFi mode (STA initialised)");
     return ESP_OK;
 }
