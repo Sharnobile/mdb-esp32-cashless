@@ -12,6 +12,9 @@ struct DashboardView: View {
     /// Whether a refill tour is currently saved/in-progress.
     @State private var hasActiveRefill = false
 
+    /// Selected date for chart drag-to-scrub. nil = no tooltip visible.
+    @State private var selectedDate: Date?
+
     private var realtimeVersion: Int {
         realtime.salesVersion + realtime.machinesVersion + realtime.embeddedVersion
     }
@@ -156,14 +159,41 @@ struct DashboardView: View {
             }
 
             if !viewModel.dailySales.isEmpty {
-                Chart(viewModel.dailySales) { day in
-                    BarMark(
-                        x: .value("Date", day.date, unit: .day),
-                        y: .value("Revenue", day.revenue)
-                    )
-                    .foregroundStyle(.blue.gradient)
-                    .cornerRadius(3)
+                Chart {
+                    ForEach(viewModel.dailySales) { day in
+                        BarMark(
+                            x: .value("Date", day.date, unit: .day),
+                            y: .value("Revenue", day.revenue)
+                        )
+                        .foregroundStyle(day.isWeekend ? Color.blue.opacity(0.45).gradient : Color.blue.gradient)
+                        .cornerRadius(3)
+                    }
+
+                    if viewModel.dailyAverage > 0 {
+                        RuleMark(y: .value("Avg", viewModel.dailyAverage))
+                            .foregroundStyle(.orange)
+                            .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [4, 4]))
+                            .annotation(position: .topTrailing, alignment: .trailing, spacing: 2) {
+                                Text("Ø \(formatCurrency(viewModel.dailyAverage))")
+                                    .font(.caption2.weight(.semibold))
+                                    .foregroundStyle(.orange)
+                            }
+                    }
+
+                    if let selectedDate, let day = selectedDay {
+                        RuleMark(x: .value("Selected", day.date, unit: .day))
+                            .foregroundStyle(.gray.opacity(0.35))
+                            .annotation(
+                                position: .top,
+                                alignment: .center,
+                                spacing: 4,
+                                overflowResolution: .init(x: .fit(to: .chart), y: .disabled)
+                            ) {
+                                tooltipView(for: day)
+                            }
+                    }
                 }
+                .chartXSelection(value: $selectedDate)
                 .chartXAxis {
                     AxisMarks(values: .stride(by: .day, count: 7)) { _ in
                         AxisValueLabel(format: .dateTime.day().month(.abbreviated))
@@ -181,6 +211,7 @@ struct DashboardView: View {
                     }
                 }
                 .frame(height: 200)
+                .animation(.smooth, value: selectedDate)
             } else {
                 RoundedRectangle(cornerRadius: 12)
                     .fill(Color(.systemGray6))
@@ -273,6 +304,52 @@ struct DashboardView: View {
     }
 
     // MARK: - Helpers
+
+    private var selectedDay: DailySales? {
+        guard let selectedDate else { return nil }
+        return viewModel.dailySales.first {
+            Calendar.current.isDate($0.date, inSameDayAs: selectedDate)
+        }
+    }
+
+    @ViewBuilder
+    private func tooltipView(for day: DailySales) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(formatTooltipDate(day.date))
+                .font(.caption.weight(.semibold))
+            HStack(spacing: 12) {
+                Text("Revenue")
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text(formatCurrency(day.revenue))
+                    .monospacedDigit()
+            }
+            .font(.caption2)
+            HStack(spacing: 12) {
+                Text("Sales")
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text("\(day.count)")
+                    .monospacedDigit()
+            }
+            .font(.caption2)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background {
+            RoundedRectangle(cornerRadius: 8)
+                .fill(.regularMaterial)
+                .shadow(color: .black.opacity(0.15), radius: 4, y: 2)
+        }
+        .frame(minWidth: 140)
+    }
+
+    private func formatTooltipDate(_ date: Date) -> String {
+        // Date.FormatStyle is locale-aware out of the box.
+        // - en: "Wed, 15 Apr"
+        // - de: "Mi., 15. Apr."
+        return date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated))
+    }
 
     private func formatCurrency(_ amount: Double) -> String {
         let formatter = NumberFormatter()
