@@ -2246,6 +2246,16 @@
         }
       }
     },
+    "Revenue" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Umsatz"
+          }
+        }
+      }
+    },
     "Revenue (30 days)" : {
       "localizations" : {
         "de" : {
