@@ -49,9 +49,11 @@ Erweitere das einzige Diagramm der iOS-App — die "Revenue (30 days)"-Bar-Chart
 
 ## Architecture
 
+**Deployment-Target:** iOS 17+ (verifiziert in `ios/project.yml:5` → `iOS: "17.0"`). Damit sind die genutzten neuen APIs (`chartXSelection(value:)`, `RuleMark.annotation(overflowResolution:)`, `Animation.smooth`) verfügbar.
+
 ### Chart-Aufbau (`DashboardView.swift::chartSection`)
 
-Bestehendes `Chart(viewModel.dailySales) { day in BarMark(...) }` wird ersetzt durch ein erweitertes Chart-Block:
+Bestehendes `Chart(viewModel.dailySales) { day in BarMark(...) }` wird ersetzt durch ein erweitertes Chart-Block. Die existierende Säulenfarbe `.blue.gradient` bleibt erhalten — Wochenend-Säulen verwenden `Color.blue.opacity(0.45).gradient` (gleicher Gradient-Effekt, niedrigerer Grundton):
 
 ```swift
 Chart {
@@ -60,7 +62,7 @@ Chart {
             x: .value("Date", day.date, unit: .day),
             y: .value("Revenue", day.revenue)
         )
-        .foregroundStyle(day.isWeekend ? Color.blue.opacity(0.45) : Color.blue)
+        .foregroundStyle(day.isWeekend ? Color.blue.opacity(0.45).gradient : Color.blue.gradient)
         .cornerRadius(3)
     }
 
@@ -114,18 +116,20 @@ private var selectedDay: DailySales? {
 ### Computed Properties (`DashboardViewModel.swift`)
 
 ```swift
-/// Average daily revenue over the loaded 30-day window, including zero-revenue days.
-/// Σ revenue / count(days) — count is fixed at 30 because loadDailyChart() pre-populates
-/// all 30 days with zeros before merging actual sales.
+/// Average daily revenue over the loaded daily-chart window, including zero-revenue days.
+/// Σ revenue / dailySales.count. The header says "30 days" but loadDailyChart() actually
+/// pre-populates 31 daily buckets (`for dayOffset in 0..<31`, today + 30 prior). We divide
+/// by the actual array count so the average matches what's visually rendered, regardless
+/// of any future fence-post fix.
 var dailyAverage: Double {
     guard !dailySales.isEmpty else { return 0 }
     return dailySales.reduce(0) { $0 + $1.revenue } / Double(dailySales.count)
 }
 ```
 
-### Model Extension
+### Model Extension (`ios/VMflow/Models/Sale.swift`)
 
-`DailySales` (definition lebt im selben Bereich als `DashboardViewModel` oder einer angrenzenden Models-Datei) bekommt:
+`DailySales` ist als `struct DailySales: Identifiable, Equatable` an `Sale.swift:57` deklariert. Die `isWeekend`-Property kommt als Extension direkt unter den Struct in derselben Datei:
 
 ```swift
 extension DailySales {
@@ -134,8 +138,6 @@ extension DailySales {
     }
 }
 ```
-
-Falls `DailySales` als `struct` definiert ist und nicht erweitert werden kann (zum Beispiel weil das Original Type sealed ist), fügen wir die Property direkt am Original-Struct an. Wenn `DailySales` aber im View-File deklariert ist (möglich), wird die Property dort hinzugefügt.
 
 `Calendar.current.isDateInWeekend(_:)` respektiert die User-Locale — in DE/US Sa+So. Akzeptabel für unseren Use-Case.
 
@@ -175,9 +177,10 @@ private func tooltipView(for day: DailySales) -> some View {
 }
 
 private func formatTooltipDate(_ date: Date) -> String {
-    let formatter = DateFormatter()
-    formatter.dateFormat = "EEE, d MMM"  // "Wed, 15 Apr" (locale-aware day & month abbreviations)
-    return formatter.string(from: date)
+    // Date.FormatStyle is locale-aware out of the box (iOS 15+). Produces:
+    // - en: "Wed, 15 Apr"
+    // - de: "Mi., 15. Apr."
+    return date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated))
 }
 ```
 
@@ -218,17 +221,16 @@ Finger lifts → selectedDate = nil → selection RuleMark disappears
 
 ## i18n
 
-Drei neue Strings ins `Localizable.xcstrings`:
+Zwei neue Strings ins `Localizable.xcstrings`:
 
-| Source key (en)         | de translation       |
-|-------------------------|----------------------|
-| `Revenue`               | `Umsatz`             |
-| `Sales`                 | `Verkäufe`           |
-| `Ø %@`                  | `Ø %@`               |
+| Source key (en) | de translation |
+|-----------------|----------------|
+| `Revenue`       | `Umsatz`       |
+| `Sales`         | `Verkäufe`     |
 
-Die Avg-Beschriftung verwendet `"Ø \(formatCurrency(...))"` direkt im Code — der Text "Ø " ist nicht übersetzungsbedürftig (Symbol). Falls deutsch und englisch identisch sind, reicht der Source-String allein.
+Die Avg-Beschriftung "Ø XX,XX €" wird via `"Ø \(formatCurrency(...))"` direkt im Swift-Code zusammengesetzt — der Text "Ø " ist ein Symbol und nicht übersetzungsbedürftig, der Currency-Teil rendert via existierendem `NumberFormatter` mit `.currency`-Style locale-aware (en: "Ø €47.50", de: "Ø 47,50 €").
 
-Datums-Format `"EEE, d MMM"` ist locale-aware (`DateFormatter` respektiert `Locale.current` für Wochentage und Monatsnamen): "Wed, 15 Apr" (en) / "Mi., 15. Apr." (de).
+Datums-Format via `Date.FormatStyle` (`.dateTime.weekday(.abbreviated).day().month(.abbreviated)`) ist out-of-the-box locale-aware: "Wed, 15 Apr" (en) / "Mi., 15. Apr." (de). Kein Catalog-Eintrag nötig.
 
 ## Error Handling
 
