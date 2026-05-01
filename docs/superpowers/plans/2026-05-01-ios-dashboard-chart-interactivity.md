@@ -105,7 +105,7 @@ EOF
 ### Task 2: Wire chart with weekend coloring, average line, and drag-to-scrub tooltip
 
 **Files:**
-- Modify: `ios/VMflow/Views/Dashboard/DashboardView.swift:158–183` (replace the existing chart block — `Chart(viewModel.dailySales) { ... }` plus its `.chartXAxis`/`.chartYAxis`/`.frame` modifiers)
+- Modify: `ios/VMflow/Views/Dashboard/DashboardView.swift:158–192` (replace the entire chart `if/else` block — both the chart branch and the empty-state else-branch)
 - Modify: `ios/VMflow/Views/Dashboard/DashboardView.swift` (add `@State private var selectedDate: Date?` near other view state declarations, around line 13; add `selectedDay`, `tooltipView(for:)`, `formatTooltipDate(_:)` as private members of `DashboardView`)
 
 - [ ] **Step 2.1: Add `@State` for the selected date**
@@ -412,8 +412,8 @@ cd /Users/lucienkerl/Development/mdb-esp32-cashless && xcodebuild -project ios/V
 ## Done Criteria
 
 - All four tasks complete with green builds.
-- All 12 manual QA checks pass on Simulator.
+- All 11 manual QA checks pass on Simulator.
 - Three commits stacked on `claude/firmware-cellular-milestone`:
   1. `feat(ios/dashboard): add DailySales.isWeekend + DashboardViewModel.dailyAverage`
   2. `feat(ios/dashboard): chart drag-to-scrub tooltip + avg line + weekend coloring`
-  3. `i18n(ios): add German translations for chart tooltip — Revenue, Sales`
+  3. `i18n(ios): add German translation for chart tooltip — Revenue → Umsatz` *(Sales already in catalog from another usage site)*
