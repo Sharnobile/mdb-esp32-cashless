@@ -70,14 +70,19 @@ final class DashboardViewModel: ObservableObject {
         let startOfWeek = calendar.date(from: calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: now))!
         let startOfMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: now))!
 
-        // Fetch all sales for this month (covers today, yesterday, week, month)
+        // Query the earliest of the four KPI boundaries — on the 1st of a month
+        // startOfYesterday is in the previous month, and a Mon-Wed early in a
+        // month has its ISO-week start in the previous month too. Guarding each
+        // sum with its own boundary keeps the per-KPI math correct.
+        let queryLowerBound = [startOfMonth, startOfWeek, startOfYesterday].min()!
+
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
 
         let sales: [Sale] = try await client
             .from("sales")
             .select("id, created_at, item_price, item_number, machine_id, embedded_id, channel")
-            .gte("created_at", value: formatter.string(from: startOfMonth))
+            .gte("created_at", value: formatter.string(from: queryLowerBound))
             .order("created_at", ascending: false)
             .execute()
             .value
@@ -89,8 +94,10 @@ final class DashboardViewModel: ObservableObject {
 
         for sale in sales {
             let price = sale.itemPrice ?? 0
-            monthRev += price
 
+            if sale.createdAt >= startOfMonth {
+                monthRev += price
+            }
             if sale.createdAt >= startOfWeek {
                 weekRev += price
                 weekCount += 1
