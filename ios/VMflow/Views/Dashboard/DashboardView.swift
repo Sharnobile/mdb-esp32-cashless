@@ -173,7 +173,12 @@ struct DashboardView: View {
                         RuleMark(y: .value("Avg", viewModel.dailyAverage))
                             .foregroundStyle(.orange)
                             .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [4, 4]))
-                            .annotation(position: .topTrailing, alignment: .trailing, spacing: 2) {
+                            .annotation(
+                                position: .top,
+                                alignment: .trailing,
+                                spacing: 2,
+                                overflowResolution: .init(x: .fit(to: .chart), y: .disabled)
+                            ) {
                                 Text("Ø \(formatCurrency(viewModel.dailyAverage))")
                                     .font(.caption2.weight(.semibold))
                                     .foregroundStyle(.orange)
