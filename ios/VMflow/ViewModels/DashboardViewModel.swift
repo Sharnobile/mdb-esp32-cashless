@@ -36,6 +36,15 @@ final class DashboardViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var error: String?
 
+    /// Average daily revenue over the loaded daily-chart window, including zero-revenue days.
+    /// Σ revenue / dailySales.count. The chart header says "30 days" but loadDailyChart()
+    /// actually pre-populates 31 daily buckets (`for dayOffset in 0..<31`); we divide by the
+    /// actual array count so the average matches what's visually rendered.
+    var dailyAverage: Double {
+        guard !dailySales.isEmpty else { return 0 }
+        return dailySales.reduce(0) { $0 + $1.revenue } / Double(dailySales.count)
+    }
+
     private let client = SupabaseService.shared.client
 
     // MARK: - Load All
