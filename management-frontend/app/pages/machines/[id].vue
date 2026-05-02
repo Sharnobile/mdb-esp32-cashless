@@ -42,12 +42,24 @@ const { onResume } = useAppResume()
 const isAdmin = computed(() => role.value === 'admin')
 
 // ── SoftAP credentials modal ────────────────────────────────────────────
+// Triggered from inside the device-info modal, so we close the parent modal
+// while the SoftAP one is open (otherwise it stacks behind) and restore it
+// on close so the user can navigate back.
 const softapModalOpen = ref(false)
+const _deviceInfoWasOpenBeforeSoftap = ref(false)
 function openSoftapModal() {
+  if (showDeviceInfoModal.value) {
+    _deviceInfoWasOpenBeforeSoftap.value = true
+    showDeviceInfoModal.value = false
+  }
   softapModalOpen.value = true
 }
 function closeSoftapModal() {
   softapModalOpen.value = false
+  if (_deviceInfoWasOpenBeforeSoftap.value) {
+    _deviceInfoWasOpenBeforeSoftap.value = false
+    showDeviceInfoModal.value = true
+  }
 }
 
 import { fuzzyFilter } from '@/lib/fuzzySearch'
