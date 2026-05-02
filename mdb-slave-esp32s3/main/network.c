@@ -233,7 +233,7 @@ static void network_wifi_event_handler(void *arg, esp_event_base_t event_base, i
             break;
         }
         case WIFI_EVENT_AP_START:
-            ESP_LOGI(TAG, "WIFI AP started — SSID \"" AP_SSID "\" should now be visible");
+            ESP_LOGI(TAG, "WIFI AP started — SoftAP should now be visible");
             break;
         case WIFI_EVENT_AP_STOP:
             ESP_LOGI(TAG, "WIFI AP stopped");
