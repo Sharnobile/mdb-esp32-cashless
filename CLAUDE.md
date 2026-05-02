@@ -49,6 +49,19 @@ Single main file `main/mdb-slave-esp32s3.c` runs these concurrent FreeRTOS tasks
 - `mqtt_port` – MQTT broker port
 - `mqtt_user` – MQTT username
 - `mqtt_pass` – MQTT password
+- `mdb_addr` – MDB peripheral address selector (1=0x10, 2=0x60), set via config cmd 0x31
+- `restart_reason` – set by `tracked_restart()` before reboot, erased on next boot after publish
+- `last_uptime` – uptime at the moment of `tracked_restart()`, paired with `restart_reason`
+- `apn` – cellular APN (P1+, set via captive portal `/api/v1/cellular/configure`)
+- `sim_pin` – optional cellular SIM PIN (P1+; empty for PIN-less SIMs)
+- `lte_mode` – cellular LTE mode selector u8 (1=Cat-M, 2=NB-IoT, 3=Both)
+
+**Reset paths and what they erase:**
+- **Factory reset** (boot button held 5 s, `factory_reset_task` in main.c) → `nvs_flash_erase()` wipes the **entire NVS partition** including all keys above. The only way to fully clear cellular config without overwriting it.
+- **NVS corruption recovery** (NVS init fails with `NO_FREE_PAGES`/`NEW_VERSION_FOUND`) → also a full `nvs_flash_erase`.
+- **Successful claim** (`provision_claim_task`) → erases only `prov_code`. Cellular config persists across the post-claim reboot, which is the intended behaviour (post-claim devices keep their APN).
+- **Soft restarts** (OTA, MQTT watchdog, config cmd 0x30, provision-failure retry loop) → reboot only, no NVS keys touched. Cellular config persists, which is intended (so the device re-attaches to the same APN automatically).
+- **`/api/v1/cellular/configure`** rejects empty APN — once set, an APN can only be **overwritten** (with a new value), not gap-deleted via the captive portal. Factory reset is the only way to fully clear it.
 
 **WiFi / provisioning boot flow**:
 1. On `WIFI_EVENT_STA_START`, calls `esp_wifi_connect()`. If it returns an error (no saved credentials), immediately starts SoftAP + captive portal DNS + HTTP server.
@@ -60,6 +73,54 @@ Single main file `main/mdb-slave-esp32s3.c` runs these concurrent FreeRTOS tasks
 7. After reboot, device finds `company_id` + `device_id` + `passkey` in NVS and starts MQTT normally.
 
 **CMakeLists.txt**: Uses explicit `REQUIRES` — adding a new header include likely requires adding the owning component to `REQUIRES` in `main/CMakeLists.txt` (e.g. `esp_wifi`, `esp_http_client`, `mqtt`, `driver`, `bt`, etc.).
+
+**Network manager (`network.c` / `network.h`)**: Single orchestrator for
+the device's uplink. At boot, `network_init()` calls `modem_probe()` and
+branches:
+- **Modem detected** → cellular-only boot. WiFi STA is NOT initialised.
+  SoftAP comes up immediately. If an APN is in NVS (post-claim or
+  pre-configured), `cellular_bring_up_task` runs `modem_init` +
+  `modem_connect`. P3 captive portal calls `network_cellular_configure`
+  with new credentials.
+- **No modem** → WiFi-only boot. Behaviour identical to the pre-P2
+  firmware: `esp_wifi_init` + STA/AP netifs + `esp_wifi_start`. SoftAP
+  comes up after `WIFI_SOFTAP_AFTER` failed connect attempts.
+
+`mdb-slave-esp32s3.c` registers a single callback via
+`network_register_callback` that fires on `NETWORK_EVENT_UPLINK_UP` —
+the callback either spawns `provision_claim_task` (first-boot claim
+flow) or starts the MQTT client. The pre-P2 inline `wifi_event_handler`
+(~165 lines) was extracted into `network.c`.
+
+**Captive portal wizard (P3)**: `webui_server.c` exposes
+`GET /api/v1/system/info` (returns `{variant, wizard_state, uplink:{kind,wifi,cellular}, claim:{claimed, prov_code_set}}` from `network_get_status()`),
+plus three POST endpoints: `/api/v1/cellular/configure` `{apn, pin, lte_mode}`,
+`/api/v1/wifi/configure` `{ssid, password}` (rejected on cellular boards),
+and `/api/v1/claim` `{prov_code, srv_url}` (writes NVS + spawns
+`provision_claim_task` from `provision.h`).
+The captive portal HTML (`webui/index.html`, embedded via `EMBED_FILES`)
+is a vanilla-JS SPA: polls `/system/info` every 2 s, renders one of 7
+wizard-state views (booting, offline, cellular_config, cellular_registering,
+wifi_connecting, ready_to_claim, claimed), shows a status banner with
+signal bars + operator + IP, and disables submit buttons during in-flight
+or registering states. The old combined `/api/v1/settings/set` endpoint
+was removed in P3.
+
+**Cellular recovery (P4 + post-milestone hardening)**: Multi-layer escalation. Layer 1 — `network.c::ppp_reconnect_task` retries `modem_disconnect`+`modem_connect` 3 times on `IP_EVENT_PPP_LOST_IP`, ~6 s total. Layer 1.5/1.6/2/3 — `cellular_bring_up_task` recovery ladder triggers on **either** IPCP timeout **or phantom-PPP** (TCP probe to 1.1.1.1:53 fails after PPP_GOT_IP). Steps: `modem_pdp_reset` (CGACT=0/1, ~5s) → `modem_rf_reset` (CFUN=0/1, ~10s) → `modem_soft_restart` (CFUN=1,1, ~12s) → `modem_hard_reset` (PMU DC3 cut + PWRKEY, ~15s, true reset). Each step is followed by `modem_connect` + reachability probe; only if probe succeeds is `UPLINK_UP` fired. Worst-case ~3-4 min ladder traversal before bailing OFFLINE; `offline_retry` timer (30s) re-spawns fresh `cellular_bring_up_task`. Layer 4 — `modem.c::modem_watchdog_task` (30 s tick) calls `modem_hard_reset` after 3 consecutive `AT` failures (bounded to 2 hard-resets before deferring to Layer 5). Layer 5 — `mqtt_watchdog_cb` hard-reboots after 10 min without MQTT. MQTT keepalive bumps to 180 s + network/reconnect timeouts to 30 s/20 s when uplink is cellular at `esp_mqtt_client_init` time. Known limitation: at MQTT-init time `network_init()` has not yet run, so `modem_present` is false and cellular boards still get the WiFi-tuned MQTT values on the first connection. The watchdog task is started exclusively from `cellular_bring_up_task` (after `modem_connect` succeeds), so WiFi-only boards never spawn it.
+
+**Phantom-PPP detection (post-milestone)**: SIM7080G has two parallel network stacks (host PPP + internal AT+CIP*/AT+CNACT*) sharing the same PDP context. Residue in the internal stack splits the PDP binding — IPCP completes and inbound flows (cached air-side state) but outbound silently drops at GTP. Field symptom: TLS cert downloads OK, ClientKeyExchange never reaches server, server FINs at 15s timeout. **Three-layer protection**: (1) `modem_init` proactively clears state via `AT+CIPSHUT` + `AT+CNACT=0,0` (best-effort, ignore errors); (2) `modem_connect` verifies PDP via `AT+CGCONTRDP=1` poll (5×1s) after `+CEREG: 1,5` — confirms data attach actually completed before entering DATA mode; (3) `network.c::probe_internet_tcp("1.1.1.1", 53, 5000ms)` runs after `PPP_GOT_IP_BIT` and BEFORE `UPLINK_UP` — failed probe triggers recovery ladder immediately instead of letting MQTT/claim waste minutes on a dead path. **Important**: never call `AT+CGACT=1,1` manually on LTE — the default bearer auto-activates with registration; manual call introduces the race that creates phantom-PPP in the first place. **Note**: `10.0.0.1` in `PPP GOT_IP` log is the SIMCom IPCP peer placeholder (normal), not a stub from a half-broken state.
+
+**Cellular telemetry surface (P5)**: Status MQTT payload is extended additively when uplink is cellular: `online|v:VER|b:BUILD|uplink:cellular|op:NAME|rssi:DBM|mode:RAT|ip:ADDR`. The `mqtt-webhook` Edge Function parses any `key:value` segments after `parts[2]` and merges them into `embeddeds.mdb_diagnostics.cellular` jsonb (no DB migration). The frontend `CellularHealthBadge.vue` component renders signal bars + operator + mode pill on `/devices` and `/machines/[id]` when `diagnostics.cellular.uplink === 'cellular'`. Old firmware (3-segment status) is unchanged on both sides; the badge renders nothing for non-cellular devices.
+
+**Cellular driver (`modem.c` / `modem.h`)**: SIM7080G driver introduced
+in P1. Public API: `modem_probe`, `modem_init`, `modem_connect`,
+`modem_disconnect`, `modem_status`, `modem_power_cycle` (single PWRKEY
+pulse — cold-boot only), `modem_hard_reset` (true cycle: PMU DC3 cut +
+PWRKEY, used by recovery ladder), `modem_pdp_reset` / `modem_rf_reset`
+/ `modem_soft_restart` (intermediate recovery layers), plus NVS helpers
+`modem_nvs_load`/`modem_nvs_save` (promoted to the public API in P2).
+All callers now go through `network.c` — no part of `app_main` touches
+`esp_modem_*` directly.
 
 ### mdb-master-esp32s3 Architecture
 

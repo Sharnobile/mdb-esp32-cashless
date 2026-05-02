@@ -34,10 +34,12 @@
 #include "nimble.h"
 #include "webui_server.h"
 #include "sale_queue.h"
+#include "network.h"
 
 #include "esp_system.h"
 #include "esp_http_client.h"
 #include "esp_crt_bundle.h"
+#include "modem_https.h"
 #include "esp_https_ota.h"
 #include "esp_ota_ops.h"
 #include "esp_app_desc.h"
@@ -73,18 +75,6 @@
 #define BIT_MODE_SET 	0b100000000
 #define BIT_ADD_SET   	0b011111000
 #define BIT_CMD_SET   	0b000000111
-
-#define WIFI_SOFTAP_AFTER  5          // start SoftAP after this many failures
-#define WIFI_RECONNECT_INTERVAL_SEC 60 // retry WiFi every 60s while in SoftAP
-
-static int wifi_retry_num = 0;
-static bool softap_active = false;
-static esp_timer_handle_t wifi_reconnect_timer = NULL;
-
-static void wifi_reconnect_timer_cb(void *arg) {
-    ESP_LOGI(TAG, "WiFi reconnect timer: retrying esp_wifi_connect()");
-    esp_wifi_connect();
-}
 
 enum BIT_EVENTS {
     BIT_EVT_INTERNET    = (1 << 0),
@@ -184,6 +174,14 @@ static bool restart_info_published = false;
 
 // Save restart reason + current uptime to NVS, then call esp_restart().
 // reason must be a string literal (not freed).
+//
+// On cellular boards we ALSO cycle the modem power before rebooting.
+// Without this, the modem stays in whatever state the previous session
+// left it (PPP DATA mode + internal CNACT bearer up after the claim
+// flow), and the next boot's PPP fails IPCP — recovery ladder then
+// burns 3-4 minutes. modem_kick_for_host_reboot is fire-and-forget
+// (~1.5 s blocking), then ESP32 reboot proceeds in parallel with the
+// modem's own boot.
 static void tracked_restart(const char *reason) {
     nvs_handle_t h;
     if (nvs_open("vmflow", NVS_READWRITE, &h) == ESP_OK) {
@@ -194,6 +192,14 @@ static void tracked_restart(const char *reason) {
         nvs_close(h);
     }
     ESP_LOGW(TAG, "Tracked restart: reason=%s", reason);
+
+    /* Kick modem power if a modem is present so the next boot starts
+     * with a cold-booted modem. modem_get_dce() returns NULL on WiFi-
+     * only boards, in which case skip silently. */
+    if (modem_get_dce() != NULL) {
+        modem_kick_for_host_reboot();
+    }
+
     vTaskDelay(pdMS_TO_TICKS(100));
     esp_restart();
 }
@@ -1901,8 +1907,24 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
     	snprintf(topic_, sizeof(topic_), "/%s/%s/status", my_company_id, my_device_id);
 
 		const esp_app_desc_t *app_desc = esp_app_get_description();
-		char status_msg[128];
-		snprintf(status_msg, sizeof(status_msg), "online|v:%s|b:%s %s %s", app_desc->version, app_desc->date, app_desc->time, BUILD_TIMEZONE);
+		char status_msg[256];   /* bumped from 128 to fit cellular fields */
+		int n = snprintf(status_msg, sizeof(status_msg), "online|v:%s|b:%s %s %s",
+		                 app_desc->version, app_desc->date, app_desc->time, BUILD_TIMEZONE);
+
+		network_status_t ns;
+		network_get_status(&ns);
+		if (ns.modem_present && n > 0 && n < (int)sizeof(status_msg)) {
+		    /* modem_lte_mode_t enum to short string, mirroring captive-portal helper */
+		    const char *mode_str = (ns.cellular_mode == MODEM_LTE_MODE_CATM)  ? "LTE-M"  :
+		                           (ns.cellular_mode == MODEM_LTE_MODE_NBIOT) ? "NB-IoT" :
+		                           (ns.cellular_mode == MODEM_LTE_MODE_BOTH)  ? "Auto"   : "?";
+		    snprintf(status_msg + n, sizeof(status_msg) - n,
+		             "|uplink:cellular|op:%s|rssi:%d|mode:%s|ip:%s",
+		             ns.cellular_operator[0] ? ns.cellular_operator : "unknown",
+		             ns.cellular_rssi_dbm,
+		             mode_str,
+		             ns.cellular_ip[0] ? ns.cellular_ip : "0.0.0.0");
+		}
 		ESP_LOGI(TAG, "MQTT: publishing '%s' to '%s'", status_msg, topic_);
 		esp_mqtt_client_publish(mqttClient, topic_, status_msg, 0, 1, 1);
 
@@ -2151,13 +2173,69 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
  * persists the returned subdomain + passkey, erases the one-time code, then
  * reboots so the regular startup path takes over.
  */
-static void provision_claim_task(void *arg) {
+/* In-task retry policy.
+ *
+ * Used to be: on any failure, sleep 10s and esp_restart(). That made
+ * sense when the only reason to fail was a transient network blip on
+ * WiFi STA — reboot, re-DHCP, retry. On cellular it's destructive: a
+ * persistent failure (typo'd prov_code, server down, expired code)
+ * turns into an endless reboot loop where the user can never get back
+ * to the captive portal long enough to fix the input.
+ *
+ * New behaviour: try the HTTPS POST up to PROV_MAX_ATTEMPTS times with
+ * a fixed backoff. On success → restart (cleanest way to apply the
+ * new credentials). On persistent failure → log + exit. The captive
+ * portal stays up. The user can resubmit /api/v1/claim with corrected
+ * input, which spawns a fresh task. */
+/* Retry budget — sized for the "cold cellular" startup pattern.
+ *
+ * Field measurements on Telekom IoT (sensor.net) showed that a fresh
+ * cellular session needs several minutes to reach full performance:
+ * the first TLS handshake to a Cloudflare-fronted endpoint routinely
+ * exceeds CF's 15 s edge timeout, but ~5 minutes later the *same*
+ * handshake completes in <8 s. Reasons live at the carrier side
+ * (cell selection optimisation, PDP context realisation, NAT entry
+ * caching) — we can't speed them up, only wait through them.
+ *
+ * Backoff schedule (ms): 5 s, 15 s, 30 s, 60 s, 60 s, 60 s, 60 s
+ * Total: ~5 minutes of retries before giving up. Matches the
+ * empirically observed "warm-up" window. After exhaustion the AP
+ * stays online and the user can retry via captive portal. */
+#define PROV_MAX_ATTEMPTS  7
+static const int PROV_RETRY_DELAYS_S[PROV_MAX_ATTEMPTS - 1] = {
+    5, 15, 30, 60, 60, 60
+};
+
+/* Single-flight guard so concurrent /api/v1/claim submits + boot-time
+ * re-spawn don't run two tasks against the same NVS state. */
+static volatile bool s_prov_claim_running = false;
+
+/* (The cellular keep-warm task that lived here was a diagnostic for
+ * the PPP-based claim path. It probed 1.1.1.1:53 every 1 s during a
+ * claim attempt, hoping to keep the LTE-M radio in RRC-CONNECTED.
+ * Field log 2026-04-29 showed it had no measurable effect — 90 % of
+ * its own probes failed with the same loss pattern as the HTTPS
+ * connection — confirming the bug was below lwIP/PPP. The claim flow
+ * was subsequently moved to the modem-internal HTTPS path, which
+ * doesn't go through lwIP at all. The keep-warm task is no longer
+ * needed and was removed in the same commit that wired in
+ * modem_https_post_json.) */
+
+void provision_claim_task(void *arg) {
+    if (s_prov_claim_running) {
+        ESP_LOGW(TAG, "PROV: task already running — skipping duplicate spawn");
+        vTaskDelete(NULL);
+        return;
+    }
+    s_prov_claim_running = true;
+
     char prov_code[32] = {0};
     char srv_url[128]  = {0};
 
     nvs_handle_t handle;
     if (nvs_open("vmflow", NVS_READWRITE, &handle) != ESP_OK) {
         ESP_LOGE(TAG, "PROV: NVS open failed");
+        s_prov_claim_running = false;
         vTaskDelete(NULL);
         return;
     }
@@ -2166,6 +2244,7 @@ static void provision_claim_task(void *arg) {
     if (nvs_get_str(handle, "prov_code", prov_code, &len) != ESP_OK || strlen(prov_code) == 0) {
         ESP_LOGI(TAG, "PROV: no provisioning code in NVS");
         nvs_close(handle);
+        s_prov_claim_running = false;
         vTaskDelete(NULL);
         return;
     }
@@ -2176,53 +2255,100 @@ static void provision_claim_task(void *arg) {
 
     if (strlen(srv_url) == 0) {
         ESP_LOGE(TAG, "PROV: no server URL in NVS");
+        s_prov_claim_running = false;
         vTaskDelete(NULL);
         return;
     }
 
-    /* MAC address */
+    /* MAC address. On cellular boards STA isn't started, but esp_wifi
+     * is initialised for AP — esp_wifi_get_mac(STA) still works because
+     * the STA MAC is derived from the same efuse base address. */
     uint8_t mac[6];
     esp_wifi_get_mac(WIFI_IF_STA, mac);
     char mac_str[18];
     snprintf(mac_str, sizeof(mac_str), "%02x:%02x:%02x:%02x:%02x:%02x",
              mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 
-    /* Build request */
     char body[128];
     snprintf(body, sizeof(body),
              "{\"short_code\":\"%s\",\"mac_address\":\"%s\"}", prov_code, mac_str);
 
-    char url[192];
-    snprintf(url, sizeof(url), "%s/functions/v1/claim-device", srv_url);
+    /* Branch by uplink type. The cellular path uses the modem's internal
+     * AT+SH* HTTPS stack (bypasses PPP entirely — see field-debug notes
+     * below). The WiFi path uses esp_http_client over the active STA
+     * connection, which is the simpler and historically-proven route. */
+    bool use_cellular = modem_is_present();
 
-    ESP_LOGI(TAG, "PROV: claiming device at %s body=%s", url, body);
+    if (!use_cellular) {
+        /* === WiFi / esp_http_client claim path ========================
+         * Single-attempt POST; on success (HTTP 200 + valid JSON) we
+         * save NVS and tracked_restart. On failure we log + bail —
+         * captive portal stays reachable on the SoftAP side and the
+         * user can resubmit via /api/v1/claim, which spawns another
+         * provision_claim_task. */
+        ESP_LOGI(TAG, "PROV: claim via WiFi/esp_http_client (no modem)");
+        ESP_LOGI(TAG, "PROV: srv_url=%s body=%s", srv_url, body);
 
-    char resp_buf[512] = {0};
+        char claim_url[192];
+        snprintf(claim_url, sizeof(claim_url), "%s/functions/v1/claim-device", srv_url);
 
-    bool use_tls = (strncmp(url, "https://", 8) == 0);
+        bool use_tls = (strncmp(claim_url, "https://", 8) == 0);
+        esp_http_client_config_t http_cfg = {
+            .url               = claim_url,
+            .crt_bundle_attach = use_tls ? esp_crt_bundle_attach : NULL,
+            .method            = HTTP_METHOD_POST,
+            .timeout_ms        = 30000,
+            .buffer_size       = 1024,
+            .buffer_size_tx    = 512,
+        };
+        esp_http_client_handle_t client = esp_http_client_init(&http_cfg);
+        if (!client) {
+            ESP_LOGE(TAG, "PROV: esp_http_client_init failed");
+            s_prov_claim_running = false;
+            vTaskDelete(NULL);
+            return;
+        }
 
-    esp_http_client_config_t http_cfg = {
-        .url               = url,
-        .method            = HTTP_METHOD_POST,
-        .crt_bundle_attach = use_tls ? esp_crt_bundle_attach : NULL,
-        .timeout_ms        = 15000,
-    };
+        esp_http_client_set_header(client, "Content-Type", "application/json");
+        esp_http_client_set_post_field(client, body, strlen(body));
 
-    esp_http_client_handle_t client = esp_http_client_init(&http_cfg);
-    esp_http_client_set_header(client, "Content-Type", "application/json");
+        char resp_buf[1024] = {0};
+        size_t resp_len = 0;
+        int http_status = 0;
 
-    esp_err_t http_err = esp_http_client_open(client, strlen(body));
-    if (http_err == ESP_OK) {
-        esp_http_client_write(client, body, strlen(body));
-        int content_length = esp_http_client_fetch_headers(client);
-        int status = esp_http_client_get_status_code(client);
+        esp_err_t err = esp_http_client_open(client, strlen(body));
+        if (err == ESP_OK) {
+            int written = esp_http_client_write(client, body, strlen(body));
+            if (written < 0) {
+                err = ESP_FAIL;
+            } else {
+                int header_len = esp_http_client_fetch_headers(client);
+                if (header_len < 0) {
+                    err = ESP_FAIL;
+                } else {
+                    http_status = esp_http_client_get_status_code(client);
+                    int read_len = esp_http_client_read_response(client, resp_buf,
+                                                                  sizeof(resp_buf) - 1);
+                    if (read_len < 0) read_len = 0;
+                    resp_buf[read_len] = '\0';
+                    resp_len = (size_t)read_len;
+                }
+            }
+        }
+        esp_http_client_close(client);
+        esp_http_client_cleanup(client);
 
-        int read_len = esp_http_client_read_response(client, resp_buf, sizeof(resp_buf) - 1);
-        if (read_len >= 0) resp_buf[read_len] = '\0';
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "PROV: WiFi claim transport error: %s", esp_err_to_name(err));
+            s_prov_claim_running = false;
+            vTaskDelete(NULL);
+            return;
+        }
 
-        ESP_LOGW(TAG, "PROV: HTTP %d  body=%s", status, resp_buf);
+        ESP_LOGI(TAG, "PROV: WiFi HTTP %d (%zu B body): %.200s",
+                 http_status, resp_len, resp_buf);
 
-        if (status == 200) {
+        if (http_status == 200) {
             cJSON *root = cJSON_Parse(resp_buf);
             if (root) {
                 cJSON *j_company = cJSON_GetObjectItem(root, "company_id");
@@ -2246,155 +2372,451 @@ static void provision_claim_task(void *arg) {
                         if (j_mqtt_port && cJSON_IsString(j_mqtt_port) && strlen(j_mqtt_port->valuestring) > 0) {
                             nvs_set_str(h, "mqtt_port", j_mqtt_port->valuestring);
                         }
+                        cJSON *j_softap = cJSON_GetObjectItem(root, "softap_password");
+                        if (j_softap && cJSON_IsString(j_softap) && strlen(j_softap->valuestring) >= 8) {
+                            nvs_set_str(h, "softap_pwd", j_softap->valuestring);
+                            ESP_LOGI(TAG, "PROV: stored backend-assigned SoftAP password");
+                        }
                         nvs_erase_key(h, "prov_code");
                         nvs_commit(h);
                         nvs_close(h);
                     }
 
-                    ESP_LOGI(TAG, "PROV: claimed, company=%s device=%s — restarting",
+                    ESP_LOGI(TAG, "PROV: claimed (WiFi), company=%s device=%s — restarting",
                              j_company->valuestring, j_device->valuestring);
                     cJSON_Delete(root);
-                    esp_http_client_cleanup(client);
+                    s_prov_claim_running = false;
                     tracked_restart("provision");
                     /* not reached */
                 }
                 cJSON_Delete(root);
+                ESP_LOGE(TAG, "PROV: HTTP 200 but missing required fields — giving up");
+            } else {
+                ESP_LOGE(TAG, "PROV: HTTP 200 but invalid JSON — giving up");
             }
+        } else {
+            ESP_LOGW(TAG, "PROV: server returned HTTP %d — not retrying", http_status);
         }
-    } else {
-        ESP_LOGE(TAG, "PROV: HTTP error: %s", esp_err_to_name(http_err));
+
+        s_prov_claim_running = false;
+        vTaskDelete(NULL);
+        return;
     }
 
-    // Claim failed — retry after delay by rebooting.
-    // Without this, MQTT never starts and the device stays offline forever.
-    ESP_LOGW(TAG, "PROV: claim failed — restarting in 10s to retry");
-    esp_http_client_cleanup(client);
-    vTaskDelay(pdMS_TO_TICKS(10000));
-    tracked_restart("provision");
+    /* === Modem-internal HTTPS claim path =============================
+     *
+     * Field test 2026-04-29: the same 1NCE SIM works cleanly in a
+     * separate LTE router (which uses the modem's offloaded TCP/IP
+     * stack), while our PPP+lwIP+mbedtls path on this SIM7080G stalls
+     * TLS handshakes after the server certificate. Diagnostic narrows
+     * to a defect in the host-side stack (PPP framing, UART buffer
+     * pressure, esp_modem 1.4.0 + lwIP edge case, or some combination
+     * thereof) — NOT the carrier and NOT the modem firmware itself.
+     *
+     * Switching the claim flow to the modem's internal HTTPS engine
+     * via AT+SHCONN/SHREQ/SHREAD bypasses our entire host TCP/IP path.
+     * The modem opens TCP, performs the TLS handshake, sends the
+     * request, and reads the response — we only see the final HTTP
+     * status + body via AT. This is the same path every consumer
+     * cellular router uses.
+     *
+     * Steady-state MQTT continues over PPP after the claim succeeds
+     * and the device reboots. Small-payload MQTT doesn't trigger the
+     * failure mode (no 3 KB cert burst, no long-lived TLS handshake),
+     * so PPP is fine for it.
+     *
+     * Caller flow:
+     *   1. PPP is currently UP (we got here on UPLINK_UP)
+     *   2. Take modem_op_lock so concurrent recovery paths don't
+     *      interfere with our internal-stack operations
+     *   3. Tear down PPP (modem_disconnect → COMMAND mode)
+     *   4. Loop modem_https_post_json attempts with the same backoff
+     *      schedule as the previous PPP path
+     *   5. On 200 + valid JSON: save NVS, tracked_restart (PPP comes
+     *      back fresh after reboot)
+     *   6. On exhaustion: re-establish PPP via modem_connect so
+     *      captive-portal /api/v1/claim retry stays viable */
+
+    ESP_LOGI(TAG, "PROV: claim via modem-internal HTTPS (bypassing PPP)");
+    ESP_LOGI(TAG, "PROV: srv_url=%s body=%s", srv_url, body);
+
+    /* Need the APN to (re)configure the internal bearer. modem_nvs_load
+     * was populated during the captive-portal cellular_configure, so
+     * this should always succeed at this point in the flow. */
+    char apn_buf[MODEM_APN_MAX] = {0};
+    char pin_buf[MODEM_PIN_MAX] = {0};
+    modem_lte_mode_t lte_mode_unused;
+    if (modem_nvs_load(apn_buf, sizeof(apn_buf), pin_buf, sizeof(pin_buf),
+                       &lte_mode_unused) != ESP_OK || apn_buf[0] == '\0') {
+        ESP_LOGE(TAG, "PROV: no APN in NVS — cannot run modem-internal HTTPS");
+        s_prov_claim_running = false;
+        vTaskDelete(NULL);
+        return;
+    }
+
+    /* Serialise against parallel recovery paths and FULL-teardown PPP
+     * for the AT-mode HTTPS window.
+     *
+     * Why full teardown (~32 s) instead of modem_pause (~1 s): the
+     * SIM7080G internal TLS stack (SHCONN) requires the PDP context
+     * to be unbound from PPP. modem_pause keeps the PDP bound to the
+     * suspended PPP netif, so CNACT=0,1 establishes a parallel
+     * binding that confuses the data plane — SHCONN then returns
+     * garbage (HDLC frames leak into the AT response stream:
+     * "AT+SHCONN → ESP_FAIL, resp=~!E"). Full teardown via set_mode
+     * (COMMAND) releases the PDP context, allowing CNACT to take it
+     * over cleanly. We pay the 30 s teardown wait once per claim. */
+    modem_op_lock();
+    ESP_LOGI(TAG, "PROV: tearing PPP down for AT-mode HTTPS");
+    modem_disconnect();
+    vTaskDelay(pdMS_TO_TICKS(2000));   /* settle */
+
+    bool gave_up_permanently = false;
+
+    for (int attempt = 1; attempt <= PROV_MAX_ATTEMPTS; attempt++) {
+        char   resp_buf[1024] = {0};
+        size_t resp_len       = 0;
+        int    http_status    = 0;
+
+        ESP_LOGI(TAG, "PROV: attempt %d/%d via modem-internal HTTPS",
+                 attempt, PROV_MAX_ATTEMPTS);
+
+        esp_err_t err = modem_https_post_json(srv_url,
+                                               "/functions/v1/claim-device",
+                                               apn_buf,
+                                               body, strlen(body),
+                                               resp_buf, sizeof(resp_buf),
+                                               &resp_len, &http_status,
+                                               90000);
+
+        if (err != ESP_OK) {
+            ESP_LOGW(TAG, "PROV: attempt %d/%d transport error: %s",
+                     attempt, PROV_MAX_ATTEMPTS, esp_err_to_name(err));
+        } else {
+            ESP_LOGI(TAG, "PROV: attempt %d/%d HTTP %d (%zu B body): %.200s",
+                     attempt, PROV_MAX_ATTEMPTS, http_status, resp_len, resp_buf);
+
+            if (http_status == 200) {
+                cJSON *root = cJSON_Parse(resp_buf);
+                if (root) {
+                    cJSON *j_company = cJSON_GetObjectItem(root, "company_id");
+                    cJSON *j_device  = cJSON_GetObjectItem(root, "device_id");
+                    cJSON *j_pass    = cJSON_GetObjectItem(root, "passkey");
+
+                    if (j_company && cJSON_IsString(j_company) &&
+                        j_device  && cJSON_IsString(j_device) &&
+                        j_pass    && cJSON_IsString(j_pass)) {
+
+                        nvs_handle_t h;
+                        if (nvs_open("vmflow", NVS_READWRITE, &h) == ESP_OK) {
+                            nvs_set_str(h, "company_id", j_company->valuestring);
+                            nvs_set_str(h, "device_id",  j_device->valuestring);
+                            nvs_set_str(h, "passkey",    j_pass->valuestring);
+                            cJSON *j_mqtt = cJSON_GetObjectItem(root, "mqtt_host");
+                            if (j_mqtt && cJSON_IsString(j_mqtt) && strlen(j_mqtt->valuestring) > 0) {
+                                nvs_set_str(h, "mqtt_host", j_mqtt->valuestring);
+                            }
+                            cJSON *j_mqtt_port = cJSON_GetObjectItem(root, "mqtt_port");
+                            if (j_mqtt_port && cJSON_IsString(j_mqtt_port) && strlen(j_mqtt_port->valuestring) > 0) {
+                                nvs_set_str(h, "mqtt_port", j_mqtt_port->valuestring);
+                            }
+                            cJSON *j_softap = cJSON_GetObjectItem(root, "softap_password");
+                            if (j_softap && cJSON_IsString(j_softap) && strlen(j_softap->valuestring) >= 8) {
+                                nvs_set_str(h, "softap_pwd", j_softap->valuestring);
+                                ESP_LOGI(TAG, "PROV: stored backend-assigned SoftAP password");
+                            }
+                            nvs_erase_key(h, "prov_code");
+                            nvs_commit(h);
+                            nvs_close(h);
+                        }
+
+                        ESP_LOGI(TAG, "PROV: claimed, company=%s device=%s — restarting",
+                                 j_company->valuestring, j_device->valuestring);
+                        cJSON_Delete(root);
+                        s_prov_claim_running = false;
+                        modem_op_unlock();
+                        tracked_restart("provision");
+                        /* not reached */
+                    }
+                    cJSON_Delete(root);
+                }
+                ESP_LOGE(TAG, "PROV: HTTP 200 but response missing required fields — giving up");
+                gave_up_permanently = true;
+                break;
+            }
+
+            if (http_status >= 400 && http_status < 500) {
+                ESP_LOGW(TAG, "PROV: server rejected (HTTP %d) — not retrying", http_status);
+                gave_up_permanently = true;
+                break;
+            }
+            /* 5xx or 0 → fall through to backoff + retry. */
+        }
+
+        /* Backoff between retries. */
+        if (attempt < PROV_MAX_ATTEMPTS) {
+            int delay_s = PROV_RETRY_DELAYS_S[attempt - 1];
+            ESP_LOGI(TAG, "PROV: retrying in %d s (attempt %d/%d)...",
+                     delay_s, attempt + 1, PROV_MAX_ATTEMPTS);
+            vTaskDelay(pdMS_TO_TICKS(delay_s * 1000));
+        }
+    }
+
+    /* All attempts exhausted (or terminal 4xx/garbage). Restart PPP so
+     * the device returns to a normal cellular state — captive portal
+     * stays reachable on the SoftAP side, and the user can either
+     * factory-reset or POST /api/v1/claim again with a corrected code,
+     * which spawns a fresh provision_claim_task. */
+    if (gave_up_permanently) {
+        ESP_LOGE(TAG, "PROV: terminal failure (%s) — restoring PPP",
+                 "4xx or invalid JSON");
+    } else {
+        ESP_LOGE(TAG, "PROV: %d attempts exhausted — restoring PPP",
+                 PROV_MAX_ATTEMPTS);
+    }
+    ESP_LOGI(TAG, "PROV: re-establishing PPP via modem_connect");
+    modem_connect();   /* best-effort; if it fails, watchdog/recovery handles it */
+    modem_op_unlock();
+    s_prov_claim_running = false;
+    vTaskDelete(NULL);
 }
 
-static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data) {
+/* ============================================================================
+ * SoftAP password sync task — runs once per boot for already-claimed devices
+ * that don't yet have softap_pwd in NVS. Posts an HMAC-authenticated request
+ * to /functions/v1/sync-softap-password, writes the returned password to NVS,
+ * and reloads the SoftAP config in place.
+ * ============================================================================ */
 
-	if (event_base == WIFI_EVENT)
-		switch (event_id) {
-		case WIFI_EVENT_STA_START: {
+#include "mbedtls/md.h"
 
-		    wifi_retry_num = 0;
-		    ESP_LOGI(TAG, "WIFI STA started");
+static bool s_softap_sync_running = false;
+static bool s_softap_sync_done    = false;
 
-		    /* Check whether there is a saved SSID before attempting to connect.
-		     * esp_wifi_connect() with an empty SSID may return ESP_OK on some
-		     * IDF versions without ever emitting STA_DISCONNECTED, leaving the
-		     * SoftAP fallback unreachable. */
-		    wifi_config_t sta_cfg = {0};
-		    esp_wifi_get_config(WIFI_IF_STA, &sta_cfg);
-		    ESP_LOGI(TAG, "Saved SSID: \"%s\"", (char *)sta_cfg.sta.ssid);
+#define SOFTAP_SYNC_MAX_ATTEMPTS  3
+static const int SOFTAP_SYNC_RETRY_DELAYS_S[] = { 5, 30 };
 
-		    if (strlen((char *)sta_cfg.sta.ssid) == 0) {
-		        ESP_LOGI(TAG, "No saved WiFi credentials — starting SoftAP");
-		        start_softap();
-		        start_dns_server();
-		        start_rest_server();
-		        softap_active = true;
-		    } else {
-		        esp_err_t conn_err = esp_wifi_connect();
-		        ESP_LOGI(TAG, "esp_wifi_connect() → %s", esp_err_to_name(conn_err));
-		        if (conn_err != ESP_OK) {
-		            ESP_LOGW(TAG, "Connect failed immediately — starting SoftAP");
-		            start_softap();
-		            start_dns_server();
-		            start_rest_server();
-		            softap_active = true;
-		        }
-		    }
-			break;
-		}
-		case WIFI_EVENT_AP_START:
-		    ESP_LOGI(TAG, "WIFI AP started — SSID \"" AP_SSID "\" should now be visible");
-		    break;
-		case WIFI_EVENT_AP_STOP:
-		    ESP_LOGI(TAG, "WIFI AP stopped");
-		    break;
-		case WIFI_EVENT_AP_STACONNECTED:
-		    ESP_LOGI(TAG, "Client connected to SoftAP");
-		    break;
-		case WIFI_EVENT_STA_CONNECTED:
-			break;
-		case WIFI_EVENT_STA_DISCONNECTED:
+static void compute_softap_sync_signature(const char *passkey,
+                                          const char *device_id,
+                                          const char *mac_str,
+                                          uint32_t timestamp,
+                                          char *out_hex,
+                                          size_t out_hex_len)
+{
+    char message[160];
+    snprintf(message, sizeof(message), "%s|%s|%lu",
+             device_id, mac_str, (unsigned long)timestamp);
 
-		    // Don't explicitly disconnect MQTT here — the MQTT client
-		    // detects the TCP loss itself and fires MQTT_EVENT_DISCONNECTED,
-		    // which resets mqtt_started. Calling esp_mqtt_client_disconnect()
-		    // on a dead socket can block or cause errors.
+    uint8_t digest[32];
+    const mbedtls_md_info_t *md = mbedtls_md_info_from_type(MBEDTLS_MD_SHA256);
+    mbedtls_md_hmac(md,
+                    (const uint8_t *)passkey, strlen(passkey),
+                    (const uint8_t *)message, strlen(message),
+                    digest);
 
-		    wifi_retry_num++;
+    if (out_hex_len < 65) { out_hex[0] = '\0'; return; }
+    static const char HEX[] = "0123456789abcdef";
+    for (int i = 0; i < 32; i++) {
+        out_hex[i * 2]     = HEX[digest[i] >> 4];
+        out_hex[i * 2 + 1] = HEX[digest[i] & 0x0F];
+    }
+    out_hex[64] = '\0';
+}
 
-		    if (wifi_retry_num <= WIFI_SOFTAP_AFTER) {
-                // Fast retries first
-                ESP_LOGW(TAG, "WiFi disconnected, retry %d/%d", wifi_retry_num, WIFI_SOFTAP_AFTER);
-                esp_wifi_connect();
-		    } else if (!softap_active) {
-                // Start SoftAP for user access, but keep retrying via timer
-                ESP_LOGW(TAG, "WiFi retries exhausted — starting SoftAP + reconnect timer (every %ds)", WIFI_RECONNECT_INTERVAL_SEC);
-                start_softap();
-                start_dns_server();
-                start_rest_server();
-                softap_active = true;
+void softap_sync_task(void *arg) {
+    if (s_softap_sync_running || s_softap_sync_done) {
+        ESP_LOGI(TAG, "SOFTAP SYNC: already running or done, skipping");
+        vTaskDelete(NULL);
+        return;
+    }
+    s_softap_sync_running = true;
 
-                // Start periodic reconnect timer
-                if (wifi_reconnect_timer == NULL) {
-                    const esp_timer_create_args_t timer_args = {
-                        .callback = wifi_reconnect_timer_cb,
-                        .name = "wifi_reconnect"
-                    };
-                    esp_timer_create(&timer_args, &wifi_reconnect_timer);
+    /* Read NVS prerequisites. Bail if anything missing — the device is in
+     * an in-between state we don't try to repair from here. */
+    char device_id[64] = {0};
+    char passkey[32]   = {0};
+    char srv_url[128]  = {0};
+    char softap_pwd_existing[16] = {0};
+
+    nvs_handle_t h;
+    if (nvs_open("vmflow", NVS_READONLY, &h) != ESP_OK) {
+        ESP_LOGW(TAG, "SOFTAP SYNC: NVS open failed");
+        goto done;
+    }
+    size_t l;
+    l = sizeof(device_id);            nvs_get_str(h, "device_id", device_id, &l);
+    l = sizeof(passkey);              nvs_get_str(h, "passkey",   passkey,   &l);
+    l = sizeof(srv_url);              nvs_get_str(h, "srv_url",   srv_url,   &l);
+    l = sizeof(softap_pwd_existing);  nvs_get_str(h, "softap_pwd", softap_pwd_existing, &l);
+    nvs_close(h);
+
+    if (strlen(device_id) == 0 || strlen(passkey) == 0 || strlen(srv_url) == 0) {
+        ESP_LOGI(TAG, "SOFTAP SYNC: device not claimed yet, skipping");
+        goto done;
+    }
+    if (strlen(softap_pwd_existing) >= 8) {
+        ESP_LOGI(TAG, "SOFTAP SYNC: softap_pwd already set, skipping");
+        goto done;
+    }
+
+    /* Wait briefly for SNTP-synced time. The signature timestamp must be
+     * within ±60 s of server time, so a 1970 clock will fail. SNTP usually
+     * completes within a few seconds of WiFi/cellular bring-up. */
+    for (int i = 0; i < 30; i++) {
+        time_t now_t = time(NULL);
+        if (now_t > 1700000000) break;
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+    time_t now_t = time(NULL);
+    if (now_t <= 1700000000) {
+        ESP_LOGW(TAG, "SOFTAP SYNC: time not synced after 30 s, bailing");
+        goto done;
+    }
+
+    uint8_t mac[6];
+    esp_wifi_get_mac(WIFI_IF_STA, mac);
+    char mac_str[18];
+    snprintf(mac_str, sizeof(mac_str), "%02x:%02x:%02x:%02x:%02x:%02x",
+             mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+
+    char sig[65];
+    compute_softap_sync_signature(passkey, device_id, mac_str, (uint32_t)now_t,
+                                  sig, sizeof(sig));
+
+    char body[384];
+    snprintf(body, sizeof(body),
+             "{\"device_id\":\"%s\",\"mac_address\":\"%s\",\"timestamp\":%lu,\"signature\":\"%s\"}",
+             device_id, mac_str, (unsigned long)now_t, sig);
+
+    char url[192];
+    snprintf(url, sizeof(url), "%s/functions/v1/sync-softap-password", srv_url);
+
+    for (int attempt = 1; attempt <= SOFTAP_SYNC_MAX_ATTEMPTS; attempt++) {
+        char resp[256] = {0};
+        size_t resp_len = 0;
+        int http_status = 0;
+        esp_err_t err = ESP_FAIL;
+
+        esp_http_client_config_t cfg = {
+            .url               = url,
+            .crt_bundle_attach = (strncmp(url, "https://", 8) == 0) ? esp_crt_bundle_attach : NULL,
+            .method            = HTTP_METHOD_POST,
+            .timeout_ms        = 30000,
+        };
+        esp_http_client_handle_t cli = esp_http_client_init(&cfg);
+        if (cli) {
+            esp_http_client_set_header(cli, "Content-Type", "application/json");
+            esp_http_client_set_post_field(cli, body, strlen(body));
+            err = esp_http_client_open(cli, strlen(body));
+            if (err == ESP_OK && esp_http_client_write(cli, body, strlen(body)) >= 0) {
+                if (esp_http_client_fetch_headers(cli) >= 0) {
+                    http_status = esp_http_client_get_status_code(cli);
+                    int rl = esp_http_client_read_response(cli, resp, sizeof(resp) - 1);
+                    if (rl < 0) rl = 0;
+                    resp[rl] = '\0';
+                    resp_len = rl;
                 }
-                esp_timer_start_periodic(wifi_reconnect_timer, WIFI_RECONNECT_INTERVAL_SEC * 1000000ULL);
-            } else {
-                // SoftAP already active, timer handles retries — nothing to do
-                ESP_LOGI(TAG, "WiFi disconnected (SoftAP active, timer will retry)");
             }
+            esp_http_client_close(cli);
+            esp_http_client_cleanup(cli);
+        }
 
-			break;
-		}
+        ESP_LOGI(TAG, "SOFTAP SYNC: attempt %d HTTP %d (%zu B)", attempt, http_status, resp_len);
 
-	if (event_base == IP_EVENT)
-		switch (event_id) {
-		case IP_EVENT_STA_GOT_IP: {
-
-		    ip_event_got_ip_t *event_ip = (ip_event_got_ip_t *)event_data;
-		    ESP_LOGW(TAG, "GOT IP: " IPSTR, IP2STR(&event_ip->ip_info.ip));
-
-		    wifi_retry_num = 0;
-
-            // Stop reconnect timer if running
-            if (wifi_reconnect_timer != NULL) {
-                esp_timer_stop(wifi_reconnect_timer);
+        if (http_status == 200) {
+            cJSON *root = cJSON_Parse(resp);
+            cJSON *j_pwd = root ? cJSON_GetObjectItem(root, "softap_password") : NULL;
+            if (j_pwd && cJSON_IsString(j_pwd) && strlen(j_pwd->valuestring) >= 8) {
+                nvs_handle_t hw;
+                if (nvs_open("vmflow", NVS_READWRITE, &hw) == ESP_OK) {
+                    nvs_set_str(hw, "softap_pwd", j_pwd->valuestring);
+                    nvs_commit(hw);
+                    nvs_close(hw);
+                }
+                ESP_LOGW(TAG, "SOFTAP SYNC: applied backend-assigned password — reloading AP");
+                start_softap();   /* re-applies wifi_config, deauths existing clients */
+                cJSON_Delete(root);
+                goto done;
             }
+            if (root) cJSON_Delete(root);
+            ESP_LOGE(TAG, "SOFTAP SYNC: HTTP 200 but no usable softap_password — giving up");
+            break;
+        }
+        if (http_status >= 400 && http_status < 500) {
+            ESP_LOGW(TAG, "SOFTAP SYNC: server rejected %d — giving up", http_status);
+            break;
+        }
 
-            stop_rest_server();
-            stop_dns_server();
-            softap_active = false;
+        if (attempt < SOFTAP_SYNC_MAX_ATTEMPTS) {
+            int delay_s = SOFTAP_SYNC_RETRY_DELAYS_S[attempt - 1];
+            ESP_LOGI(TAG, "SOFTAP SYNC: retrying in %d s", delay_s);
+            vTaskDelay(pdMS_TO_TICKS(delay_s * 1000));
+        }
+    }
 
-            // Switch to STA-only mode now that we have a connection
-            esp_wifi_set_mode(WIFI_MODE_STA);
+done:
+    s_softap_sync_done    = true;
+    s_softap_sync_running = false;
+    vTaskDelete(NULL);
+}
 
-            /* If a provisioning code is waiting, claim the device first.
-             * The claim task will call esp_restart() on success, so normal
-             * MQTT startup is intentionally skipped here. */
+/*
+ * Network manager event consumer. The network_init / handler in
+ * network.c owns WIFI_EVENT and IP_EVENT directly; this callback is
+ * the seam where uplink-up/down translates into MQTT + SNTP + watchdog
+ * lifecycle. Keep it brief — runs in the network task context.
+ */
+static void network_event_cb(network_event_t event, void *user_data) {
+    (void)user_data;
+    switch (event) {
+        case NETWORK_EVENT_UPLINK_UP:
+            ESP_LOGI(TAG, "uplink up — starting MQTT + provisioning if needed");
+
+            /* If a provisioning code is in NVS and we don't have a passkey
+             * yet, this is the first-boot claim flow. Spawn the claim task;
+             * MQTT starts after the claim succeeds + restart. */
             {
-                nvs_handle_t pnvs;
-                size_t pc_len = 0;
-                bool needs_prov = false;
-                if (nvs_open("vmflow", NVS_READONLY, &pnvs) == ESP_OK) {
-                    needs_prov = (nvs_get_str(pnvs, "prov_code", NULL, &pc_len) == ESP_OK && pc_len > 1);
-                    nvs_close(pnvs);
+                nvs_handle_t h;
+                if (nvs_open("vmflow", NVS_READONLY, &h) == ESP_OK) {
+                    char prov_code[16] = {0};
+                    size_t s = sizeof(prov_code);
+                    bool has_prov = (nvs_get_str(h, "prov_code", prov_code, &s) == ESP_OK
+                                      && strlen(prov_code) > 0);
+                    nvs_close(h);
+                    if (has_prov && strlen(my_passkey) == 0) {
+                        ESP_LOGI(TAG, "spawning provision_claim_task");
+                        xTaskCreate(provision_claim_task, "prov_claim", 16384, NULL, 5, NULL);
+                        return;
+                    }
                 }
-                if (needs_prov) {
-                    ESP_LOGW(TAG, "Provisioning pending — spawning claim task");
-                    xTaskCreate(provision_claim_task, "prov_claim", 8192, NULL, 5, NULL);
-                    break;
-                }
+            }
+
+            /* Steady-state: kick MQTT + SNTP + watchdog (same logic the
+             * old IP_EVENT_STA_GOT_IP branch ran).
+             *
+             * MQTT requires a claimed device — without company_id /
+             * device_id / passkey, payload XOR encryption can't work
+             * and the topic prefix is empty. Starting the client anyway
+             * just spins on getaddrinfo() against the default broker
+             * URL and pollutes logs. Hold MQTT until the captive portal
+             * (or an existing claim in NVS) has provided all three. */
+            bool claimed = (strlen(my_company_id) > 0 &&
+                            strlen(my_device_id)  > 0 &&
+                            strlen(my_passkey)    > 0);
+            if (!claimed) {
+                ESP_LOGW(TAG, "uplink up but device unclaimed — MQTT held off "
+                              "(company='%s' device='%s' passkey_len=%u)",
+                         my_company_id, my_device_id, (unsigned)strlen(my_passkey));
+                break;
+            }
+
+            /* Auto-migration: if this is an already-claimed device that
+             * doesn't yet have a backend-assigned SoftAP password (NVS
+             * key softap_pwd missing), fetch one via the sync endpoint.
+             * The task self-checks NVS and early-exits when the password
+             * is already set, so spawning unconditionally is safe. */
+            if (!s_softap_sync_done) {
+                xTaskCreate(softap_sync_task, "softap_sync", 8192, NULL, 4, NULL);
             }
 
             if (!sntp_started) {
@@ -2404,24 +2826,23 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t e
                 sntp_started = true;
             }
 
-            // Start MQTT — the client handles connection asynchronously.
-            // mqtt_started is only set to true on MQTT_EVENT_CONNECTED.
-            //
-            // Reset mqtt_last_connected_tick to "now" on every fresh GOT_IP:
-            // this is our baseline for measuring MQTT offline time. Without
-            // this reset, a long WiFi outage could leave a stale tick value
-            // that would cause the watchdog to immediately hard-reboot right
-            // after WiFi recovery, before MQTT had a chance to connect.
-            // The soft-reconnect path in mqtt_watchdog_cb() must NOT reset
-            // this tick — only a genuine connect success (MQTT_EVENT_CONNECTED)
-            // or a fresh network recovery (this branch) resets it.
-            if (!mqtt_started) {
-                ESP_LOGW(TAG, "MQTT: starting client (company='%s' device='%s', client=%p)", my_company_id, my_device_id, mqttClient);
-                esp_mqtt_client_start(mqttClient);
-                mqtt_last_connected_tick = xTaskGetTickCount();
+            /* mqtt_started=true means we already kicked the client at
+             * least once. esp_mqtt_client_reconnect() forces an
+             * immediate reconnect attempt instead of waiting for the
+             * client's internal reconnect timer (which can be 5-30s);
+             * this is what we want when uplink just came back. */
+            if (mqttClient) {
+                if (!mqtt_started) {
+                    ESP_LOGW(TAG, "MQTT: starting client (company='%s' device='%s', client=%p)",
+                             my_company_id, my_device_id, mqttClient);
+                    esp_mqtt_client_start(mqttClient);
+                    mqtt_last_connected_tick = xTaskGetTickCount();
+                } else {
+                    ESP_LOGW(TAG, "MQTT: uplink restored, forcing reconnect");
+                    esp_mqtt_client_reconnect(mqttClient);
+                }
             }
 
-            // Start MQTT watchdog timer (checks periodically if MQTT is still alive)
             if (mqtt_watchdog_timer == NULL) {
                 const esp_timer_create_args_t wdt_args = {
                     .callback = mqtt_watchdog_cb,
@@ -2433,10 +2854,26 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t e
                              MQTT_WATCHDOG_INTERVAL_SEC, MQTT_WATCHDOG_TIMEOUT_SEC);
                 }
             }
+            break;
 
-			break;
-		}
-		}
+        case NETWORK_EVENT_UPLINK_DOWN:
+            /* Tell MQTT to disconnect so it doesn't sit on a dead socket
+             * waiting for getaddrinfo / TCP timeouts. The client will be
+             * forced back online via esp_mqtt_client_reconnect() in the
+             * UPLINK_UP branch above when PPP recovers. Without this,
+             * the client kept the original socket alive across the PPP
+             * gap — sometimes resulting in 5+ minute delays before MQTT
+             * detected the dead link via its internal keepalive. */
+            ESP_LOGW(TAG, "uplink down — disconnecting MQTT client");
+            if (mqttClient && mqtt_started) {
+                esp_mqtt_client_disconnect(mqttClient);
+            }
+            break;
+
+        case NETWORK_EVENT_SOFTAP_STARTED:
+        case NETWORK_EVENT_SOFTAP_STOPPED:
+            break;
+    }
 }
 
 void request_pax_counter(void *arg) {
@@ -2480,9 +2917,34 @@ static void factory_reset_task(void *arg) {
 
 void app_main(void) {
 
+    /* Silence the chatty IDF subsystems that drown out our own logs.
+     * These tags were emitting D-level lines several times per second
+     * (every captive-portal poll, every NVS read, every PPP packet).
+     * We keep ESP_LOG_WARN as the floor — actual problems still surface,
+     * but the line-by-line parse trace is gone. */
+    esp_log_level_set("httpd",          ESP_LOG_WARN);
+    esp_log_level_set("httpd_parse",    ESP_LOG_WARN);
+    esp_log_level_set("httpd_txrx",     ESP_LOG_WARN);
+    esp_log_level_set("httpd_uri",      ESP_LOG_WARN);
+    esp_log_level_set("httpd_sess",     ESP_LOG_WARN);
+    esp_log_level_set("esp_netif_lwip", ESP_LOG_WARN);
+    esp_log_level_set("esp_netif_handlers", ESP_LOG_WARN);
+    esp_log_level_set("nvs",            ESP_LOG_WARN);
+    esp_log_level_set("event",          ESP_LOG_WARN);
+    esp_log_level_set("command_lib",    ESP_LOG_WARN);
+    esp_log_level_set("intr_alloc",     ESP_LOG_WARN);
+    esp_log_level_set("gdma",           ESP_LOG_WARN);
+    esp_log_level_set("esp-modem",      ESP_LOG_INFO);
+    esp_log_level_set("wifi",           ESP_LOG_WARN);
+
     gpio_set_direction(PIN_MDB_RX, GPIO_MODE_INPUT);
 	gpio_set_direction(PIN_MDB_TX, GPIO_MODE_INPUT);  // idle: high-Z (tri-state)
 
+	/* GPIO 12 = PIN_BUZZER_PWR on the production PCB (drives a buzzer).
+	 * On the LilyGo T-SIM7080G-S3 the modem power isn't on a GPIO at
+	 * all — it's on the AXP2101 PMU's DC3 channel addressed via I2C
+	 * (see modem.c::modem_enable_pmu_rails). So we can keep the
+	 * original LOW init here without affecting cellular bring-up. */
 	gpio_set_direction(PIN_BUZZER_PWR, GPIO_MODE_OUTPUT);
 	gpio_set_level(PIN_BUZZER_PWR, 0);
 
@@ -2569,14 +3031,11 @@ void app_main(void) {
 	esp_netif_init();
 	esp_event_loop_create_default();
 
-	esp_netif_create_default_wifi_sta();
-    esp_netif_create_default_wifi_ap();
-
-	wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-	esp_wifi_init(&cfg);
-
-	esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID, wifi_event_handler, NULL, NULL);
-	esp_event_handler_instance_register(IP_EVENT, ESP_EVENT_ANY_ID, wifi_event_handler, NULL, NULL);
+	/* Network manager owns WiFi events, SoftAP lifecycle, modem probe,
+	 * and the boot-time cellular vs WiFi branch. The callback below
+	 * receives UPLINK_UP/DOWN and is the seam where MQTT + SNTP +
+	 * watchdog get started/stopped. */
+	network_register_callback(network_event_cb, NULL);
 
 	//---------- NVS device config (before WiFi starts) -------//
 	//----------------------------------------------------------//
@@ -2725,6 +3184,30 @@ void app_main(void) {
 	}
 	ESP_LOGI(TAG, "MQTT broker: %s (user=%s)", mqtt_uri, mqtt_user);
 
+	/* Cellular link is more latent than WiFi — bump keepalive (saves
+	 * data quota) and timeouts (LTE-M latency). The watchdog still fires
+	 * after MQTT_WATCHDOG_TIMEOUT_SEC if the broker is unreachable, so
+	 * the longer keepalive only delays detection by ~2 minutes.
+	 *
+	 * Known limitation: at this point in app_main, network_init() has not
+	 * yet been called (it runs after esp_mqtt_client_init below), so
+	 * `modem_present` is still false and on_cellular evaluates to false
+	 * even on cellular boards. Cellular boards therefore boot with the
+	 * WiFi-tuned values on the first MQTT connect. The branch is kept
+	 * because (a) it documents intent, and (b) any future refactor that
+	 * moves network_init() earlier will pick up the cellular tuning
+	 * automatically without code changes. Re-init'ing the MQTT client
+	 * after NETWORK_EVENT_UPLINK_UP would give true cellular tuning on
+	 * first boot, but is out of scope for P4. */
+	network_status_t net_st;
+	network_get_status(&net_st);
+	bool on_cellular         = net_st.modem_present;
+	int  mqtt_keepalive       = on_cellular ? 180   : 60;
+	int  mqtt_network_timeout = on_cellular ? 30000 : 10000;
+	int  mqtt_reconnect       = on_cellular ? 20000 : 5000;
+	ESP_LOGI(TAG, "MQTT tuning: keepalive=%ds netto=%dms recto=%dms (cellular=%d)",
+	         mqtt_keepalive, mqtt_network_timeout, mqtt_reconnect, on_cellular);
+
 	const esp_mqtt_client_config_t mqttCfg = {
 		.broker.address.uri = mqtt_uri,
         .credentials = {
@@ -2748,20 +3231,23 @@ void app_main(void) {
 		.session.last_will.msg = "offline",
 		.session.last_will.qos = 1,
 		.session.last_will.retain = 1,
-		/* MQTT-level keepalive: client sends PINGREQ every 60s; if the broker
-		 * fails to answer with PINGRESP within ~1.5x keepalive (~90s) the
-		 * client closes the socket and fires MQTT_EVENT_DISCONNECTED, which
-		 * the watchdog (mqtt_watchdog_cb) then picks up.
+		/* MQTT-level keepalive: client sends PINGREQ every keepalive seconds;
+		 * if the broker fails to answer with PINGRESP within ~1.5x keepalive
+		 * the client closes the socket and fires MQTT_EVENT_DISCONNECTED,
+		 * which the watchdog (mqtt_watchdog_cb) then picks up.
 		 *
 		 * We set this explicitly instead of relying on the ESP-IDF default
 		 * (120s) so the dead-connection detection window is bounded and
-		 * doesn't shift silently between IDF versions. */
-		.session.keepalive = 60,
+		 * doesn't shift silently between IDF versions. Cellular bumps it to
+		 * 180s to reduce data-plan PINGREQ traffic. */
+		.session.keepalive = mqtt_keepalive,
 		.session.disable_keepalive = false,
 		/* Tighter network timeouts so a half-open TCP connection or a
-		 * stalled DNS lookup fails fast and the watchdog can react. */
-		.network.timeout_ms = 10000,
-		.network.reconnect_timeout_ms = 5000,
+		 * stalled DNS lookup fails fast and the watchdog can react.
+		 * Cellular relaxes both because LTE-M / NB-IoT round-trips can
+		 * legitimately take 5-10s. */
+		.network.timeout_ms = mqtt_network_timeout,
+		.network.reconnect_timeout_ms = mqtt_reconnect,
 	};
 
 	mqtt_publish_mutex = xSemaphoreCreateMutex();
@@ -2775,14 +3261,29 @@ void app_main(void) {
 	sale_queue_init();
 	sale_queue_start(mqttClient);
 
-	//-- Start WiFi now that MQTT client is ready for events ---//
-	//----------------------------------------------------------//
-	esp_wifi_set_mode(WIFI_MODE_APSTA);
-	esp_wifi_start();
-
 	//--------------- Factory reset (BOOT button) --------------//
 	//----------------------------------------------------------//
+	/* Spawned BEFORE network_init() so the 5-second-hold detection
+	 * works while modem_probe is blocking the main task. modem_probe
+	 * is synchronous and can take 5-30 s (warm-COMMAND fail → PPP
+	 * escape → optional cold-boot poll on cellular boards). Earlier
+	 * this task was created AFTER network_init returned, so any
+	 * BOOT-button hold during the probe window was silently ignored —
+	 * users had to retry the hold after the device finished booting,
+	 * which is the opposite of how a recovery button should feel.
+	 *
+	 * The task itself is a poll loop (no interrupts) so it's safe to
+	 * run concurrently with anything else. GPIO 0 isn't touched
+	 * elsewhere in our code; the BOOT-pin pull-up is enabled here. */
 	xTaskCreate(factory_reset_task, "factory_rst", 4096, NULL, 5, NULL);
+
+	//-- Start network now that MQTT client is ready for events --//
+	//-----------------------------------------------------------//
+	/* network_init() probes the modem, takes the WiFi-vs-cellular
+	 * branch, sets up esp_netif + esp_wifi_init + handler registration,
+	 * and calls esp_wifi_start(). Once IP_EVENT_STA_GOT_IP fires, the
+	 * UPLINK_UP callback above starts MQTT/SNTP/watchdog. */
+	network_init();
 
 	//------------------------ BLUETOOTH -----------------------//
 	//----------------------------------------------------------//

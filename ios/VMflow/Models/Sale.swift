@@ -61,3 +61,11 @@ struct DailySales: Identifiable, Equatable {
 
     var id: Date { date }
 }
+
+extension DailySales {
+    /// True when the day falls on a weekend per the user's current locale
+    /// (Sa+So in DE/US; respects user-preferred calendar settings).
+    var isWeekend: Bool {
+        Calendar.current.isDateInWeekend(date)
+    }
+}

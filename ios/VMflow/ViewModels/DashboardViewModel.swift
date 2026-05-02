@@ -21,8 +21,29 @@ final class DashboardViewModel: ObservableObject {
     @Published var dailySales: [DailySales] = []
     @Published var recentSales: [SaleWithMachine] = []
 
+    /// Number of days back from start_of_today the recent-sales window covers.
+    /// 0 = today only; 6 = last 7 days; 13 = last 14 days; 7N−1 after N "load more" taps.
+    @Published var recentSalesDaysBack: Int = 0
+
+    /// Becomes false when a "load more" tap returns no additional sales (history exhausted).
+    /// Resets to true whenever a window-respecting reload brings in more sales than before
+    /// (e.g. realtime delivery into the current window).
+    @Published var hasMoreSales: Bool = true
+
+    /// True while a `loadMoreRecentSales` fetch is in flight — drives the button spinner.
+    @Published var isLoadingMoreSales: Bool = false
+
     @Published var isLoading = false
     @Published var error: String?
+
+    /// Average daily revenue over the loaded daily-chart window, including zero-revenue days.
+    /// Σ revenue / dailySales.count. The chart header says "30 days" but loadDailyChart()
+    /// actually pre-populates 31 daily buckets (`for dayOffset in 0..<31`); we divide by the
+    /// actual array count so the average matches what's visually rendered.
+    var dailyAverage: Double {
+        guard !dailySales.isEmpty else { return 0 }
+        return dailySales.reduce(0) { $0 + $1.revenue } / Double(dailySales.count)
+    }
 
     private let client = SupabaseService.shared.client
 
@@ -58,14 +79,19 @@ final class DashboardViewModel: ObservableObject {
         let startOfWeek = calendar.date(from: calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: now))!
         let startOfMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: now))!
 
-        // Fetch all sales for this month (covers today, yesterday, week, month)
+        // Query the earliest of the four KPI boundaries — on the 1st of a month
+        // startOfYesterday is in the previous month, and a Mon-Wed early in a
+        // month has its ISO-week start in the previous month too. Guarding each
+        // sum with its own boundary keeps the per-KPI math correct.
+        let queryLowerBound = [startOfMonth, startOfWeek, startOfYesterday].min()!
+
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
 
         let sales: [Sale] = try await client
             .from("sales")
             .select("id, created_at, item_price, item_number, machine_id, embedded_id, channel")
-            .gte("created_at", value: formatter.string(from: startOfMonth))
+            .gte("created_at", value: formatter.string(from: queryLowerBound))
             .order("created_at", ascending: false)
             .execute()
             .value
@@ -77,8 +103,10 @@ final class DashboardViewModel: ObservableObject {
 
         for sale in sales {
             let price = sale.itemPrice ?? 0
-            monthRev += price
 
+            if sale.createdAt >= startOfMonth {
+                monthRev += price
+            }
             if sale.createdAt >= startOfWeek {
                 weekRev += price
                 weekCount += 1
@@ -179,12 +207,21 @@ final class DashboardViewModel: ObservableObject {
     // MARK: - Recent Sales
 
     private func loadRecentSales() async throws {
-        // Fetch sales with snapshotted product via FK join
+        // Compute window start: start_of_today − recentSalesDaysBack days.
+        // daysBack=0 → start_of_today (only today's sales since midnight, NOT last 24h).
+        let calendar = Calendar.current
+        let startOfToday = calendar.startOfDay(for: Date())
+        let windowStart = calendar.date(byAdding: .day, value: -recentSalesDaysBack, to: startOfToday)!
+
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+
+        // Fetch sales with snapshotted product via FK join.
         let sales: [Sale] = try await client
             .from("sales")
             .select("id, created_at, item_price, item_number, machine_id, embedded_id, channel, product_id, products(name, image_path)")
+            .gte("created_at", value: formatter.string(from: windowStart))
             .order("created_at", ascending: false)
-            .limit(20)
             .execute()
             .value
 
@@ -224,6 +261,7 @@ final class DashboardViewModel: ObservableObject {
             }
         }
 
+        let countBefore = recentSales.count
         recentSales = sales.map { sale in
             let machineName = sale.machineId.flatMap { machineNames[$0] }
 
@@ -238,6 +276,44 @@ final class DashboardViewModel: ObservableObject {
             }
 
             return SaleWithMachine(sale: sale, machineName: machineName, productName: productName, productImagePath: productImagePath)
+        }
+
+        // Recovery: if a reload brought in more sales than before (e.g. realtime delivery
+        // into the current window), un-exhaust the load-more button.
+        if recentSales.count > countBefore {
+            hasMoreSales = true
+        }
+    }
+
+    // MARK: - Load More
+
+    /// Expand the recent-sales window: today (1 day) → 7 days → 14 days → 21 days → …
+    /// Each tap adds 7 more days; first tap jumps from 1 to 7 (i.e. +6 days).
+    func loadMoreRecentSales() async {
+        guard !isLoadingMoreSales, hasMoreSales else { return }
+
+        let previousDaysBack = recentSalesDaysBack
+        let nextDaysBack = previousDaysBack == 0 ? 6 : previousDaysBack + 7
+
+        isLoadingMoreSales = true
+        defer { isLoadingMoreSales = false }
+
+        let countBefore = recentSales.count
+        recentSalesDaysBack = nextDaysBack
+
+        do {
+            try await loadRecentSales()
+            // If the wider window returned the exact same number of sales, history is exhausted.
+            if recentSales.count == countBefore {
+                hasMoreSales = false
+            }
+        } catch is CancellationError {
+            // Refresh cancellation: revert window so a follow-up tap retries cleanly.
+            recentSalesDaysBack = previousDaysBack
+        } catch {
+            // Server/network error: revert window so a follow-up tap retries.
+            recentSalesDaysBack = previousDaysBack
+            self.error = error.localizedDescription
         }
     }
 }

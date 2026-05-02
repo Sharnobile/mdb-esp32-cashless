@@ -1,7 +1,11 @@
 #include <string.h>
+#include <stdio.h>
 #include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "esp_wifi.h"
 #include "esp_http_server.h"
+#include "esp_timer.h"
+#include "esp_app_desc.h"
 #include "nvs_flash.h"
 #include "cJSON.h"
 #include <esp_log.h>
@@ -9,6 +13,9 @@
 #include "lwip/ip_addr.h"
 #include "esp_chip_info.h"
 #include "webui_server.h"
+#include "network.h"
+#include "modem.h"
+#include "provision.h"
 
 #define TAG "webui"
 
@@ -56,164 +63,315 @@ static esp_err_t index_get_handler(httpd_req_t *req) {
     return ESP_OK;
 }
 
-static esp_err_t wifi_set_handler(httpd_req_t *req) {
-
-    char buf[512];
-    int total_len = req->content_len;
-
-    if (total_len >= (int)sizeof(buf)) {
-        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Payload too large");
-        return ESP_FAIL;
+static const char *wizard_state_str(network_state_t s) {
+    switch (s) {
+        case NETWORK_STATE_BOOTING:               return "booting";
+        case NETWORK_STATE_OFFLINE:               return "offline";
+        case NETWORK_STATE_SOFTAP_ONLY:           return "cellular_config";
+        case NETWORK_STATE_WIFI_CONNECTING:       return "wifi_connecting";
+        case NETWORK_STATE_WIFI_UP:               return "ready_to_claim";  /* if not claimed yet */
+        case NETWORK_STATE_CELLULAR_REGISTERING:  return "cellular_registering";
+        case NETWORK_STATE_CELLULAR_UP:           return "ready_to_claim";  /* if not claimed yet */
     }
+    return "unknown";
+}
 
-    int cur_len = 0, received;
-    while (cur_len < total_len) {
-        received = httpd_req_recv(req, buf + cur_len, total_len - cur_len);
-        if (received <= 0) {
-            httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to receive data");
-            return ESP_FAIL;
-        }
-        cur_len += received;
+static const char *lte_mode_str(modem_lte_mode_t m) {
+    switch (m) {
+        case MODEM_LTE_MODE_CATM:  return "LTE-M";
+        case MODEM_LTE_MODE_NBIOT: return "NB-IoT";
+        case MODEM_LTE_MODE_BOTH:  return "Auto";
     }
-    buf[total_len] = '\0';
-
-    ESP_LOGI(TAG, "Settings payload: %s", buf);
-
-    cJSON *root = cJSON_Parse(buf);
-    if (!root) {
-        httpd_resp_set_type(req, "application/json");
-        httpd_resp_sendstr(req, "{\"error\":\"Invalid JSON\"}");
-        return ESP_OK;
-    }
-
-    cJSON *j_ssid      = cJSON_GetObjectItem(root, "ssid");
-    cJSON *j_password  = cJSON_GetObjectItem(root, "password");
-    cJSON *j_prov_code = cJSON_GetObjectItem(root, "prov_code");
-    cJSON *j_srv_url   = cJSON_GetObjectItem(root, "srv_url");
-    cJSON *j_mqtt_host = cJSON_GetObjectItem(root, "mqtt_host");
-    cJSON *j_mqtt_port = cJSON_GetObjectItem(root, "mqtt_port");
-    cJSON *j_mqtt_user = cJSON_GetObjectItem(root, "mqtt_user");
-    cJSON *j_mqtt_pass = cJSON_GetObjectItem(root, "mqtt_pass");
-
-    if (!j_ssid || !cJSON_IsString(j_ssid) || strlen(j_ssid->valuestring) == 0) {
-        cJSON_Delete(root);
-        httpd_resp_set_type(req, "application/json");
-        httpd_resp_sendstr(req, "{\"error\":\"ssid is required\"}");
-        return ESP_OK;
-    }
-
-    /* Apply WiFi config — ESP-IDF persists STA config to its own NVS namespace automatically */
-    wifi_config_t wifi_config = {0};
-    esp_wifi_get_config(WIFI_IF_STA, &wifi_config);
-    strncpy((char *)wifi_config.sta.ssid,     j_ssid->valuestring,     sizeof(wifi_config.sta.ssid) - 1);
-    strncpy((char *)wifi_config.sta.password, j_password && cJSON_IsString(j_password)
-                                                ? j_password->valuestring : "",
-                                              sizeof(wifi_config.sta.password) - 1);
-    esp_wifi_set_config(WIFI_IF_STA, &wifi_config);
-
-    /* Save provisioning code and server URL to NVS */
-    nvs_handle_t handle;
-    if (nvs_open("vmflow", NVS_READWRITE, &handle) == ESP_OK) {
-
-        if (j_prov_code && cJSON_IsString(j_prov_code) && strlen(j_prov_code->valuestring) > 0) {
-            nvs_set_str(handle, "prov_code", j_prov_code->valuestring);
-            ESP_LOGI(TAG, "Provisioning code saved: %s", j_prov_code->valuestring);
-        }
-
-        if (j_srv_url && cJSON_IsString(j_srv_url) && strlen(j_srv_url->valuestring) > 0) {
-            nvs_set_str(handle, "srv_url", j_srv_url->valuestring);
-            ESP_LOGI(TAG, "Server URL saved: %s", j_srv_url->valuestring);
-        }
-
-        if (j_mqtt_host && cJSON_IsString(j_mqtt_host) && strlen(j_mqtt_host->valuestring) > 0) {
-            nvs_set_str(handle, "mqtt_host", j_mqtt_host->valuestring);
-            ESP_LOGI(TAG, "MQTT host saved: %s", j_mqtt_host->valuestring);
-        }
-
-        if (j_mqtt_port && cJSON_IsString(j_mqtt_port) && strlen(j_mqtt_port->valuestring) > 0) {
-            nvs_set_str(handle, "mqtt_port", j_mqtt_port->valuestring);
-            ESP_LOGI(TAG, "MQTT port saved: %s", j_mqtt_port->valuestring);
-        }
-
-        if (j_mqtt_user && cJSON_IsString(j_mqtt_user) && strlen(j_mqtt_user->valuestring) > 0) {
-            nvs_set_str(handle, "mqtt_user", j_mqtt_user->valuestring);
-            ESP_LOGI(TAG, "MQTT username saved");
-        }
-
-        if (j_mqtt_pass && cJSON_IsString(j_mqtt_pass) && strlen(j_mqtt_pass->valuestring) > 0) {
-            nvs_set_str(handle, "mqtt_pass", j_mqtt_pass->valuestring);
-            ESP_LOGI(TAG, "MQTT password saved");
-        }
-
-        nvs_commit(handle);
-        nvs_close(handle);
-    }
-
-    cJSON_Delete(root);
-
-    /* Connect — the IP_EVENT_STA_GOT_IP handler picks up from here */
-    esp_wifi_connect();
-
-    httpd_resp_set_type(req, "application/json");
-    httpd_resp_sendstr(req, "{\"ok\":true}");
-    return ESP_OK;
+    return "unknown";
 }
 
 static esp_err_t system_info_get_handler(httpd_req_t *req) {
+    network_status_t st;
+    network_get_status(&st);
 
-    esp_chip_info_t chip_info;
-    esp_chip_info(&chip_info);
-
-    wifi_config_t wifi_cfg = {0};
-    esp_wifi_get_config(WIFI_IF_STA, &wifi_cfg);
-
-    char srv_url[128] = "";
-    char mqtt_host[128] = "";
-    char mqtt_port[8] = "";
-    char mqtt_user[64] = "";
-    char mqtt_pass[64] = "";
-    char prov_code[32] = "";
+    /* Read claim + provisioning state + diagnostic identifiers from NVS.
+     * Surfaced in /system/info so the captive-portal "claimed" view can
+     * show the user who they are, where they're talking to, and what
+     * firmware is running — useful for field debugging without a
+     * serial cable. */
     char company_id[40] = "";
-    nvs_handle_t handle;
-    if (nvs_open("vmflow", NVS_READONLY, &handle) == ESP_OK) {
-        size_t s_len = sizeof(srv_url);
-        nvs_get_str(handle, "srv_url", srv_url, &s_len);
-        size_t h_len = sizeof(mqtt_host);
-        nvs_get_str(handle, "mqtt_host", mqtt_host, &h_len);
-        size_t p_len = sizeof(mqtt_port);
-        nvs_get_str(handle, "mqtt_port", mqtt_port, &p_len);
-        size_t u_len = sizeof(mqtt_user);
-        nvs_get_str(handle, "mqtt_user", mqtt_user, &u_len);
-        size_t pw_len = sizeof(mqtt_pass);
-        nvs_get_str(handle, "mqtt_pass", mqtt_pass, &pw_len);
-        size_t pc_len = sizeof(prov_code);
-        nvs_get_str(handle, "prov_code", prov_code, &pc_len);
-        size_t c_len = sizeof(company_id);
-        nvs_get_str(handle, "company_id", company_id, &c_len);
-        nvs_close(handle);
+    char device_id[40]  = "";
+    char prov_code[16]  = "";
+    char srv_url[128]   = "";
+    char mqtt_host[64]  = "";
+    char mqtt_port[8]   = "";
+    nvs_handle_t h;
+    if (nvs_open("vmflow", NVS_READONLY, &h) == ESP_OK) {
+        size_t sl;
+        sl = sizeof(company_id); nvs_get_str(h, "company_id", company_id, &sl);
+        sl = sizeof(device_id);  nvs_get_str(h, "device_id",  device_id,  &sl);
+        sl = sizeof(prov_code);  nvs_get_str(h, "prov_code",  prov_code,  &sl);
+        sl = sizeof(srv_url);    nvs_get_str(h, "srv_url",    srv_url,    &sl);
+        sl = sizeof(mqtt_host);  nvs_get_str(h, "mqtt_host",  mqtt_host,  &sl);
+        sl = sizeof(mqtt_port);  nvs_get_str(h, "mqtt_port",  mqtt_port,  &sl);
+        nvs_close(h);
     }
+    bool claimed       = (strlen(company_id) > 0);
+    bool prov_code_set = (strlen(prov_code)  > 0);
+
+    /* Variant is keyed off the actual probe outcome, NOT off the current
+     * network state. SOFTAP_ONLY can mean either "cellular board waiting
+     * for APN" OR "WiFi-only board with no saved creds" — using
+     * modem_is_present() disambiguates. */
+    bool modem_present = modem_is_present();
 
     cJSON *root = cJSON_CreateObject();
-    cJSON_AddStringToObject(root, "version",       IDF_VER);
-    cJSON_AddNumberToObject(root, "cores",         chip_info.cores);
-    cJSON_AddNumberToObject(root, "model",         chip_info.model);
-    cJSON_AddStringToObject(root, "wifi_ssid",     (char *)wifi_cfg.sta.ssid);
-    cJSON_AddStringToObject(root, "wifi_password", (char *)wifi_cfg.sta.password);
-    cJSON_AddStringToObject(root, "srv_url",       srv_url);
-    cJSON_AddStringToObject(root, "mqtt_host",     mqtt_host);
-    cJSON_AddStringToObject(root, "mqtt_port",     mqtt_port);
-    cJSON_AddStringToObject(root, "mqtt_user",     mqtt_user);
-    cJSON_AddStringToObject(root, "mqtt_pass",     mqtt_pass);
-    cJSON_AddStringToObject(root, "prov_code",     prov_code);
-    cJSON_AddBoolToObject(root,   "claimed",       strlen(company_id) > 0);
+    cJSON_AddStringToObject(root, "variant", modem_present ? "cellular" : "wifi");
+
+    /* Wizard state mapping. SOFTAP_ONLY needs special handling because it
+     * means different things on the two variants.
+     *
+     * Two special cases that wrap normal state mapping:
+     *
+     * (1) PROBING: while the synchronous modem_probe is still running
+     *     (first ~5 s of boot), report wizard_state="probing". Without
+     *     this, the UI would briefly render the WiFi setup form (because
+     *     modem_present=false until probe completes), then flicker to
+     *     the cellular form once the modem is detected.
+     *
+     * (2) CLAIMED_CONNECTING: device has NVS credentials (claimed) but
+     *     uplink isn't up yet. Happens during the window between
+     *     post-claim tracked_restart's reboot and CELLULAR_UP — modem
+     *     is rebooting, registering, doing IPCP. Without this state
+     *     the UI would render "Setup complete" with empty signal/IP
+     *     fields, looking broken even though things are progressing.
+     *     We render a "Establishing connection…" view instead. */
+    const char *ws;
+    if (claimed) {
+        bool uplink_up = (st.state == NETWORK_STATE_CELLULAR_UP ||
+                          st.state == NETWORK_STATE_WIFI_UP);
+        ws = uplink_up ? "claimed" : "claimed_connecting";
+    } else if (!network_modem_probe_complete()) {
+        ws = "probing";
+    } else if (st.state == NETWORK_STATE_SOFTAP_ONLY) {
+        ws = modem_present ? "cellular_config" : "wifi_connecting";
+    } else {
+        ws = wizard_state_str(st.state);
+    }
+    cJSON_AddStringToObject(root, "wizard_state", ws);
+
+    cJSON *uplink = cJSON_AddObjectToObject(root, "uplink");
+    cJSON_AddStringToObject(uplink, "kind", st.uplink_kind);
+
+    if (st.wifi_initialised) {
+        cJSON *w = cJSON_AddObjectToObject(uplink, "wifi");
+        cJSON_AddStringToObject(w, "ssid", st.wifi_ssid);
+        cJSON_AddNumberToObject(w, "rssi", st.wifi_rssi);
+        cJSON_AddStringToObject(w, "ip",   st.wifi_ip);
+    } else {
+        cJSON_AddNullToObject(uplink, "wifi");
+    }
+
+    if (modem_present) {
+        cJSON *c = cJSON_AddObjectToObject(uplink, "cellular");
+        cJSON_AddStringToObject(c, "operator",  st.cellular_operator);
+        cJSON_AddStringToObject(c, "mode",      lte_mode_str(st.cellular_mode));
+        cJSON_AddNumberToObject(c, "rssi_dbm",  st.cellular_rssi_dbm);
+        cJSON_AddStringToObject(c, "ip",        st.cellular_ip);
+        cJSON_AddBoolToObject(c,   "registered", st.cellular_registered);
+    } else {
+        cJSON_AddNullToObject(uplink, "cellular");
+    }
+
+    cJSON *claim = cJSON_AddObjectToObject(root, "claim");
+    cJSON_AddBoolToObject(claim, "claimed",       claimed);
+    cJSON_AddBoolToObject(claim, "prov_code_set", prov_code_set);
+    /* Identifiers + endpoints exposed only when actually claimed —
+     * pre-claim they're empty/uninteresting and would clutter the UI. */
+    if (claimed) {
+        cJSON_AddStringToObject(claim, "company_id", company_id);
+        cJSON_AddStringToObject(claim, "device_id",  device_id);
+        cJSON_AddStringToObject(claim, "srv_url",    srv_url);
+        cJSON_AddStringToObject(claim, "mqtt_host",  mqtt_host);
+        cJSON_AddStringToObject(claim, "mqtt_port",  mqtt_port);
+    }
+
+    /* Device block — always populated. Useful even pre-claim so the
+     * user can identify the physical device (MAC) and firmware build. */
+    cJSON *device = cJSON_AddObjectToObject(root, "device");
+    {
+        uint8_t mac[6] = { 0 };
+        esp_wifi_get_mac(WIFI_IF_STA, mac);
+        char mac_str[18];
+        snprintf(mac_str, sizeof(mac_str), "%02x:%02x:%02x:%02x:%02x:%02x",
+                 mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+        cJSON_AddStringToObject(device, "mac", mac_str);
+
+        const esp_app_desc_t *app = esp_app_get_description();
+        cJSON_AddStringToObject(device, "firmware",  app ? app->version : "");
+        cJSON_AddStringToObject(device, "build_date", app ? app->date    : "");
+
+        int uptime_s = (int)(esp_timer_get_time() / 1000000LL);
+        cJSON_AddNumberToObject(device, "uptime_s", uptime_s);
+    }
 
     char *json_str = cJSON_PrintUnformatted(root);
     httpd_resp_set_type(req, "application/json");
     httpd_resp_send(req, json_str, HTTPD_RESP_USE_STRLEN);
     cJSON_free(json_str);
     cJSON_Delete(root);
-
     return ESP_OK;
+}
+
+/* ---------- Wizard endpoint helpers ---------- */
+
+static esp_err_t recv_json_body(httpd_req_t *req, char *buf, size_t bufsize) {
+    int total = req->content_len;
+    if (total <= 0 || total >= (int)bufsize) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "body too large or empty");
+        return ESP_FAIL;
+    }
+    int cur = 0;
+    while (cur < total) {
+        int r = httpd_req_recv(req, buf + cur, total - cur);
+        if (r <= 0) {
+            httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "recv failed");
+            return ESP_FAIL;
+        }
+        cur += r;
+    }
+    buf[total] = '\0';
+    return ESP_OK;
+}
+
+static esp_err_t send_ok(httpd_req_t *req) {
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, "{\"ok\":true}");
+    return ESP_OK;
+}
+
+static esp_err_t send_err_json(httpd_req_t *req, const char *msg) {
+    char buf[128];
+    snprintf(buf, sizeof(buf), "{\"error\":\"%s\"}", msg);
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, buf);
+    return ESP_OK;
+}
+
+/* POST /api/v1/system/skip-probe — user-facing dismissal of the
+ * "Detecting modem…" loading view in the captive portal. Marks the
+ * device as committed-to-WiFi-mode regardless of what modem_probe
+ * eventually finds. Replies 409 if the cellular branch was already
+ * taken (probe finished and detected a modem before this call). */
+static esp_err_t skip_probe_handler(httpd_req_t *req) {
+    esp_err_t err = network_skip_modem_probe();
+    if (err == ESP_ERR_INVALID_STATE) {
+        httpd_resp_set_status(req, "409 Conflict");
+        return send_err_json(req, "cellular branch already committed — power-cycle to retry");
+    }
+    if (err != ESP_OK) return send_err_json(req, esp_err_to_name(err));
+    return send_ok(req);
+}
+
+/* POST /api/v1/cellular/configure  body: {apn, pin, lte_mode}
+ *   apn: required string
+ *   pin: optional string (empty = no PIN)
+ *   lte_mode: integer 1=CatM 2=NBIoT 3=Both */
+static esp_err_t cellular_configure_handler(httpd_req_t *req) {
+    char buf[512];
+    if (recv_json_body(req, buf, sizeof(buf)) != ESP_OK) return ESP_OK;
+
+    cJSON *root = cJSON_Parse(buf);
+    if (!root) return send_err_json(req, "invalid JSON");
+
+    cJSON *japn = cJSON_GetObjectItem(root, "apn");
+    cJSON *jpin = cJSON_GetObjectItem(root, "pin");
+    cJSON *jmode = cJSON_GetObjectItem(root, "lte_mode");
+    if (!japn || !cJSON_IsString(japn) || strlen(japn->valuestring) == 0) {
+        cJSON_Delete(root);
+        return send_err_json(req, "apn required");
+    }
+    int mode = jmode && cJSON_IsNumber(jmode) ? (int)jmode->valuedouble : MODEM_LTE_MODE_BOTH;
+    if (mode < 1 || mode > 3) mode = MODEM_LTE_MODE_BOTH;
+
+    const char *pin = (jpin && cJSON_IsString(jpin)) ? jpin->valuestring : "";
+
+    esp_err_t err = network_cellular_configure(japn->valuestring, pin, (modem_lte_mode_t)mode);
+    cJSON_Delete(root);
+
+    if (err == ESP_ERR_INVALID_STATE) return send_err_json(req, "bring-up already in progress");
+    if (err != ESP_OK)                return send_err_json(req, esp_err_to_name(err));
+    return send_ok(req);
+}
+
+/* POST /api/v1/wifi/configure  body: {ssid, password} */
+static esp_err_t wifi_configure_handler(httpd_req_t *req) {
+    char buf[512];
+    if (recv_json_body(req, buf, sizeof(buf)) != ESP_OK) return ESP_OK;
+
+    cJSON *root = cJSON_Parse(buf);
+    if (!root) return send_err_json(req, "invalid JSON");
+
+    cJSON *jssid = cJSON_GetObjectItem(root, "ssid");
+    cJSON *jpass = cJSON_GetObjectItem(root, "password");
+    if (!jssid || !cJSON_IsString(jssid) || strlen(jssid->valuestring) == 0) {
+        cJSON_Delete(root);
+        return send_err_json(req, "ssid required");
+    }
+    const char *pass = (jpass && cJSON_IsString(jpass)) ? jpass->valuestring : "";
+
+    esp_err_t err = network_wifi_configure(jssid->valuestring, pass);
+    cJSON_Delete(root);
+
+    if (err == ESP_ERR_NOT_SUPPORTED) return send_err_json(req, "WiFi not configurable on cellular board");
+    if (err != ESP_OK)                return send_err_json(req, esp_err_to_name(err));
+    return send_ok(req);
+}
+
+/* POST /api/v1/claim  body: {prov_code, srv_url} */
+static esp_err_t claim_handler(httpd_req_t *req) {
+    char buf[512];
+    if (recv_json_body(req, buf, sizeof(buf)) != ESP_OK) return ESP_OK;
+
+    cJSON *root = cJSON_Parse(buf);
+    if (!root) return send_err_json(req, "invalid JSON");
+
+    cJSON *jcode = cJSON_GetObjectItem(root, "prov_code");
+    cJSON *jurl  = cJSON_GetObjectItem(root, "srv_url");
+    if (!jcode || !cJSON_IsString(jcode) || strlen(jcode->valuestring) == 0) {
+        cJSON_Delete(root);
+        return send_err_json(req, "prov_code required");
+    }
+    if (!jurl || !cJSON_IsString(jurl) || strlen(jurl->valuestring) == 0) {
+        cJSON_Delete(root);
+        return send_err_json(req, "srv_url required");
+    }
+
+    /* Persist prov_code + srv_url to NVS so the claim task can pick
+     * them up. */
+    nvs_handle_t h;
+    if (nvs_open("vmflow", NVS_READWRITE, &h) == ESP_OK) {
+        nvs_set_str(h, "prov_code", jcode->valuestring);
+        nvs_set_str(h, "srv_url",   jurl->valuestring);
+        nvs_commit(h);
+        nvs_close(h);
+    }
+    cJSON_Delete(root);
+
+    /* Spawn strategy: the claim task does an HTTPS POST that needs an
+     * uplink with DNS. On a WiFi board, the captive portal is hit
+     * BEFORE STA finishes connecting — spawning here would race the
+     * STA bring-up and fail with getaddrinfo() = EAI_AGAIN. Instead:
+     *
+     *   - Already up (cellular registered, or STA already had IP from
+     *     a prior connect): spawn now.
+     *   - Not up yet: don't spawn here. The network event handler in
+     *     mdb-slave-esp32s3.c spawns the task on NETWORK_EVENT_UPLINK_UP,
+     *     which fires when STA gets IP / PPP completes IPCP — at which
+     *     point DNS resolves cleanly. */
+    network_status_t st;
+    network_get_status(&st);
+    if (st.uplink_up) {
+        xTaskCreate(provision_claim_task, "prov_claim", 16384, NULL, 5, NULL);
+    } else {
+        ESP_LOGI(TAG, "claim: uplink not yet up — task will spawn on UPLINK_UP");
+    }
+    return send_ok(req);
 }
 
 static esp_err_t wifi_scan_get_handler(httpd_req_t *req) {
@@ -262,6 +420,9 @@ static esp_err_t wifi_scan_get_handler(httpd_req_t *req) {
     cJSON *root = cJSON_CreateObject();
     cJSON *networks = cJSON_AddArrayToObject(root, "networks");
 
+    char own_ssid[SOFTAP_SSID_MAX] = {0};
+    softap_get_ssid(own_ssid, sizeof(own_ssid));
+
     char seen_ssids[20][33];
     int seen_count = 0;
 
@@ -272,7 +433,7 @@ static esp_err_t wifi_scan_get_handler(httpd_req_t *req) {
         if (strlen(ssid) == 0) continue;
 
         /* Skip own AP */
-        if (strcmp(ssid, AP_SSID) == 0) continue;
+        if (strcmp(ssid, own_ssid) == 0) continue;
 
         /* Skip duplicates (already sorted by RSSI, first occurrence is strongest) */
         bool dup = false;
@@ -313,6 +474,28 @@ static esp_err_t captive_handler(httpd_req_t *req) {
     return ESP_OK;
 }
 
+/* Catch-all 404 handler. Returns a 302 redirect to '/' so iOS, Android,
+ * macOS, Windows, and Linux captive-portal probes that hit any path we
+ * don't explicitly register still trigger the OS's "Sign in to network"
+ * popup.
+ *
+ * Without this, only the specific probe URLs we list as exact handlers
+ * worked — modern OS captive portal detection uses many paths (and they
+ * change between releases). iOS 26 in particular probes additional paths
+ * like /library/test/success.html under captive.apple.com.
+ *
+ * We intentionally redirect rather than serve the index inline: a 302
+ * is the most reliable trigger for the captive-portal popup across all
+ * OS versions in the field. */
+static esp_err_t catchall_404_handler(httpd_req_t *req, httpd_err_code_t err) {
+    (void)err;
+    ESP_LOGI(TAG, "captive 404 → redirect: %s", req->uri);
+    httpd_resp_set_status(req, "302 Found");
+    httpd_resp_set_hdr(req, "Location", "/");
+    httpd_resp_send(req, NULL, 0);
+    return ESP_OK;
+}
+
 /* ---------- DNS ---------- */
 
 void stop_dns_server(void) {
@@ -342,34 +525,113 @@ void start_rest_server(void) {
     if (rest_server != NULL) return;
 
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
+    /* Allow more handler slots than the default 8 — we register seven
+     * exact API URIs plus a clutch of captive-portal probe paths. */
+    config.max_uri_handlers = 16;
     httpd_start(&rest_server, &config);
 
     static const httpd_uri_t uris[] = {
-        { .uri = "/",                    .method = HTTP_GET,  .handler = index_get_handler        },
-        { .uri = "/api/v1/system/info",  .method = HTTP_GET,  .handler = system_info_get_handler  },
-        { .uri = "/api/v1/settings/set", .method = HTTP_POST, .handler = wifi_set_handler         },
-        { .uri = "/api/v1/wifi/scan",    .method = HTTP_GET,  .handler = wifi_scan_get_handler    },
-        { .uri = "/generate_204",        .method = HTTP_GET,  .handler = captive_handler          },
-        { .uri = "/hotspot-detect.html", .method = HTTP_GET,  .handler = captive_handler          },
+        { .uri = "/",                          .method = HTTP_GET,  .handler = index_get_handler          },
+        { .uri = "/api/v1/system/info",        .method = HTTP_GET,  .handler = system_info_get_handler    },
+        { .uri = "/api/v1/system/skip-probe",  .method = HTTP_POST, .handler = skip_probe_handler         },
+        { .uri = "/api/v1/wifi/scan",          .method = HTTP_GET,  .handler = wifi_scan_get_handler      },
+        { .uri = "/api/v1/cellular/configure", .method = HTTP_POST, .handler = cellular_configure_handler },
+        { .uri = "/api/v1/wifi/configure",     .method = HTTP_POST, .handler = wifi_configure_handler     },
+        { .uri = "/api/v1/claim",              .method = HTTP_POST, .handler = claim_handler              },
+
+        /* OS captive-portal probe paths.
+         *
+         * Each OS picks one (or several) of these to detect whether the
+         * network requires sign-in. Returning a 302 to '/' triggers the
+         * "Sign in to network" auto-popup on every modern OS:
+         *   Android:    /generate_204               (gstatic, kindle, etc.)
+         *   iOS/macOS:  /hotspot-detect.html        (captive.apple.com)
+         *   iOS 16+:    /library/test/success.html  (newer paths)
+         *   Windows:    /connecttest.txt            (msftconnecttest.com)
+         *               /ncsi.txt                   (msftncsi.com)
+         *   Linux:      /                           (NetworkManager) — handled by index
+         *               /generate_204               (also used)
+         *               /canonical.html             (Ubuntu)
+         *   Firefox:    /success.txt                (detectportal.firefox.com)
+         *
+         * The catch-all 404 handler below covers any probe paths we
+         * forget — but explicit handlers log nicer for debugging. */
+        { .uri = "/generate_204",              .method = HTTP_GET,  .handler = captive_handler            },
+        { .uri = "/hotspot-detect.html",       .method = HTTP_GET,  .handler = captive_handler            },
+        { .uri = "/library/test/success.html", .method = HTTP_GET,  .handler = captive_handler            },
+        { .uri = "/connecttest.txt",           .method = HTTP_GET,  .handler = captive_handler            },
+        { .uri = "/ncsi.txt",                  .method = HTTP_GET,  .handler = captive_handler            },
+        { .uri = "/canonical.html",            .method = HTTP_GET,  .handler = captive_handler            },
+        { .uri = "/success.txt",               .method = HTTP_GET,  .handler = captive_handler            },
     };
 
     for (int i = 0; i < sizeof(uris) / sizeof(uris[0]); i++) {
         httpd_register_uri_handler(rest_server, &uris[i]);
     }
+
+    /* Last line of defence: any GET we don't explicitly handle gets the
+     * same 302 → '/' redirect. Covers OS-specific probes we don't know
+     * about (and future ones). */
+    httpd_register_err_handler(rest_server, HTTPD_404_NOT_FOUND, catchall_404_handler);
 }
 
 /* ---------- SoftAP ---------- */
 
+esp_err_t softap_get_ssid(char *out, size_t out_len) {
+    if (!out || out_len < 14) return ESP_ERR_INVALID_ARG;  /* "VMflow-AABBCC" + NUL = 14 */
+    uint8_t mac[6];
+    esp_err_t err = esp_wifi_get_mac(WIFI_IF_STA, mac);
+    if (err != ESP_OK) return err;
+    snprintf(out, out_len, "VMflow-%02X%02X%02X", mac[3], mac[4], mac[5]);
+    return ESP_OK;
+}
+
+esp_err_t softap_get_password(char *out, size_t out_len) {
+    if (!out || out_len < 9) return ESP_ERR_INVALID_ARG;  /* WPA2 PSK min is 8 + NUL */
+    out[0] = '\0';  /* default: empty string ⇒ open AP */
+
+    nvs_handle_t h;
+    esp_err_t err = nvs_open("vmflow", NVS_READONLY, &h);
+    if (err == ESP_OK) {
+        size_t len = out_len;
+        err = nvs_get_str(h, "softap_pwd", out, &len);
+        nvs_close(h);
+        if (err != ESP_OK || strlen(out) < 8) {
+            /* Missing, too short, or read error — fall through to empty.
+             * This is the path taken before the device is claimed, and on
+             * existing already-claimed devices that haven't been re-claimed
+             * since OTA. start_softap brings up the AP as open. */
+            out[0] = '\0';
+        }
+    }
+    return ESP_OK;
+}
+
 void start_softap(void) {
+    char ssid[SOFTAP_SSID_MAX];
+    char pwd[SOFTAP_PWD_MAX];
+
+    if (softap_get_ssid(ssid, sizeof(ssid)) != ESP_OK) {
+        ESP_LOGE(TAG, "SoftAP SSID fetch failed; using static fallback");
+        snprintf(ssid, sizeof(ssid), "VMflow");
+    }
+    softap_get_password(pwd, sizeof(pwd));  /* never errors; empty pwd ⇒ open */
+
+    bool open = (pwd[0] == '\0');
+
     wifi_config_t wifi_config = {
         .ap = {
-            .ssid           = AP_SSID,
-            .ssid_len       = strlen(AP_SSID),
-            .password       = AP_PASS,
+            .ssid_len       = strlen(ssid),
             .max_connection = 4,
-            .authmode       = WIFI_AUTH_WPA_WPA2_PSK,
+            .authmode       = open ? WIFI_AUTH_OPEN : WIFI_AUTH_WPA_WPA2_PSK,
         },
     };
+    strncpy((char *)wifi_config.ap.ssid, ssid, sizeof(wifi_config.ap.ssid));
+    if (!open) {
+        strncpy((char *)wifi_config.ap.password, pwd, sizeof(wifi_config.ap.password));
+    }
+
     esp_err_t err = esp_wifi_set_config(WIFI_IF_AP, &wifi_config);
-    ESP_LOGI(TAG, "SoftAP config set (SSID=\"%s\") → %s", AP_SSID, esp_err_to_name(err));
+    ESP_LOGI(TAG, "SoftAP config set (SSID=\"%s\" auth=%s) → %s",
+             ssid, open ? "OPEN" : "WPA2", esp_err_to_name(err));
 }
