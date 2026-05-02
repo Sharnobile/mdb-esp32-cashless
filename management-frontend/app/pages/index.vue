@@ -240,6 +240,7 @@ async function loadDashboard() {
   const lastWeekStart = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000).toISOString()
   const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
   const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString()
+  const last30DaysStart = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString()
   const [
     todaySalesRes,
     yesterdaySalesRes,
@@ -247,6 +248,7 @@ async function loadDashboard() {
     lastWeekSalesRes,
     monthSalesRes,
     lastMonthSalesRes,
+    top30DaysSalesRes,
     machinesRes,
     recentSalesRes,
     activityRes,
@@ -255,8 +257,9 @@ async function loadDashboard() {
     supabase.from('sales').select('item_price').gte('created_at', yesterdayStart).lt('created_at', todayStart),
     supabase.from('sales').select('item_price, created_at').gte('created_at', weekStart),
     supabase.from('sales').select('item_price').gte('created_at', lastWeekStart).lt('created_at', weekStart),
-    supabase.from('sales').select('item_price, machine_id, item_number, product_id').gte('created_at', thisMonthStart),
+    supabase.from('sales').select('item_price').gte('created_at', thisMonthStart),
     supabase.from('sales').select('item_price').gte('created_at', lastMonthStart).lt('created_at', thisMonthStart),
+    supabase.from('sales').select('item_price, machine_id, item_number, product_id').gte('created_at', last30DaysStart),
     supabase.from('vendingMachine').select('id, name, embedded, embeddeds(id, status)'),
     supabase.from('sales').select('id, created_at, item_price, item_number, channel, machine_id, product_id, products(name, image_path)').order('created_at', { ascending: false }).limit(10),
     (supabase as any).from('activity_log').select('*').order('created_at', { ascending: false }).limit(8),
@@ -297,10 +300,10 @@ async function loadDashboard() {
 
   // ── Top products (30 days) ─────────────────────────────────────────────────
   {
-    const monthSalesData = (monthSalesRes.data ?? []) as { item_price: number; machine_id: string | null; item_number: number; product_id: string | null }[]
+    const top30DaysSalesData = (top30DaysSalesRes.data ?? []) as { item_price: number; machine_id: string | null; item_number: number; product_id: string | null }[]
 
     // Fallback: tray lookup only for sales without snapshotted product_id
-    const salesWithoutProduct = monthSalesData.filter(s => !s.product_id && s.machine_id)
+    const salesWithoutProduct = top30DaysSalesData.filter(s => !s.product_id && s.machine_id)
     const machineIdsForProducts = [...new Set(salesWithoutProduct.map(s => s.machine_id!))]
 
     let trayProductLookup = new Map<string, { product_id: string; name: string }>()
@@ -317,7 +320,7 @@ async function loadDashboard() {
     }
 
     // Batch fetch product names for sales that have product_id but no inline join
-    const productIdsFromSales = [...new Set(monthSalesData.filter(s => s.product_id).map(s => s.product_id!))]
+    const productIdsFromSales = [...new Set(top30DaysSalesData.filter(s => s.product_id).map(s => s.product_id!))]
     let productNameMap = new Map<string, string>()
     if (productIdsFromSales.length > 0) {
       const { data: products } = await supabase
@@ -331,7 +334,7 @@ async function loadDashboard() {
 
     // Aggregate by product — prefer snapshotted product_id, fallback to tray lookup
     const productAgg = new Map<string, { name: string; units: number; revenue: number }>()
-    for (const s of monthSalesData) {
+    for (const s of top30DaysSalesData) {
       let pid: string | null = s.product_id
       let pname: string | null = pid ? (productNameMap.get(pid) ?? null) : null
 
