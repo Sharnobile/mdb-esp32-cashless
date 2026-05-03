@@ -1120,7 +1120,10 @@ void modem_kick_for_host_reboot(void) {
     esp_err_t pmu_err = axp_rmw_reg(AXP2101_REG_DC_ONOFF, 0x04, 0);
     if (pmu_err == ESP_OK) {
         ESP_LOGW(TAG, "kick-reboot: DC3 cut (modem off)");
-        vTaskDelay(pdMS_TO_TICKS(1000));   /* short cap drain */
+        /* 3s cap drain: 1s wasn't enough — Lilygo board caps held the modem
+         * in a half-warm state across the cycle, causing 24 s of unresponsive
+         * AT after the next boot before a recovery PWRKEY pulse kicked in. */
+        vTaskDelay(pdMS_TO_TICKS(3000));
         axp_rmw_reg(AXP2101_REG_DC_ONOFF, 0, 0x04);
         vTaskDelay(pdMS_TO_TICKS(300));    /* power rails settle */
         pwrkey_pulse();                    /* ~500 ms low pulse */
