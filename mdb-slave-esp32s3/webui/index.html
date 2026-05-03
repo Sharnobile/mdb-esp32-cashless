@@ -418,6 +418,12 @@
         '<div style="font-size:48px;margin-bottom:8px">✓</div>' +
         '<h2>Setup complete</h2>' +
         '<p class="muted" style="margin-top:6px">The device is registered and ready.</p>' +
+        '<div class="info-banner warn" style="margin-top:14px;text-align:left">' +
+          '<strong>Heads up:</strong> the device WiFi is now password-protected ' +
+          '(was open during setup). To reconnect, look up this device under ' +
+          '<em>Devices</em> in the management UI and tap the Wi-Fi icon to see ' +
+          'the new SSID and password.' +
+        '</div>' +
         '<div id="claimed_diag" style="margin-top:18px;text-align:left"></div>' +
         '<button type="button" id="diag_copy" class="ghost" style="margin-top:10px">Copy diagnostics</button>' +
       '</div>'
@@ -474,6 +480,13 @@
         '<p id="cc_hint" class="muted" style="margin-top:6px;font-size:12px">' +
           'This usually takes 10-30 seconds.' +
         '</p>' +
+        '<div class="info-banner warn" style="margin-top:18px;text-align:left">' +
+          '<strong>Important:</strong> when the device finishes restarting, its ' +
+          'WiFi will switch from open to password-protected. Your phone will be ' +
+          'disconnected. To reconnect, open the management UI on a different ' +
+          'device, find this unit under <em>Devices</em>, tap the Wi-Fi icon, ' +
+          'and use the new SSID + password shown there.' +
+        '</div>' +
       '</div>'
     );
   }
