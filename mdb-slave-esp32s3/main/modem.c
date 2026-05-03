@@ -1054,15 +1054,21 @@ void modem_hard_reset(void) {
     s_in_data_mode = false;
 
     /* Try PMU-based DC3 cut first (LilyGo T-SIM7080G route). */
-    ESP_LOGW(TAG, "L3 recovery: cutting modem power via PMU DC3 for 2 s");
+    ESP_LOGW(TAG, "L3 recovery: cutting modem power via PMU DC3 for 5 s");
     esp_err_t pmu_err = axp_rmw_reg(AXP2101_REG_DC_ONOFF, 0x04, 0);
 
     if (pmu_err == ESP_OK) {
-        vTaskDelay(pdMS_TO_TICKS(2000));   /* drain caps + ensure modem fully off */
+        /* 5 s drain: 2 s wasn't enough — field log 2026-05-03 showed the
+         * modem still warm-cached after L3 cut, recovery ladder exhausted
+         * without actually power-cycling. Lilygo board caps + SIM7080G
+         * internal regulators hold the chip alive longer than expected. */
+        vTaskDelay(pdMS_TO_TICKS(5000));
         ESP_LOGI(TAG, "L3 recovery: re-enabling DC3");
         axp_rmw_reg(AXP2101_REG_DC_ONOFF, 0, 0x04);
         vTaskDelay(pdMS_TO_TICKS(500));    /* power rails stabilise */
+        ESP_LOGI(TAG, "L3 recovery: firing PWRKEY pulse");
         pwrkey_pulse();                    /* boot the modem */
+        ESP_LOGI(TAG, "L3 recovery: PWRKEY pulse done, modem booting");
     } else {
         /* No PMU. Fallback: PWRKEY pulse pair. First press toggles state
          * (modem-on → off, modem-off → on); we wait through the modem's
