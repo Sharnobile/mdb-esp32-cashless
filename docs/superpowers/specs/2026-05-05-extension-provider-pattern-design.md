@@ -179,6 +179,13 @@ playing — for `deal-source` it returns `NormalizedOffer[]`. The shape of `args
 and the response is determined by the extension point's interface; the webhook
 implementer only needs to honor that interface.
 
+The body's `args` carry only the call-specific inputs from the per-extension-
+point context — `query` and `zipCode` for `deal-source`. **`companyId` is
+deliberately not included** (a webhook serving multiple VMflow installations
+has no business knowing the calling tenant's UUID, and it removes a
+cross-tenant leak vector). **Provider config is also not echoed back** in
+`args`; the webhook owner already knows their own configuration.
+
 `version: 1` lives in the body so future interface changes can be detected and
 backwards-compatible defaults applied.
 
@@ -417,9 +424,11 @@ These are not blockers for the design but need decisions during planning:
 - **Provider-failure visibility.** Failed provider calls are logged but not
   surfaced to end users today. A future "provider health" badge in the admin
   UI is desirable but deferred.
-- **Webhook "test call" payload.** Does the test button use a fixed sample
-  query (e.g. `query: "Coca Cola"`), the user's last real query from
-  `deal_cache`, or a user-supplied input field? Plan-time decision.
+- **Webhook "test call" payload.** Resolved: the test button sends a fixed
+  sample (`query: "Coca Cola"`, `zipCode` from `companies.deals_zip_code` or
+  the `'60487'` default) — lowest-risk default that doesn't depend on
+  `deal_cache` having any rows yet for new companies. Mentioned here for
+  visibility; treat as a planning input, not an open question.
 
 ## Risks
 
