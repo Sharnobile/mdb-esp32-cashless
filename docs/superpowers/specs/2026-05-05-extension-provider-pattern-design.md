@@ -70,6 +70,15 @@ no clean entry point.
   pages, and other plugin-framework concerns are explicitly out of scope.
 - **No automatic provider discovery from npm or external registries.** Built-in
   providers ship with our release; webhook providers are configured manually.
+- **No MQTT, firmware, or other side-effect plug-points.** Providers are
+  request/response only — they fetch data and return it. They do not publish
+  to MQTT, write to the firmware OTA topic, or trigger device-side actions.
+  The MQTT bus and OTA pipeline keep their existing trust model.
+- **No JSON-Schema-driven admin UI form rendering in v1.** Each built-in
+  provider ships with a hand-written admin UI snippet for its config (typically
+  none; Marktguru has no configurable knobs in v1). Webhook providers have a
+  single shared form (URL + auth token + free-form JSON config). Schema-driven
+  rendering may be added later when a built-in provider needs structured config.
 
 ## Architecture
 
@@ -77,19 +86,23 @@ no clean entry point.
 
 Every participating extension point follows the same four-part structure:
 
-**1. TypeScript interface** in `Docker/supabase/functions/_shared/providers/<extension-point>.ts`:
+**1. TypeScript interface** in `Docker/supabase/functions/_shared/providers/<extension-point>.ts`.
+Each extension point owns its own *context* type — fields differ
+(`zipCode` only makes sense for `deal-source`, `prompt` only for a future
+`ai-backend`). The provider-pattern itself does not define a generic context.
 
 ```ts
 // _shared/providers/deal-source.ts
-export interface ProviderContext {
+export interface DealSourceContext {
   companyId: string
-  zipCode: string
-  config: Record<string, unknown>  // per-provider settings (API key, etc.)
+  zipCode: string                  // sourced from companies.deals_zip_code,
+                                   // defaults to '60487' if null (existing behavior)
+  config: Record<string, unknown>  // contents of provider_settings.config for this row
 }
 
 export interface DealSourceProvider {
   id: string
-  fetchOffers(query: string, ctx: ProviderContext): Promise<NormalizedOffer[]>
+  fetchOffers(query: string, ctx: DealSourceContext): Promise<NormalizedOffer[]>
 }
 
 export interface NormalizedOffer {
@@ -169,10 +182,25 @@ implementer only needs to honor that interface.
 `version: 1` lives in the body so future interface changes can be detected and
 backwards-compatible defaults applied.
 
-**4. Per-company activation** in a generic table:
+**Webhook trust model in v1:**
+- The auth token is chosen by the customer when they configure the webhook
+  (we do not issue tokens). Stored in `provider_settings.config.authToken`.
+- VMflow includes the token as `Authorization: Bearer ...` on outbound calls.
+  No HMAC body signing, no per-request nonce, no replay protection.
+- The webhook owner is responsible for their own auth verification and
+  rate-limiting. Webhooks live on the customer's trust boundary, not ours.
+- Per-call timeout: 10 seconds. No automatic retry — failures log and the
+  consuming function continues with the remaining providers' results.
+- Response-side: VMflow does not authenticate the response (no signature
+  check); customers running webhooks should use HTTPS for the URL to prevent
+  in-flight tampering. The admin UI form will require `https://`.
+
+**4. Per-company activation** in a generic table. Per the project's immutable-
+migration rule (CLAUDE.md), the migration uses idempotent operations
+throughout so that any later fix-migrations can also be idempotent:
 
 ```sql
-create table provider_settings (
+create table if not exists provider_settings (
   company_id      uuid not null references companies(id) on delete cascade,
   extension_point text not null,                  -- 'deal-source', 'image-search', ...
   provider_id     text not null,                  -- 'marktguru' or 'webhook-{uuid}'
@@ -183,7 +211,15 @@ create table provider_settings (
   primary key (company_id, extension_point, provider_id)
 );
 
+-- Used by every consuming edge function on every request:
+create index if not exists idx_provider_settings_active
+  on provider_settings (company_id, extension_point)
+  where enabled = true;
+
 alter table provider_settings enable row level security;
+
+drop policy if exists provider_settings_read  on provider_settings;
+drop policy if exists provider_settings_write on provider_settings;
 
 create policy provider_settings_read on provider_settings
   for select using (company_id = my_company_id());
@@ -222,13 +258,16 @@ A new section under `/settings`:
 - `/settings/extensions` — landing page listing all extension points (deal-source
   for v1; future ones added as they migrate to the pattern).
 - `/settings/extensions/[extension-point]` — per-extension-point page showing:
-  - **Built-in providers** with toggle and per-provider config form. The form
-    is rendered from a `configSchema` (JSON Schema) the provider exports
-    alongside its implementation.
+  - **Built-in providers** with toggle. For v1 each built-in provider's config
+    form is hand-written in the admin page (Marktguru has no configurable
+    knobs, so its row is just a toggle).
   - **Custom webhook providers**: list of configured webhooks with edit/delete;
-    "Add webhook" form (display name, URL, auth token, free-form config JSON).
-  - "Test call" button per row that invokes the provider with a fixed sample
-    query and shows the result/error inline.
+    a single shared "Add webhook" form with display name, URL (must be
+    `https://`), auth token, and a free-form JSON config textarea.
+  - **"Test call" button — v1 must-have for webhook providers** so customers
+    can verify their webhook is reachable and returns valid shape at config
+    time. Built-in providers don't need it (they're testable by re-running
+    the consuming feature itself, e.g. clicking "Refresh" on `/deals`).
 
 The consuming feature pages (e.g. `/deals`) need no UI changes for the v1
 migration — the existing UX continues to work, the data source just becomes
@@ -271,47 +310,84 @@ produce a working provider.
 The first concrete adopter validates the convention. Implementation steps:
 
 1. **Define the interface** — `_shared/providers/deal-source.ts` with
-   `DealSourceProvider`, `ProviderContext`, `NormalizedOffer`.
-2. **Extract Marktguru** — move existing Marktguru-specific logic from
+   `DealSourceProvider`, `DealSourceContext`, `NormalizedOffer`.
+2. **Extract Marktguru** — move only the *fetch + normalize* phase out of
    [`deal-search/index.ts`](../../Docker/supabase/functions/deal-search/index.ts)
-   into `_shared/providers/deal-source/marktguru.ts`. The existing API key
-   extraction and search logic moves verbatim; the function signature changes
-   to match the interface.
+   into `_shared/providers/deal-source/marktguru.ts`. Concretely: the
+   `getMarktguruKeys()` helper, the `searchMarktguru()` HTTP call, and the
+   shape transformation from `MarktguruOffer` to `NormalizedOffer` move into
+   the provider. **Matching, fuzzy-scoring, keyword expansion, dedup, and
+   `deal_cache` writes stay in `deal-search/index.ts`** — those operate on
+   normalized offers from any provider.
 3. **Generic webhook caller** — `_shared/providers/webhook.ts` with a single
-   `callWebhookProvider(extensionPoint, method, args, config)` function used by
-   any extension point.
+   `callWebhookProvider(extensionPoint, method, args, providerConfig)`
+   function reused by any extension point. Honors the trust model documented
+   in §Architecture: 10s timeout, no retry, no body signing.
 4. **Database migration** — `YYYYMMDDHHMMSS_provider_settings.sql` creates the
-   `provider_settings` table with RLS policies and indexes. Includes a data
-   migration that inserts `(company_id, 'deal-source', 'marktguru', enabled=true)`
-   for every company with `companies.deals_enabled = true`, preserving current
-   behavior.
+   `provider_settings` table, the `idx_provider_settings_active` index, and
+   the RLS policies. Includes a data migration that inserts
+   `(company_id, 'deal-source', 'marktguru', enabled=true, config='{}')` for
+   every company with `companies.deals_enabled = true`, preserving current
+   behavior. All operations idempotent per CLAUDE.md's immutable-migration
+   rule.
 5. **Refactor `deal-search/index.ts`** — replace direct Marktguru calls with
-   provider-registry resolution. The existing matching, caching, and database
-   write logic stays unchanged.
+   provider-registry resolution. The cache logic, `deals_config` consumption,
+   matching, scoring, and `deal_cache` writes are unchanged. The request shape
+   (`forceRefresh`, `minConfidence`) and response shape (`{ deals, fromCache,
+   ... }`) are unchanged so the existing
+   [`useDeals`](../../management-frontend/app/composables/useDeals.ts) composable
+   works without modification.
 6. **Admin UI** — `/settings/extensions/deal-source` page using existing
-   shadcn-nuxt components. Reuses `useModalForm` for config dialogs.
-7. **Documentation** — `docs/extension-points/deal-source.md` following the
-   structure above. Marktguru becomes the documented reference implementation.
+   shadcn-nuxt components. Reuses `useModalForm` for the webhook dialog.
+7. **Tests** — at minimum:
+   - Vitest unit tests for the registry resolver (lookup by id, webhook
+     fallback, missing-provider warning) in `management-frontend/`.
+   - Deno tests for `_shared/providers/webhook.ts` covering happy path,
+     timeout, non-2xx response, malformed body.
+   - Deno test for `_shared/providers/deal-source/marktguru.ts` covering
+     normalization shape (mock the upstream HTTP call).
+   - Deno test for the refactored `deal-search/index.ts` confirming behavior
+     is byte-for-byte identical when only Marktguru is enabled (regression
+     guard for the extraction).
+8. **Documentation** — `docs/extension-points/deal-source.md` following the
+   structure above. Marktguru is the documented reference implementation.
 
-The migration plus refactor must ship in a single release: the `provider_settings`
-table is required by the refactored `deal-search`, and the data migration must
-run before the new code reads from the table on first request.
+**Release sequencing**: the migration, refactored edge function, and admin
+UI ship together. In this codebase the `Docker/` stack and
+`management-frontend/` are deployed as a single unit (one docker-compose up,
+one frontend image rebuild), so there is no inter-service deploy-skew window
+to manage. The `useDeals` composable's request and response shapes are
+unchanged so old browser sessions loaded just before the deploy continue to
+work without a refresh.
 
 ## Backward Compatibility
 
 - Existing companies with `deals_enabled = true` get an automatic
   `provider_settings` row enabling Marktguru, so the deals page shows the same
   results as before.
-- The `companies.deals_zip_code` and `companies.deals_config` columns stay
-  unchanged — they describe the *consuming feature's* config, not the
-  provider's. Per-provider config (e.g. Marktguru's API limit) lives in
+- `companies.deals_zip_code` stays unchanged and is read by the consumer
+  (`deal-search`), then passed to the provider as `DealSourceContext.zipCode`.
+- `companies.deals_config` stays unchanged. Its current contents
+  (`generic_terms`, `wildcard_phrases`, `app_detection_patterns`,
+  `retailer_prospekt_urls`) are **consumer-side concerns** — they govern fuzzy
+  matching, app-detection, and prospekt-URL resolution, all of which run
+  against normalized offers from any provider. They do not move into
   `provider_settings.config`.
+- For Marktguru in v1 there are no per-provider knobs exposed to users —
+  `provider_settings.config` is `{}` for the seeded row. The internal
+  `searchMarktguru` limit (50) stays a constant inside the provider module.
+  Future built-in providers may add structured config; webhook providers carry
+  their `url` and `authToken` plus any provider-specific values the webhook
+  owner needs.
 - The `deal_cache` table schema is unaffected. The cache still keys on
   `(company_id, product_id, retailer, offer_id)`; rows from different providers
   coexist naturally because they have distinct `retailer` and `offer_id`
   values.
 - The existing `forceRefresh` and `minConfidence` request parameters keep
-  working unchanged.
+  working unchanged. The response shape `{ deals, fromCache, searchedProducts,
+  totalDeals }` is unchanged so the
+  [`useDeals`](../../management-frontend/app/composables/useDeals.ts) composable
+  needs no edits.
 
 ## Future Extension Points
 
@@ -321,18 +397,18 @@ in v1's scope** — each will get its own design doc and migration when adopted:
 - `image-search` — backends for product image lookup
 - `ai-backend` — LLM provider for `machine-insights` (Anthropic / OpenAI / local)
 - `import-format` — file-format adapters for `import-products`
-- `notification-channel` — push / email / Slack / Telegram for stock alerts
+- `notification-channel` — push / email / Slack / Telegram for stock alerts.
+  Note: this one will need to negotiate with existing schema
+  (`low_stock_notifications` queue, `push_subscriptions` registry, the
+  trigger-based enqueueing in the database). The provider pattern adds new
+  *delivery* backends; the queueing/dispatch flow stays as-is. Future spec
+  will detail.
 - `firmware-source` — sources for OTA firmware artifacts
 
 ## Open Questions
 
 These are not blockers for the design but need decisions during planning:
 
-- **Provider config schema validation.** Built-in providers export a JSON
-  Schema describing their config shape; the admin UI renders from it and
-  validates on submit. Webhook providers have free-form config since the schema
-  is owned by the webhook implementer. Detail (which JSON-Schema dialect, how
-  the UI renders nested objects) belongs in the implementation plan.
 - **Concurrency policy beyond v1.** For `deal-source`, parallel calls with
   result merging is the right default. For `ai-backend`, calling multiple LLMs
   in parallel is wasteful — likely seriell with explicit fallback ordering. The
@@ -341,9 +417,9 @@ These are not blockers for the design but need decisions during planning:
 - **Provider-failure visibility.** Failed provider calls are logged but not
   surfaced to end users today. A future "provider health" badge in the admin
   UI is desirable but deferred.
-- **Webhook provider testing UX.** "Test call" button mechanics — does it use
-  a static fixture query, the user's last real query, or a user-supplied input?
-  Decided in the implementation plan.
+- **Webhook "test call" payload.** Does the test button use a fixed sample
+  query (e.g. `query: "Coca Cola"`), the user's last real query from
+  `deal_cache`, or a user-supplied input field? Plan-time decision.
 
 ## Risks
 
