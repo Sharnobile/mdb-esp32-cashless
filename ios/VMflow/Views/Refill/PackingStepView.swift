@@ -4,6 +4,14 @@ import SwiftUI
 /// Each product card lists which machines need it with per-machine checkboxes.
 struct PackingStepView: View {
     @ObservedObject var viewModel: RefillWizardViewModel
+    @State private var selectedProduct: ProductSelection?
+
+    struct ProductSelection: Identifiable {
+        let id: UUID
+        let name: String
+        let imagePath: String?
+        let sellprice: Double?
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -35,6 +43,14 @@ struct PackingStepView: View {
 
             // Bottom Bar
             bottomBar
+        }
+        .sheet(item: $selectedProduct) { sel in
+            ProductDetailSheet(
+                productId: sel.id,
+                fallbackName: sel.name,
+                fallbackImagePath: sel.imagePath,
+                fallbackSellprice: sel.sellprice
+            )
         }
     }
 
@@ -160,6 +176,25 @@ struct PackingStepView: View {
                             }
                         }
                     }
+
+                    // Info button — opens ProductDetailSheet without triggering
+                    // the parent toggle. Nested Button + .borderless ensures
+                    // SwiftUI treats it as a separate hit target.
+                    Button {
+                        selectedProduct = ProductSelection(
+                            id: item.productId,
+                            name: item.productName,
+                            imagePath: item.imagePath,
+                            sellprice: item.sellprice
+                        )
+                    } label: {
+                        Image(systemName: "info.circle")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .padding(8)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.borderless)
 
                     Spacer()
 

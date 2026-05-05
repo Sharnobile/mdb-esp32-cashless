@@ -12,7 +12,15 @@ struct MachineDetailView: View {
     @State private var showAddSheet = false
     @State private var showBatchSheet = false
     @State private var editingTray: Tray?
+    @State private var selectedProduct: ProductSelection?
     @EnvironmentObject private var realtime: RealtimeService
+
+    struct ProductSelection: Identifiable {
+        let id: UUID
+        let name: String
+        let imagePath: String?
+        let sellprice: Double?
+    }
 
     private var realtimeVersion: Int {
         realtime.salesVersion + realtime.traysVersion
@@ -105,6 +113,14 @@ struct MachineDetailView: View {
                 }
             )
             .presentationDetents([.large])
+        }
+        .sheet(item: $selectedProduct) { sel in
+            ProductDetailSheet(
+                productId: sel.id,
+                fallbackName: sel.name,
+                fallbackImagePath: sel.imagePath,
+                fallbackSellprice: sel.sellprice
+            )
         }
         .alert("Error", isPresented: .init(
             get: { trayVM.error != nil },
@@ -298,7 +314,9 @@ struct MachineDetailView: View {
                     ForEach(grouped, id: \.date) { group in
                         Section {
                             ForEach(group.sales) { sale in
-                                SaleRow(sale: sale, trays: viewModel.trays)
+                                SaleRow(sale: sale, trays: viewModel.trays) {
+                                    presentProductSheet(for: sale)
+                                }
                             }
                         } header: {
                             DaySectionHeader(label: dayLabel(for: group.date), count: group.sales.count)
@@ -316,6 +334,24 @@ struct MachineDetailView: View {
 
     private func formatEUR(_ amount: Double) -> String {
         String(format: "%.2f\u{00A0}\u{20AC}", amount)
+    }
+
+    /// Resolve a sale's product (snapshotted FK or tray fallback) and present the
+    /// product detail sheet. No-op when no product can be determined.
+    private func presentProductSheet(for sale: Sale) {
+        let trayMatch = sale.itemNumber.flatMap { num in
+            viewModel.trays.first { $0.itemNumber == num }
+        }
+        let productId = sale.productId ?? trayMatch?.productId
+        guard let pid = productId else { return }
+        let name = sale.products?.name ?? trayMatch?.productName ?? "Item #\(sale.itemNumber ?? 0)"
+        let imagePath = sale.products?.imagePath ?? trayMatch?.products?.imagePath
+        selectedProduct = ProductSelection(
+            id: pid,
+            name: name,
+            imagePath: imagePath,
+            sellprice: sale.itemPrice
+        )
     }
 
     // MARK: - Day Grouping Helpers
@@ -350,6 +386,7 @@ struct MachineDetailView: View {
 struct SaleRow: View {
     let sale: Sale
     let trays: [Tray]
+    var onTap: () -> Void = {}
 
     /// Find the product for this sale via tray item number (fallback for old sales without product_id).
     private var tray: Tray? {
@@ -417,6 +454,8 @@ struct SaleRow: View {
             RoundedRectangle(cornerRadius: 12)
                 .fill(.regularMaterial)
         }
+        .contentShape(RoundedRectangle(cornerRadius: 12))
+        .onTapGesture { onTap() }
     }
 
     private func formatTime(_ date: Date) -> String {

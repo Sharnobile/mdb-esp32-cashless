@@ -5,6 +5,14 @@ import SwiftUI
 struct RefillStepView: View {
     @ObservedObject var viewModel: RefillWizardViewModel
     @State private var showMachinePicker = false
+    @State private var selectedProduct: ProductSelection?
+
+    struct ProductSelection: Identifiable {
+        let id: UUID
+        let name: String
+        let imagePath: String?
+        let sellprice: Double?
+    }
 
     var body: some View {
         if let machine = viewModel.currentMachine {
@@ -62,6 +70,14 @@ struct RefillStepView: View {
 
                 // Bottom Action Bar
                 bottomActionBar(machine)
+            }
+            .sheet(item: $selectedProduct) { sel in
+                ProductDetailSheet(
+                    productId: sel.id,
+                    fallbackName: sel.name,
+                    fallbackImagePath: sel.imagePath,
+                    fallbackSellprice: sel.sellprice
+                )
             }
         } else {
             // No more machines - should transition to summary
@@ -179,6 +195,18 @@ struct RefillStepView: View {
         return Double(progress.current - 1) / Double(progress.total)
     }
 
+    /// Open `ProductDetailSheet` for the tray's assigned product. No-op when
+    /// the slot is unassigned (no `productId`).
+    private func presentProductDetail(for tray: Tray) {
+        guard let pid = tray.productId else { return }
+        selectedProduct = ProductSelection(
+            id: pid,
+            name: tray.products?.name ?? tray.productName,
+            imagePath: tray.products?.imagePath,
+            sellprice: tray.products?.sellprice
+        )
+    }
+
     // MARK: - Refill Tray Card
 
     private func refillTrayCard(_ refillTray: RefillTray, machineId: UUID) -> some View {
@@ -195,51 +223,59 @@ struct RefillStepView: View {
                     .frame(width: 30, height: 30)
                     .background(Circle().fill(refillTray.tray.isEmpty ? Color.red : .orange))
 
-                ProductImage(imagePath: refillTray.tray.products?.imagePath, size: 44)
+                Button {
+                    presentProductDetail(for: refillTray.tray)
+                } label: {
+                    HStack(spacing: 12) {
+                        ProductImage(imagePath: refillTray.tray.products?.imagePath, size: 44)
 
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 6) {
-                        Text(refillTray.tray.productName)
-                            .font(.subheadline.weight(.semibold))
-                            .fixedSize(horizontal: false, vertical: true)
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack(spacing: 6) {
+                                Text(refillTray.tray.productName)
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(.primary)
+                                    .fixedSize(horizontal: false, vertical: true)
 
-                        if soldDuringTour {
-                            // Mini badge: a sale happened on this tray after
-                            // the tour started. User should notice before
-                            // committing their pre-planned fillAmount.
-                            Label("Sold during tour", systemImage: "cart.badge.minus")
-                                .labelStyle(.iconOnly)
-                                .font(.caption)
-                                .foregroundStyle(.orange)
-                                .accessibilityLabel("Stock changed since tour start")
+                                if soldDuringTour {
+                                    // Mini badge: a sale happened on this tray after
+                                    // the tour started. User should notice before
+                                    // committing their pre-planned fillAmount.
+                                    Label("Sold during tour", systemImage: "cart.badge.minus")
+                                        .labelStyle(.iconOnly)
+                                        .font(.caption)
+                                        .foregroundStyle(.orange)
+                                        .accessibilityLabel("Stock changed since tour start")
+                                }
+                            }
+
+                            // Current -> Target + Price
+                            HStack(spacing: 4) {
+                                Text("\(refillTray.tray.currentStock)")
+                                    .foregroundStyle(soldDuringTour ? .orange : .red)
+                                    .contentTransition(.numericText())
+                                    .animation(.spring(duration: 0.3), value: refillTray.tray.currentStock)
+                                Image(systemName: "arrow.right")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                Text("\(refillTray.targetStock)")
+                                    .foregroundStyle(.green)
+                                    .contentTransition(.numericText())
+                                    .animation(.spring(duration: 0.3), value: refillTray.targetStock)
+                                Text("/ \(refillTray.tray.capacity)")
+                                    .foregroundStyle(.secondary)
+
+                                if let price = refillTray.tray.formattedSellprice {
+                                    Spacer()
+                                    Text(price)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .font(.caption.weight(.medium))
+                            .monospacedDigit()
                         }
                     }
-
-                    // Current -> Target + Price
-                    HStack(spacing: 4) {
-                        Text("\(refillTray.tray.currentStock)")
-                            .foregroundStyle(soldDuringTour ? .orange : .red)
-                            .contentTransition(.numericText())
-                            .animation(.spring(duration: 0.3), value: refillTray.tray.currentStock)
-                        Image(systemName: "arrow.right")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                        Text("\(refillTray.targetStock)")
-                            .foregroundStyle(.green)
-                            .contentTransition(.numericText())
-                            .animation(.spring(duration: 0.3), value: refillTray.targetStock)
-                        Text("/ \(refillTray.tray.capacity)")
-                            .foregroundStyle(.secondary)
-
-                        if let price = refillTray.tray.formattedSellprice {
-                            Spacer()
-                            Text(price)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    .font(.caption.weight(.medium))
-                    .monospacedDigit()
                 }
+                .buttonStyle(.plain)
 
                 Spacer()
             }

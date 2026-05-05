@@ -5,6 +5,14 @@ struct ReviewStepView: View {
     @ObservedObject var viewModel: RefillWizardViewModel
     /// Tracks which tray's picker sheet is open (by tray ID).
     @State private var pickerTrayId: UUID?
+    @State private var selectedProduct: ProductSelection?
+
+    struct ProductSelection: Identifiable {
+        let id: UUID
+        let name: String
+        let imagePath: String?
+        let sellprice: Double?
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -54,6 +62,14 @@ struct ReviewStepView: View {
             }
             .presentationDetents([.large])
         }
+        .sheet(item: $selectedProduct) { sel in
+            ProductDetailSheet(
+                productId: sel.id,
+                fallbackName: sel.name,
+                fallbackImagePath: sel.imagePath,
+                fallbackSellprice: sel.sellprice
+            )
+        }
     }
 
     // MARK: - Replacement Card
@@ -78,33 +94,70 @@ struct ReviewStepView: View {
                         .font(.title2)
                         .foregroundStyle(.secondary)
                         .frame(width: 40, height: 40)
-                } else {
-                    ProductImage(imagePath: suggestion.currentProductImage, size: 40)
-                }
 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(suggestion.currentProductName)
-                        .font(.subheadline.weight(.semibold))
-                        .fixedSize(horizontal: false, vertical: true)
-                        .strikethrough(!isUnassigned, color: .red)
-                        .foregroundStyle(isUnassigned ? .secondary : .primary)
-
-                    HStack(spacing: 6) {
-                        reasonBadge(suggestion.reason)
-                        Text(suggestion.machineName)
-                            .font(.caption)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(suggestion.currentProductName)
+                            .font(.subheadline.weight(.semibold))
+                            .fixedSize(horizontal: false, vertical: true)
                             .foregroundStyle(.secondary)
-                    }
 
-                    if suggestion.currentStock > 0 {
-                        Text("\(suggestion.currentStock) items still in machine")
-                            .font(.caption)
-                            .foregroundStyle(.orange)
-                    } else {
-                        Text("0 items in machine")
-                            .font(.caption)
-                            .foregroundStyle(.red)
+                        HStack(spacing: 6) {
+                            reasonBadge(suggestion.reason)
+                            Text(suggestion.machineName)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        if suggestion.currentStock > 0 {
+                            Text("\(suggestion.currentStock) items still in machine")
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                        } else {
+                            Text("0 items in machine")
+                                .font(.caption)
+                                .foregroundStyle(.red)
+                        }
                     }
+                } else {
+                    Button {
+                        guard let pid = suggestion.currentProductId else { return }
+                        selectedProduct = ProductSelection(
+                            id: pid,
+                            name: suggestion.currentProductName,
+                            imagePath: suggestion.currentProductImage,
+                            sellprice: nil
+                        )
+                    } label: {
+                        HStack(spacing: 12) {
+                            ProductImage(imagePath: suggestion.currentProductImage, size: 40)
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(suggestion.currentProductName)
+                                    .font(.subheadline.weight(.semibold))
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .strikethrough(true, color: .red)
+                                    .foregroundStyle(.primary)
+
+                                HStack(spacing: 6) {
+                                    reasonBadge(suggestion.reason)
+                                    Text(suggestion.machineName)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+
+                                if suggestion.currentStock > 0 {
+                                    Text("\(suggestion.currentStock) items still in machine")
+                                        .font(.caption)
+                                        .foregroundStyle(.orange)
+                                } else {
+                                    Text("0 items in machine")
+                                        .font(.caption)
+                                        .foregroundStyle(.red)
+                                }
+                            }
+                        }
+                    }
+                    .buttonStyle(.plain)
                 }
 
                 Spacer()
@@ -223,18 +276,21 @@ struct ReviewStepView: View {
     /// Build a map of productId → sorted slot numbers for every tray in the
     /// same machine as the tray being replaced, excluding the tray itself.
     ///
-    /// Returns an empty map when the suggestion or machine can't be resolved
-    /// (defensive — should not happen since the suggestion is what triggered
-    /// the sheet). Trays with `productId == nil` contribute nothing.
+    /// Reads `viewModel.allTraysByMachine` (the unfiltered tray set) rather
+    /// than `viewModel.machines[*].trays`, which only contains trays that
+    /// need refill action — full/healthy trays would otherwise be missing
+    /// from the picker badge even though the product is physically in the
+    /// machine. Trays with `productId == nil` contribute nothing.
     private func existingSlots(forTrayId trayId: UUID) -> [UUID: [Int]] {
-        guard let suggestion = viewModel.replacements.first(where: { $0.trayId == trayId }),
-              let machine = viewModel.machines.first(where: { $0.id == suggestion.machineId })
+        guard let suggestion = viewModel.replacements.first(where: { $0.trayId == trayId })
         else { return [:] }
 
+        let machineTrays = viewModel.allTraysByMachine[suggestion.machineId] ?? []
+
         var result: [UUID: [Int]] = [:]
-        for refillTray in machine.trays where refillTray.tray.id != trayId {
-            guard let productId = refillTray.tray.productId else { continue }
-            result[productId, default: []].append(refillTray.tray.itemNumber)
+        for tray in machineTrays where tray.id != trayId {
+            guard let productId = tray.productId else { continue }
+            result[productId, default: []].append(tray.itemNumber)
         }
         for key in result.keys {
             result[key]?.sort()

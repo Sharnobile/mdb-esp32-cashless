@@ -15,6 +15,16 @@ struct DashboardView: View {
     /// Selected date for chart drag-to-scrub. nil = no tooltip visible.
     @State private var selectedDate: Date?
 
+    /// Sale-row product tap → presents `ProductDetailSheet`. nil = no sheet.
+    @State private var selectedProduct: ProductSelection?
+
+    struct ProductSelection: Identifiable {
+        let id: UUID
+        let name: String
+        let imagePath: String?
+        let sellprice: Double?
+    }
+
     private var realtimeVersion: Int {
         realtime.salesVersion + realtime.machinesVersion + realtime.embeddedVersion
     }
@@ -68,6 +78,14 @@ struct DashboardView: View {
             if viewModel.isLoading && viewModel.dailySales.isEmpty {
                 ProgressView("Loading dashboard...")
             }
+        }
+        .sheet(item: $selectedProduct) { sel in
+            ProductDetailSheet(
+                productId: sel.id,
+                fallbackName: sel.name,
+                fallbackImagePath: sel.imagePath,
+                fallbackSellprice: sel.sellprice
+            )
         }
     }
 
@@ -257,7 +275,15 @@ struct DashboardView: View {
                     ForEach(grouped, id: \.date) { group in
                         DaySectionHeader(label: dayLabel(for: group.date), count: group.sales.count)
                         ForEach(group.sales) { item in
-                            RecentSaleRow(item: item)
+                            RecentSaleRow(item: item) {
+                                guard let pid = item.sale.productId else { return }
+                                selectedProduct = ProductSelection(
+                                    id: pid,
+                                    name: item.productName ?? "Item #\(item.sale.itemNumber ?? 0)",
+                                    imagePath: item.productImagePath,
+                                    sellprice: item.sale.itemPrice
+                                )
+                            }
                         }
                     }
                 }
@@ -402,12 +428,13 @@ struct DashboardView: View {
 
 struct RecentSaleRow: View {
     let item: SaleWithMachine
+    var onTap: () -> Void = {}
 
     var body: some View {
         HStack(spacing: 12) {
             ProductImage(imagePath: item.productImagePath, size: 36)
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(item.productName ?? "Item #\(item.sale.itemNumber ?? 0)")
                     .font(.subheadline.weight(.medium))
                     .lineLimit(1)
@@ -416,6 +443,9 @@ struct RecentSaleRow: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 2)
+                        .background(Color.secondary.opacity(0.12), in: Capsule())
                 }
             }
 
@@ -430,6 +460,8 @@ struct RecentSaleRow: View {
                     .foregroundStyle(.secondary)
             }
         }
+        .contentShape(Rectangle())
+        .onTapGesture { onTap() }
     }
 
     private func formatTime(_ date: Date) -> String {
