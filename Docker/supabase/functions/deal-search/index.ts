@@ -549,7 +549,11 @@ Deno.serve(async (req) => {
       const batchResults = await Promise.all(
         batch.map(async ([query, matchProducts]): Promise<FetchResult> => {
           try {
-            const offers = await searchMarktguru(query, zipCode, keys, 10)
+            // Marktguru ranks by internal relevance; popular brand queries
+            // (e.g. "Monster") often return Lidl/Edeka/Penny first and push
+            // REWE past position 10. Pull the top 50 so smaller-share retailer
+            // offers still enter the matching pipeline.
+            const offers = await searchMarktguru(query, zipCode, keys, 50)
             return { query, matchProducts, offers }
           } catch (err) {
             console.error(`Search failed for "${query}":`, err)
