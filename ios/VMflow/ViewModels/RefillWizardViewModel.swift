@@ -222,6 +222,13 @@ final class RefillWizardViewModel: ObservableObject {
 
     @Published var currentStep: RefillStep = .review
     @Published var machines: [RefillMachine] = []
+    /// Unfiltered tray list per machine, keyed by machine id. `machines[*].trays`
+    /// only contains trays that need refill action (deficit > 0 + below threshold);
+    /// the review picker needs every tray in the machine to render the
+    /// "already in slot N" badge for products that are stocked elsewhere in
+    /// the same machine. Populated alongside `machines` in `loadData()` and
+    /// `refreshDuringPacking()`.
+    @Published var allTraysByMachine: [UUID: [Tray]] = [:]
     @Published var replacements: [ReplacementSuggestion] = []
     /// All active (non-discontinued) products for the replacement picker.
     @Published var availableProducts: [Product] = []
@@ -831,6 +838,7 @@ final class RefillWizardViewModel: ObservableObject {
                 .value
 
             self.machines = Self.buildRefillMachines(allMachines: allMachines, allTrays: allTrays)
+            self.allTraysByMachine = Dictionary(grouping: allTrays, by: { $0.machineId })
 
             // `packedItems` keyed by machineId still applies to machines that are
             // still in the list; orphan entries for machines that no longer need
@@ -986,6 +994,7 @@ final class RefillWizardViewModel: ObservableObject {
 
             self.machines = Self.buildRefillMachines(allMachines: allMachines, allTrays: allTrays)
             let traysByMachine = Dictionary(grouping: allTrays, by: { $0.machineId })
+            self.allTraysByMachine = traysByMachine
 
             // Fetch warehouses first (needed for stock-based detection)
             print("[RefillWizard] Fetching warehouses...")
