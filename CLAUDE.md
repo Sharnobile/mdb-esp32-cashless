@@ -254,6 +254,10 @@ All functions use `verify_jwt = false` in `config.toml` (workaround for ES256 `C
 | `machine-insights` | yes | AI-powered analytics (Claude API): per-machine/company KPIs, recommendations, multi-language, 6h cache |
 | `search-product-images` | yes | DuckDuckGo image search for product catalog enrichment |
 
+### Extension Points (Provider Pattern)
+
+Some features have a per-company provider registry rather than a single hardcoded backend. v1 covers `deal-source` (the `/deals` page's data sources). Each extension point's contract lives at `Docker/supabase/functions/_shared/providers/<extension-point>.ts` with built-in providers as TypeScript modules under `_shared/providers/<extension-point>/<provider-id>.ts` and per-company activation in the `provider_settings` table. Documentation per extension point lives at `docs/extension-points/<extension-point>.md` — that file is the SDK; read it before adding a new provider.
+
 ### Adding New Environment Variables
 
 When adding a new env var that the frontend or edge functions need in production, update **all** of these:
