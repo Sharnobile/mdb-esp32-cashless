@@ -478,6 +478,10 @@ Deno.serve(async (req) => {
     // sequential because it mutates shared allDeals / seen / keywordCovered —
     // the keyword pass marks products as covered for an offer, which the later
     // product pass reads to dedupe.
+    //
+    // Concurrency 10 keeps query-fan-out below plausible upstream abuse
+    // thresholds (Marktguru, kaufDA, etc. all rate-limit aggressive callers)
+    // while cutting wall-clock by ~10× on large catalogs.
     const FETCH_CONCURRENCY = 10
     type FetchResult = { query: string; matchProducts: typeof products; offers: NormalizedOffer[] }
     const fetchResults: FetchResult[] = []
@@ -496,6 +500,8 @@ Deno.serve(async (req) => {
           )
           const seenOffer = new Set<string>()
           const offers: NormalizedOffer[] = []
+          // Index-based loop: Promise.allSettled returns positional results that
+          // need to be aligned with resolved[j].provider.id for the error log.
           for (let j = 0; j < perProvider.length; j++) {
             const res = perProvider[j]
             if (res.status === 'rejected') {

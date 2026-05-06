@@ -129,7 +129,12 @@ export function normalizeOffer(raw: MarktguruOffer): NormalizedOffer {
 
 // ── Provider ──────────────────────────────────────────────────────────────────
 
-const MARKTGURU_LIMIT = 50  // matches the post-2026-05-04 limit raise
+// Marktguru ranks results by internal relevance, and popular brand queries
+// (e.g. "Monster") often fill the top 10 with Lidl/Edeka/Penny, pushing
+// smaller-share advertisers like REWE past position 10. Pulling the top 50
+// keeps those offers in the matching pipeline. (Raised from 10 in commit
+// ac9ff6c.)
+const MARKTGURU_LIMIT = 50
 
 export const provider: DealSourceProvider = {
   id: 'marktguru',
