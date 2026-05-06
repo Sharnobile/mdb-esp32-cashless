@@ -9,7 +9,6 @@ const {
   taxClasses,
   taxRates,
   companyCountry,
-  loading: taxLoading,
   fetchAll: fetchTaxAll,
   createTaxClass,
   updateTaxClass,
@@ -18,7 +17,6 @@ const {
   deleteTaxRate,
   updateCompanyCountry,
   seedFromSystem,
-  formatTaxClassLabel,
   getCurrentRate,
   backfillSales,
 } = useTaxSettings()
