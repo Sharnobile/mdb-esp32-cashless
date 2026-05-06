@@ -1,4 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import type { NormalizedOffer } from '../_shared/providers/deal-source.ts'
+import { resolveProviders, type ResolvedProvider } from './resolve-providers.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -6,79 +8,8 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-// ─── Marktguru API helpers ──────────────────────────────────────────────────
-
-interface MarktguruOffer {
-  id: number
-  description: string
-  price: number
-  oldPrice: number | null
-  referencePrice: number
-  requiresLoyalityMembership: boolean
-  brand: { name: string; uniqueName: string }
-  advertisers: { name: string; uniqueName: string }[]
-  product: { name: string; description: string | null }
-  validityDates: { from: string; to: string }[]
-  images: { urls: { small: string; medium: string; large: string } }
-}
-
-interface MarktguruKeys {
-  apiKey: string
-  clientKey: string
-}
-
-/** Extracts dynamic API keys from the marktguru.de homepage */
-async function getMarktguruKeys(): Promise<MarktguruKeys> {
-  const res = await fetch('https://marktguru.de', {
-    headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; rv:102.0) Gecko/20100101 Firefox/102.0' },
-  })
-  const html = await res.text()
-
-  const match = html.match(/<script[^>]*type="application\/json"[^>]*>([\s\S]*?)<\/script>/)
-  if (!match?.[1]) throw new Error('Could not extract marktguru config')
-
-  const config = JSON.parse(match[1])
-
-  // The keys are nested in the config object — try common paths
-  const apiKey = config?.config?.apiKey ?? config?.apiKey
-  const clientKey = config?.config?.clientKey ?? config?.clientKey
-
-  if (!apiKey || !clientKey) throw new Error('Could not find marktguru API keys in config')
-
-  return { apiKey, clientKey }
-}
-
-/** Searches marktguru offers by query string */
-async function searchMarktguru(
-  query: string,
-  zipCode: string,
-  keys: MarktguruKeys,
-  limit = 20,
-): Promise<MarktguruOffer[]> {
-  const params = new URLSearchParams({
-    q: query,
-    zipCode,
-    limit: String(limit),
-    offset: '0',
-    as: 'web',
-  })
-
-  const res = await fetch(`https://api.marktguru.de/api/v1/offers/search?${params}`, {
-    headers: {
-      'x-apikey': keys.apiKey,
-      'x-clientkey': keys.clientKey,
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; rv:102.0) Gecko/20100101 Firefox/102.0',
-    },
-  })
-
-  if (!res.ok) {
-    console.error(`Marktguru API error: ${res.status} ${res.statusText}`)
-    return []
-  }
-
-  const data = await res.json()
-  return data.results ?? []
-}
+// Marktguru is now a DealSourceProvider plugin — see
+// Docker/supabase/functions/_shared/providers/deal-source/marktguru.ts
 
 // ─── Retailer prospekt URLs ─────────────────────────────────────────────────
 
@@ -449,16 +380,22 @@ Deno.serve(async (req) => {
       product_ids: (row.deal_keyword_products ?? []).map((kp: any) => kp.product_id),
     }))
 
-    // Get marktguru API keys
-    let keys: MarktguruKeys
+    // Resolve enabled deal-source providers for this company.
+    let resolved: ResolvedProvider[]
     try {
-      keys = await getMarktguruKeys()
+      resolved = await resolveProviders(adminClient, companyId)
     } catch (err) {
-      console.error('Failed to get marktguru keys:', err)
-      return new Response(JSON.stringify({ error: 'Failed to connect to offer service' }), {
+      console.error('[deal-search] failed to resolve providers:', err)
+      return new Response(JSON.stringify({ error: 'Failed to load provider configuration' }), {
         status: 502,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
+    }
+    if (resolved.length === 0) {
+      return new Response(
+        JSON.stringify({ deals: [], fromCache: false, message: 'No deal-source providers enabled' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      )
     }
 
     // Search for each product and collect matches
@@ -467,7 +404,7 @@ Deno.serve(async (req) => {
 
     // Per-offer set of products covered by a keyword-group hit. Populated inside
     // the queries loop (Step 2) and read by the suppression gate (Step 3).
-    const keywordCovered = new Map<string | number, Set<string>>()
+    const keywordCovered = new Map<string, Set<string>>()
 
     // Queries Marktguru with: (1) user keyword terms — explicit brand/phrase
     // intent that often doesn't appear verbatim in any product name; (2) full
@@ -535,30 +472,47 @@ Deno.serve(async (req) => {
       + `${productEntries.length} product-only (caps ${KEYWORD_QUERY_CAP}/${PRODUCT_QUERY_CAP})`,
     )
 
-    // Phase A: parallel Marktguru fetches in bounded batches. Phase B (matching)
-    // stays sequential because it mutates shared allDeals / seen / keywordCovered
-    // — the keyword pass marks products as covered for an offer, which the later
-    // product pass reads to dedupe. Concurrency 10 keeps us below plausible
-    // Marktguru abuse thresholds while cutting wall-clock by ~10× on large
-    // catalogs.
+    // Phase A: parallel provider fetches in bounded batches. For each query we
+    // invoke every enabled provider in parallel, then merge their NormalizedOffer
+    // results, deduping by (retailerSlug, externalId). Phase B (matching) stays
+    // sequential because it mutates shared allDeals / seen / keywordCovered —
+    // the keyword pass marks products as covered for an offer, which the later
+    // product pass reads to dedupe.
     const FETCH_CONCURRENCY = 10
-    type FetchResult = { query: string; matchProducts: typeof products; offers: MarktguruOffer[] }
+    type FetchResult = { query: string; matchProducts: typeof products; offers: NormalizedOffer[] }
     const fetchResults: FetchResult[] = []
     for (let i = 0; i < queries.length; i += FETCH_CONCURRENCY) {
       const batch = queries.slice(i, i + FETCH_CONCURRENCY)
       const batchResults = await Promise.all(
         batch.map(async ([query, matchProducts]): Promise<FetchResult> => {
-          try {
-            // Marktguru ranks by internal relevance; popular brand queries
-            // (e.g. "Monster") often return Lidl/Edeka/Penny first and push
-            // REWE past position 10. Pull the top 50 so smaller-share retailer
-            // offers still enter the matching pipeline.
-            const offers = await searchMarktguru(query, zipCode, keys, 50)
-            return { query, matchProducts, offers }
-          } catch (err) {
-            console.error(`Search failed for "${query}":`, err)
-            return { query, matchProducts, offers: [] as MarktguruOffer[] }
+          const perProvider = await Promise.allSettled(
+            resolved.map((r) =>
+              r.provider.fetchOffers(query, {
+                companyId,
+                zipCode,
+                config: r.row.config,
+              }),
+            ),
+          )
+          const seenOffer = new Set<string>()
+          const offers: NormalizedOffer[] = []
+          for (let j = 0; j < perProvider.length; j++) {
+            const res = perProvider[j]
+            if (res.status === 'rejected') {
+              console.error(
+                `[deal-search] provider ${resolved[j].provider.id} failed for "${query}":`,
+                res.reason,
+              )
+              continue
+            }
+            for (const offer of res.value) {
+              const k = `${offer.retailerSlug}::${offer.externalId}`
+              if (seenOffer.has(k)) continue
+              seenOffer.add(k)
+              offers.push(offer)
+            }
           }
+          return { query, matchProducts, offers }
         }),
       )
       fetchResults.push(...batchResults)
@@ -573,45 +527,43 @@ Deno.serve(async (req) => {
       try {
         // Helper: build a keyword-match deal row for upsert.
         function buildKeywordDeal(
-          offer: MarktguruOffer,
+          offer: NormalizedOffer,
           keyword: DealKeyword,
           winning: { term: string; match: MatchResult },
         ) {
-          const retailerSlug = offer.advertisers?.[0]?.uniqueName ?? 'unknown'
-          const retailerName = offer.advertisers?.[0]?.name ?? retailerSlug
-          const validFrom = offer.validityDates?.[0]?.from ?? null
-          const validUntil = offer.validityDates?.[0]?.to ?? null
           const discountPct = offer.oldPrice && offer.price
             ? Math.round((1 - offer.price / offer.oldPrice) * 100)
             : null
-          const imageUrlLarge = `https://mg2de.b-cdn.net/api/v1/offers/${offer.id}/images/default/0/large.jpg`
-          const prospektUrl = dealConfig.retailer_prospekt_urls[retailerSlug]
-            ?? `https://www.marktguru.de/rp/${retailerSlug}-prospekte`
-          const retailerPageUrl = `https://www.marktguru.de/r/${retailerSlug}`
+          // Consumer-side overlay: dealConfig.retailer_prospekt_urls is the
+          // canonical source-of-truth for prospekt URLs; fall back to whatever
+          // the provider produced (Marktguru's marktguru.de/rp/{slug} URL).
+          const prospektUrl = dealConfig.retailer_prospekt_urls[offer.retailerSlug]
+            ?? offer.sourceUrl
+            ?? `https://www.marktguru.de/rp/${offer.retailerSlug}-prospekte`
 
           return {
             company_id: companyId,
             product_id: null,
             keyword_id: keyword.id,
             matched_term: winning.term,
-            retailer: retailerName,
+            retailer: offer.retailer,
             deal_title: offer.description,
             deal_price: offer.price,
             regular_price: offer.oldPrice,
             discount_pct: discountPct,
-            valid_from: validFrom,
-            valid_until: validUntil,
-            image_url: offer.images?.urls?.medium ?? null,
-            image_url_large: imageUrlLarge,
+            valid_from: offer.validFrom,
+            valid_until: offer.validUntil,
+            image_url: offer.imageUrl,
+            image_url_large: offer.imageUrlLarge,
             source_url: prospektUrl,
-            external_url: retailerPageUrl,
+            external_url: offer.externalUrl,
             matched_by: 'keyword_fuzzy',
             confidence: winning.match.confidence,
             matched_tokens: winning.match.matchedTokens,
-            requires_app: offer.requiresLoyalityMembership
+            requires_app: (offer.requiresApp ?? false)
               || detectAppRequirement(offer.description, dealConfig.app_detection_patterns),
             fetched_at: new Date().toISOString(),
-            offer_id: String(offer.id),
+            offer_id: offer.externalId,
           }
         }
 
@@ -623,7 +575,7 @@ Deno.serve(async (req) => {
               const m = matchConfidence(
                 term,
                 offer.description,
-                offer.brand?.name ?? '',
+                offer.brand,
                 dealConfig,
               )
               if (m.confidence >= minConfidence && (!best || m.confidence > best.match.confidence)) {
@@ -633,8 +585,8 @@ Deno.serve(async (req) => {
             if (!best) continue
 
             // Prefix the dedup key with `kw-` so it cannot collide with the existing
-            // product-pass dedup keys (`${offer.id}-${product.id}`).
-            const dedup = `kw-${offer.id}-${keyword.id}`
+            // product-pass dedup keys (`${offer.externalId}-${product.id}`).
+            const dedup = `kw-${offer.externalId}-${keyword.id}`
             if (seen.has(dedup)) continue
             seen.add(dedup)
 
@@ -642,52 +594,43 @@ Deno.serve(async (req) => {
 
             // Mark the keyword's products as covered for this offer. Union with any
             // existing set so repeated offer IDs across query batches accumulate.
-            const covered = keywordCovered.get(offer.id) ?? new Set<string>()
+            const covered = keywordCovered.get(offer.externalId) ?? new Set<string>()
             for (const pid of keyword.product_ids) covered.add(pid)
-            keywordCovered.set(offer.id, covered)
+            keywordCovered.set(offer.externalId, covered)
           }
         }
 
         // Helper to build a deal record from an offer + product match
-        function buildDeal(offer: MarktguruOffer, product: any, match: MatchResult) {
-          const retailerSlug = offer.advertisers?.[0]?.uniqueName ?? 'unknown'
-          const retailerName = offer.advertisers?.[0]?.name ?? retailerSlug
-          const validFrom = offer.validityDates?.[0]?.from ?? null
-          const validUntil = offer.validityDates?.[0]?.to ?? null
+        function buildDeal(offer: NormalizedOffer, product: any, match: MatchResult) {
           const discountPct = offer.oldPrice && offer.price
             ? Math.round((1 - offer.price / offer.oldPrice) * 100)
             : null
-
-          // Construct large prospekt image URL from CDN (this IS the leaflet excerpt)
-          const imageUrlLarge = `https://mg2de.b-cdn.net/api/v1/offers/${offer.id}/images/default/0/large.jpg`
-
-          // Direct link to official retailer online prospekt (stable, reliable)
-          const prospektUrl = dealConfig.retailer_prospekt_urls[retailerSlug]
-            ?? `https://www.marktguru.de/rp/${retailerSlug}-prospekte`
-
-          // All offers from this retailer on marktguru
-          const retailerPageUrl = `https://www.marktguru.de/r/${retailerSlug}`
+          // Consumer-side overlay (see buildKeywordDeal for the rationale).
+          const prospektUrl = dealConfig.retailer_prospekt_urls[offer.retailerSlug]
+            ?? offer.sourceUrl
+            ?? `https://www.marktguru.de/rp/${offer.retailerSlug}-prospekte`
 
           return {
             company_id: companyId,
             product_id: product.id,
-            retailer: retailerName,
+            retailer: offer.retailer,
             deal_title: offer.description,
             deal_price: offer.price,
             regular_price: offer.oldPrice,
             discount_pct: discountPct,
-            valid_from: validFrom,
-            valid_until: validUntil,
-            image_url: offer.images?.urls?.medium ?? null,
-            image_url_large: imageUrlLarge,
+            valid_from: offer.validFrom,
+            valid_until: offer.validUntil,
+            image_url: offer.imageUrl,
+            image_url_large: offer.imageUrlLarge,
             source_url: prospektUrl,
-            external_url: retailerPageUrl,
+            external_url: offer.externalUrl,
             matched_by: 'name_fuzzy',
             confidence: match.confidence,
             matched_tokens: match.matchedTokens,
-            requires_app: offer.requiresLoyalityMembership || detectAppRequirement(offer.description, dealConfig.app_detection_patterns),
+            requires_app: (offer.requiresApp ?? false)
+              || detectAppRequirement(offer.description, dealConfig.app_detection_patterns),
             fetched_at: new Date().toISOString(),
-            offer_id: String(offer.id),
+            offer_id: offer.externalId,
           }
         }
 
@@ -696,17 +639,17 @@ Deno.serve(async (req) => {
             const match = matchConfidence(
               product.name,
               offer.description,
-              offer.brand?.name ?? '',
+              offer.brand,
               dealConfig,
             )
 
             if (match.confidence < minConfidence) continue
 
-            const dedup = `${offer.id}-${product.id}`
+            const dedup = `${offer.externalId}-${product.id}`
             if (seen.has(dedup)) continue
             seen.add(dedup)
 
-            const coveredByKeyword = keywordCovered.get(offer.id)
+            const coveredByKeyword = keywordCovered.get(offer.externalId)
             if (coveredByKeyword?.has(product.id)) continue
 
             allDeals.push(buildDeal(offer, product, match))
@@ -717,20 +660,20 @@ Deno.serve(async (req) => {
         // This catches "Red Bull versch. Sorten" matching all Red Bull variants
         for (const offer of offers) {
           for (const product of products) {
-            const dedup = `${offer.id}-${product.id}`
+            const dedup = `${offer.externalId}-${product.id}`
             if (seen.has(dedup)) continue
 
             const match = matchConfidence(
               product.name,
               offer.description,
-              offer.brand?.name ?? '',
+              offer.brand,
               dealConfig,
             )
 
             if (match.confidence < minConfidence) continue
             seen.add(dedup)
 
-            const coveredByKeyword = keywordCovered.get(offer.id)
+            const coveredByKeyword = keywordCovered.get(offer.externalId)
             if (coveredByKeyword?.has(product.id)) continue
 
             allDeals.push(buildDeal(offer, product, match))
