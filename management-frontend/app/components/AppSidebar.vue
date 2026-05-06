@@ -33,6 +33,7 @@ import {
 
 const { t } = useI18n()
 const { organization, role } = useOrganization()
+const config = useRuntimeConfig()
 
 const navGroups = computed(() => {
   const groups = [
@@ -164,6 +165,7 @@ const navSecondary = computed(() => [
       <NavSecondary :items="navSecondary" class="mt-auto" />
     </SidebarContent>
     <SidebarFooter>
+      <div class="px-2 pb-1 text-[11px] text-muted-foreground">v{{ config.public.appVersion }}</div>
       <NavUser />
     </SidebarFooter>
   </Sidebar>
