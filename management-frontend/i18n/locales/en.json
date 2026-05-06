@@ -55,6 +55,7 @@
     "firmware": "Firmware",
     "getHelp": "Get Help",
     "account": "Account",
+    "settings": "Settings",
     "logout": "Log out",
     "defaultOrg": "MDB Dashboard",
     "groupOperations": "Operations",
@@ -880,8 +881,13 @@
     "yesterday": "Yesterday",
     "searchPlaceholder": "Search machine, product…"
   },
+  "account": {
+    "title": "Account"
+  },
   "settings": {
     "title": "Account Settings",
+    "noAccessHint": "No settings available for your role.",
+    "extensionsLink": "Manage extensions",
     "profile": "Profile",
     "profileDescription": "Your account information.",
     "changeEmail": "Change Email",
