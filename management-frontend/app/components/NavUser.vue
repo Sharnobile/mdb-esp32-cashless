@@ -2,6 +2,7 @@
 import {
   IconDotsVertical,
   IconLogout,
+  IconSettings,
   IconUserCircle,
 } from "@tabler/icons-vue"
 
@@ -115,9 +116,15 @@ async function logout() {
           <DropdownMenuSeparator />
           <DropdownMenuGroup>
             <DropdownMenuItem as-child @click="isMobile && setOpenMobile(false)">
-              <NuxtLink to="/settings">
+              <NuxtLink to="/account">
                 <IconUserCircle />
                 {{ t('nav.account') }}
+              </NuxtLink>
+            </DropdownMenuItem>
+            <DropdownMenuItem as-child @click="isMobile && setOpenMobile(false)">
+              <NuxtLink to="/settings">
+                <IconSettings />
+                {{ t('nav.settings') }}
               </NuxtLink>
             </DropdownMenuItem>
           </DropdownMenuGroup>
