@@ -1395,5 +1395,39 @@
     "fullFlash": "Full Flash",
     "appOnly": "App update only",
     "noVersions": "No firmware versions available yet. An admin needs to publish firmware first."
+  },
+  "extensions": {
+    "pageTitle": "Extensions",
+    "pageDescription": "Activate and configure data sources and integrations per company.",
+    "backToList": "Back to extensions",
+    "builtinProviders": "Built-in providers",
+    "builtinDescription": "Bundled with VMflow. Toggle on/off; no further configuration needed in v1.",
+    "webhookProviders": "Custom webhook providers",
+    "webhookDescription": "Connect your own service via HTTPS. Each company runs and trusts its own webhooks.",
+    "testCall": "Test call",
+    "testResultOk": "OK ({count} sample offers)",
+    "testResultUnknownError": "Unknown error",
+    "dealSource": {
+      "title": "Deal sources",
+      "description": "Where the Deals page pulls weekly retailer offers from. Marktguru is enabled by default; add more sources via custom webhooks."
+    },
+    "webhook": {
+      "add": "Add webhook",
+      "addTitle": "Add webhook provider",
+      "editTitle": "Edit webhook provider",
+      "help": "Connect a custom HTTPS endpoint that implements the deal-source contract. See docs/extension-points/deal-source.md.",
+      "name": "Display name",
+      "url": "Webhook URL",
+      "authToken": "Auth token",
+      "extraConfig": "Extra config (JSON)",
+      "empty": "No custom webhooks configured.",
+      "confirmDelete": "Delete this webhook provider? Sales will no longer pull from it."
+    },
+    "errors": {
+      "nameRequired": "Display name is required",
+      "httpsRequired": "URL must start with https://",
+      "tokenRequired": "Auth token is required",
+      "configJsonInvalid": "Extra config must be a JSON object"
+    }
   }
 }

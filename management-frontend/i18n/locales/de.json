@@ -1395,5 +1395,39 @@
     "fullFlash": "Vollständiger Flash",
     "appOnly": "Nur App-Update",
     "noVersions": "Noch keine Firmware-Versionen verfügbar. Ein Admin muss zuerst Firmware veröffentlichen."
+  },
+  "extensions": {
+    "pageTitle": "Erweiterungen",
+    "pageDescription": "Datenquellen und Integrationen pro Company aktivieren und konfigurieren.",
+    "backToList": "Zurück zu den Erweiterungen",
+    "builtinProviders": "Mitgelieferte Anbieter",
+    "builtinDescription": "Mit VMflow ausgeliefert. Per Toggle ein- oder ausschalten; in v1 keine weitere Konfiguration nötig.",
+    "webhookProviders": "Eigene Webhook-Anbieter",
+    "webhookDescription": "Verbinde deinen eigenen Service per HTTPS. Jede Company betreibt und verantwortet ihre eigenen Webhooks.",
+    "testCall": "Test-Aufruf",
+    "testResultOk": "OK ({count} Beispiel-Angebote)",
+    "testResultUnknownError": "Unbekannter Fehler",
+    "dealSource": {
+      "title": "Deal-Quellen",
+      "description": "Woher die Deals-Seite die wöchentlichen Händler-Angebote zieht. Marktguru ist standardmäßig aktiv; weitere Quellen lassen sich über eigene Webhooks anbinden."
+    },
+    "webhook": {
+      "add": "Webhook hinzufügen",
+      "addTitle": "Webhook-Anbieter hinzufügen",
+      "editTitle": "Webhook-Anbieter bearbeiten",
+      "help": "Verbinde einen eigenen HTTPS-Endpoint, der den deal-source-Vertrag erfüllt. Siehe docs/extension-points/deal-source.md.",
+      "name": "Anzeigename",
+      "url": "Webhook-URL",
+      "authToken": "Auth-Token",
+      "extraConfig": "Zusätzliche Config (JSON)",
+      "empty": "Keine eigenen Webhooks konfiguriert.",
+      "confirmDelete": "Diesen Webhook-Anbieter wirklich löschen? Die Deals-Seite wird ihn nicht mehr abfragen."
+    },
+    "errors": {
+      "nameRequired": "Anzeigename ist erforderlich",
+      "httpsRequired": "URL muss mit https:// beginnen",
+      "tokenRequired": "Auth-Token ist erforderlich",
+      "configJsonInvalid": "Zusätzliche Config muss ein JSON-Objekt sein"
+    }
   }
 }
