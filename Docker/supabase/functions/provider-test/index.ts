@@ -41,6 +41,23 @@ Deno.serve(async (req) => {
     })
   }
 
+  // Admin-only: this endpoint accepts an arbitrary URL+token from the caller
+  // and forwards a request with that bearer header. Without an admin gate,
+  // any logged-in viewer of any tenant could turn this into an outbound HTTPS
+  // proxy with attacker-controlled headers. RLS won't help here because the
+  // function uses the service-role key — the role check has to be explicit.
+  const { data: membership, error: memErr } = await adminClient
+    .from('organization_members')
+    .select('role')
+    .eq('user_id', user.id)
+    .single()
+  if (memErr || !membership || membership.role !== 'admin') {
+    return new Response(JSON.stringify({ error: 'Admin role required' }), {
+      status: 403,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
+  }
+
   let body: TestRequest
   try {
     body = await req.json()

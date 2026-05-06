@@ -127,11 +127,12 @@ export function useProviderSettings(companyId: string) {
     if (patch.displayName !== undefined) existing.display_name = patch.displayName
   }
 
-  async function removeWebhook(_extensionPoint: string, providerId: string) {
+  async function removeWebhook(extensionPoint: string, providerId: string) {
     const { error } = await supabase
       .from('provider_settings')
       .delete()
       .eq('company_id', companyId)
+      .eq('extension_point', extensionPoint)
       .eq('provider_id', providerId)
     if (error) throw error
     rows.value = rows.value.filter((r) => r.provider_id !== providerId)
