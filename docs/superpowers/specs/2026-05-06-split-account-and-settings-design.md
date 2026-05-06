@@ -120,7 +120,12 @@ Each card is a self-contained Vue SFC. Inputs: none (no props). Side effects: ea
 | `StripeCard` | Stripe secret + publishable + webhook secret + read-only webhook URL | Three keys to companies table; webhook URL is computed |
 | `DealSearchCard` | Enable toggle, ZIP, keywords (generic terms + wildcard phrases) | Saves to `companies.deal_*` columns |
 | `TaxCard` | Country selector, classes list with rates, seed defaults, modals (TaxClassModal, TaxRateModal) | Modals stay inside this file — tightly coupled, not reused. |
-| `AppVersionCard` | Static read-only display of `config.public.appVersion` | Trivial — could also be inlined in `pages/settings/index.vue`, but a card keeps the layout consistent. |
+
+> **Auto-import naming:** Nuxt 4 flattens nested component directories into a PascalCase prefix, so `app/components/account/ProfileCard.vue` becomes `<AccountProfileCard />` and `app/components/settings/ImprintCard.vue` becomes `<SettingsImprintCard />`. The names in the page templates already follow this convention.
+
+> **Push notification lifecycle:** The current `pages/settings/index.vue` calls `initNotifications()` in `onMounted()`. That lifecycle hook moves *with* the section into `PushNotificationsCard.vue` — it now fires on `/account` mount instead of `/settings` mount. Intended behaviour, no change in logic.
+
+The app version is shown in the sidebar footer on *every* page (see Navigation section), so a dedicated `AppVersionCard` on `/settings` would duplicate the same read for no benefit. The current "App Version" block in `pages/settings/index.vue` is removed without replacement.
 
 ### Page composition
 
@@ -163,7 +168,6 @@ const isAdmin = computed(() => role.value === 'admin')
       <SettingsDealSearchCard />
       <SettingsTaxCard />
       <NuxtLink to="/settings/extensions" class="...">{{ t('settings.extensionsLink') }}</NuxtLink>
-      <SettingsAppVersionCard />
     </template>
   </div>
 </template>
@@ -210,11 +214,10 @@ A grep audit (`grep -rn "/settings" management-frontend/app`) found two non-inte
 
 1. Add new i18n keys (`nav.settings`, `account.title`, `settings.noAccessHint`, `settings.extensionsLink`) in en + de.
 2. Create the 5 account card components by extracting from `settings/index.vue`. Build new `pages/account/index.vue` composing them. Verify in browser.
-3. Create the 6 settings card components by extracting the remaining sections. Rewrite `pages/settings/index.vue` as the admin-gated composition. Verify both admin and viewer views.
+3. Create the 5 settings card components by extracting the remaining org-scoped sections. Rewrite `pages/settings/index.vue` as the admin-gated composition. The rewrite naturally drops the old `<!-- App Version -->` block and the now-redundant per-section `v-if="isAdmin"` guards. Verify both admin and viewer views.
 4. Update `NavUser.vue` to add the second dropdown entry.
 5. Update `AppSidebar.vue` to add the app version line in `SidebarFooter`.
-6. Remove `<!-- App Version -->` and per-section admin guards now obsolete.
-7. Smoke test: log in as admin and viewer, walk both routes, send a test push notification, save the imprint and re-open.
+6. Smoke test: log in as admin and viewer, walk both routes, send a test push notification, save the imprint and re-open.
 
 ## Out of Scope (Future)
 
