@@ -35,6 +35,15 @@ const { t } = useI18n()
 const { organization, role } = useOrganization()
 const config = useRuntimeConfig()
 
+const versionLine = computed(() => {
+  const v = `v${config.public.appVersion}`
+  const raw = config.public.buildDate
+  if (!raw) return v
+  const d = new Date(raw)
+  if (isNaN(d.getTime())) return v
+  return `${v} · ${d.toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: 'numeric' })}`
+})
+
 const navGroups = computed(() => {
   const groups = [
     {
@@ -165,7 +174,7 @@ const navSecondary = computed(() => [
       <NavSecondary :items="navSecondary" class="mt-auto" />
     </SidebarContent>
     <SidebarFooter>
-      <div class="px-2 pb-1 text-[11px] text-muted-foreground">v{{ config.public.appVersion }}</div>
+      <div class="px-2 pb-1 text-[11px] text-muted-foreground">{{ versionLine }}</div>
       <NavUser />
     </SidebarFooter>
   </Sidebar>
