@@ -573,6 +573,12 @@ verify_jwt = false
 import_map = "./functions/deal-search/deno.json"
 entrypoint = "./functions/deal-search/index.ts"
 
+[functions.provider-test]
+enabled = true
+verify_jwt = false
+import_map = "./functions/provider-test/deno.json"
+entrypoint = "./functions/provider-test/index.ts"
+
 [functions.api-v1]
 enabled = true
 verify_jwt = false
