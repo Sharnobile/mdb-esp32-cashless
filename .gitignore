@@ -35,4 +35,4 @@ Docker/.env
 Docker/supabase/.env
 Docker/mqtt/data/
 Docker/volumes/db/data/
-Docker/volumes/storage/
+Docker/volumes/storage/Docker/supabase/migrations.db
