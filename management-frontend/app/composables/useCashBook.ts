@@ -6,6 +6,7 @@ export interface CashBook {
   company_id: string
   name: string
   initial_balance: number
+  bank_deposit_threshold: number
   activated_at: string
   created_by: string
   is_active: boolean
@@ -324,6 +325,26 @@ export function useCashBook() {
     })
   }
 
+  async function updateBankDepositThreshold(cashBookId: string, threshold: number) {
+    if (threshold < 1) {
+      throw new Error('Schwellenwert muss mindestens 1 € sein')
+    }
+    const { error } = await (supabase as any)
+      .from('cash_books')
+      .update({ bank_deposit_threshold: threshold })
+      .eq('id', cashBookId)
+
+    if (error) throw error
+
+    const cb = cashBooks.value.find(c => c.id === cashBookId)
+    if (cb) cb.bank_deposit_threshold = threshold
+    if (selectedCashBook.value?.id === cashBookId) {
+      selectedCashBook.value = { ...selectedCashBook.value, bank_deposit_threshold: threshold }
+    }
+
+    await logActivity('cash_book_threshold_updated', cashBookId, { threshold })
+  }
+
   // ── Integrity verification (client-side hash chain) ──────────────────────
 
   async function verifyIntegrity(entriesToCheck: CashBookEntry[]): Promise<{ verified: number; total: number; valid: boolean }> {
@@ -377,6 +398,13 @@ export function useCashBook() {
     }
   })
 
+  // Most recent non-reversed bank deposit. Invariant: `entries.value` is sorted
+  // DESC by `entry_number` (set by fetchEntries' .order('entry_number', desc)),
+  // so the first match is the most recent payout.
+  const lastBankDeposit = computed<CashBookEntry | null>(() =>
+    entries.value.find(e => e.type === 'payout' && !e.is_reversed) ?? null,
+  )
+
   // ── Return ──────────────────────────────────────────────────────────────
 
   return {
@@ -416,5 +444,9 @@ export function useCashBook() {
     currentBalance,
     totalWithdrawals,
     totalCorrections,
+    lastBankDeposit,
+
+    // Threshold
+    updateBankDepositThreshold,
   }
 }
