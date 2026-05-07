@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { IconArrowsExchange, IconDevices, IconDownload, IconDots, IconSettings, IconTrash } from '@tabler/icons-vue'
+import { onClickOutside } from '@vueuse/core'
 
 const emit = defineEmits<{
   (e: 'correction'): void

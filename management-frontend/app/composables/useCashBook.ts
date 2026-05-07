@@ -148,7 +148,7 @@ export function useCashBook() {
     }
   }
 
-  async function createCashBook(name: string, initialBalance: number) {
+  async function createCashBook(name: string, initialBalance: number, threshold: number = 500) {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session?.user) throw new Error('Not authenticated')
 
@@ -158,6 +158,7 @@ export function useCashBook() {
         company_id: organization.value?.id,
         name,
         initial_balance: initialBalance,
+        bank_deposit_threshold: threshold,
         created_by: session.user.id,
       })
       .select()
@@ -165,7 +166,7 @@ export function useCashBook() {
 
     if (error) throw error
 
-    await logActivity('cash_book_created', data.id, { name, initial_balance: initialBalance })
+    await logActivity('cash_book_created', data.id, { name, initial_balance: initialBalance, threshold })
 
     await fetchCashBooks()
 
