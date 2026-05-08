@@ -41,7 +41,7 @@ We want a focused iOS implementation that covers the two daily actions (collect 
 ### B. After a refill tour (single Barkasse)
 
 1. User completes refill tour → `RefillSummaryView` displays.
-2. After the existing 0.6 s success animation completes (~1.5 s total settle time), `WithdrawalSheet` is presented automatically.
+2. After the existing animations settle (Done button finishes fading in at ~1.7 s), `WithdrawalSheet` is presented automatically (~+1.8 s — see "Auto-sheet timing").
 3. Sheet shows expected cash for *this Barkasse* (its full `cash_sales_since`, not just this tour's portion — see "Why full sum" below).
 4. Counted-amount input is focused; user types the counted total, taps "Entnahme buchen".
 5. Sheet dismisses; entry is created; `RefillSummaryView` is unchanged underneath; user taps "Done" as usual.
@@ -121,7 +121,8 @@ ios/VMflow/
 │   ├── FlowVisualisationCard.swift   NEW — three stations + arrows (vertical-stacked, mobile-first)
 │   ├── EntriesListSection.swift      NEW — list of CashBookEntry rows with type badge + amount + difference subline
 │   ├── WithdrawalSheet.swift         NEW — modal sheet
-│   └── BankDepositSheet.swift        NEW — modal sheet
+│   ├── BankDepositSheet.swift        NEW — modal sheet
+│   └── MultiBarkasseCashBlock.swift  NEW — inline list rendered on RefillSummaryView when ≥2 Barkassen have cash
 └── Views/Dashboard/
     └── CashBookCard.swift            NEW — Mini-Flow tile
 ```
@@ -136,7 +137,7 @@ ios/VMflow/
 | `Views/Dashboard/DashboardView.swift` | Insert `CashBookCard` between top KPI cards and the sales list |
 | `Views/Refill/RefillSummaryView.swift` | After-animation auto-sheet for single-Barkasse case; inline multi-Barkasse block |
 | `ViewModels/RefillWizardViewModel.swift` | Computed properties: `barkassenForTour`, `expectedCashForBarkasse(id:)`, `singleBarkasseAutoSheetTarget` |
-| `VMflowApp.swift` (if applicable) | `@StateObject` provider for the singleton-ish `CashBookViewModel` |
+| `Navigation/AdaptiveRootView.swift` | `@StateObject private var cashBookVM = CashBookViewModel()` provider, attached via `.environmentObject(cashBookVM)` (see "Provider scope") |
 | `Resources/Localizable.xcstrings` | New keys (de + en) per "Localization" section |
 
 ## Data Model
@@ -150,9 +151,11 @@ struct CashBook: Codable, Identifiable, Hashable {
     let initialBalance: Double
     let bankDepositThreshold: Double
     let trackPerMachine: Bool
-    let activatedAt: Date
-    let createdBy: UUID
     let isActive: Bool
+    // NOTE: `activated_at` and `created_by` from the DB are intentionally
+    // omitted — neither is surfaced in the iOS UI in this scope. Adding
+    // them back is trivial when needed (decoder defaults to optional or
+    // expand the CodingKeys).
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -162,8 +165,6 @@ struct CashBook: Codable, Identifiable, Hashable {
         case initialBalance = "initial_balance"
         case bankDepositThreshold = "bank_deposit_threshold"
         case trackPerMachine = "track_per_machine"
-        case activatedAt = "activated_at"
-        case createdBy = "created_by"
         case isActive = "is_active"
     }
 }
@@ -252,12 +253,42 @@ final class CashBookViewModel: ObservableObject {
 }
 ```
 
-`CashBookViewModel` is provided once at the app level (`@StateObject` in `VMflowApp` or in `AdaptiveRootView`) and consumed via `@EnvironmentObject` in:
+### Sign convention (CRITICAL — must match web exactly)
+
+The DB trigger computes `balance_after = previous_balance + amount`. The web records:
+- **Withdrawal** (`type = 'withdrawal'`): `amount` is **positive** — money flowing INTO the cash box from machines. `balance_after` increases.
+- **Bank deposit** (`type = 'payout'`): `amount` is **negative** — money flowing OUT to the bank. `balance_after` decreases.
+
+`recordWithdrawal` accepts `counted: Double` (absolute, positive) and inserts it as-is (positive sign).
+`recordBankDeposit` accepts `amount: Double` (absolute, positive) and **negates internally** before insert. Callers always pass a non-negative `amount`; the VM is the only place that handles the sign.
+
+Mismatching this would silently corrupt the GoBD hash chain semantics — the chain itself stays valid, but the running balance would diverge from web.
+
+### Provider scope
+
+`CashBookViewModel` is provided once at the **`AdaptiveRootView`** level (not `VMflowApp`), mirroring the existing pattern for auth-scoped services (`realtime`, `notificationService`). Rationale: the VM only makes sense after a user is logged in and an organisation is resolved; putting it at the App root would force special-casing the unauthenticated states.
+
+```swift
+// AdaptiveRootView.swift (modified)
+struct AdaptiveRootView: View {
+    @StateObject private var cashBookVM = CashBookViewModel()
+    // ... existing services ...
+
+    var body: some View {
+        // ... existing content ...
+            .environmentObject(cashBookVM)
+    }
+}
+```
+
+Consumers use `@EnvironmentObject var cashBookVM: CashBookViewModel`. The required injection points are:
 - `CashBookView` (full screen)
 - `CashBookCard` (dashboard tile)
-- `WithdrawalSheet` (when triggered from any source, including Refill)
-- `BankDepositSheet`
-- `RefillWizardViewModel` (passed via initializer or via env at the point of use)
+- `WithdrawalSheet` and `BankDepositSheet` (when presented)
+- `RefillSummaryView` (so the auto-sheet can present `WithdrawalSheet` correctly)
+- `RefillWizardViewModel` reads from this VM via the SwiftUI environment-injection mechanism — see "Refill Integration" below for the exact handoff.
+
+This keeps the existing per-view `@StateObject private var viewModel = XxxViewModel()` pattern for everything else (Products, Deals, Refill, Warehouse) untouched. (Implementer note: grep `AdaptiveRootView.swift` for existing `@StateObject` providers before placing the new one — confirm the file name/structure matches what's in the source tree at the time of implementation.)
 
 ## UI Components
 
@@ -290,6 +321,20 @@ Vertical-stacked layout (mobile-first; iPad keeps the same vertical stack — no
 The amber-pulse-ring rule from the web carries over:
 - Withdraw CTA pulses when `theoreticalCash.cashSalesSince > 0`
 - Bank-deposit CTA pulses when `currentBalance >= selectedCashBook.bankDepositThreshold`
+
+### `WithdrawalSheet` API
+
+```swift
+struct WithdrawalSheet: View {
+    let cashBook: CashBook
+    let fromTour: Bool          // currently used only for analytics / future-proofing; the default description text is the same as web (`cash_book_default_withdrawal_desc`) regardless of origin to avoid divergence in the entries history
+    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var cashBookVM: CashBookViewModel
+    // ... form @State and computed difference ...
+}
+```
+
+The machine picker (only rendered when `cashBook.trackPerMachine == true`) reads its option list from `cashBookVM.machinesByCashBook[cashBook.id]`, falling back to an empty section if the map has no entry yet. The `EntriesListSection` resolves a row's `machineId` to a name via the same map (lookup helper on the VM: `func machineName(_ id: UUID?) -> String?`).
 
 ### `WithdrawalSheet`
 
@@ -373,6 +418,27 @@ Whole card is tappable; pushes onto the current `NavigationStack` (the dashboard
 
 ## Refill Integration
 
+### Component layout
+
+Two new view types live in `Views/CashBook/`:
+- `WithdrawalSheet.swift` — already declared in "File layout"; API spelled out above.
+- `MultiBarkasseCashBlock.swift` — Renders the inline list of Barkassen-with-cash on the Refill summary in the multi-Barkasse case. Props:
+  ```swift
+  struct MultiBarkasseCashBlock: View {
+      let barkassen: [CashBook]
+      let expectedCashFor: (UUID) -> Double   // closure into the VM (avoids passing the whole VM)
+      let onSelect: (CashBook) -> Void
+  }
+  ```
+  Call site in `RefillSummaryView`:
+  ```swift
+  MultiBarkasseCashBlock(
+      barkassen: viewModel.barkassenWithCashFromTour,
+      expectedCashFor: { id in cashBookVM.cashSalesSinceForCashBook(id) },
+      onSelect: { autoSheetBarkasse = $0 }
+  )
+  ```
+
 ### Data preparation in `RefillWizardViewModel`
 
 ```swift
@@ -414,8 +480,8 @@ struct RefillSummaryView: View {
                 if viewModel.barkassenWithCashFromTour.count >= 2 {
                     MultiBarkasseCashBlock(
                         barkassen: viewModel.barkassenWithCashFromTour,
-                        viewModel: viewModel,
-                        onTap: { autoSheetBarkasse = $0 }
+                        expectedCashFor: { id in cashBookVM.cashSalesSinceForCashBook(id) },
+                        onSelect: { autoSheetBarkasse = $0 }
                     )
                 }
             }
@@ -425,10 +491,12 @@ struct RefillSummaryView: View {
                 .environmentObject(cashBookVM)
         }
         .onAppear {
-            // ... existing animations ...
+            // (existing +0.0 s and +0.4 s ticks elided — see Auto-sheet timing)
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
                 withAnimation { showButton = true }
-                // Auto-sheet only for single-Barkasse case
+            }
+            // NEW tick — fires after Done button finishes fading in (~+1.7 s)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) {
                 if let target = viewModel.singleBarkasseAutoSheetTarget {
                     autoSheetBarkasse = target
                 }
@@ -440,7 +508,22 @@ struct RefillSummaryView: View {
 
 ### Auto-sheet timing
 
-The `RefillSummaryView` already animates over ~0.6 s after `onAppear`. The auto-sheet fires inside the existing `asyncAfter` 0.6 s tick — so the user sees the success animation finish, then the sheet slides up. If the user dismisses by swipe-down, `autoSheetBarkasse` becomes `nil` (via `Binding` observation) and the summary remains for "Done".
+The existing `RefillSummaryView` schedules three animation ticks via `asyncAfter`:
+- `+0.0 s` — checkmark scales up (0.6 s spring)
+- `+0.4 s` — stats fade in (0.4 s easeOut)
+- `+0.6 s` — Done button fades in with `.delay(0.7)` modifier (so it actually completes around `+1.7 s`)
+
+The auto-sheet must fire **after the Done button has fully appeared** so the user perceives a clean "animation done → sheet slides up" sequence rather than a chaotic overlap. We add a fourth tick at `+1.8 s`:
+
+```swift
+DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) {
+    if let target = viewModel.singleBarkasseAutoSheetTarget {
+        autoSheetBarkasse = target
+    }
+}
+```
+
+If the user dismisses by swipe-down, `autoSheetBarkasse` becomes `nil` (via `.sheet(item:)` Binding) and the summary remains for "Done".
 
 ## Localization
 
@@ -470,7 +553,7 @@ New `Localizable.xcstrings` entries (DE + EN). Keys use `cash_book_*` snake-case
 | `cash_book_from_machine` | Aus welchem Automat? (optional) | From which machine? (optional) |
 | `cash_book_deposit_recommended` | Bankeinzahlung empfohlen | Bank deposit recommended |
 | `cash_book_since_date` | seit %@ | since %@ |
-| `cash_book_ago_days_few` | Vor %lld Tagen | %lld days ago |
+| `cash_book_ago_days` | Vor %lld Tagen *(use xcstrings plural variants for `one`/`other`)* | %lld days ago *(plural-aware)* |
 | `cash_book_today` | Heute | Today |
 | `cash_book_type_initial` | Anfangsbestand | Initial balance |
 | `cash_book_type_withdrawal` | Aus Automat | From machine |
@@ -478,14 +561,19 @@ New `Localizable.xcstrings` entries (DE + EN). Keys use `cash_book_*` snake-case
 | `cash_book_type_payout` | Bankeinzahlung | Bank deposit |
 | `cash_book_type_reversal` | Storno | Reversal |
 | `cash_book_default_withdrawal_desc` | Geldentnahme aus Automat | Cash withdrawal from machine |
-| `cash_book_default_withdrawal_desc_tour` | Geldentnahme aus Automat (nach Tour) | Cash withdrawal from machine (after tour) |
 | `cash_book_default_deposit_desc` | Bankeinzahlung | Bank deposit |
 | `cash_book_no_barkasse_yet` | Noch keine Barkasse vorhanden | No cash book yet |
 
 ## Persistence & Lifecycle
 
 - `selectedCashBookId` is persisted via `@AppStorage("selected_barkasse_id")` (string UUID) outside the VM, restored on cold launch.
-- On `CashBookViewModel.refresh()`: re-fetches `cashBooks` + `machinesByCashBook`. If `selectedCashBookId` is still valid → keep it, else fall back to first Barkasse alphabetically.
+- On `CashBookViewModel.refresh()`, post-fetch reconciliation runs in this order:
+  1. **`cashBooks.isEmpty`** → set `selectedCashBookId = nil` (do NOT keep a stale UUID).
+  2. **Stored ID still in `cashBooks`** → keep selection.
+  3. **Stored ID gone (Barkasse deleted on web)** → fall back to first Barkasse alphabetically by name.
+  4. **Stored ID is `nil` AND `cashBooks.count == 1`** → auto-select that single Barkasse (matches the web composable's `fetchCashBooks` behaviour, where a single Barkasse is auto-selected on first load).
+  5. **Stored ID is `nil` AND `cashBooks.count >= 2`** → leave `nil`. The dashboard tile shows the empty-state hint, the full screen shows a Barkasse picker. Web matches this exactly.
+- **First Barkasse created on web while iOS is in foreground** → handled by step 4 on the next `refresh()` (foreground triggers refresh, see below). The user sees the new Barkasse auto-selected on their next pull-to-refresh / next foreground transition.
 - `entries` are not persisted to disk — fetched on demand when a Barkasse is selected.
 - `theoreticalCash` is fetched lazily: on `CashBookView.onAppear`, on `CashBookCard.onAppear` (dashboard), and explicitly before opening `WithdrawalSheet`.
 - `applicationWillEnterForeground` triggers `cashBookVM.refresh()` (existing pattern in `WarehouseViewModel.swift`).
@@ -502,19 +590,19 @@ New `Localizable.xcstrings` entries (DE + EN). Keys use `cash_book_*` snake-case
 
 | Risk | Mitigation |
 |------|-----------|
-| Two clients (web + iOS) write entries within the same second → trigger sees the same prior hash → entry_number collision via `UNIQUE(cash_book_id, entry_number)` | Trigger uses `SELECT ... FOR UPDATE` on the `cash_books` row (already in place at line 132 of `20260407000000_cash_book.sql`). Postgres serializes the inserts; one wins the lock, the other waits and reads the new prior hash. No iOS-side change needed. |
+| Two clients (web + iOS) write entries within the same second → trigger sees the same prior hash → entry_number collision via `UNIQUE(cash_book_id, entry_number)` | The `before_insert_cash_book_entry` trigger uses `SELECT ... FOR UPDATE` on the `cash_books` row (already in place from the original cash-book migration). Postgres serializes the inserts; one wins the lock, the other waits and reads the new prior hash. No iOS-side change needed. |
 | `selectedCashBookId` from `@AppStorage` references a deleted Barkasse | On `refresh()`, validate the ID against `cashBooks`; fall back to first alphabetically. |
-| Auto-sheet timing collides with the existing summary animation | Trigger inside the existing `asyncAfter(deadline: .now() + 0.6)` block — same delay used for the "Done" button reveal. |
+| Auto-sheet timing collides with the existing summary animation | Trigger in a new `asyncAfter(deadline: .now() + 1.8)` block — fires after the Done-button reveal completes (~+1.7 s). See "Auto-sheet timing". |
 | User dismisses auto-sheet by swipe-down without booking | Acceptable. They can later open the sheet via dashboard tile or sidebar. No persistent reminder; the dashboard pulse is the soft hint. |
 | Refill tour visits machines from many Barkassen → inline block becomes long | Limit visible inline rows to 3, with a "Alle anzeigen" disclosure. (Practical limit — most operators have 1-2 Barkassen total.) |
 | Decimal input on iOS keyboard ignores user's locale | Use `TextField` with `.keyboardType(.decimalPad)`, parse with `NumberFormatter` in `.currency` style and locale `Locale.current`. Same approach used by `ManualSaleView`. |
-| `CashBookViewModel` not provided to a downstream view | Type-check at `@EnvironmentObject`-injection point catches it at runtime; we wire it once at `VMflowApp`/`AdaptiveRootView` so coverage is uniform. |
+| `CashBookViewModel` not provided to a downstream view | We wire it once in `AdaptiveRootView` (see "Provider scope") so coverage is uniform; SwiftUI surfaces a runtime crash at the missing `@EnvironmentObject` site if a consumer is added without an injection point. |
 | iOS reads stale `theoreticalCash` between machine assignment changes (web side) | Pull-to-refresh + foreground-refresh covers this. The "real" value is always one tap away. Background invalidation is out of scope. |
 
 ## Build Order
 
 1. **Models** (`Models/CashBook.swift`) — add `CashBook`, `CashBookEntry`, `CashBookEntryType`, `TheoreticalCash` with snake_case `CodingKeys`.
-2. **ViewModel** (`ViewModels/CashBookViewModel.swift`) — `@MainActor`-isolated, fetch and create methods, computed `currentBalance` / `lastBankDeposit`. Wire as `@StateObject` in `VMflowApp` (or `AdaptiveRootView` if that's where other VMs are anchored — verify before).
+2. **ViewModel** (`ViewModels/CashBookViewModel.swift`) — `@MainActor`-isolated, fetch and create methods, computed `currentBalance` / `lastBankDeposit`. Wire as `@StateObject` in `AdaptiveRootView` and inject via `.environmentObject(cashBookVM)` (see "Provider scope").
 3. **Localization** — add all `cash_book_*` keys to `Resources/Localizable.xcstrings` (DE + EN) so subsequent UI work has them.
 4. **Building blocks** — `Views/CashBook/FlowVisualisationCard.swift` (with three station sub-views inline), `Views/CashBook/EntriesListSection.swift`. No mutating actions yet.
 5. **Sheets** — `WithdrawalSheet.swift`, `BankDepositSheet.swift`. Each owns its form state, calls VM mutation, dismisses on success.
