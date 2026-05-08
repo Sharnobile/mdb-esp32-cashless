@@ -9,9 +9,11 @@ final class DashboardViewModel: ObservableObject {
     @Published var todayRevenue: Double = 0
     @Published var todaySalesCount: Int = 0
     @Published var yesterdayRevenue: Double = 0
+    @Published var yesterdaySalesCount: Int = 0
     @Published var weekRevenue: Double = 0
     @Published var weekSalesCount: Int = 0
     @Published var monthRevenue: Double = 0
+    @Published var monthSalesCount: Int = 0
 
     @Published var machinesOnline: Int = 0
     @Published var machinesTotal: Int = 0
@@ -97,15 +99,16 @@ final class DashboardViewModel: ObservableObject {
             .value
 
         var todayRev = 0.0, todayCount = 0
-        var yesterdayRev = 0.0
+        var yesterdayRev = 0.0, yesterdayCount = 0
         var weekRev = 0.0, weekCount = 0
-        var monthRev = 0.0
+        var monthRev = 0.0, monthCount = 0
 
         for sale in sales {
             let price = sale.itemPrice ?? 0
 
             if sale.createdAt >= startOfMonth {
                 monthRev += price
+                monthCount += 1
             }
             if sale.createdAt >= startOfWeek {
                 weekRev += price
@@ -116,15 +119,18 @@ final class DashboardViewModel: ObservableObject {
                 todayCount += 1
             } else if sale.createdAt >= startOfYesterday && sale.createdAt < startOfToday {
                 yesterdayRev += price
+                yesterdayCount += 1
             }
         }
 
         todayRevenue = todayRev
         todaySalesCount = todayCount
         yesterdayRevenue = yesterdayRev
+        yesterdaySalesCount = yesterdayCount
         weekRevenue = weekRev
         weekSalesCount = weekCount
         monthRevenue = monthRev
+        monthSalesCount = monthCount
     }
 
     // MARK: - Machine Stats

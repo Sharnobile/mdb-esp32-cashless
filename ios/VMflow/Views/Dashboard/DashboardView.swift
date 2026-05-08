@@ -99,41 +99,258 @@ struct DashboardView: View {
     }
 
     private var kpiSection: some View {
-        LazyVGrid(columns: kpiColumns, spacing: 12) {
-            KPICard(
-                icon: "eurosign.circle.fill",
-                title: "Today's Revenue",
-                value: formatCurrency(viewModel.todayRevenue),
-                subtitle: "Yesterday: \(formatCurrency(viewModel.yesterdayRevenue))",
-                color: .blue
-            )
+        VStack(spacing: 12) {
+            // Offline-machines warning banner — only when something is wrong.
+            if viewModel.machinesTotal > 0 && viewModel.machinesOnline < viewModel.machinesTotal {
+                offlineMachinesBanner
+            }
 
-            KPICard(
-                icon: "cart.fill",
-                title: "Today's Sales",
-                value: "\(viewModel.todaySalesCount)",
-                subtitle: "This week: \(viewModel.weekSalesCount)",
-                color: .green
-            )
+            LazyVGrid(columns: kpiColumns, spacing: 12) {
+                RevenueKPICard(
+                    icon: "sun.max.fill",
+                    title: "Today",
+                    revenue: viewModel.todayRevenue,
+                    salesCount: viewModel.todaySalesCount,
+                    secondary: todaySecondary,
+                    color: .blue
+                )
 
-            KPICard(
-                icon: "storefront.fill",
-                title: "Machines",
-                value: "\(viewModel.machinesOnline)/\(viewModel.machinesTotal)",
-                subtitle: "Online",
-                color: .teal
-            )
+                RevenueKPICard(
+                    icon: "calendar",
+                    title: "This Week",
+                    revenue: viewModel.weekRevenue,
+                    salesCount: viewModel.weekSalesCount,
+                    secondary: averageSecondary(viewModel.weekRevenue, days: weekDaysSoFar),
+                    color: .indigo
+                )
 
-            KPICard(
-                icon: "exclamationmark.triangle.fill",
-                title: "Stock Alerts",
-                value: "\(viewModel.stockCriticalCount + viewModel.stockLowCount)",
-                subtitle: "\(viewModel.stockCriticalCount) critical, \(viewModel.stockLowCount) low",
-                color: viewModel.stockCriticalCount > 0 ? .red : (viewModel.stockLowCount > 0 ? .yellow : .green)
-            )
+                RevenueKPICard(
+                    icon: "calendar.badge.clock",
+                    title: "This Month",
+                    revenue: viewModel.monthRevenue,
+                    salesCount: viewModel.monthSalesCount,
+                    secondary: averageSecondary(viewModel.monthRevenue, days: monthDaysSoFar),
+                    color: .purple
+                )
+
+                StockAlertsCard(
+                    critical: viewModel.stockCriticalCount,
+                    low: viewModel.stockLowCount
+                )
+            }
         }
     }
 
+    /// Red banner shown above the KPI grid when not every machine is online.
+    private var offlineMachinesBanner: some View {
+        let offline = viewModel.machinesTotal - viewModel.machinesOnline
+        return Button {
+            onNavigate(.machines)
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.red)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("\(offline) machine\(offline == 1 ? "" : "s") offline")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.red)
+                    Text("Tap to view")
+                        .font(.caption2)
+                        .foregroundStyle(.red.opacity(0.8))
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .foregroundStyle(.red.opacity(0.7))
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(.red.opacity(0.12))
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(.red.opacity(0.3), lineWidth: 1)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Secondary subtitle helpers
+
+    private var todaySecondary: String {
+        let yesterday = viewModel.yesterdayRevenue
+        guard yesterday > 0.001 else {
+            // No baseline yet — fall back to a neutral display
+            return viewModel.yesterdaySalesCount > 0
+                ? "Yesterday: \(formatCurrency(yesterday))"
+                : ""
+        }
+        let delta = (viewModel.todayRevenue - yesterday) / yesterday * 100
+        let sign = delta >= 0 ? "+" : ""
+        return String(format: "%@%.0f%% vs yesterday", sign, delta)
+    }
+
+    private func averageSecondary(_ revenue: Double, days: Int) -> String {
+        guard days > 0 else { return "" }
+        let avg = revenue / Double(days)
+        return "Ø \(formatCurrency(avg)) / day"
+    }
+
+    private var weekDaysSoFar: Int {
+        let cal = Calendar.current
+        let weekday = cal.component(.weekday, from: Date())
+        // Convert to ISO weekday (Monday = 1, Sunday = 7) so the average makes
+        // sense when the calendar's firstWeekday is Sunday.
+        let isoWeekday = (weekday + 5) % 7 + 1
+        return isoWeekday
+    }
+
+    private var monthDaysSoFar: Int {
+        Calendar.current.component(.day, from: Date())
+    }
+}
+
+// MARK: - Dense KPI Cards (Dashboard-only)
+
+/// Revenue + sales-count + comparison/average tile for the dashboard.
+/// More info-dense than the generic KPICard.
+private struct RevenueKPICard: View {
+    let icon: String
+    let title: LocalizedStringKey
+    let revenue: Double
+    let salesCount: Int
+    let secondary: String
+    let color: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                    .font(.subheadline)
+                    .foregroundStyle(color)
+                Text(title)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                Spacer()
+            }
+
+            Text(revenue, format: .currency(code: "EUR"))
+                .font(.title3.weight(.bold))
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+
+            HStack(spacing: 5) {
+                Image(systemName: "cart.fill")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                Text(verbatim: salesCount.formatted() + " sales")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+
+            if !secondary.isEmpty {
+                Text(secondary)
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background {
+            RoundedRectangle(cornerRadius: 14)
+                .fill(.regularMaterial)
+                .shadow(color: .black.opacity(0.06), radius: 6, y: 2)
+        }
+    }
+}
+
+/// Stock alerts tile — same visual rhythm as RevenueKPICard.
+private struct StockAlertsCard: View {
+    let critical: Int
+    let low: Int
+
+    private var color: Color {
+        if critical > 0 { return .red }
+        if low > 0 { return .yellow }
+        return .green
+    }
+
+    private var allClear: Bool { critical == 0 && low == 0 }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.subheadline)
+                    .foregroundStyle(color)
+                Text("Stock")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+            }
+
+            if allClear {
+                Text("OK")
+                    .font(.title3.weight(.bold))
+                    .foregroundStyle(.green)
+                Text("All machines stocked")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            } else {
+                Text(verbatim: "\(critical + low)")
+                    .font(.title3.weight(.bold))
+                    .monospacedDigit()
+                    .foregroundStyle(color)
+
+                HStack(spacing: 8) {
+                    if critical > 0 {
+                        HStack(spacing: 3) {
+                            Circle().fill(.red).frame(width: 6, height: 6)
+                            Text(verbatim: "\(critical) critical")
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+                    }
+                    if low > 0 {
+                        HStack(spacing: 3) {
+                            Circle().fill(.yellow).frame(width: 6, height: 6)
+                            Text(verbatim: "\(low) low")
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+                    }
+                }
+                .minimumScaleFactor(0.7)
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background {
+            RoundedRectangle(cornerRadius: 14)
+                .fill(.regularMaterial)
+                .shadow(color: .black.opacity(0.06), radius: 6, y: 2)
+        }
+    }
+}
+
+// MARK: - DashboardView (continuation)
+//
+// Chart, sales-list, and helper functions live in this extension so that
+// the file-private RevenueKPICard / StockAlertsCard structs above can be
+// declared between the KPI section and the rest without breaking nesting.
+
+extension DashboardView {
 
     // MARK: - Chart
 
