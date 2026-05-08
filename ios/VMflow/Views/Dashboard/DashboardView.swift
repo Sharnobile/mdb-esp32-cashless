@@ -18,6 +18,9 @@ struct DashboardView: View {
     /// Sale-row product tap → presents `ProductDetailSheet`. nil = no sheet.
     @State private var selectedProduct: ProductSelection?
 
+    /// Push CashBookView when the cash-book tile is tapped.
+    @State private var showCashBook = false
+
     struct ProductSelection: Identifiable {
         let id: UUID
         let name: String
@@ -38,6 +41,9 @@ struct DashboardView: View {
                 // Quick Actions
                 quickActions
 
+                // Cash Book tile (after quick actions, before chart)
+                CashBookCard(onTap: { showCashBook = true })
+
                 // 30-Day Chart
                 chartSection
 
@@ -46,6 +52,9 @@ struct DashboardView: View {
             }
             .padding(.horizontal)
             .padding(.bottom, 20)
+        }
+        .navigationDestination(isPresented: $showCashBook) {
+            CashBookView()
         }
         .refreshable {
             await viewModel.loadDashboard()

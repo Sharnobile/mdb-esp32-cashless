@@ -61,6 +61,7 @@
 		AD28437ACBB0F0A443AA458E /* RegisterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 813681CDE6C321A49F84A20B /* RegisterView.swift */; };
 		AFD4D9E541002B8B1DFE6386 /* ProductBatchesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9467ACC9B6971BEDE1EEDED4 /* ProductBatchesView.swift */; };
 		B274325852BED5CF815DDA42 /* Organization.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7F443AA9AA51CCB3B6A7C75 /* Organization.swift */; };
+		B5D2C7810233FD5E56DB92FE /* CashBookCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56C4CC4DC476041601432ECA /* CashBookCard.swift */; };
 		BA2A1DA46A8F97997C993449 /* RefillStepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B84F596B8E26B3A5377BCAA0 /* RefillStepView.swift */; };
 		BB47F1A487862AA410FF9E58 /* ServerStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81E4EBBB3677A660B6E57BD2 /* ServerStore.swift */; };
 		BE954A375ED01316E322C570 /* BarcodeScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 822CB83FD364F5DCF05D6213 /* BarcodeScannerView.swift */; };
@@ -142,6 +143,7 @@
 		52A29D496BDB69F848C60674 /* RefillWizardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefillWizardView.swift; sourceTree = "<group>"; };
 		53A6211078603D2C7AD0EAD7 /* KPICard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KPICard.swift; sourceTree = "<group>"; };
 		55B32C8EEFABC9DADF2C73DD /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
+		56C4CC4DC476041601432ECA /* CashBookCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CashBookCard.swift; sourceTree = "<group>"; };
 		5AE7FC95E2E89DD0AC7A6981 /* RealtimeService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RealtimeService.swift; sourceTree = "<group>"; };
 		5BEBD09944FEF671809C2788 /* AppNavigation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppNavigation.swift; sourceTree = "<group>"; };
 		640C0F6F1E6E4CBDF96B7F39 /* NotificationService.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = NotificationService.appex; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -453,6 +455,7 @@
 		ED1C7C0A94AC9CBEA3615ABF /* Dashboard */ = {
 			isa = PBXGroup;
 			children = (
+				56C4CC4DC476041601432ECA /* CashBookCard.swift */,
 				C67EF9594F3D482E240493C0 /* DashboardView.swift */,
 			);
 			path = Dashboard;
@@ -641,6 +644,7 @@
 				BE954A375ED01316E322C570 /* BarcodeScannerView.swift in Sources */,
 				0BEB2E18E56CCAF0DE150DF8 /* BatchAdjustSheet.swift in Sources */,
 				1C9E7B9A63E9DD8A16B2A1C5 /* CashBook.swift in Sources */,
+				B5D2C7810233FD5E56DB92FE /* CashBookCard.swift in Sources */,
 				36D66E4568E0F334F7DF3CDF /* CashBookView.swift in Sources */,
 				D5A899832BE2B66298060F7C /* CashBookViewModel.swift in Sources */,
 				DB59F86A2E67E4D7B603D1E7 /* CompactTabView.swift in Sources */,
