@@ -58,6 +58,10 @@ struct SidebarNavigationView: View {
             NavigationStack {
                 InboxView()
             }
+        case .cashBook:
+            NavigationStack {
+                CashBookView()
+            }
         case .products:
             NavigationStack {
                 ProductsView()

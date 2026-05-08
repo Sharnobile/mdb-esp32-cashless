@@ -125,6 +125,16 @@ struct MoreView: View {
         List {
             Section {
                 NavigationLink {
+                    CashBookView()
+                } label: {
+                    Label {
+                        Text("cash_book_title")
+                    } icon: {
+                        Image(systemName: "banknote.fill")
+                    }
+                }
+
+                NavigationLink {
                     ProductsView()
                 } label: {
                     Label("Products", systemImage: "cube.box.fill")
