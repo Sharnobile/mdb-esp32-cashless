@@ -66,25 +66,25 @@ struct EntriesListSection: View {
         .opacity(entry.isReversed ? 0.5 : 1)
     }
 
-    @ViewBuilder
     private func typeBadge(_ type: CashBookEntryType, reversed: Bool) -> some View {
-        let labelKey: LocalizedStringKey
-        let color: Color
-        switch type {
-        case .initial:     labelKey = "cash_book_type_initial";     color = .gray
-        case .withdrawal:  labelKey = "cash_book_type_withdrawal";  color = .red
-        case .correction:  labelKey = "cash_book_type_correction";  color = .yellow
-        case .payout:      labelKey = "cash_book_type_payout";      color = .blue
-        case .reversal:    labelKey = "cash_book_type_reversal";    color = .orange
-        }
-
-        Text(labelKey)
+        let (labelKey, color) = badgeStyle(for: type)
+        return Text(labelKey)
             .font(.caption.weight(.medium))
             .padding(.horizontal, 8)
             .padding(.vertical, 2)
             .background(color.opacity(0.15))
             .foregroundStyle(color)
             .clipShape(Capsule())
+    }
+
+    private func badgeStyle(for type: CashBookEntryType) -> (LocalizedStringKey, Color) {
+        switch type {
+        case .initial:    return ("cash_book_type_initial",    .gray)
+        case .withdrawal: return ("cash_book_type_withdrawal", .red)
+        case .correction: return ("cash_book_type_correction", .yellow)
+        case .payout:     return ("cash_book_type_payout",     .blue)
+        case .reversal:   return ("cash_book_type_reversal",   .orange)
+        }
     }
 
     private func formatAmount(_ value: Double) -> String {
