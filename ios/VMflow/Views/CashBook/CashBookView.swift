@@ -17,6 +17,14 @@ struct CashBookView: View {
         }
         .navigationTitle("cash_book_title")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            // Picker only if there are multiple cash books — otherwise hidden.
+            if cashBookVM.cashBooks.count > 1 {
+                ToolbarItem(placement: .topBarTrailing) {
+                    cashBookSwitcher
+                }
+            }
+        }
         .refreshable {
             await cashBookVM.refresh()
         }
@@ -27,6 +35,8 @@ struct CashBookView: View {
             }
         }
     }
+
+    // MARK: - Sub-views
 
     @ViewBuilder
     private func content(book: CashBook) -> some View {
@@ -44,19 +54,6 @@ struct CashBookView: View {
                 .listRowBackground(Color.clear)
             }
 
-            // Multi-Barkasse picker (only when multiple exist)
-            if cashBookVM.cashBooks.count > 1 {
-                Section {
-                    Picker(selection: $cashBookVM.selectedCashBookId) {
-                        ForEach(cashBookVM.cashBooks) { cb in
-                            Text(cb.name).tag(UUID?.some(cb.id))
-                        }
-                    } label: {
-                        Text(verbatim: book.name)
-                    }
-                }
-            }
-
             Section("cash_book_title") {
                 EntriesListSection(
                     entries: cashBookVM.entries,
@@ -71,6 +68,35 @@ struct CashBookView: View {
         .sheet(isPresented: $showDeposit) {
             BankDepositSheet(cashBook: book)
                 .environmentObject(cashBookVM)
+        }
+    }
+
+    /// Toolbar Menu showing the current Barkasse name + chevron, with a
+    /// checkmark next to the selected entry. Tapping a different one
+    /// triggers a full reload of entries + theoretical cash via
+    /// `cashBookVM.selectCashBook(_:)`.
+    private var cashBookSwitcher: some View {
+        Menu {
+            ForEach(cashBookVM.cashBooks) { cb in
+                Button {
+                    Task { await cashBookVM.selectCashBook(cb.id) }
+                } label: {
+                    HStack {
+                        Text(cb.name)
+                        if cb.id == cashBookVM.selectedCashBookId {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Text(cashBookVM.selectedCashBook?.name ?? "—")
+                    .lineLimit(1)
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.caption2)
+            }
+            .font(.subheadline)
         }
     }
 
@@ -97,7 +123,7 @@ struct CashBookView: View {
             Text("cash_book_title").font(.headline)
             ForEach(cashBookVM.cashBooks) { cb in
                 Button(cb.name) {
-                    cashBookVM.selectedCashBookId = cb.id
+                    Task { await cashBookVM.selectCashBook(cb.id) }
                 }
                 .buttonStyle(.bordered)
             }

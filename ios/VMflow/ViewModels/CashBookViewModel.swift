@@ -46,6 +46,19 @@ final class CashBookViewModel: ObservableObject {
         machines.filter { $0.cashBookId == cashBookId }
     }
 
+    /// Switch the active Barkasse and reload its entries + theoretical cash.
+    /// Clears stale state before fetching so the UI doesn't briefly show the
+    /// previous Barkasse's data in transit.
+    func selectCashBook(_ id: UUID) async {
+        guard id != selectedCashBookId else { return }
+        // Clear stale state up-front
+        entries = []
+        theoreticalCash = nil
+        selectedCashBookId = id
+        await loadEntries(for: id)
+        await loadTheoreticalCash(for: id)
+    }
+
     /// Resolve a machine ID to a name for display.
     func machineName(_ id: UUID?) -> String? {
         guard let id else { return nil }
