@@ -3,9 +3,14 @@ import SwiftUI
 /// Summary screen shown after completing a refill tour with statistics and success animation.
 struct RefillSummaryView: View {
     @ObservedObject var viewModel: RefillWizardViewModel
+    @EnvironmentObject var cashBookVM: CashBookViewModel
     @State private var showCheckmark = false
     @State private var showStats = false
     @State private var showButton = false
+    @State private var tourCash: TourCashResolution?
+    @State private var autoSheetBarkasse: CashBook?
+
+    private var barkassenWithCash: [CashBook] { tourCash?.barkassen ?? [] }
 
     var body: some View {
         ScrollView {
@@ -89,6 +94,19 @@ struct RefillSummaryView: View {
                 .offset(y: showStats ? 0 : 30)
                 .animation(.easeOut(duration: 0.5).delay(0.4), value: showStats)
 
+                // Multi-Barkasse cash collection block (only when count >= 2)
+                if barkassenWithCash.count >= 2 {
+                    MultiBarkasseCashBlock(
+                        barkassen: barkassenWithCash,
+                        expectedCashFor: { id in tourCash?.cashByCashBookId[id] ?? 0 },
+                        onSelect: { autoSheetBarkasse = $0 }
+                    )
+                    .padding(.horizontal)
+                    .opacity(showButton ? 1 : 0)
+                    .offset(y: showButton ? 0 : 16)
+                    .animation(.easeOut(duration: 0.4), value: showButton)
+                }
+
                 // Done Button
                 Button {
                     HapticFeedback.success.fire()
@@ -110,11 +128,34 @@ struct RefillSummaryView: View {
                 Spacer(minLength: 40)
             }
         }
+        .sheet(item: $autoSheetBarkasse) { barkasse in
+            WithdrawalSheet(cashBook: barkasse, fromTour: true)
+                .environmentObject(cashBookVM)
+        }
+        .task {
+            // 1. Refresh the cash-book VM (fetch books + machines)
+            await cashBookVM.refresh()
+            // 2. Resolve which Barkassen need cash collection. Each candidate
+            //    triggers one isolated RPC; total is typically 0–2 calls.
+            let resolution = await viewModel.resolveTourCash(using: cashBookVM)
+            tourCash = resolution
+
+            // 3. If exactly one Barkasse needs cash, auto-present its sheet
+            //    AFTER the existing Done-button reveal completes (~+1.7 s
+            //    from view appearance). We sleep here instead of using a
+            //    separate asyncAfter, so the trigger fires only after
+            //    resolution is done — no race.
+            if resolution.barkassen.count == 1 {
+                let elapsedNs = UInt64(1.8 * 1_000_000_000)
+                try? await Task.sleep(nanoseconds: elapsedNs)
+                autoSheetBarkasse = resolution.barkassen.first
+            }
+        }
         .onAppear {
             // Trigger haptic
             HapticFeedback.success.fire()
 
-            // Stagger animations
+            // Stagger animations (existing behaviour — unchanged)
             withAnimation { showCheckmark = true }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                 withAnimation { showStats = true }
@@ -122,6 +163,9 @@ struct RefillSummaryView: View {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
                 withAnimation { showButton = true }
             }
+            // Auto-sheet trigger lives in `.task` above — DO NOT add a
+            // +1.8 s asyncAfter here. The Task.sleep approach gates the
+            // trigger on resolution completion, eliminating the race.
         }
     }
 

@@ -33,6 +33,7 @@
 		44BE3D1E439FE91E3A5D1932 /* QRScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FAA61B154F7ABC2401C2CCA /* QRScannerView.swift */; };
 		45167E803ECFB29F00DA502F /* DashboardViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16E021E42CD9C7C92936F706 /* DashboardViewModel.swift */; };
 		48101BA7F81D7ACA238B9101 /* MachineListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8B6CB1492BFAA927C077A18 /* MachineListView.swift */; };
+		4BAF0852314EDB345AE12107 /* MultiBarkasseCashBlock.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D17C7D7E21DDD2FDA3F7F48 /* MultiBarkasseCashBlock.swift */; };
 		4E7112EF288684896AD007FC /* DealsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 045C58B5757C2E8C18819C83 /* DealsViewModel.swift */; };
 		4FFA938E1B8D44AA47597975 /* LocalNetworkPermission.swift in Sources */ = {isa = PBXBuildFile; fileRef = C35FC72F3ED743C438F7C738 /* LocalNetworkPermission.swift */; };
 		5BBE0F0003B82E2E6CEEC86C /* RefillSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9690B8B0412F05E68303EA15 /* RefillSummaryView.swift */; };
@@ -152,6 +153,7 @@
 		70E364431AFD63E8DE1238E3 /* SupabaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseService.swift; sourceTree = "<group>"; };
 		79D0846AC36BBA1BBDC87E68 /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
 		79D8F4403556EBD0620DEECF /* Sale.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sale.swift; sourceTree = "<group>"; };
+		7D17C7D7E21DDD2FDA3F7F48 /* MultiBarkasseCashBlock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MultiBarkasseCashBlock.swift; sourceTree = "<group>"; };
 		7E9A5023EED5804698A679E6 /* TrayViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrayViewModel.swift; sourceTree = "<group>"; };
 		813681CDE6C321A49F84A20B /* RegisterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegisterView.swift; sourceTree = "<group>"; };
 		81E4EBBB3677A660B6E57BD2 /* ServerStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerStore.swift; sourceTree = "<group>"; };
@@ -389,6 +391,7 @@
 				C560BD5344EA89391E6A3721 /* CashBookView.swift */,
 				EAA8256D3F29DAABC995F8FF /* EntriesListSection.swift */,
 				4F7A80FB302C6380E0788244 /* FlowVisualisationCard.swift */,
+				7D17C7D7E21DDD2FDA3F7F48 /* MultiBarkasseCashBlock.swift */,
 				3B0D3D4BFCEB1A362499B0C9 /* WithdrawalSheet.swift */,
 			);
 			path = CashBook;
@@ -670,6 +673,7 @@
 				48101BA7F81D7ACA238B9101 /* MachineListView.swift in Sources */,
 				248616CB9DA18C4F098B2461 /* MachineListViewModel.swift in Sources */,
 				03840B5283B50C3D3193477A /* MachinesSplitView.swift in Sources */,
+				4BAF0852314EDB345AE12107 /* MultiBarkasseCashBlock.swift in Sources */,
 				D88E0EB43AF2F7FE4977B3C9 /* NotificationService.swift in Sources */,
 				B274325852BED5CF815DDA42 /* Organization.swift in Sources */,
 				1254787CC883CE8605189B4B /* PackingStepView.swift in Sources */,

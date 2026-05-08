@@ -1700,6 +1700,31 @@ final class RefillWizardViewModel: ObservableObject {
         }
     }
 
+    // MARK: - Cash book integration
+
+    /// Set of machine IDs visited during this tour (non-skipped).
+    var visitedMachineIds: Set<UUID> {
+        Set(tourLog.filter { !$0.skipped }.map { $0.machineId })
+    }
+
+    /// Resolves which Barkassen need cash collection from this tour. Issues
+    /// one RPC per candidate Barkasse (typically 0–2). Does NOT mutate the
+    /// VM's `theoreticalCash` — uses `fetchTheoreticalCash(for:)` for an
+    /// isolated read.
+    func resolveTourCash(using cashBookVM: CashBookViewModel) async -> TourCashResolution {
+        let candidates = cashBookVM.barkassenForVisitedMachines(visitedMachineIds)
+        var withCash: [CashBook] = []
+        var cashMap: [UUID: Double] = [:]
+        for cb in candidates {
+            if let tc = await cashBookVM.fetchTheoreticalCash(for: cb.id),
+               tc.cashSalesSince > 0.001 {
+                withCash.append(cb)
+                cashMap[cb.id] = tc.cashSalesSince
+            }
+        }
+        return TourCashResolution(barkassen: withCash, cashByCashBookId: cashMap)
+    }
+
     // MARK: - Reset
 
     func reset() {
@@ -1723,4 +1748,14 @@ final class RefillWizardViewModel: ObservableObject {
             }
         }
     }
+}
+
+// MARK: - TourCashResolution
+
+/// Result of resolving Barkassen-with-cash for a refill tour. Used by
+/// `RefillSummaryView` to drive both the multi-Barkasse block and the
+/// single-Barkasse auto-sheet.
+struct TourCashResolution {
+    let barkassen: [CashBook]                // those with cashSalesSince > 0
+    let cashByCashBookId: [UUID: Double]     // map for O(1) lookup in the UI
 }
