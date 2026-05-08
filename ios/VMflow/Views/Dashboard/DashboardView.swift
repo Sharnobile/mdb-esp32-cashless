@@ -9,9 +9,6 @@ struct DashboardView: View {
     @EnvironmentObject private var realtime: RealtimeService
     @Environment(\.horizontalSizeClass) private var sizeClass
 
-    /// Whether a refill tour is currently saved/in-progress.
-    @State private var hasActiveRefill = false
-
     /// Selected date for chart drag-to-scrub. nil = no tooltip visible.
     @State private var selectedDate: Date?
 
@@ -38,10 +35,7 @@ struct DashboardView: View {
                 // KPI Cards
                 kpiSection
 
-                // Quick Actions
-                quickActions
-
-                // Cash Book tile (after quick actions, before chart)
+                // Cash Book tile
                 CashBookCard(onTap: { showCashBook = true })
 
                 // 30-Day Chart
@@ -76,9 +70,6 @@ struct DashboardView: View {
         }
         .task {
             await viewModel.loadDashboard()
-        }
-        .onAppear {
-            hasActiveRefill = RefillWizardViewModel.hasSavedTourState
         }
         .onChange(of: realtimeVersion) { _, _ in
             Task { await viewModel.loadDashboard() }
@@ -143,34 +134,6 @@ struct DashboardView: View {
         }
     }
 
-    // MARK: - Quick Actions
-
-    private var quickActions: some View {
-        HStack(spacing: 12) {
-            Button {
-                onNavigate(.refill)
-            } label: {
-                Label(
-                    hasActiveRefill ? "Continue Refill" : "Start Refill",
-                    systemImage: hasActiveRefill ? "arrow.forward.circle.fill" : "arrow.clockwise.circle.fill"
-                )
-                .font(.subheadline.weight(.semibold))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 12)
-            }
-            .buttonStyle(.borderedProminent)
-
-            Button {
-                onNavigate(.machines)
-            } label: {
-                Label("Machines", systemImage: "storefront.fill")
-                    .font(.subheadline.weight(.semibold))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-            }
-            .buttonStyle(.bordered)
-        }
-    }
 
     // MARK: - Chart
 
