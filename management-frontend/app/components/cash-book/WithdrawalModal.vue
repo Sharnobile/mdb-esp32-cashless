@@ -6,6 +6,7 @@ const props = defineProps<{
   open: boolean
   theoreticalCash: TheoreticalCash | null
   assignedMachines: VendingMachineBasic[]
+  trackPerMachine: boolean
 }>()
 
 const emit = defineEmits<{
@@ -92,7 +93,7 @@ async function onSubmit() {
         </template>
       </div>
 
-      <div v-if="assignedMachines.length > 0">
+      <div v-if="trackPerMachine && assignedMachines.length > 0">
         <label class="text-sm font-medium">{{ t('cashBook.fromMachine') }}</label>
         <select
           v-model="form.machine_id"

@@ -7,9 +7,15 @@ export interface CashBook {
   name: string
   initial_balance: number
   bank_deposit_threshold: number
+  track_per_machine: boolean
   activated_at: string
   created_by: string
   is_active: boolean
+}
+
+export interface BarkasseSettings {
+  bank_deposit_threshold?: number
+  track_per_machine?: boolean
 }
 
 export interface CashBookEntry {
@@ -148,7 +154,7 @@ export function useCashBook() {
     }
   }
 
-  async function createCashBook(name: string, initialBalance: number, threshold: number = 500) {
+  async function createCashBook(name: string, initialBalance: number, threshold: number = 500, trackPerMachine: boolean = false) {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session?.user) throw new Error('Not authenticated')
 
@@ -159,6 +165,7 @@ export function useCashBook() {
         name,
         initial_balance: initialBalance,
         bank_deposit_threshold: threshold,
+        track_per_machine: trackPerMachine,
         created_by: session.user.id,
       })
       .select()
@@ -166,7 +173,7 @@ export function useCashBook() {
 
     if (error) throw error
 
-    await logActivity('cash_book_created', data.id, { name, initial_balance: initialBalance, threshold })
+    await logActivity('cash_book_created', data.id, { name, initial_balance: initialBalance, threshold, track_per_machine: trackPerMachine })
 
     await fetchCashBooks()
 
@@ -326,24 +333,31 @@ export function useCashBook() {
     })
   }
 
-  async function updateBankDepositThreshold(cashBookId: string, threshold: number) {
-    if (threshold < 1) {
+  async function updateBarkasseSettings(cashBookId: string, settings: BarkasseSettings) {
+    if (settings.bank_deposit_threshold !== undefined && settings.bank_deposit_threshold < 1) {
       throw new Error('Schwellenwert muss mindestens 1 € sein')
     }
+
+    const patch: Record<string, unknown> = {}
+    if (settings.bank_deposit_threshold !== undefined) patch.bank_deposit_threshold = settings.bank_deposit_threshold
+    if (settings.track_per_machine !== undefined) patch.track_per_machine = settings.track_per_machine
+
+    if (Object.keys(patch).length === 0) return
+
     const { error } = await (supabase as any)
       .from('cash_books')
-      .update({ bank_deposit_threshold: threshold })
+      .update(patch)
       .eq('id', cashBookId)
 
     if (error) throw error
 
     const cb = cashBooks.value.find(c => c.id === cashBookId)
-    if (cb) cb.bank_deposit_threshold = threshold
+    if (cb) Object.assign(cb, patch)
     if (selectedCashBook.value?.id === cashBookId) {
-      selectedCashBook.value = { ...selectedCashBook.value, bank_deposit_threshold: threshold }
+      selectedCashBook.value = { ...selectedCashBook.value, ...patch } as CashBook
     }
 
-    await logActivity('cash_book_threshold_updated', cashBookId, { threshold })
+    await logActivity('cash_book_settings_updated', cashBookId, patch)
   }
 
   // ── Integrity verification (client-side hash chain) ──────────────────────
@@ -447,7 +461,7 @@ export function useCashBook() {
     totalCorrections,
     lastBankDeposit,
 
-    // Threshold
-    updateBankDepositThreshold,
+    // Settings
+    updateBarkasseSettings,
   }
 }

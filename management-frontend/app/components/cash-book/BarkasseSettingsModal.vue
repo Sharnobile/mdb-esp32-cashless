@@ -2,27 +2,32 @@
 const props = defineProps<{
   open: boolean
   initialThreshold: number
+  initialTrackPerMachine: boolean
 }>()
 
 const emit = defineEmits<{
   (e: 'update:open', value: boolean): void
-  (e: 'submit', threshold: number): void
+  (e: 'submit', payload: { threshold: number; trackPerMachine: boolean }): void
 }>()
 
 const { t } = useI18n()
 
 const threshold = ref(props.initialThreshold)
+const trackPerMachine = ref(props.initialTrackPerMachine)
 const loading = ref(false)
 
 watch(() => props.open, (now) => {
-  if (now) threshold.value = props.initialThreshold
+  if (now) {
+    threshold.value = props.initialThreshold
+    trackPerMachine.value = props.initialTrackPerMachine
+  }
 })
 
 async function onSubmit() {
   if (threshold.value < 1) return
   loading.value = true
   try {
-    emit('submit', threshold.value)
+    emit('submit', { threshold: threshold.value, trackPerMachine: trackPerMachine.value })
   } finally {
     loading.value = false
   }
@@ -47,6 +52,18 @@ async function onSubmit() {
         <p class="mt-1 text-xs text-muted-foreground">{{ t('cashBook.thresholdHint') }}</p>
         <p class="mt-1 text-xs text-muted-foreground">{{ t('cashBook.thresholdMinimumHint') }}</p>
       </div>
+
+      <label class="flex items-start gap-2 cursor-pointer">
+        <input
+          v-model="trackPerMachine"
+          type="checkbox"
+          class="mt-0.5 size-4 rounded border-input"
+        />
+        <span class="flex-1">
+          <span class="text-sm font-medium">{{ t('cashBook.trackPerMachine') }}</span>
+          <span class="block text-xs text-muted-foreground mt-0.5">{{ t('cashBook.trackPerMachineHint') }}</span>
+        </span>
+      </label>
 
       <div class="flex justify-end gap-2">
         <button

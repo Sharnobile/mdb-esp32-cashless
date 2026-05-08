@@ -1291,7 +1291,9 @@
     "more": "More",
     "settings": "Settings",
     "sinceDate": "since {date}",
-    "agoDays": "{n} days ago"
+    "agoDays": "{n} days ago",
+    "trackPerMachine": "Track per machine",
+    "trackPerMachineHint": "Pick the source machine on every withdrawal. Usually not useful when collecting from multiple machines on one tour."
   },
   "publicStorefront": {
     "online": "Online",

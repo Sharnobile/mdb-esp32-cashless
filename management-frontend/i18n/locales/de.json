@@ -1291,7 +1291,9 @@
     "more": "Mehr",
     "settings": "Einstellungen",
     "sinceDate": "seit {date}",
-    "agoDays": "vor {n} Tagen"
+    "agoDays": "vor {n} Tagen",
+    "trackPerMachine": "Pro Automat erfassen",
+    "trackPerMachineHint": "Bei jeder Entnahme den Automaten auswählen, von dem das Geld stammt. Bei Touren über mehrere Automaten i.d.R. nicht sinnvoll."
   },
   "publicStorefront": {
     "online": "Online",

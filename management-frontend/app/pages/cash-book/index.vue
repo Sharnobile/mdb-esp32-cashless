@@ -33,7 +33,7 @@ const {
   totalWithdrawals,
   totalCorrections,
   lastBankDeposit,
-  updateBankDepositThreshold,
+  updateBarkasseSettings,
 } = useCashBook()
 
 // ── State ────────────────────────────────────────────────────────────────────
@@ -139,7 +139,14 @@ const assignedMachines = computed(() =>
 // ── Action handlers ──────────────────────────────────────────────────────────
 
 async function openWithdrawal() {
-  if (selectedCashBook.value) await fetchTheoreticalCash(selectedCashBook.value.id)
+  if (selectedCashBook.value) {
+    await Promise.all([
+      fetchTheoreticalCash(selectedCashBook.value.id),
+      // Needed when track_per_machine is on, so the modal's machine
+      // dropdown has data without first opening "Automaten zuweisen".
+      allMachines.value.length === 0 ? fetchAllMachines() : Promise.resolve(),
+    ])
+  }
   showWithdrawalModal.value = true
 }
 
@@ -242,9 +249,9 @@ async function onMachineToggle(payload: { machineId: string; currentCashBookId: 
   }
 }
 
-async function onCreateBarkasse(payload: { name: string; initialBalance: number; threshold: number }) {
+async function onCreateBarkasse(payload: { name: string; initialBalance: number; threshold: number; trackPerMachine: boolean }) {
   try {
-    await createCashBook(payload.name, payload.initialBalance, payload.threshold)
+    await createCashBook(payload.name, payload.initialBalance, payload.threshold, payload.trackPerMachine)
     showCreateModal.value = false
     if (selectedCashBook.value) await loadCashBookData()
   } catch (err: any) {
@@ -252,10 +259,13 @@ async function onCreateBarkasse(payload: { name: string; initialBalance: number;
   }
 }
 
-async function onSettingsSubmit(threshold: number) {
+async function onSettingsSubmit(payload: { threshold: number; trackPerMachine: boolean }) {
   if (!selectedCashBook.value) return
   try {
-    await updateBankDepositThreshold(selectedCashBook.value.id, threshold)
+    await updateBarkasseSettings(selectedCashBook.value.id, {
+      bank_deposit_threshold: payload.threshold,
+      track_per_machine: payload.trackPerMachine,
+    })
     showSettingsModal.value = false
   } catch (err: any) {
     errorMessage.value = err.message
@@ -492,6 +502,7 @@ async function exportPdf() {
       v-model:open="showWithdrawalModal"
       :theoretical-cash="theoreticalCash"
       :assigned-machines="assignedMachines"
+      :track-per-machine="selectedCashBook?.track_per_machine ?? false"
       @submit="onWithdrawalSubmit"
     />
     <CashBookBankDepositModal
@@ -520,6 +531,7 @@ async function exportPdf() {
     <CashBookBarkasseSettingsModal
       v-model:open="showSettingsModal"
       :initial-threshold="selectedCashBook?.bank_deposit_threshold ?? 500"
+      :initial-track-per-machine="selectedCashBook?.track_per_machine ?? false"
       @submit="onSettingsSubmit"
     />
     <CashBookDeleteBarkasseModal
