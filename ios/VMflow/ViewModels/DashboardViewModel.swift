@@ -12,8 +12,12 @@ final class DashboardViewModel: ObservableObject {
     @Published var yesterdaySalesCount: Int = 0
     @Published var weekRevenue: Double = 0
     @Published var weekSalesCount: Int = 0
+    @Published var lastWeekRevenue: Double = 0
+    @Published var lastWeekSalesCount: Int = 0
     @Published var monthRevenue: Double = 0
     @Published var monthSalesCount: Int = 0
+    @Published var lastMonthRevenue: Double = 0
+    @Published var lastMonthSalesCount: Int = 0
 
     @Published var machinesOnline: Int = 0
     @Published var machinesTotal: Int = 0
@@ -79,13 +83,13 @@ final class DashboardViewModel: ObservableObject {
         let startOfToday = calendar.startOfDay(for: now)
         let startOfYesterday = calendar.date(byAdding: .day, value: -1, to: startOfToday)!
         let startOfWeek = calendar.date(from: calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: now))!
+        let startOfLastWeek = calendar.date(byAdding: .weekOfYear, value: -1, to: startOfWeek)!
         let startOfMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: now))!
+        let startOfLastMonth = calendar.date(byAdding: .month, value: -1, to: startOfMonth)!
 
-        // Query the earliest of the four KPI boundaries — on the 1st of a month
-        // startOfYesterday is in the previous month, and a Mon-Wed early in a
-        // month has its ISO-week start in the previous month too. Guarding each
-        // sum with its own boundary keeps the per-KPI math correct.
-        let queryLowerBound = [startOfMonth, startOfWeek, startOfYesterday].min()!
+        // Query the earliest of the prior-period boundaries so all KPI buckets
+        // can be filled from a single fetch.
+        let queryLowerBound = [startOfLastMonth, startOfLastWeek, startOfYesterday].min()!
 
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -101,23 +105,37 @@ final class DashboardViewModel: ObservableObject {
         var todayRev = 0.0, todayCount = 0
         var yesterdayRev = 0.0, yesterdayCount = 0
         var weekRev = 0.0, weekCount = 0
+        var lastWeekRev = 0.0, lastWeekCount = 0
         var monthRev = 0.0, monthCount = 0
+        var lastMonthRev = 0.0, lastMonthCount = 0
 
         for sale in sales {
             let price = sale.itemPrice ?? 0
+            let createdAt = sale.createdAt
 
-            if sale.createdAt >= startOfMonth {
+            // Month buckets — current vs previous full calendar month
+            if createdAt >= startOfMonth {
                 monthRev += price
                 monthCount += 1
+            } else if createdAt >= startOfLastMonth && createdAt < startOfMonth {
+                lastMonthRev += price
+                lastMonthCount += 1
             }
-            if sale.createdAt >= startOfWeek {
+
+            // Week buckets — current vs previous full ISO week
+            if createdAt >= startOfWeek {
                 weekRev += price
                 weekCount += 1
+            } else if createdAt >= startOfLastWeek && createdAt < startOfWeek {
+                lastWeekRev += price
+                lastWeekCount += 1
             }
-            if sale.createdAt >= startOfToday {
+
+            // Day buckets — today vs yesterday
+            if createdAt >= startOfToday {
                 todayRev += price
                 todayCount += 1
-            } else if sale.createdAt >= startOfYesterday && sale.createdAt < startOfToday {
+            } else if createdAt >= startOfYesterday && createdAt < startOfToday {
                 yesterdayRev += price
                 yesterdayCount += 1
             }
@@ -129,8 +147,12 @@ final class DashboardViewModel: ObservableObject {
         yesterdaySalesCount = yesterdayCount
         weekRevenue = weekRev
         weekSalesCount = weekCount
+        lastWeekRevenue = lastWeekRev
+        lastWeekSalesCount = lastWeekCount
         monthRevenue = monthRev
         monthSalesCount = monthCount
+        lastMonthRevenue = lastMonthRev
+        lastMonthSalesCount = lastMonthCount
     }
 
     // MARK: - Machine Stats

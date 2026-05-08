@@ -109,33 +109,41 @@ struct DashboardView: View {
                 RevenueKPICard(
                     icon: "sun.max.fill",
                     title: "Today",
-                    revenue: viewModel.todayRevenue,
-                    salesCount: viewModel.todaySalesCount,
-                    secondary: todaySecondary,
+                    currentRevenue: viewModel.todayRevenue,
+                    currentSales: viewModel.todaySalesCount,
+                    previousLabel: "Yesterday",
+                    previousRevenue: viewModel.yesterdayRevenue,
+                    previousSales: viewModel.yesterdaySalesCount,
                     color: .blue
                 )
 
                 RevenueKPICard(
                     icon: "calendar",
                     title: "This Week",
-                    revenue: viewModel.weekRevenue,
-                    salesCount: viewModel.weekSalesCount,
-                    secondary: averageSecondary(viewModel.weekRevenue, days: weekDaysSoFar),
+                    currentRevenue: viewModel.weekRevenue,
+                    currentSales: viewModel.weekSalesCount,
+                    previousLabel: "Last Week",
+                    previousRevenue: viewModel.lastWeekRevenue,
+                    previousSales: viewModel.lastWeekSalesCount,
                     color: .indigo
                 )
 
                 RevenueKPICard(
                     icon: "calendar.badge.clock",
                     title: "This Month",
-                    revenue: viewModel.monthRevenue,
-                    salesCount: viewModel.monthSalesCount,
-                    secondary: averageSecondary(viewModel.monthRevenue, days: monthDaysSoFar),
+                    currentRevenue: viewModel.monthRevenue,
+                    currentSales: viewModel.monthSalesCount,
+                    previousLabel: "Last Month",
+                    previousRevenue: viewModel.lastMonthRevenue,
+                    previousSales: viewModel.lastMonthSalesCount,
                     color: .purple
                 )
 
                 StockAlertsCard(
                     critical: viewModel.stockCriticalCount,
-                    low: viewModel.stockLowCount
+                    low: viewModel.stockLowCount,
+                    machinesOnline: viewModel.machinesOnline,
+                    machinesTotal: viewModel.machinesTotal
                 )
             }
         }
@@ -177,92 +185,84 @@ struct DashboardView: View {
         .buttonStyle(.plain)
     }
 
-    // MARK: - Secondary subtitle helpers
-
-    private var todaySecondary: String {
-        let yesterday = viewModel.yesterdayRevenue
-        guard yesterday > 0.001 else {
-            // No baseline yet — fall back to a neutral display
-            return viewModel.yesterdaySalesCount > 0
-                ? "Yesterday: \(formatCurrency(yesterday))"
-                : ""
-        }
-        let delta = (viewModel.todayRevenue - yesterday) / yesterday * 100
-        let sign = delta >= 0 ? "+" : ""
-        return String(format: "%@%.0f%% vs yesterday", sign, delta)
-    }
-
-    private func averageSecondary(_ revenue: Double, days: Int) -> String {
-        guard days > 0 else { return "" }
-        let avg = revenue / Double(days)
-        return "Ø \(formatCurrency(avg)) / day"
-    }
-
-    private var weekDaysSoFar: Int {
-        let cal = Calendar.current
-        let weekday = cal.component(.weekday, from: Date())
-        // Convert to ISO weekday (Monday = 1, Sunday = 7) so the average makes
-        // sense when the calendar's firstWeekday is Sunday.
-        let isoWeekday = (weekday + 5) % 7 + 1
-        return isoWeekday
-    }
-
-    private var monthDaysSoFar: Int {
-        Calendar.current.component(.day, from: Date())
-    }
 }
 
 // MARK: - Dense KPI Cards (Dashboard-only)
 
-/// Revenue + sales-count + comparison/average tile for the dashboard.
-/// More info-dense than the generic KPICard.
+/// Period-over-period revenue tile: current period (revenue + sales) on top,
+/// previous period (revenue + sales) on the bottom, separated by a divider.
+/// All cards are forced to the same minimum height to keep the dashboard grid
+/// visually balanced regardless of which previous-period values are present.
+private let kpiCardMinHeight: CGFloat = 138
+
 private struct RevenueKPICard: View {
     let icon: String
     let title: LocalizedStringKey
-    let revenue: Double
-    let salesCount: Int
-    let secondary: String
+    let currentRevenue: Double
+    let currentSales: Int
+    let previousLabel: LocalizedStringKey
+    let previousRevenue: Double
+    let previousSales: Int
     let color: Color
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
+            // Header
             HStack(spacing: 6) {
                 Image(systemName: icon)
                     .font(.subheadline)
                     .foregroundStyle(color)
                 Text(title)
-                    .font(.caption)
+                    .font(.caption.weight(.medium))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                 Spacer()
             }
 
-            Text(revenue, format: .currency(code: "EUR"))
+            // Current period
+            Text(currentRevenue, format: .currency(code: "EUR"))
                 .font(.title3.weight(.bold))
                 .monospacedDigit()
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
-
-            HStack(spacing: 5) {
+            HStack(spacing: 4) {
                 Image(systemName: "cart.fill")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
-                Text(verbatim: salesCount.formatted() + " sales")
+                Text(verbatim: "\(currentSales) sales")
                     .font(.caption.weight(.medium))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.7)
             }
 
-            if !secondary.isEmpty {
-                Text(secondary)
+            Divider()
+                .padding(.vertical, 1)
+
+            // Previous period
+            Text(previousLabel)
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .lineLimit(1)
+            HStack(spacing: 4) {
+                Text(previousRevenue, format: .currency(code: "EUR"))
+                    .font(.caption.weight(.semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+                Text(verbatim: "·")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
+                Text(verbatim: "\(previousSales) sales")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
             }
         }
         .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: kpiCardMinHeight, alignment: .topLeading)
         .background {
             RoundedRectangle(cornerRadius: 14)
                 .fill(.regularMaterial)
@@ -271,32 +271,37 @@ private struct RevenueKPICard: View {
     }
 }
 
-/// Stock alerts tile — same visual rhythm as RevenueKPICard.
+/// Stock + machines tile — same visual rhythm and identical height as
+/// RevenueKPICard. Top half: alert summary. Bottom half: machines online.
 private struct StockAlertsCard: View {
     let critical: Int
     let low: Int
+    let machinesOnline: Int
+    let machinesTotal: Int
 
-    private var color: Color {
+    private var alertColor: Color {
         if critical > 0 { return .red }
         if low > 0 { return .yellow }
         return .green
     }
 
-    private var allClear: Bool { critical == 0 && low == 0 }
+    private var allStockClear: Bool { critical == 0 && low == 0 }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
+            // Header
             HStack(spacing: 6) {
-                Image(systemName: "exclamationmark.triangle.fill")
+                Image(systemName: "shippingbox.fill")
                     .font(.subheadline)
-                    .foregroundStyle(color)
+                    .foregroundStyle(alertColor)
                 Text("Stock")
-                    .font(.caption)
+                    .font(.caption.weight(.medium))
                     .foregroundStyle(.secondary)
                 Spacer()
             }
 
-            if allClear {
+            // Top half: stock alerts
+            if allStockClear {
                 Text("OK")
                     .font(.title3.weight(.bold))
                     .foregroundStyle(.green)
@@ -306,40 +311,68 @@ private struct StockAlertsCard: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
             } else {
-                Text(verbatim: "\(critical + low)")
+                Text(verbatim: "\(critical + low) alerts")
                     .font(.title3.weight(.bold))
-                    .monospacedDigit()
-                    .foregroundStyle(color)
-
-                HStack(spacing: 8) {
+                    .foregroundStyle(alertColor)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                HStack(spacing: 6) {
                     if critical > 0 {
-                        HStack(spacing: 3) {
+                        Label(title: { Text(verbatim: "\(critical)") }, icon: {
                             Circle().fill(.red).frame(width: 6, height: 6)
-                            Text(verbatim: "\(critical) critical")
-                                .font(.caption.weight(.medium))
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                        }
+                        })
+                        .labelStyle(InlineDotLabelStyle())
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.secondary)
                     }
                     if low > 0 {
-                        HStack(spacing: 3) {
+                        Label(title: { Text(verbatim: "\(low)") }, icon: {
                             Circle().fill(.yellow).frame(width: 6, height: 6)
-                            Text(verbatim: "\(low) low")
-                                .font(.caption.weight(.medium))
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                        }
+                        })
+                        .labelStyle(InlineDotLabelStyle())
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.secondary)
                     }
                 }
+                .lineLimit(1)
                 .minimumScaleFactor(0.7)
+            }
+
+            Divider()
+                .padding(.vertical, 1)
+
+            // Bottom half: machines online
+            Text("Machines online")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .lineLimit(1)
+            HStack(spacing: 4) {
+                Image(systemName: machinesOnline == machinesTotal ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
+                    .font(.caption2)
+                    .foregroundStyle(machinesOnline == machinesTotal ? .green : .red)
+                Text(verbatim: "\(machinesOnline) / \(machinesTotal)")
+                    .font(.caption.weight(.semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
             }
         }
         .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: kpiCardMinHeight, alignment: .topLeading)
         .background {
             RoundedRectangle(cornerRadius: 14)
                 .fill(.regularMaterial)
                 .shadow(color: .black.opacity(0.06), radius: 6, y: 2)
+        }
+    }
+}
+
+/// Tight `Label` layout for the stock-alert dot+number pairs so they sit
+/// flush together with no extra spacing.
+private struct InlineDotLabelStyle: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 3) {
+            configuration.icon
+            configuration.title
         }
     }
 }
