@@ -65,6 +65,7 @@
 		C8CFA483AB0C273F0B8009B0 /* AppNavigation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BEBD09944FEF671809C2788 /* AppNavigation.swift */; };
 		CF28029DE37E256E1554DA8D /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79D0846AC36BBA1BBDC87E68 /* NotificationService.swift */; };
 		D26A6A4A55DF5DC1587BAD9A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 70B6B1A9D2611C8B7EE53EDC /* Assets.xcassets */; };
+		D5A899832BE2B66298060F7C /* CashBookViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBEC3C69228B5189BCD8B513 /* CashBookViewModel.swift */; };
 		D87208736751BB897289C9B6 /* WarehouseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEABE7DE0463DA34A9DB9FB9 /* WarehouseView.swift */; };
 		D88E0EB43AF2F7FE4977B3C9 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 285CDF78E1AA2017C62282F8 /* NotificationService.swift */; };
 		DA9D08029AED0D27882468AF /* Inbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09910CF5FF28B2094BC5AEB1 /* Inbox.swift */; };
@@ -163,6 +164,7 @@
 		AC27FF5E0A1C34BCE4ACCDBE /* StatusBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusBadge.swift; sourceTree = "<group>"; };
 		AC323B6816B89C5044F50027 /* AuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthService.swift; sourceTree = "<group>"; };
 		B84F596B8E26B3A5377BCAA0 /* RefillStepView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefillStepView.swift; sourceTree = "<group>"; };
+		BBEC3C69228B5189BCD8B513 /* CashBookViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CashBookViewModel.swift; sourceTree = "<group>"; };
 		C35FC72F3ED743C438F7C738 /* LocalNetworkPermission.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalNetworkPermission.swift; sourceTree = "<group>"; };
 		C374A772F98B97BE6F2EE986 /* ReviewStepView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewStepView.swift; sourceTree = "<group>"; };
 		C67EF9594F3D482E240493C0 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
@@ -345,6 +347,7 @@
 		BA69BE2898BA7064DAC9A74C /* ViewModels */ = {
 			isa = PBXGroup;
 			children = (
+				BBEC3C69228B5189BCD8B513 /* CashBookViewModel.swift */,
 				16E021E42CD9C7C92936F706 /* DashboardViewModel.swift */,
 				045C58B5757C2E8C18819C83 /* DealsViewModel.swift */,
 				85E188D4F38B0B3DB63805E7 /* InboxViewModel.swift */,
@@ -614,6 +617,7 @@
 				BE954A375ED01316E322C570 /* BarcodeScannerView.swift in Sources */,
 				0BEB2E18E56CCAF0DE150DF8 /* BatchAdjustSheet.swift in Sources */,
 				1C9E7B9A63E9DD8A16B2A1C5 /* CashBook.swift in Sources */,
+				D5A899832BE2B66298060F7C /* CashBookViewModel.swift in Sources */,
 				DB59F86A2E67E4D7B603D1E7 /* CompactTabView.swift in Sources */,
 				1813377797812B72A25F0959 /* DashboardView.swift in Sources */,
 				45167E803ECFB29F00DA502F /* DashboardViewModel.swift in Sources */,

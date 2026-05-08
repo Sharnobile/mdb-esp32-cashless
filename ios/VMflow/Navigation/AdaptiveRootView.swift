@@ -7,6 +7,8 @@ struct AdaptiveRootView: View {
     @EnvironmentObject var auth: AuthService
     @StateObject private var realtime = RealtimeService.shared
     @StateObject private var notificationService = NotificationService.shared
+    @StateObject private var cashBookVM = CashBookViewModel()
+    @AppStorage("selected_barkasse_id") private var selectedBarkasseIDRaw: String = ""
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
@@ -18,14 +20,30 @@ struct AdaptiveRootView: View {
             }
         }
         .environmentObject(realtime)
+        .environmentObject(cashBookVM)
         .task {
             realtime.start()
             await NotificationService.shared.setupAfterLogin()
+
+            // Restore persisted selection, then refresh
+            if let uuid = UUID(uuidString: selectedBarkasseIDRaw) {
+                cashBookVM.selectedCashBookId = uuid
+            }
+            await cashBookVM.refresh()
+            // Persist post-reconciliation
+            selectedBarkasseIDRaw = cashBookVM.selectedCashBookId?.uuidString ?? ""
         }
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {
-                Task { await NotificationService.shared.refreshBadge() }
+                Task {
+                    await NotificationService.shared.refreshBadge()
+                    await cashBookVM.refresh()
+                    selectedBarkasseIDRaw = cashBookVM.selectedCashBookId?.uuidString ?? ""
+                }
             }
+        }
+        .onChange(of: cashBookVM.selectedCashBookId) { _, newValue in
+            selectedBarkasseIDRaw = newValue?.uuidString ?? ""
         }
     }
 }
