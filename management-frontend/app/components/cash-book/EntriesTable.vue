@@ -161,16 +161,12 @@ function formatAmount(amount: number): string {
 
               <tr
                 v-if="entry.counted_amount != null && entry.expected_amount != null && Math.abs(entry.counted_amount - entry.expected_amount) > 0.001"
-                class="bg-amber-50 dark:bg-amber-900/20"
               >
-                <td colspan="7" class="px-4 py-1.5 text-sm text-amber-700 dark:text-amber-400">
-                  <span class="inline-flex items-center gap-1">
-                    &#9888;
-                    {{ t('cashBook.difference', {
-                      diff: formatCurrency(Math.abs(entry.counted_amount - entry.expected_amount)),
-                      counted: formatCurrency(entry.counted_amount)
-                    }) }}
-                  </span>
+                <td colspan="7" class="px-4 py-1.5 text-xs text-muted-foreground">
+                  {{ t('cashBook.difference', {
+                    diff: formatCurrency(Math.abs(entry.counted_amount - entry.expected_amount)),
+                    counted: formatCurrency(entry.counted_amount)
+                  }) }}
                 </td>
               </tr>
             </template>

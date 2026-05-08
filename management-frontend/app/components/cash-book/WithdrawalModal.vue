@@ -67,6 +67,9 @@ async function onSubmit() {
             {{ m.machine_name || 'Automat' }}: +{{ formatCurrency(m.cash_sales) }}
           </div>
         </div>
+        <p class="mt-2 text-xs text-muted-foreground italic">
+          {{ t('cashBook.expectedFromMachinesHint') }}
+        </p>
       </div>
 
       <div>
@@ -79,18 +82,10 @@ async function onSubmit() {
       </div>
 
       <div
-        v-if="form.counted_amount > 0 && theoreticalCash"
-        class="rounded-lg p-3 text-sm"
-        :class="Math.abs(difference) > 0.001
-          ? 'border border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-400'
-          : 'border border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-900/20 dark:text-green-400'"
+        v-if="form.counted_amount > 0 && theoreticalCash && Math.abs(difference) > 0.001"
+        class="text-sm text-muted-foreground"
       >
-        <template v-if="Math.abs(difference) > 0.001">
-          {{ t('cashBook.differenceLabel') }}: {{ formatCurrency(difference) }}
-        </template>
-        <template v-else>
-          ✓ {{ t('cashBook.matchesExpected') }}
-        </template>
+        {{ t('cashBook.differenceLabel') }}: {{ formatCurrency(difference) }}
       </div>
 
       <div v-if="trackPerMachine && assignedMachines.length > 0">
