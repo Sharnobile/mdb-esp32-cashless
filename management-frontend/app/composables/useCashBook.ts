@@ -145,9 +145,18 @@ export function useCashBook() {
       if (error) throw error
       cashBooks.value = (data ?? []) as CashBook[]
 
-      // Auto-select if only one exists
-      if (cashBooks.value.length === 1 && !selectedCashBook.value) {
-        selectedCashBook.value = cashBooks.value[0]!
+      // If nothing is selected yet, auto-select the first Barkasse so the
+      // page loads with content immediately. Users with multiple Barkassen
+      // can switch via the dropdown in the header. If a previously selected
+      // Barkasse no longer exists, fall back to the first one.
+      if (cashBooks.value.length > 0) {
+        const stillValid = selectedCashBook.value
+          && cashBooks.value.some(cb => cb.id === selectedCashBook.value!.id)
+        if (!stillValid) {
+          selectedCashBook.value = cashBooks.value[0]!
+        }
+      } else {
+        selectedCashBook.value = null
       }
     } finally {
       loading.value = false
