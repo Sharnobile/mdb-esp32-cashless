@@ -65,18 +65,33 @@ serve(async (req: Request) => {
   const servicePath = `/home/deno/functions/${service_name}`
 
   const memoryLimitMb = 150
-  // Heavy fan-out functions (search, AI) routinely take >60s in production:
+  // Heavy fan-out functions (search, AI) routinely exceed the runtime
+  // defaults in production:
   //   - deal-search calls N enabled providers across up to 400 queries
-  //     (concurrency 10) — wall clock dominated by slowest provider per batch
-  //   - machine-insights calls the Anthropic API which can take 30-60s
-  // Everything else keeps the 60s default so a buggy function can't tie up a
-  // worker for ages. WorkerRequestCancelled from the supervisor surfaces as
-  // {"msg":"WorkerRequestCancelled: request has been cancelled by supervisor"}
-  // in clients, which is what prompted bumping this.
+  //     (concurrency 10). Wall clock is dominated by the slowest provider
+  //     per batch, and parsing ~600 provider JSON responses + matching them
+  //     against the catalog blows past the default ~2s CPU-time hard limit.
+  //   - machine-insights calls the Anthropic API which can take 30–60s
+  //     end-to-end with longer contexts.
+  //
+  // Bump three independent limits for these functions:
+  //   - workerTimeoutMs   wall-clock budget (default 60s)
+  //   - cpuTimeSoftLimit  triggers `beforeunload`; soft (default ~1s)
+  //   - cpuTimeHardLimit  supervisor kills the isolate; hard (default ~2s)
+  //
+  // CPU-time-hard hits as:
+  //   CPU time hard limit reached: isolate: ...
+  //   failed to send request to user worker: request has been cancelled by supervisor
+  // surfacing to clients as
+  //   {"msg":"WorkerRequestCancelled: request has been cancelled by supervisor"}
+  //
+  // Other functions keep the defaults so a buggy/runaway worker can't tie
+  // up a slot for long.
   const HEAVY_FUNCTIONS = new Set(['deal-search', 'machine-insights'])
-  const workerTimeoutMs = HEAVY_FUNCTIONS.has(service_name)
-    ? 3 * 60 * 1000
-    : 1 * 60 * 1000
+  const isHeavy = HEAVY_FUNCTIONS.has(service_name)
+  const workerTimeoutMs = isHeavy ? 3 * 60 * 1000 : 1 * 60 * 1000
+  const cpuTimeSoftLimitMs = isHeavy ? 100_000 : undefined
+  const cpuTimeHardLimitMs = isHeavy ? 150_000 : undefined
   const noModuleCache = false
   const importMapPath = null
   const envVarsObj = Deno.env.toObject()
@@ -87,6 +102,8 @@ serve(async (req: Request) => {
       servicePath,
       memoryLimitMb,
       workerTimeoutMs,
+      cpuTimeSoftLimitMs,
+      cpuTimeHardLimitMs,
       noModuleCache,
       importMapPath,
       envVars,
