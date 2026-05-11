@@ -43,9 +43,15 @@ services:
     volumes:
       - ./mqtt/config:/mosquitto/config
       - ./mqtt/data:/mosquitto/data
+    # TCP-port probe instead of mosquitto_pub. Earlier we published to
+    # /healthcheck/ping/status every 5s as the liveness signal — but that
+    # topic matches the forwarder's /+/+/status wildcard, so each probe
+    # went through mqtt-webhook -> 500 (uuid parse fail on "ping") -> DLQ
+    # retry loop, pegging the whole stack. A TCP-connect to the listener
+    # port is enough to know mosquitto is alive without polluting topics.
     healthcheck:
-      test: ["CMD", "mosquitto_pub", "-h", "localhost", "-p", "1883", "-u", "vmflow", "-P", "vmflow", "-t", "/healthcheck/ping/status", "-m", "ok"]
-      interval: 5s
+      test: ["CMD", "nc", "-z", "-w", "2", "localhost", "1883"]
+      interval: 30s
       timeout: 5s
       retries: 3
 
@@ -221,6 +227,12 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    # Every health-check hit on /api/tenants/<id>/health spins up a fresh
+    # DB connection and re-runs the migration check ("Applying migrations
+    # to db" -> "Migrations already up"). At interval: 5s that bursts to
+    # ~140% CPU on the realtime container + Postgres pegging on
+    # realtime.list_changes and CREATE TABLE IF NOT EXISTS schema_migrations.
+    # 30s is more than enough for liveness and cuts the storm 6x.
     healthcheck:
       test:
         [
@@ -235,7 +247,7 @@ services:
           "http://localhost:4000/api/tenants/realtime-dev/health"
         ]
       timeout: 5s
-      interval: 5s
+      interval: 30s
       retries: 3
     environment:
       PORT: 4000
