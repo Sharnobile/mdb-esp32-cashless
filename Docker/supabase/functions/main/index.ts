@@ -65,7 +65,18 @@ serve(async (req: Request) => {
   const servicePath = `/home/deno/functions/${service_name}`
 
   const memoryLimitMb = 150
-  const workerTimeoutMs = 1 * 60 * 1000
+  // Heavy fan-out functions (search, AI) routinely take >60s in production:
+  //   - deal-search calls N enabled providers across up to 400 queries
+  //     (concurrency 10) — wall clock dominated by slowest provider per batch
+  //   - machine-insights calls the Anthropic API which can take 30-60s
+  // Everything else keeps the 60s default so a buggy function can't tie up a
+  // worker for ages. WorkerRequestCancelled from the supervisor surfaces as
+  // {"msg":"WorkerRequestCancelled: request has been cancelled by supervisor"}
+  // in clients, which is what prompted bumping this.
+  const HEAVY_FUNCTIONS = new Set(['deal-search', 'machine-insights'])
+  const workerTimeoutMs = HEAVY_FUNCTIONS.has(service_name)
+    ? 3 * 60 * 1000
+    : 1 * 60 * 1000
   const noModuleCache = false
   const importMapPath = null
   const envVarsObj = Deno.env.toObject()
