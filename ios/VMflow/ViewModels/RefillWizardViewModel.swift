@@ -1517,69 +1517,139 @@ final class RefillWizardViewModel: ObservableObject {
         }
     }
 
-    /// Confirm refill for the current machine (writes to DB).
-    /// Matches web `confirmMachineRefill()`: re-fetches fresh stock, updates trays, writes activity log.
+    /// Server response row from the `refill_machine_trays` RPC.
+    private struct TrayApplicationResult: Decodable {
+        let trayId: UUID
+        let oldStock: Int
+        let newStock: Int
+        let fillAmount: Int
+        let wasAlreadyApplied: Bool
+
+        enum CodingKeys: String, CodingKey {
+            case trayId             = "tray_id"
+            case oldStock           = "old_stock"
+            case newStock           = "new_stock"
+            case fillAmount         = "fill_amount"
+            case wasAlreadyApplied  = "was_already_applied"
+        }
+    }
+
+    /// Call the atomic `refill_machine_trays` RPC. The server runs all tray
+    /// updates in one transaction and dedupes via `(tour_id, tray_id)`, so
+    /// safe to retry blindly on network errors.
+    private func applyRefillRPC(
+        machineId: UUID,
+        traysToRefill: [RefillTray]
+    ) async throws -> [TrayApplicationResult] {
+        let trayPayload: [AnyJSON] = traysToRefill.map { tray in
+            AnyJSON.object([
+                "tray_id":     .string(tray.tray.id.uuidString),
+                "fill_amount": .integer(tray.fillAmount)
+            ])
+        }
+        return try await client.rpc(
+            "refill_machine_trays",
+            params: [
+                "p_machine_id": AnyJSON.string(machineId.uuidString),
+                "p_tour_id":    AnyJSON.string(tourId),
+                "p_trays":      AnyJSON.array(trayPayload)
+            ]
+        )
+        .execute()
+        .value
+    }
+
+    /// Confirm refill for the current machine. All tray updates run in one
+    /// atomic RPC. On network failures we retry up to 3× with exponential
+    /// backoff — the RPC is idempotent, so retries cannot double-apply.
+    /// If all attempts fail, the machine is **not** marked refilled and the
+    /// wizard stays put, letting the user retry the same machine cleanly.
     func confirmRefill(machineId: UUID) async {
         guard let mi = machines.firstIndex(where: { $0.id == machineId }) else { return }
 
-        isSaving = true
         let traysToRefill = machines[mi].trays.filter { $0.fillAmount > 0 }
-        let trayIds = traysToRefill.map { $0.tray.id.uuidString }
-        var itemsAdded = 0
-        var traysCount = 0
 
-        // Re-fetch fresh stock to prevent data races (someone else may have refilled or a sale happened)
-        var freshStockMap: [UUID: (currentStock: Int, capacity: Int)] = [:]
-        if !trayIds.isEmpty {
+        // No tray needs a stock write — still record the visit so the tour
+        // log and audit trail show this machine was opened.
+        if traysToRefill.isEmpty {
+            await recordRefillSuccess(
+                mi: mi,
+                machineId: machineId,
+                traysSnapshot: [],
+                traysCount: 0,
+                itemsAdded: 0
+            )
+            return
+        }
+
+        isSaving = true
+        defer { isSaving = false }
+
+        let backoffSeconds: [Double] = [1.0, 3.0]   // before attempts 2 and 3
+        var lastError: Error?
+
+        for attempt in 1...3 {
             do {
-                struct FreshTray: Decodable {
-                    let id: UUID
-                    let currentStock: Int
-                    let capacity: Int
-                    enum CodingKeys: String, CodingKey {
-                        case id, capacity
-                        case currentStock = "current_stock"
-                    }
+                let results = try await applyRefillRPC(
+                    machineId: machineId,
+                    traysToRefill: traysToRefill
+                )
+
+                // Mirror server-authoritative stock values into local state.
+                for r in results {
+                    guard let ti = machines[mi].trays.firstIndex(where: { $0.tray.id == r.trayId }) else { continue }
+                    let oldTray = machines[mi].trays[ti].tray
+                    let newTray = Tray(
+                        id: oldTray.id,
+                        machineId: oldTray.machineId,
+                        itemNumber: oldTray.itemNumber,
+                        productId: oldTray.productId,
+                        capacity: oldTray.capacity,
+                        currentStock: r.newStock,
+                        minStock: oldTray.minStock,
+                        fillWhenBelow: oldTray.fillWhenBelow,
+                        products: oldTray.products
+                    )
+                    machines[mi].trays[ti] = RefillTray(
+                        tray: newTray,
+                        fillAmount: machines[mi].trays[ti].fillAmount,
+                        isInTour: machines[mi].trays[ti].isInTour
+                    )
                 }
-                let freshTrays: [FreshTray] = try await client
-                    .from("machine_trays")
-                    .select("id, current_stock, capacity")
-                    .in("id", values: trayIds)
-                    .execute()
-                    .value
-                for ft in freshTrays {
-                    freshStockMap[ft.id] = (ft.currentStock, ft.capacity)
-                }
+
+                let itemsAdded = results.reduce(0) { $0 + max(0, $1.newStock - $1.oldStock) }
+                await recordRefillSuccess(
+                    mi: mi,
+                    machineId: machineId,
+                    traysSnapshot: traysToRefill,
+                    traysCount: results.count,
+                    itemsAdded: itemsAdded
+                )
+                return
             } catch {
-                print("[RefillWizard] Failed to fetch fresh stock: \(error)")
-                // Fall back to stale values
+                lastError = error
+                print("[RefillWizard] confirmRefill attempt \(attempt)/3 failed: \(error)")
+                if attempt < 3 {
+                    let delaySeconds = backoffSeconds[attempt - 1]
+                    try? await Task.sleep(nanoseconds: UInt64(delaySeconds * 1_000_000_000))
+                }
             }
         }
 
-        for tray in traysToRefill {
-            let fresh = freshStockMap[tray.tray.id]
-            let currentStock = fresh?.currentStock ?? tray.tray.currentStock
-            let capacity = fresh?.capacity ?? tray.tray.capacity
-            let newStock = min(capacity, currentStock + tray.fillAmount)
-            guard newStock > currentStock else { continue }
+        // All 3 attempts failed. Leave machine in the tour so the user can retry.
+        self.error = "Refill could not be saved after 3 attempts: \(lastError?.localizedDescription ?? "unknown error"). Please try again."
+    }
 
-            do {
-                try await client
-                    .from("machine_trays")
-                    .update(["current_stock": newStock])
-                    .eq("id", value: tray.tray.id.uuidString)
-                    .execute()
-
-                itemsAdded += (newStock - currentStock)
-                traysCount += 1
-            } catch {
-                self.error = error.localizedDescription
-            }
-        }
-
+    /// Shared post-success bookkeeping: tour log, activity log, advance.
+    private func recordRefillSuccess(
+        mi: Int,
+        machineId: UUID,
+        traysSnapshot: [RefillTray],
+        traysCount: Int,
+        itemsAdded: Int
+    ) async {
         machines[mi].isRefilled = true
 
-        // Record in tour log
         tourLog.append(TourLogEntry(
             machineId: machineId,
             machineName: machines[mi].machine.displayName,
@@ -1588,7 +1658,6 @@ final class RefillWizardViewModel: ObservableObject {
             skipped: false
         ))
 
-        // Write activity log entry (non-blocking, matches web `stock_refill_tour` action)
         await writeActivityLog(
             machineId: machineId,
             machineName: machines[mi].machine.displayName,
@@ -1596,7 +1665,7 @@ final class RefillWizardViewModel: ObservableObject {
             extraMetadata: [
                 "trays_refilled": .integer(traysCount),
                 "total_added": .integer(itemsAdded),
-                "products": .array(traysToRefill.map { tray in
+                "products": .array(traysSnapshot.map { tray in
                     AnyJSON.object([
                         "product_id": tray.tray.productId.map { .string($0.uuidString) } ?? .null,
                         "product_name": .string(tray.tray.productName),
@@ -1606,7 +1675,6 @@ final class RefillWizardViewModel: ObservableObject {
             ]
         )
 
-        isSaving = false
         advanceToNextMachine()
         saveTourState()
     }

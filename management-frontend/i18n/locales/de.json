@@ -203,6 +203,8 @@
     "confirmAndNext": "Bestätigen & nächster Automat",
     "confirmAndFinish": "Bestätigen & abschließen",
     "confirming": "Bestand wird aktualisiert…",
+    "confirmFailedTitle": "Refill konnte nach 3 Versuchen nicht gespeichert werden",
+    "retry": "Erneut versuchen",
     "skipMachine": "Automaten überspringen",
     "tourSummary": "Tour-Zusammenfassung",
     "machinesRefilled": "{count} Automat befüllt | {count} Automaten befüllt",

@@ -24,7 +24,7 @@ const {
   isPackedCombined, togglePackedCombined, effectiveDeficitCombined,
   setCustomQuantity, getCustomQuantity, getMaxCustomQuantity, getDisplayedPackingQty,
   initTour, loadWarehouseStock, startTour,
-  adjustFillAmount, confirmMachineRefill, skipMachine, goToMachine, isMachineCompleted, resetWizard,
+  adjustFillAmount, confirmMachineRefill, confirmError, skipMachine, goToMachine, isMachineCompleted, resetWizard,
   resumeTour,
 } = useRefillWizard()
 
@@ -507,6 +507,14 @@ const currentMachineDone = computed(() =>
 
           <!-- Normal: confirm + skip -->
           <template v-else>
+            <div
+              v-if="confirmError"
+              role="alert"
+              class="rounded-xl border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive"
+            >
+              <p class="font-medium">{{ t('refill.confirmFailedTitle') }}</p>
+              <p class="mt-1 text-xs opacity-90">{{ confirmError }}</p>
+            </div>
             <button
               :disabled="confirmingRefill"
               class="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-6 text-base font-medium text-primary-foreground shadow-lg transition-colors hover:bg-primary/90 disabled:opacity-50"
@@ -514,6 +522,7 @@ const currentMachineDone = computed(() =>
             >
               <IconCheck v-if="!confirmingRefill" class="h-5 w-5" />
               <span v-if="confirmingRefill">{{ t('refill.confirming') }}</span>
+              <span v-else-if="confirmError">{{ t('refill.retry') }}</span>
               <span v-else-if="wouldFinishTour">{{ t('refill.confirmAndFinish') }}</span>
               <span v-else>{{ t('refill.confirmAndNext') }}</span>
             </button>

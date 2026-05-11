@@ -120,6 +120,9 @@ export function useRefillWizard() {
   const loading = ref(false)
   const tourStarting = ref(false)
   const confirmingRefill = ref(false)
+  /** Surface for the last confirmMachineRefill failure after all retries.
+   * Page reads this to show a banner; cleared on next confirm attempt. */
+  const confirmError = ref<string | null>(null)
   const tourId = ref('')
 
   // Packing state: machineId → Set<productKey>
@@ -689,56 +692,95 @@ export function useRefillWizard() {
     tray.fill_amount = Math.max(0, Math.min(maxFill, amount))
   }
 
+  /** Server response row from the `refill_machine_trays` RPC. */
+  interface RefillRpcRow {
+    tray_id: string
+    old_stock: number
+    new_stock: number
+    fill_amount: number
+    was_already_applied: boolean
+  }
+
+  /** Sleep helper for backoff between retry attempts. */
+  function delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms))
+  }
+
+  /**
+   * Confirm refill for the current machine. All tray updates run in one
+   * atomic RPC (`refill_machine_trays`). On network failures we retry up
+   * to 3× with exponential backoff — the RPC is idempotent via
+   * `(tour_id, tray_id)`, so retries cannot double-apply.
+   *
+   * If all 3 attempts fail the machine is **not** marked completed and
+   * the wizard stays put. `confirmError` is set so the page can render
+   * a banner; the user can hit Confirm again.
+   */
   async function confirmMachineRefill() {
     const machine = currentMachine.value
     if (!machine) return
 
+    confirmError.value = null
     confirmingRefill.value = true
     try {
       const traysToRefill = currentTrays.value.filter(t => t.fill_amount > 0)
+
+      // Visit-only stop (no tray writes). Still record the tour stop.
       if (traysToRefill.length === 0) {
+        completedMachineIds.value = new Set([...completedMachineIds.value, machine.id])
+        tourLog.value.push({
+          machine_id: machine.id,
+          machine_name: machine.name,
+          trays_refilled: 0,
+          total_added: 0,
+          skipped: false,
+        })
         await advanceToNextMachine()
         saveTourState()
         return
       }
 
-      const trayIds = traysToRefill.map(t => t.id)
+      const trayPayload = traysToRefill.map(t => ({
+        tray_id: t.id,
+        fill_amount: t.fill_amount,
+      }))
 
-      // Batch-fetch all fresh tray stocks in one query
-      const { data: freshTrays, error: fetchErr } = await (supabase as any)
-        .from('machine_trays')
-        .select('id, current_stock, capacity')
-        .in('id', trayIds)
-      if (fetchErr) throw fetchErr
+      const backoffMs = [1000, 3000]   // delay BEFORE attempts 2 and 3
+      let results: RefillRpcRow[] | null = null
+      let lastError: unknown = null
 
-      const freshMap = new Map(
-        ((freshTrays ?? []) as any[]).map((t: any) => [t.id, { current_stock: t.current_stock, capacity: t.capacity }])
-      )
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        const { data, error: rpcErr } = await (supabase as any).rpc('refill_machine_trays', {
+          p_machine_id: machine.id,
+          p_tour_id: tourId.value,
+          p_trays: trayPayload,
+        })
 
-      // Build updates and execute in parallel
-      const updates: Promise<void>[] = []
-      let totalAdded = 0
+        if (!rpcErr) {
+          results = (data ?? []) as RefillRpcRow[]
+          break
+        }
 
-      for (const tray of traysToRefill) {
-        const fresh = freshMap.get(tray.id)
-        if (!fresh) continue
-
-        const newStock = Math.min(fresh.capacity, fresh.current_stock + tray.fill_amount)
-        if (newStock <= fresh.current_stock) continue
-
-        totalAdded += (newStock - fresh.current_stock)
-        updates.push(
-          (supabase as any)
-            .from('machine_trays')
-            .update({ current_stock: newStock })
-            .eq('id', tray.id)
-            .then(({ error }: any) => { if (error) throw error })
-        )
+        lastError = rpcErr
+        console.warn(`[refillWizard] confirmMachineRefill attempt ${attempt}/3 failed:`, rpcErr)
+        if (attempt < 3) {
+          await delay(backoffMs[attempt - 1]!)
+        }
       }
 
-      await Promise.all(updates)
+      if (!results) {
+        const msg = (lastError as { message?: string })?.message ?? String(lastError ?? 'unknown error')
+        confirmError.value = msg
+        return  // do NOT mark complete, do NOT advance — user can retry
+      }
 
-      // Log activity (non-blocking, non-critical)
+      // Authoritative server-side delta (handles capacity clamp + dedupe)
+      const totalAdded = results.reduce(
+        (sum, r) => sum + Math.max(0, r.new_stock - r.old_stock),
+        0,
+      )
+
+      // Activity log entry (non-critical — failures only logged)
       try {
         const { data: { session } } = await supabase.auth.getSession()
         const u = session?.user ?? null
@@ -757,7 +799,7 @@ export function useRefillWizard() {
             machine_id: machine.id,
             machine_name: machine.name,
             warehouse_id: selectedWarehouseId.value,
-            trays_refilled: traysToRefill.length,
+            trays_refilled: results.length,
             total_added: totalAdded,
             products: traysToRefill.map(t => ({
               product_id: t.product_id,
@@ -768,8 +810,8 @@ export function useRefillWizard() {
             _user_display: userDisplay,
           },
         })
-      } catch {
-        // activity log failure is non-critical
+      } catch (logErr) {
+        console.warn('[refillWizard] activity_log write failed:', logErr)
       }
 
       completedMachineIds.value = new Set([...completedMachineIds.value, machine.id])
@@ -777,7 +819,7 @@ export function useRefillWizard() {
       tourLog.value.push({
         machine_id: machine.id,
         machine_name: machine.name,
-        trays_refilled: traysToRefill.length,
+        trays_refilled: results.length,
         total_added: totalAdded,
         skipped: false,
       })
@@ -1162,6 +1204,7 @@ export function useRefillWizard() {
     adjustFillAmount,
     setFillAmount,
     confirmMachineRefill,
+    confirmError,
     skipMachine,
     goToMachine,
     isMachineCompleted,

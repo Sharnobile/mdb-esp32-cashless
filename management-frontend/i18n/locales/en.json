@@ -203,6 +203,8 @@
     "confirmAndNext": "Confirm & Next Machine",
     "confirmAndFinish": "Confirm & Finish",
     "confirming": "Updating stock…",
+    "confirmFailedTitle": "Refill could not be saved after 3 attempts",
+    "retry": "Try again",
     "skipMachine": "Skip this machine",
     "tourSummary": "Tour Summary",
     "machinesRefilled": "{count} machine refilled | {count} machines refilled",
