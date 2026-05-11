@@ -393,7 +393,7 @@ extension DashboardView {
                 Text("Revenue (30 days)")
                     .font(.headline)
                 Spacer()
-                Text(formatCurrency(viewModel.monthRevenue))
+                Text(formatCurrency(viewModel.dailyTotal))
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.blue)
             }

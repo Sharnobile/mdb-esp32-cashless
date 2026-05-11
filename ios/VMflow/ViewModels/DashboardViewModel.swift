@@ -51,6 +51,13 @@ final class DashboardViewModel: ObservableObject {
         return dailySales.reduce(0) { $0 + $1.revenue } / Double(dailySales.count)
     }
 
+    /// Total revenue over the loaded daily-chart window — matches the sum of all bars in the chart.
+    /// Used in the chart header instead of `monthRevenue` so the displayed total stays in sync with
+    /// the visible 30-day window rather than jumping to the current calendar month's running total.
+    var dailyTotal: Double {
+        dailySales.reduce(0) { $0 + $1.revenue }
+    }
+
     private let client = SupabaseService.shared.client
 
     // MARK: - Load All
