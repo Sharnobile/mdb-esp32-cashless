@@ -24,6 +24,21 @@ const topics = [
   "/+/+/dex",
 ];
 
+// Topic prefixes that we deliberately drop without forwarding.
+//
+// `/healthcheck/` exists because something (likely an external uptime probe
+// using the vmflow MQTT credentials) was publishing /healthcheck/ping/status,
+// which the wildcard subscriptions pick up. mqtt-webhook then tries to
+// UPDATE embeddeds.id=ping, the DB rejects "ping" as a uuid, the webhook
+// returns 500, the message gets retried via DLQ, and the loop pegs the
+// server. Filtering at the forwarder is the cheapest place to break it —
+// the broker still queues the publish, we ACK it and silently drop.
+const IGNORED_TOPIC_PREFIXES = ["/healthcheck/"];
+
+function isIgnoredTopic(topic: string): boolean {
+  return IGNORED_TOPIC_PREFIXES.some((p) => topic.startsWith(p));
+}
+
 // Deno KV is the local dead-letter queue. When a webhook call fails with a
 // retryable error (5xx, network) we persist the (topic, payload, attempt,
 // last_error, first_seen) tuple so a separate drain loop can retry it later.
@@ -94,6 +109,15 @@ async function drainDlq() {
       let drained = 0;
       let dropped = 0;
       for await (const { key, value } of entries) {
+        // Drop stale DLQ entries whose topic is now on the ignore list —
+        // otherwise they would keep retrying forever after a hot-fix
+        // adds a prefix to IGNORED_TOPIC_PREFIXES.
+        if (isIgnoredTopic(value.topic)) {
+          await kv.delete(key);
+          dropped++;
+          continue;
+        }
+
         // Exponential backoff capped at 5min: retry after 5s, 10s, 20s, ..., 5min.
         const sinceLast = now - value.last_attempt;
         const backoffMs = Math.min(300_000, 5000 * Math.pow(2, Math.min(value.attempts, 6)));
@@ -145,6 +169,7 @@ client.on("connect", (connack: { sessionPresent: boolean }) => {
 });
 
 client.on("message", async (topic: string, payload: Buffer) => {
+  if (isIgnoredTopic(topic)) return;
   const payload_b64 = encodeBase64(new Uint8Array(payload));
   const { ok, status, error } = await forward(topic, payload_b64);
   if (ok) {
