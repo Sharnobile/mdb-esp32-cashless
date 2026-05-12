@@ -18,8 +18,12 @@ export default defineNuxtRouteMiddleware(async (to) => {
     return
   }
 
-  const user = useSupabaseUser()
-  if (!user.value) {
+  // Use session, not user: in @nuxtjs/supabase v2.0+ useSupabaseUser() is
+  // populated asynchronously via getClaims() after onAuthStateChange fires,
+  // which loses the race against navigateTo() right after signInWithPassword.
+  // useSupabaseSession() is set synchronously in the same listener.
+  const session = useSupabaseSession()
+  if (!session.value) {
     return navigateTo('/auth/login')
   }
 
