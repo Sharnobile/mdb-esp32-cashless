@@ -248,14 +248,17 @@ HAS_TRACKING=$(docker compose exec -T db psql -U postgres -d postgres -tAc \
     "SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='_migrations'" 2>/dev/null || echo "")
 
 if [ "$HAS_TRACKING" = "1" ]; then
-    # Use tracking table: only apply migrations not yet recorded
+    # Use tracking table: only apply migrations not yet recorded.
+    # Fetch the full applied-set up front — one `docker compose exec` per
+    # migration file costs ~300 ms of Docker overhead even when the answer
+    # is "skip", which used to add ~30s per update for ~90 migrations.
+    APPLIED_SET=$(docker compose exec -T db psql -U postgres -d postgres -tAc \
+        "SELECT name FROM public._migrations" 2>/dev/null | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+
     for f in "$MIGRATION_DIR"/*.sql; do
         fname=$(basename "$f")
 
-        ALREADY=$(docker compose exec -T db psql -U postgres -d postgres -tAc \
-            "SELECT 1 FROM public._migrations WHERE name = '${fname}'" 2>/dev/null || echo "")
-
-        if [ "$ALREADY" = "1" ]; then
+        if grep -qxF "$fname" <<< "$APPLIED_SET"; then
             SKIPPED=$((SKIPPED + 1))
             continue
         fi
