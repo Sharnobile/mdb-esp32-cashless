@@ -243,22 +243,43 @@ APPLIED=0
 SKIPPED=0
 FAILED=0
 
-# Check if the _migrations tracking table exists
-HAS_TRACKING=$(docker compose exec -T db psql -U postgres -d postgres -tAc \
-    "SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='_migrations'" 2>/dev/null || echo "")
+# Probe the tracking table and fetch the applied-set in a single round trip.
+# Each `docker compose exec` costs hundreds of ms of pure Docker overhead
+# (compose project parse, daemon call, exec session setup), so we collapse
+# the no-op path to exactly one exec.
+#
+# The query emits a sentinel header line we can branch on:
+#   __VMFLOW_HAS_TRACKING__|0   →  table does not exist (fall back to apply-all)
+#   __VMFLOW_HAS_TRACKING__|1   →  table exists; remaining lines are names
+MIGRATION_STATE=$(docker compose exec -T db psql -U postgres -d postgres -tAc "
+SELECT '__VMFLOW_HAS_TRACKING__|' ||
+  CASE WHEN EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema='public' AND table_name='_migrations'
+  ) THEN '1' ELSE '0' END;
+SELECT name FROM public._migrations;
+" 2>/dev/null | tr -d '\r')
+
+HAS_TRACKING=0
+declare -A APPLIED_MAP=()
+while IFS= read -r line; do
+    line="${line#"${line%%[![:space:]]*}"}"  # trim leading ws
+    line="${line%"${line##*[![:space:]]}"}"  # trim trailing ws
+    [ -z "$line" ] && continue
+    if [[ "$line" == __VMFLOW_HAS_TRACKING__\|* ]]; then
+        HAS_TRACKING="${line##*|}"
+        continue
+    fi
+    APPLIED_MAP["$line"]=1
+done <<< "$MIGRATION_STATE"
 
 if [ "$HAS_TRACKING" = "1" ]; then
     # Use tracking table: only apply migrations not yet recorded.
-    # Fetch the full applied-set up front — one `docker compose exec` per
-    # migration file costs ~300 ms of Docker overhead even when the answer
-    # is "skip", which used to add ~30s per update for ~90 migrations.
-    APPLIED_SET=$(docker compose exec -T db psql -U postgres -d postgres -tAc \
-        "SELECT name FROM public._migrations" 2>/dev/null | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-
+    # Lookup is pure-bash (associative array) — no subprocess per file.
     for f in "$MIGRATION_DIR"/*.sql; do
-        fname=$(basename "$f")
+        fname="${f##*/}"  # bash builtin; avoids forking basename per iter
 
-        if grep -qxF "$fname" <<< "$APPLIED_SET"; then
+        if [ -n "${APPLIED_MAP[$fname]:-}" ]; then
             SKIPPED=$((SKIPPED + 1))
             continue
         fi
@@ -281,7 +302,7 @@ else
     warn "Migration tracking table not found. Applying all migrations (errors = already applied)."
     echo
     for f in "$MIGRATION_DIR"/*.sql; do
-        fname=$(basename "$f")
+        fname="${f##*/}"
         if docker compose exec -T db psql -U postgres -d postgres < "$f" > /dev/null 2>&1; then
             success "$fname"
             APPLIED=$((APPLIED + 1))
