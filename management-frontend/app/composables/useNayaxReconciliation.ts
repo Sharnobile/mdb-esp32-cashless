@@ -1,5 +1,10 @@
-import { useState } from '#imports'
+import { useState, useSupabaseClient } from '#imports'
 import { fromZonedTime } from 'date-fns-tz'
+
+/** Soft warning threshold: above this row count, surface a UI warning. */
+export const MAX_ROWS_SOFT_WARN = 10000
+/** Hard cap: parser rejects files with more rows than this. */
+export const MAX_ROWS_HARD_CAP = 50000
 
 /**
  * Parse a Nayax "DD.MM.YYYY HH:MM:SS" timestamp interpreted in the given
@@ -139,12 +144,175 @@ export function useNayaxReconciliation() {
   const deleting = useState<boolean>('nayax-recon-deleting', () => false)
   const error = useState<string>('nayax-recon-error', () => '')
 
+  async function parseFile(f: File): Promise<void> {
+    parsing.value = true
+    error.value = ''
+    rawRows.value = []
+    file.value = f
+
+    try {
+      // Lazy-import xlsx so the dev-bundle is only paid when we actually
+      // open the reconciliation page.
+      const XLSX = await import('xlsx')
+      const buffer = await f.arrayBuffer()
+      const wb = XLSX.read(buffer, { type: 'array' })
+      const sheetName = wb.SheetNames[0]
+      if (!sheetName) throw new Error('parser.noSheet')
+      const sheet = wb.Sheets[sheetName]
+
+      // Read the raw matrix so we can grab the title row directly.
+      const matrix = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
+        header: 1,
+        defval: null,
+        raw: false,
+      })
+      if (matrix.length < 2) throw new Error('parser.empty')
+
+      // Row 0 = title cell (with the date range).
+      const titleCell = String(matrix[0]?.[0] ?? '')
+      const range = parseTitleDateRange(titleCell, settings.value.timezone)
+      if (range) {
+        settings.value.fromUtc = range.fromUtc
+        settings.value.toUtc = range.toUtc
+      }
+
+      // Row 1 = headers.
+      const headers = (matrix[1] ?? []).map(v => String(v ?? '').trim())
+      const idx = {
+        txId:           headers.indexOf('Transaktions-ID'),
+        currency:       headers.indexOf('Währung'),
+        machineName:    headers.indexOf('Maschinenname'),
+        productGroup:   headers.indexOf('Produktgruppe'),
+        paymentSource:  headers.indexOf('Payment Method (Source)'),
+        productName:    headers.indexOf('Produktname'),
+        machineDt:      headers.indexOf('Maschinen-Begleichszeit'),
+        amount:         headers.indexOf('Zu begleichender Wert'),
+        selectionInfo:  headers.indexOf('Produktauswahl-Informationen'),
+        nayaxId:        headers.indexOf('Maschinen-ID'),
+      }
+      for (const [k, v] of Object.entries(idx)) {
+        if (v < 0) throw new Error(`parser.missingHeader.${k}`)
+      }
+
+      // Rows 2..end = data + a final "Total" row.
+      const data = matrix.slice(2)
+      if (data.length > MAX_ROWS_HARD_CAP) {
+        throw new Error('parser.tooLarge')
+      }
+
+      const rows: NayaxRow[] = []
+      data.forEach((row, i) => {
+        const txId = String(row[idx.txId] ?? '').trim()
+        const currency = String(row[idx.currency] ?? '').trim()
+        // The footer is empty in Transaktions-ID (and Währung holds 'Total').
+        if (!txId || currency === 'Total') return
+
+        const localDt = String(row[idx.machineDt] ?? '').trim()
+        const selectionInfoRaw = String(row[idx.selectionInfo] ?? '').trim()
+        const priceGross = roundTo2(Number(row[idx.amount] ?? 0))
+
+        rows.push({
+          rowIndex: i + 3,                       // 1-based source row
+          txId,
+          nayaxMachineId: String(row[idx.nayaxId] ?? '').trim(),
+          machineName: String(row[idx.machineName] ?? '').trim(),
+          productGroup: String(row[idx.productGroup] ?? '').trim(),
+          productName: String(row[idx.productName] ?? '').trim(),
+          paymentSource: String(row[idx.paymentSource] ?? '').trim(),
+          priceGross,
+          itemNumber: parseSelectionInfo(selectionInfoRaw),
+          selectionInfoRaw,
+          localDt,
+          utcDt: localDtToUtc(localDt, settings.value.timezone),
+        })
+      })
+
+      rawRows.value = rows
+    } catch (e: unknown) {
+      error.value = e instanceof Error ? e.message : 'parser.unknown'
+    } finally {
+      parsing.value = false
+    }
+  }
+
+  function roundTo2(n: number): number {
+    return Math.round(n * 100) / 100
+  }
+
+  async function loadMappingForCompany(): Promise<void> {
+    const supabase = useSupabaseClient()
+    const { data, error: err } = await supabase
+      .from('vendingMachine')
+      .select('id, nayax_machine_id')
+      .not('nayax_machine_id', 'is', null)
+    if (err) throw err
+    const m: Record<string, string> = {}
+    for (const row of (data ?? []) as { id: string; nayax_machine_id: string }[]) {
+      m[row.nayax_machine_id] = row.id
+    }
+    mapping.value = m
+  }
+
+  function detectUnmappedIds(): string[] {
+    const seen = new Set<string>()
+    for (const r of rawRows.value) {
+      if (r.nayaxMachineId && !(r.nayaxMachineId in mapping.value)) {
+        seen.add(r.nayaxMachineId)
+      }
+    }
+    return [...seen]
+  }
+
+  async function saveMapping(nayaxId: string, vmId: string | null): Promise<void> {
+    const supabase = useSupabaseClient()
+    if (vmId == null) {
+      // "Skip for this run" — do not write, just drop from local mapping
+      const { [nayaxId]: _, ...rest } = mapping.value
+      mapping.value = rest
+      return
+    }
+    const { error: err } = await supabase
+      .from('vendingMachine')
+      .update({ nayax_machine_id: nayaxId } as any)
+      .eq('id', vmId)
+    if (err) throw err
+    // Update the local cache so subsequent matching uses the new mapping.
+    mapping.value = { ...mapping.value, [nayaxId]: vmId }
+  }
+
+  async function loadDbSales(): Promise<void> {
+    const supabase = useSupabaseClient()
+    const { fromUtc, toUtc } = settings.value
+    if (!fromUtc || !toUtc) {
+      throw new Error('reconcile.noDateRange')
+    }
+    const machineIds = [...new Set(Object.values(mapping.value))]
+    if (machineIds.length === 0) {
+      dbSales.value = []
+      return
+    }
+    // Join products so we can show a name in the ghost table.
+    const { data, error: err } = await supabase
+      .from('sales')
+      .select('id, created_at, machine_id, item_number, item_price, channel, product_id, products(name)')
+      .gte('created_at', fromUtc)
+      .lte('created_at', toUtc)
+      .in('machine_id', machineIds)
+      .order('created_at', { ascending: true })
+    if (err) throw err
+    dbSales.value = (data ?? []).map((row: any) => ({
+      id: row.id,
+      created_at: row.created_at,
+      machine_id: row.machine_id,
+      item_number: row.item_number,
+      item_price: row.item_price,
+      channel: row.channel,
+      product_id: row.product_id,
+      product_name: row.products?.name ?? null,
+    }))
+  }
+
   // Stubs filled in by later tasks
-  async function parseFile(_f: File): Promise<void> { throw new Error('not impl') }
-  async function loadMappingForCompany(): Promise<void> { throw new Error('not impl') }
-  function detectUnmappedIds(): string[] { throw new Error('not impl') }
-  async function saveMapping(_nayaxId: string, _vmId: string | null): Promise<void> { throw new Error('not impl') }
-  async function loadDbSales(): Promise<void> { throw new Error('not impl') }
   function runMatch(): void { throw new Error('not impl') }
   async function bulkImportMissing(_rows: NayaxRow[]): Promise<{ imported: number; errors: string[] }> { throw new Error('not impl') }
   async function deleteGhost(_saleId: string): Promise<void> { throw new Error('not impl') }

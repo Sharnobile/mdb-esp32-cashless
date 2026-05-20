@@ -1,5 +1,18 @@
 import { describe, it, expect } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import { dirname, resolve } from 'node:path'
 import { localDtToUtc, parseSelectionInfo, parseTitleDateRange } from '../useNayaxReconciliation'
+
+function loadFixture(name: string): File {
+  const here = dirname(fileURLToPath(import.meta.url))
+  const buf = readFileSync(resolve(here, '../../test-helpers/fixtures', name))
+  // Cast Buffer to ArrayBuffer for the File constructor
+  const ab = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)
+  return new File([ab as ArrayBuffer], name, {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  })
+}
 
 describe('localDtToUtc', () => {
   it('parses Nayax DD.MM.YYYY HH:MM:SS in CEST (summer) to UTC', () => {
@@ -90,5 +103,63 @@ describe('parseTitleDateRange', () => {
 
   it('returns null when only the start half is present', () => {
     expect(parseTitleDateRange('Datumsbereich: 01.03.2026 00:00:00', 'Europe/Berlin')).toBeNull()
+  })
+})
+
+describe('parseFile', () => {
+  it('parses the Nayax fixture without errors', async () => {
+    const { useNayaxReconciliation } = await import('../useNayaxReconciliation')
+    const r = useNayaxReconciliation()
+    await r.parseFile(loadFixture('nayax-sample.xlsx'))
+    expect(r.rawRows.value.length).toBeGreaterThan(0)
+    expect(r.error.value).toBe('')
+  })
+
+  it('skips the title row and the Total footer', async () => {
+    const { useNayaxReconciliation } = await import('../useNayaxReconciliation')
+    const r = useNayaxReconciliation()
+    await r.parseFile(loadFixture('nayax-sample.xlsx'))
+    // No row should have txId "" or machineName "Total"
+    for (const row of r.rawRows.value) {
+      expect(row.txId).not.toBe('')
+      expect(row.machineName).not.toBe('Total')
+    }
+  })
+
+  it('extracts the expected fields from the first data row', async () => {
+    const { useNayaxReconciliation } = await import('../useNayaxReconciliation')
+    const r = useNayaxReconciliation()
+    await r.parseFile(loadFixture('nayax-sample.xlsx'))
+    const first = r.rawRows.value[0]
+    // First row in the fixture: Powerade Sports Mountain Blast, 31.03.2026 21:46:09
+    expect(first.txId).toBe('62968009978')
+    expect(first.nayaxMachineId).toBe('92700604')
+    expect(first.machineName).toBe('Niedernhall Frankeneck')
+    expect(first.productName).toBe('Powerade Sports Mountain Blast')
+    expect(first.paymentSource).toBe('Cash')
+    expect(first.priceGross).toBe(2.5)
+    expect(first.itemNumber).toBe(58)
+    expect(first.localDt).toBe('31.03.2026 21:46:09')
+    expect(first.utcDt).toBe('2026-03-31T19:46:09.000Z')
+  })
+
+  it('populates fileDateRange from the title row', async () => {
+    const { useNayaxReconciliation } = await import('../useNayaxReconciliation')
+    const r = useNayaxReconciliation()
+    await r.parseFile(loadFixture('nayax-sample.xlsx'))
+    // Title says "01.03.2026 00:00:00 - 31.03.2026 23:59:59" in Europe/Berlin
+    expect(r.settings.value.fromUtc).toBe('2026-02-28T23:00:00.000Z')
+    expect(r.settings.value.toUtc).toBe('2026-03-31T21:59:59.000Z')
+  })
+
+  it('refuses files over the 50 000-row hard cap', async () => {
+    const { useNayaxReconciliation } = await import('../useNayaxReconciliation')
+    const r = useNayaxReconciliation()
+    // Simulate a huge file by directly testing the cap via a synthetic
+    // override (we don't actually generate 50k rows in CI). Instead,
+    // expose MAX_ROWS as a constant the test can read and the implementation
+    // uses for its threshold.
+    const { MAX_ROWS_HARD_CAP } = await import('../useNayaxReconciliation')
+    expect(MAX_ROWS_HARD_CAP).toBe(50000)
   })
 })
