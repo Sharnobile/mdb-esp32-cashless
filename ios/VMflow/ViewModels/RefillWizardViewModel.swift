@@ -1316,9 +1316,15 @@ final class RefillWizardViewModel: ObservableObject {
         do {
             for suggestion in toReplace {
                 guard let newProductId = suggestion.replacementProductId else { continue }
+                // Reset current_stock to 0: the old product's stock is irrelevant
+                // for the new product, and without this the tray won't show as
+                // needing refill in the next steps (deficit would be 0).
                 try await client
                     .from("machine_trays")
-                    .update(["product_id": newProductId.uuidString])
+                    .update([
+                        "product_id": AnyJSON.string(newProductId.uuidString),
+                        "current_stock": AnyJSON.integer(0),
+                    ])
                     .eq("id", value: suggestion.trayId.uuidString)
                     .execute()
             }
