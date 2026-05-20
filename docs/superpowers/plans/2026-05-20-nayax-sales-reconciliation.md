@@ -19,11 +19,11 @@
 - [ ] **Step 0.1: Confirm dev environment is healthy**
 
 ```bash
-cd /Users/lucienkerl/Development/mdb-esp32-cashless/Docker
-docker compose ps --format '{{.Service}} {{.Status}}'
+cd /Users/lucienkerl/Development/mdb-esp32-cashless/Docker/supabase
+supabase status
 ```
 
-Expected: `db`, `kong`, `auth`, `rest`, `realtime`, `storage`, `meta`, `functions`, `broker`, `forwarder`, `frontend` (and `studio` if running) all `Up`. If anything is down, `docker compose up -d` then re-check.
+Expected: `API URL`, `DB URL`, `Studio URL` all printed and reachable. If the local supabase isn't running, `supabase start`. (Optionally also `cd Docker && docker compose ps` to verify the prod-style compose stack — but only the CLI stack is required for the dev DB used by `supabase migration up` in Task 1.)
 
 - [ ] **Step 0.2: Verify frontend builds before any changes**
 
@@ -130,7 +130,7 @@ Confirm the file lines match the references in this plan. If they've shifted by 
 
 - [ ] **Step 2.2: Add `nayax_machine_id` to the `Machine` interface fields fetched**
 
-In `useMachines.ts`, find the `fetchMachines` body and the select string starting at line ~97 (`id, name, location_lat, location_lon, embedded, country_code, public_listing, …`). Add `nayax_machine_id` to the list of selected columns. Also add `nayax_machine_id: string | null` to the local `Machine` interface near line ~20.
+In `useMachines.ts`, find the `fetchMachines` body and the select string starting at line ~97 (`id, name, location_lat, location_lon, embedded, country_code, public_listing, …`). Add `nayax_machine_id` to the list of selected columns. Also add `nayax_machine_id: string | null` to the local `VendingMachine` interface near line ~18 (the interface starts with the `name`, `location_lat`, `location_lon` fields).
 
 - [ ] **Step 2.3: Add `nayax_machine_id` to `MachineSettingsPatch`**
 
@@ -310,7 +310,7 @@ Expected: `2026-03-31T19:46:09.000Z` (CEST, DST already active on that date).
 Create `management-frontend/app/composables/useNayaxReconciliation.ts`:
 
 ```ts
-import { useSupabaseClient } from '#imports'
+import { ref, computed, useState, useSupabaseClient } from '#imports'
 
 /** A single row parsed from the Nayax sales export. */
 export interface NayaxRow {
@@ -371,23 +371,27 @@ export type Step = 'upload' | 'mapping' | 'settings' | 'results'
  * trigger its actions.
  */
 export function useNayaxReconciliation() {
-  const file = ref<File | null>(null)
-  const rawRows = ref<NayaxRow[]>([])
-  const dbSales = ref<DbSale[]>([])
-  const mapping = ref<Map<string, string>>(new Map()) // nayaxId → vmId
-  const settings = ref({
+  // IMPORTANT: workflow state uses `useState(key, …)` so the page and every
+  // child component share the same refs. A plain `ref(...)` would give each
+  // call site its own isolated state — the wizard would not work. This
+  // mirrors the pattern in `useMachines` (see `useState<VendingMachine[]>('machines', …)`).
+  const file = useState<File | null>('nayax-recon-file', () => null)
+  const rawRows = useState<NayaxRow[]>('nayax-recon-rawRows', () => [])
+  const dbSales = useState<DbSale[]>('nayax-recon-dbSales', () => [])
+  const mapping = useState<Map<string, string>>('nayax-recon-mapping', () => new Map())
+  const settings = useState('nayax-recon-settings', () => ({
     timezone: 'Europe/Berlin',
     toleranceSeconds: 10,
     fromUtc: '' as string,
     toUtc: '' as string,
-  })
-  const result = ref<ReconResult | null>(null)
-  const step = ref<Step>('upload')
-  const parsing = ref(false)
-  const matching = ref(false)
-  const importing = ref(false)
-  const deleting = ref(false)
-  const error = ref('')
+  }))
+  const result = useState<ReconResult | null>('nayax-recon-result', () => null)
+  const step = useState<Step>('nayax-recon-step', () => 'upload' as Step)
+  const parsing = useState<boolean>('nayax-recon-parsing', () => false)
+  const matching = useState<boolean>('nayax-recon-matching', () => false)
+  const importing = useState<boolean>('nayax-recon-importing', () => false)
+  const deleting = useState<boolean>('nayax-recon-deleting', () => false)
+  const error = useState<string>('nayax-recon-error', () => '')
 
   // Stubs filled in by later tasks
   async function parseFile(_f: File): Promise<void> { throw new Error('not impl') }
@@ -603,7 +607,10 @@ import { parseTitleDateRange } from '../useNayaxReconciliation'
 
 describe('parseTitleDateRange', () => {
   it('extracts from the German "Gesuchter Datumsbereich:" line', () => {
-    const title = '​​​​​​​Dynamische Transaktionsüberwachung\nGesuchter Datumsbereich: 01.03.2026 00:00:00 - 31.03.2026 23:59:59'
+    // Note: the real Nayax file prefixes the title with a handful of
+    // U+200B zero-width spaces. They're invisible and don't affect the
+    // regex, so we just use the visible content here.
+    const title = 'Dynamische Transaktionsüberwachung\nGesuchter Datumsbereich: 01.03.2026 00:00:00 - 31.03.2026 23:59:59'
     expect(parseTitleDateRange(title, 'Europe/Berlin')).toEqual({
       fromUtc: '2026-02-28T23:00:00.000Z',  // 01.03 00:00 CET = 28.02 23:00 UTC
       toUtc:   '2026-03-31T21:59:59.000Z',  // 31.03 23:59:59 CEST = 21:59:59 UTC
@@ -1056,7 +1063,8 @@ The brain of the feature. TDD'd thoroughly because this is where correctness mat
 Append to the test file a new describe block. Each test seeds the composable with synthetic `rawRows`, `mapping`, `dbSales`, and `settings`, calls `runMatch()`, then asserts the buckets in `result.value`.
 
 ```ts
-import { ref } from 'vue'
+// Add these to the existing top-of-file imports so they're hoisted once:
+import { useNayaxReconciliation, type NayaxRow, type DbSale } from '../useNayaxReconciliation'
 
 function setupRecon(seed: {
   rawRows: NayaxRow[]
@@ -1066,8 +1074,10 @@ function setupRecon(seed: {
   fromUtc?: string
   toUtc?: string
 }) {
-  const { useNayaxReconciliation } = require('../useNayaxReconciliation') as typeof import('../useNayaxReconciliation')
   const r = useNayaxReconciliation()
+  // Note: in tests, the `#imports` → `nuxt-stubs.ts` alias makes
+  // `useState(key, init)` return a fresh ref per call, so each `setupRecon`
+  // invocation starts with its own isolated state — that's what we want.
   r.rawRows.value = seed.rawRows
   r.mapping.value = seed.mapping
   r.dbSales.value = seed.dbSales
@@ -1422,9 +1432,14 @@ Replace the stub:
         imported++
       }
       // Re-load DB sales so subsequent `runMatch` reflects new rows.
-      await loadDbSales()
-      // Re-run match — imported rows now appear as matched.
-      runMatch()
+      // Wrap separately — a failure here shouldn't lose the per-row success
+      // info. The user can still hit "Re-run" to refresh manually.
+      try {
+        await loadDbSales()
+        runMatch()
+      } catch (e: unknown) {
+        errors.push(`refresh after import: ${e instanceof Error ? e.message : String(e)}`)
+      }
     } finally {
       importing.value = false
     }
@@ -1698,6 +1713,7 @@ function onStartOver() {
       :is-admin="isAdmin"
       @restart="onStartOver"
       @rerun="recon.step.value = 'settings'"
+      @go-to-mapping="recon.step.value = 'mapping'"
     />
   </div>
 </template>
@@ -2091,7 +2107,7 @@ import NayaxGhostInDbTable from './NayaxGhostInDbTable.vue'
 import NayaxUnmappedSection from './NayaxUnmappedSection.vue'
 
 const props = defineProps<{ isAdmin: boolean }>()
-const emit = defineEmits<{ restart: []; rerun: [] }>()
+const emit = defineEmits<{ restart: []; rerun: []; 'go-to-mapping': [] }>()
 const { t } = useI18n()
 const recon = useNayaxReconciliation()
 
@@ -2178,7 +2194,7 @@ function fmtRange(): string {
       :unparseable="result.unparseable"
       :open="otherOpen"
       @toggle="otherOpen = !otherOpen"
-      @go-to-mapping="emit('rerun') /* user goes back to mapping via settings */"
+      @go-to-mapping="emit('go-to-mapping')"
     />
   </div>
 </template>
@@ -2546,7 +2562,7 @@ Find a sensible location in `de.json` (alphabetical with the top-level keys) and
         "importConfirmBody": "{n} Nayax-Zeilen werden als manuelle Verkäufe angelegt und der Tray-Bestand entsprechend reduziert. Fortfahren?",
         "deleteConfirmTitle": "Verkauf löschen?",
         "deleteConfirmBody": "Der Verkauf wird gelöscht und der Tray-Bestand wieder erhöht. Diese Aktion ist nicht rückgängig zu machen.",
-        "allMatched": "Alle Nayax-Verkäufe sind in der Datenbank vorhanden. 🎉",
+        "allMatched": "Alle Nayax-Verkäufe sind in der Datenbank vorhanden.",
         "noGhosts": "Keine zusätzlichen Verkäufe in der Datenbank.",
         "exportCsv": "CSV exportieren",
         "rerun": "Neu auswerten",
@@ -2626,7 +2642,7 @@ Find a sensible location in `de.json` (alphabetical with the top-level keys) and
         "importConfirmBody": "{n} Nayax rows will be created as manual sales and the tray stock will be decremented accordingly. Continue?",
         "deleteConfirmTitle": "Delete sale?",
         "deleteConfirmBody": "The sale will be deleted and the tray stock restored. This cannot be undone.",
-        "allMatched": "All Nayax sales are present in the database. 🎉",
+        "allMatched": "All Nayax sales are present in the database.",
         "noGhosts": "No extra sales in the database.",
         "exportCsv": "Export CSV",
         "rerun": "Re-run",
