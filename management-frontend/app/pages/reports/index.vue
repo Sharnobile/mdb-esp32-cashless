@@ -107,6 +107,22 @@ function formatPercent(rate: number | null): string {
       </p>
     </div>
 
+    <NuxtLink
+      to="/reports/nayax-reconciliation"
+      class="flex items-start gap-3 rounded-xl border bg-card p-4 shadow-sm transition-colors hover:bg-muted/30"
+    >
+      <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-500/10 text-blue-600">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 11l3 3L22 4" />
+          <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+        </svg>
+      </div>
+      <div class="flex-1">
+        <p class="font-medium">{{ t('reports.nayaxReconcileTitle') }}</p>
+        <p class="text-xs text-muted-foreground">{{ t('reports.nayaxReconcileBlurb') }}</p>
+      </div>
+    </NuxtLink>
+
     <!-- Date range controls -->
     <div class="rounded-xl border bg-card p-4 shadow-sm">
       <div class="flex flex-col gap-4 sm:flex-row sm:items-end">

@@ -1136,6 +1136,81 @@
       "deleteConfirm": "Schlagwort-Gruppe \"{label}\" wirklich löschen?"
     }
   },
+  "nayax": {
+    "reconcile": {
+      "title": "Nayax-Verkaufsabgleich",
+      "subtitle": "Lade einen Nayax-Verkaufsexport hoch und finde Verkäufe, die nicht in der Datenbank gelandet sind.",
+      "backToReports": "Zurück zu Reports",
+      "upload": {
+        "description": "Lade eine Nayax-Verkaufsexport-Datei (.xlsx) aus deinem Nayax-Backoffice hoch. Erkannte Spalten: Transaktions-ID, Maschinen-Begleichszeit, Zu begleichender Wert, Produktauswahl-Informationen, Maschinen-ID.",
+        "parsing": "Datei wird gelesen…",
+        "dropHere": "Datei hier ablegen oder klicken zum Auswählen",
+        "supportsXlsx": "Unterstützt .xlsx von Nayax \"Dynamische Transaktionsüberwachung\""
+      },
+      "mapping": {
+        "title": "Maschinen zuordnen",
+        "intro": "Folgende Nayax-Maschinen-IDs sind noch keiner deiner Maschinen zugeordnet. Wähle pro Zeile die passende Maschine. Die Zuordnung wird gespeichert und gilt für alle zukünftigen Uploads.",
+        "viewerNotice": "Nur Administratoren können Zuordnungen speichern. Du kannst die Datei trotzdem analysieren — nicht zugeordnete Maschinen erscheinen am Ende.",
+        "adminOnly": "Nur Administratoren können Zuordnungen speichern.",
+        "saveFailed": "Zuordnung konnte nicht gespeichert werden.",
+        "colNayaxId": "Nayax-ID",
+        "colNayaxName": "Nayax-Maschinenname",
+        "colMapsTo": "Zuordnung",
+        "pickMachine": "Maschine wählen…",
+        "searchMachine": "Suchen…",
+        "noMatch": "Keine Maschine gefunden",
+        "skipForRun": "Für diesen Lauf überspringen",
+        "continueCta": "Weiter"
+      },
+      "settings": {
+        "title": "Abgleich-Einstellungen",
+        "from": "Von",
+        "to": "Bis",
+        "tz": "Zeitzone der Nayax-Datei",
+        "tzHint": "Nayax-Zeiten werden in dieser Zeitzone interpretiert und für den Vergleich nach UTC umgerechnet.",
+        "tolerance": "Zeit-Toleranz (Sekunden)",
+        "toleranceHint": "Standard 10 s. Erlaubt eine kleine Drift zwischen Maschinen- und MQTT-Zeitstempel.",
+        "runCta": "Analyse starten"
+      },
+      "results": {
+        "matchedShort": "übereinstimmend",
+        "missingShort": "fehlt in DB",
+        "ghostShort": "nur in DB",
+        "matchedTitle": "Übereinstimmend",
+        "missingTitle": "Fehlt in Datenbank",
+        "ghostTitle": "Nur in Datenbank",
+        "otherTitle": "Ungemappt / nicht parsbar",
+        "colTime": "Zeit",
+        "colMachine": "Maschine",
+        "colSlot": "Slot",
+        "colProduct": "Produkt",
+        "colPrice": "Preis",
+        "colDelta": "Δ Zeit",
+        "colPayment": "Zahlung",
+        "colChannel": "Kanal",
+        "colTxId": "Nayax-Tx-ID",
+        "selectedN": "{n} ausgewählt",
+        "importCta": "Als manuelle Verkäufe importieren",
+        "importedN": "{n} Verkäufe importiert.",
+        "importErrors": "{n} Fehler",
+        "importConfirmTitle": "Manuelle Verkäufe anlegen?",
+        "importConfirmBody": "{n} Nayax-Zeilen werden als manuelle Verkäufe angelegt und der Tray-Bestand entsprechend reduziert. Fortfahren?",
+        "deleteConfirmTitle": "Verkauf löschen?",
+        "deleteConfirmBody": "Der Verkauf wird gelöscht und der Tray-Bestand wieder erhöht. Diese Aktion ist nicht rückgängig zu machen.",
+        "allMatched": "Alle Nayax-Verkäufe sind in der Datenbank vorhanden.",
+        "noGhosts": "Keine zusätzlichen Verkäufe in der Datenbank.",
+        "exportCsv": "CSV exportieren",
+        "rerun": "Neu auswerten",
+        "startOver": "Andere Datei",
+        "unmappedHead": "{n} Zeilen mit unbekannter Maschinen-ID",
+        "unmappedHint": "Diese Nayax-Maschinen-IDs sind keiner deiner Maschinen zugeordnet. Diese Zeilen werden nicht abgeglichen.",
+        "openMapping": "Zuordnung öffnen",
+        "unparseableHead": "{n} Zeilen ohne erkennbare Slot-Nummer",
+        "unparseableMore": "… und {n} weitere",
+        "emptyField": "leer"
+      }
+    }
+  },
   "reports": {
     "title": "Berichte",
     "dateFrom": "Von",
@@ -1174,7 +1249,9 @@
     "vatBreakdown": "MwSt.-Aufschlüsselung",
     "vatBreakdownDescription": "Umsatzsteuerübersicht nach Steuersätzen.",
     "total": "Gesamt",
-    "exportMonthlySummary": "Monatssummary (Lexware)"
+    "exportMonthlySummary": "Monatssummary (Lexware)",
+    "nayaxReconcileTitle": "Nayax-Verkaufsabgleich",
+    "nayaxReconcileBlurb": "Vergleiche einen Nayax-Verkaufsexport mit der Datenbank und finde fehlende Verkäufe."
   },
   "time": {
     "justNow": "gerade eben",

@@ -1136,6 +1136,81 @@
       "deleteConfirm": "Delete keyword group \"{label}\"?"
     }
   },
+  "nayax": {
+    "reconcile": {
+      "title": "Nayax Sales Reconciliation",
+      "subtitle": "Upload a Nayax sales export and find sales that didn't make it into the database.",
+      "backToReports": "Back to Reports",
+      "upload": {
+        "description": "Upload a Nayax sales export file (.xlsx) from your Nayax back-office. Detected columns: Transaction ID, Machine settlement time, Amount, Product selection info, Machine ID.",
+        "parsing": "Reading file…",
+        "dropHere": "Drop a file here or click to select",
+        "supportsXlsx": "Supports .xlsx from Nayax \"Dynamic Transaction Monitoring\""
+      },
+      "mapping": {
+        "title": "Map machines",
+        "intro": "The Nayax machine IDs below are not yet mapped to any of your machines. Pick the right machine for each row. The mapping is saved and used for all future uploads.",
+        "viewerNotice": "Only admins can save mappings. You can still analyze the file — unmapped machines will appear at the end.",
+        "adminOnly": "Only admins can save mappings.",
+        "saveFailed": "Could not save mapping.",
+        "colNayaxId": "Nayax ID",
+        "colNayaxName": "Nayax machine name",
+        "colMapsTo": "Maps to",
+        "pickMachine": "Choose machine…",
+        "searchMachine": "Search…",
+        "noMatch": "No machine matches",
+        "skipForRun": "Skip for this run",
+        "continueCta": "Continue"
+      },
+      "settings": {
+        "title": "Reconciliation settings",
+        "from": "From",
+        "to": "To",
+        "tz": "Timezone of the Nayax file",
+        "tzHint": "Nayax timestamps are interpreted in this timezone and converted to UTC for comparison.",
+        "tolerance": "Time tolerance (seconds)",
+        "toleranceHint": "Default 10 s. Allows a small drift between machine and MQTT timestamps.",
+        "runCta": "Run analysis"
+      },
+      "results": {
+        "matchedShort": "matched",
+        "missingShort": "missing in DB",
+        "ghostShort": "DB only",
+        "matchedTitle": "Matched",
+        "missingTitle": "Missing in database",
+        "ghostTitle": "Database only",
+        "otherTitle": "Unmapped / unparseable",
+        "colTime": "Time",
+        "colMachine": "Machine",
+        "colSlot": "Slot",
+        "colProduct": "Product",
+        "colPrice": "Price",
+        "colDelta": "Δ time",
+        "colPayment": "Payment",
+        "colChannel": "Channel",
+        "colTxId": "Nayax Tx ID",
+        "selectedN": "{n} selected",
+        "importCta": "Import as manual sales",
+        "importedN": "{n} sales imported.",
+        "importErrors": "{n} errors",
+        "importConfirmTitle": "Create manual sales?",
+        "importConfirmBody": "{n} Nayax rows will be created as manual sales and the tray stock will be decremented accordingly. Continue?",
+        "deleteConfirmTitle": "Delete sale?",
+        "deleteConfirmBody": "The sale will be deleted and the tray stock restored. This cannot be undone.",
+        "allMatched": "All Nayax sales are present in the database.",
+        "noGhosts": "No extra sales in the database.",
+        "exportCsv": "Export CSV",
+        "rerun": "Re-run",
+        "startOver": "New file",
+        "unmappedHead": "{n} rows with unknown machine ID",
+        "unmappedHint": "These Nayax machine IDs are not mapped to any of your machines. These rows are not analyzed.",
+        "openMapping": "Open mapping",
+        "unparseableHead": "{n} rows without a parseable slot number",
+        "unparseableMore": "… and {n} more",
+        "emptyField": "empty"
+      }
+    }
+  },
   "reports": {
     "title": "Reports",
     "dateFrom": "From",
@@ -1174,7 +1249,9 @@
     "vatBreakdown": "VAT Breakdown",
     "vatBreakdownDescription": "Revenue overview by tax rate.",
     "total": "Total",
-    "exportMonthlySummary": "Monthly Summary (Lexware)"
+    "exportMonthlySummary": "Monthly Summary (Lexware)",
+    "nayaxReconcileTitle": "Nayax Sales Reconciliation",
+    "nayaxReconcileBlurb": "Compare a Nayax sales export against the database and find missing sales."
   },
   "time": {
     "justNow": "just now",
