@@ -60,6 +60,17 @@ export function parseTitleDateRange(
   return { fromUtc, toUtc }
 }
 
+/**
+ * Map the Nayax `Payment Method (Source)` column to our `sales.channel`
+ * convention. Used when importing a Nayax row as a manual sale.
+ */
+export function derivedChannelFromPaymentSource(src: string): string {
+  const s = src.trim()
+  if (s === 'Cash') return 'cash'
+  if (/^Credit Card\(/i.test(s)) return 'card'
+  return 'nayax'
+}
+
 /** A single row parsed from the Nayax sales export. */
 export interface NayaxRow {
   rowIndex: number          // 1-based index in the source file, for messages
@@ -312,11 +323,213 @@ export function useNayaxReconciliation() {
     }))
   }
 
-  // Stubs filled in by later tasks
-  function runMatch(): void { throw new Error('not impl') }
-  async function bulkImportMissing(_rows: NayaxRow[]): Promise<{ imported: number; errors: string[] }> { throw new Error('not impl') }
-  async function deleteGhost(_saleId: string): Promise<void> { throw new Error('not impl') }
-  function exportDiffCsv(): string { throw new Error('not impl') }
+  function runMatch(): void {
+    matching.value = true
+    try {
+      const tolMs = settings.value.toleranceSeconds * 1000
+      const tz = settings.value.timezone
+      const mappedVmIds = new Set<string>(Object.values(mapping.value))
+
+      // Bucket: unmapped + unparseable upfront.
+      const unmapped: NayaxRow[] = []
+      const unparseable: NayaxRow[] = []
+      const eligible: NayaxRow[] = []
+      for (const n of rawRows.value) {
+        if (!n.nayaxMachineId || !(n.nayaxMachineId in mapping.value)) {
+          unmapped.push(n)
+          continue
+        }
+        if (n.itemNumber == null || n.priceGross <= 0) {
+          unparseable.push(n)
+          continue
+        }
+        eligible.push(n)
+      }
+
+      // Sort by Nayax time ascending so earlier rows get first pick on
+      // tight DB candidates (deterministic tie-breaking).
+      // Note: greedy one-to-one matching. If a future workload has many
+      // near-simultaneous identical sales, swap to a Hungarian-style
+      // optimal assignment — for v1 a code comment is enough.
+      eligible.sort((a, b) => a.utcDt.localeCompare(b.utcDt))
+
+      const usedDbIds = new Set<string>()
+      const matched: MatchPair[] = []
+      const missingInDb: NayaxRow[] = []
+
+      for (const n of eligible) {
+        const vmId = mapping.value[n.nayaxMachineId]!
+        const nTime = Date.parse(n.utcDt)
+        let best: DbSale | null = null
+        let bestDelta = Infinity
+        for (const s of dbSales.value) {
+          if (usedDbIds.has(s.id)) continue
+          if (s.machine_id !== vmId) continue
+          if (s.item_number !== n.itemNumber) continue
+          if (s.item_price == null) continue
+          if (roundTo2(s.item_price) !== roundTo2(n.priceGross)) continue
+          const dTime = Date.parse(s.created_at)
+          const delta = dTime - nTime
+          if (Math.abs(delta) > tolMs) continue
+          if (Math.abs(delta) < Math.abs(bestDelta)) {
+            best = s
+            bestDelta = delta
+          }
+        }
+        if (best == null) {
+          missingInDb.push(n)
+        } else {
+          matched.push({ nayax: n, db: best, deltaSeconds: bestDelta / 1000 })
+          usedDbIds.add(best.id)
+        }
+      }
+
+      // Ghosts: DB sales in range, on a mapped machine, not consumed.
+      const fromMs = Date.parse(settings.value.fromUtc)
+      const toMs = Date.parse(settings.value.toUtc)
+      const ghostInDb: DbSale[] = dbSales.value.filter(s =>
+        s.machine_id != null
+        && mappedVmIds.has(s.machine_id)
+        && !usedDbIds.has(s.id)
+        && Date.parse(s.created_at) >= fromMs
+        && Date.parse(s.created_at) <= toMs,
+      )
+
+      result.value = {
+        matched,
+        missingInDb,
+        ghostInDb,
+        unmapped,
+        unparseable,
+        fileDateRange: settings.value.fromUtc && settings.value.toUtc
+          ? { fromUtc: settings.value.fromUtc, toUtc: settings.value.toUtc }
+          : null,
+        settings: {
+          timezone: tz,
+          toleranceSeconds: settings.value.toleranceSeconds,
+        },
+      }
+    } finally {
+      matching.value = false
+    }
+  }
+  async function bulkImportMissing(
+    rows: NayaxRow[],
+  ): Promise<{ imported: number; errors: string[] }> {
+    importing.value = true
+    const errors: string[] = []
+    let imported = 0
+    try {
+      const supabase = useSupabaseClient()
+      for (const n of rows) {
+        const vmId = mapping.value[n.nayaxMachineId]
+        if (!vmId || n.itemNumber == null) {
+          errors.push(`row ${n.rowIndex}: cannot import (unmapped or unparseable)`)
+          continue
+        }
+        const { error: err } = await (supabase as any).rpc('insert_manual_sale', {
+          p_machine_id: vmId,
+          p_item_number: n.itemNumber,
+          p_item_price: n.priceGross,
+          p_channel: derivedChannelFromPaymentSource(n.paymentSource),
+          p_created_at: n.utcDt,
+        })
+        if (err) {
+          errors.push(`row ${n.rowIndex} (${n.txId}): ${err.message ?? err}`)
+          continue
+        }
+        imported++
+      }
+      // Re-load DB sales so subsequent `runMatch` reflects new rows.
+      // Wrap separately — a failure here shouldn't lose the per-row success
+      // info. The user can still hit "Re-run" to refresh manually.
+      try {
+        await loadDbSales()
+        runMatch()
+      } catch (e: unknown) {
+        errors.push(`refresh after import: ${e instanceof Error ? e.message : String(e)}`)
+      }
+    } finally {
+      importing.value = false
+    }
+    return { imported, errors }
+  }
+
+  async function deleteGhost(saleId: string): Promise<void> {
+    deleting.value = true
+    try {
+      const supabase = useSupabaseClient()
+      const { error: err } = await (supabase as any).rpc('delete_sale_and_restore_stock', {
+        p_sale_id: saleId,
+      })
+      if (err) throw err
+      // Refresh state
+      await loadDbSales()
+      runMatch()
+    } finally {
+      deleting.value = false
+    }
+  }
+  function exportDiffCsv(): string {
+    if (!result.value) return ''
+    const cols = [
+      'bucket','nayax_time_local','nayax_time_utc','db_time_utc','delta_seconds',
+      'machine_name','slot','product','price','payment_source','channel',
+      'nayax_tx_id','db_sale_id',
+    ]
+    const esc = (v: unknown): string => {
+      if (v == null) return ''
+      const s = String(v)
+      if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+        return `"${s.replace(/"/g, '""')}"`
+      }
+      return s
+    }
+    const lines: string[] = [cols.join(',')]
+    const machineNameById = new Map<string, string>()
+    for (const [nayaxId, vmId] of Object.entries(mapping.value)) {
+      const n = rawRows.value.find(r => r.nayaxMachineId === nayaxId)
+      if (n) machineNameById.set(vmId, n.machineName)
+    }
+    for (const m of result.value.matched) {
+      lines.push([
+        'matched',
+        m.nayax.localDt,
+        m.nayax.utcDt,
+        m.db.created_at,
+        m.deltaSeconds.toFixed(2),
+        m.nayax.machineName,
+        m.nayax.itemNumber,
+        m.db.product_name ?? m.nayax.productName,
+        m.nayax.priceGross.toFixed(2),
+        m.nayax.paymentSource,
+        m.db.channel ?? '',
+        m.nayax.txId,
+        m.db.id,
+      ].map(esc).join(','))
+    }
+    for (const n of result.value.missingInDb) {
+      lines.push([
+        'missing_in_db',
+        n.localDt, n.utcDt, '', '',
+        n.machineName, n.itemNumber, n.productName,
+        n.priceGross.toFixed(2), n.paymentSource, '',
+        n.txId, '',
+      ].map(esc).join(','))
+    }
+    for (const s of result.value.ghostInDb) {
+      lines.push([
+        'ghost_in_db',
+        '', '', s.created_at, '',
+        machineNameById.get(s.machine_id) ?? '',
+        s.item_number, s.product_name ?? '',
+        s.item_price?.toFixed(2) ?? '', '',
+        s.channel ?? '',
+        '', s.id,
+      ].map(esc).join(','))
+    }
+    return lines.join('\n')
+  }
   function reset(): void {
     file.value = null
     rawRows.value = []

@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
 import { localDtToUtc, parseSelectionInfo, parseTitleDateRange } from '../useNayaxReconciliation'
+import { useNayaxReconciliation, derivedChannelFromPaymentSource, type NayaxRow, type DbSale } from '../useNayaxReconciliation'
 
 function loadFixture(name: string): File {
   const here = dirname(fileURLToPath(import.meta.url))
@@ -161,5 +162,231 @@ describe('parseFile', () => {
     // uses for its threshold.
     const { MAX_ROWS_HARD_CAP } = await import('../useNayaxReconciliation')
     expect(MAX_ROWS_HARD_CAP).toBe(50000)
+  })
+})
+
+function setupRecon(seed: {
+  rawRows: NayaxRow[]
+  mapping: Record<string, string>
+  dbSales: DbSale[]
+  toleranceSeconds?: number
+  fromUtc?: string
+  toUtc?: string
+}) {
+  const r = useNayaxReconciliation()
+  // Note: in tests, the `#imports` → `nuxt-stubs.ts` alias makes
+  // `useState(key, init)` return a fresh ref per call, so each `setupRecon`
+  // invocation starts with its own isolated state — that's what we want.
+  r.rawRows.value = seed.rawRows
+  r.mapping.value = seed.mapping
+  r.dbSales.value = seed.dbSales
+  r.settings.value = {
+    timezone: 'Europe/Berlin',
+    toleranceSeconds: seed.toleranceSeconds ?? 10,
+    fromUtc: seed.fromUtc ?? '2026-03-01T00:00:00.000Z',
+    toUtc: seed.toUtc ?? '2026-03-31T23:59:59.000Z',
+  }
+  return r
+}
+
+function mkNayax(over: Partial<NayaxRow> = {}): NayaxRow {
+  return {
+    rowIndex: 3, txId: 'tx1', nayaxMachineId: 'N1', machineName: 'M1',
+    productGroup: 'g', productName: 'p', paymentSource: 'Cash',
+    priceGross: 2.5, itemNumber: 58, selectionInfoRaw: 'p(58  2.50)',
+    localDt: '31.03.2026 21:46:09', utcDt: '2026-03-31T19:46:09.000Z',
+    ...over,
+  }
+}
+
+function mkSale(over: Partial<DbSale> = {}): DbSale {
+  return {
+    id: 's1', created_at: '2026-03-31T19:46:11.000Z',
+    machine_id: 'vm1', item_number: 58, item_price: 2.5,
+    channel: 'cash', product_id: null, product_name: null,
+    ...over,
+  }
+}
+
+describe('runMatch', () => {
+  it('matches exact (Δ < tolerance) on machine + item + price + time', () => {
+    const r = setupRecon({
+      rawRows: [mkNayax()],
+      mapping: { N1: 'vm1' },
+      dbSales: [mkSale()],   // Δ = +2 s
+    })
+    r.runMatch()
+    expect(r.result.value!.matched).toHaveLength(1)
+    expect(r.result.value!.matched[0]!.deltaSeconds).toBeCloseTo(2, 0)
+    expect(r.result.value!.missingInDb).toHaveLength(0)
+    expect(r.result.value!.ghostInDb).toHaveLength(0)
+  })
+
+  it('counts a Δ within tolerance as a match (Δ = 9 s with 10 s tolerance)', () => {
+    const r = setupRecon({
+      rawRows: [mkNayax()],
+      mapping: { N1: 'vm1' },
+      dbSales: [mkSale({ created_at: '2026-03-31T19:46:18.000Z' })],
+      toleranceSeconds: 10,
+    })
+    r.runMatch()
+    expect(r.result.value!.matched).toHaveLength(1)
+    expect(r.result.value!.missingInDb).toHaveLength(0)
+  })
+
+  it('treats a Δ outside tolerance as missing (Δ = 11 s with 10 s tolerance)', () => {
+    const r = setupRecon({
+      rawRows: [mkNayax()],
+      mapping: { N1: 'vm1' },
+      dbSales: [mkSale({ created_at: '2026-03-31T19:46:20.000Z' })],
+      toleranceSeconds: 10,
+    })
+    r.runMatch()
+    expect(r.result.value!.matched).toHaveLength(0)
+    expect(r.result.value!.missingInDb).toHaveLength(1)
+    // The DB sale is in the date range with a mapped machine → ghost
+    expect(r.result.value!.ghostInDb).toHaveLength(1)
+  })
+
+  it('treats sub-cent price drift as a match (0.001 difference rounds away)', () => {
+    const r = setupRecon({
+      rawRows: [mkNayax({ priceGross: 2.5 })],
+      mapping: { N1: 'vm1' },
+      dbSales: [mkSale({ item_price: 2.5001 })],
+    })
+    r.runMatch()
+    expect(r.result.value!.matched).toHaveLength(1)
+  })
+
+  it('treats 0.01 price drift as a genuine mismatch', () => {
+    const r = setupRecon({
+      rawRows: [mkNayax({ priceGross: 2.5 })],
+      mapping: { N1: 'vm1' },
+      dbSales: [mkSale({ item_price: 2.51 })],
+    })
+    r.runMatch()
+    expect(r.result.value!.matched).toHaveLength(0)
+    expect(r.result.value!.missingInDb).toHaveLength(1)
+  })
+
+  it('one-to-one: two Nayax rows compete for one DB sale; earlier wins', () => {
+    const r = setupRecon({
+      rawRows: [
+        mkNayax({ txId: 'A', utcDt: '2026-03-31T19:46:09.000Z' }),
+        mkNayax({ txId: 'B', utcDt: '2026-03-31T19:46:11.000Z' }),
+      ],
+      mapping: { N1: 'vm1' },
+      dbSales: [mkSale({ created_at: '2026-03-31T19:46:10.000Z' })],
+    })
+    r.runMatch()
+    // Sort by Nayax time asc → A claims the DB sale first
+    expect(r.result.value!.matched.map(m => m.nayax.txId)).toEqual(['A'])
+    expect(r.result.value!.missingInDb.map(n => n.txId)).toEqual(['B'])
+  })
+
+  it('one Nayax row with two DB candidates: closer Δ wins', () => {
+    const r = setupRecon({
+      rawRows: [mkNayax({ utcDt: '2026-03-31T19:46:10.000Z' })],
+      mapping: { N1: 'vm1' },
+      dbSales: [
+        mkSale({ id: 'far',  created_at: '2026-03-31T19:46:15.000Z' }),  // Δ +5
+        mkSale({ id: 'near', created_at: '2026-03-31T19:46:11.000Z' }),  // Δ +1
+      ],
+    })
+    r.runMatch()
+    expect(r.result.value!.matched[0]!.db.id).toBe('near')
+    expect(r.result.value!.ghostInDb.map(s => s.id)).toEqual(['far'])
+  })
+
+  it('unmapped Nayax rows go into `unmapped` and not `missingInDb`', () => {
+    const r = setupRecon({
+      rawRows: [mkNayax({ nayaxMachineId: 'UNKNOWN' })],
+      mapping: { N1: 'vm1' },
+      dbSales: [],
+    })
+    r.runMatch()
+    expect(r.result.value!.unmapped).toHaveLength(1)
+    expect(r.result.value!.missingInDb).toHaveLength(0)
+  })
+
+  it('rows with itemNumber=null go into `unparseable`', () => {
+    const r = setupRecon({
+      rawRows: [mkNayax({ itemNumber: null })],
+      mapping: { N1: 'vm1' },
+      dbSales: [],
+    })
+    r.runMatch()
+    expect(r.result.value!.unparseable).toHaveLength(1)
+  })
+
+  it('DB sales outside the date range are not flagged as ghosts', () => {
+    const r = setupRecon({
+      rawRows: [],
+      mapping: { N1: 'vm1' },
+      dbSales: [
+        mkSale({ id: 'in',  created_at: '2026-03-15T12:00:00.000Z' }),
+        mkSale({ id: 'out', created_at: '2026-04-01T12:00:00.000Z' }),
+      ],
+      fromUtc: '2026-03-01T00:00:00.000Z',
+      toUtc:   '2026-03-31T23:59:59.000Z',
+    })
+    r.runMatch()
+    expect(r.result.value!.ghostInDb.map(s => s.id)).toEqual(['in'])
+  })
+})
+
+describe('derivedChannelFromPaymentSource', () => {
+  it('maps "Cash" to "cash"', () => {
+    expect(derivedChannelFromPaymentSource('Cash')).toBe('cash')
+  })
+  it('maps any "Credit Card(*)" to "card"', () => {
+    expect(derivedChannelFromPaymentSource('Credit Card(CLS)')).toBe('card')
+    expect(derivedChannelFromPaymentSource('Credit Card(Whatever)')).toBe('card')
+  })
+  it('maps unknown values to "nayax"', () => {
+    expect(derivedChannelFromPaymentSource('Apple Pay')).toBe('nayax')
+    expect(derivedChannelFromPaymentSource('')).toBe('nayax')
+  })
+})
+
+describe('exportDiffCsv', () => {
+  it('emits one CSV row per matched/missing/ghost entry with the documented columns', () => {
+    const r = setupRecon({
+      rawRows: [
+        mkNayax({ txId: 'A' }),                               // matched
+        mkNayax({ txId: 'B', utcDt: '2026-03-31T19:46:30.000Z' }),  // missing (no DB sale)
+      ],
+      mapping: { N1: 'vm1' },
+      dbSales: [
+        mkSale({ id: 'sA' }),                                 // matches A
+        mkSale({ id: 'sG', created_at: '2026-03-20T12:00:00.000Z',
+                 item_number: 99, item_price: 1.0 }),          // ghost
+      ],
+    })
+    r.runMatch()
+    const csv = r.exportDiffCsv()
+    const lines = csv.trim().split('\n')
+    // Header + 1 matched + 1 missing + 1 ghost = 4 lines
+    expect(lines.length).toBe(4)
+    expect(lines[0]).toBe(
+      'bucket,nayax_time_local,nayax_time_utc,db_time_utc,delta_seconds,machine_name,slot,product,price,payment_source,channel,nayax_tx_id,db_sale_id',
+    )
+    // Just sanity-check one column from each bucket row
+    expect(lines.some(l => l.startsWith('matched,'))).toBe(true)
+    expect(lines.some(l => l.startsWith('missing_in_db,'))).toBe(true)
+    expect(lines.some(l => l.startsWith('ghost_in_db,'))).toBe(true)
+  })
+
+  it('escapes commas and quotes inside string fields', () => {
+    const r = setupRecon({
+      rawRows: [mkNayax({ productName: 'Coke, Zero', txId: 't"x' })],
+      mapping: { N1: 'vm1' },
+      dbSales: [],
+    })
+    r.runMatch()
+    const csv = r.exportDiffCsv()
+    // product column should be quoted, internal quotes doubled
+    expect(csv).toContain('"Coke, Zero"')
+    expect(csv).toContain('"t""x"')
   })
 })
