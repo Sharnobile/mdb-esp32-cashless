@@ -29,6 +29,7 @@ interface VendingMachine {
   address_postal_code: string | null
   address_city: string | null
   formatted_address: string | null
+  nayax_machine_id: string | null
   embeddeds: Embedded | null
   last_sale_at?: string | null
   last_sale_amount?: number | null
@@ -72,13 +73,15 @@ export interface MachineSettingsPatch {
   address_city: string | null
   formatted_address: string | null
   country_code: string | null
+  nayax_machine_id: string | null
 }
 
 /**
  * Location payload for createMachine(). Narrows location_lat/location_lon to
  * non-null since a machine is only created "with location" when a pin was placed.
+ * nayax_machine_id is set later via Machine Settings, not at creation time.
  */
-export type CreateMachineLocation = Omit<MachineSettingsPatch, 'location_lat' | 'location_lon'> & {
+export type CreateMachineLocation = Omit<MachineSettingsPatch, 'location_lat' | 'location_lon' | 'nayax_machine_id'> & {
   location_lat: number
   location_lon: number
 }
@@ -96,6 +99,7 @@ export function useMachines() {
         .select(`
           id, name, location_lat, location_lon, embedded, country_code, public_listing,
           address_street, address_house_number, address_postal_code, address_city, formatted_address,
+          nayax_machine_id,
           embeddeds(id, status, status_at, subdomain, mac_address, firmware_version, firmware_build_date, mdb_diagnostics, last_restart_reason, last_restart_at, online_since)
         `)
 
@@ -589,6 +593,7 @@ export function useMachines() {
       machine.address_postal_code = patch.address_postal_code
       machine.address_city = patch.address_city
       machine.formatted_address = patch.formatted_address
+      machine.nayax_machine_id = patch.nayax_machine_id
     }
   }
 

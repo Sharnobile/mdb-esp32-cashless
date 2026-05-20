@@ -409,6 +409,9 @@
     "noResults": "Keine Treffer",
     "countryAutoHint": "Aus Adresse übernommen, manuell überschreibbar",
     "setLocationOptional": "Standort jetzt festlegen (optional)",
+    "nayaxMachineId": "Nayax-Maschinen-ID",
+    "nayaxMachineIdPlaceholder": "z. B. 92700604",
+    "nayaxMachineIdHint": "Erforderlich für den Nayax-Verkaufsabgleich. Diese ID findest du in deinem Nayax-Backoffice.",
     "save": "Speichern",
     "cancel": "Abbrechen"
   },

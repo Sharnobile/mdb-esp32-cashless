@@ -47,6 +47,7 @@ describe('useMachines.updateMachineSettings', () => {
       address_city: 'Berlin',
       formatted_address: 'Musterstraße 1, 10115 Berlin, Deutschland',
       country_code: 'DE',
+      nayax_machine_id: '92700604',
     })
     expect(mockSupabase.from).toHaveBeenCalledWith('vendingMachine')
     expect(capturedUpdates).toHaveLength(1)
@@ -70,6 +71,7 @@ describe('useMachines.updateMachineSettings', () => {
       address_city: null,
       formatted_address: null,
       country_code: null,
+      nayax_machine_id: null,
     })
     expect(capturedUpdates[0]).toMatchObject({
       location_lat: null,
@@ -92,6 +94,7 @@ describe('useMachines.updateMachineSettings', () => {
         address_city: null,
         formatted_address: null,
         country_code: null,
+        nayax_machine_id: null,
       }),
     ).rejects.toMatchObject({ message: 'boom' })
   })

@@ -409,6 +409,9 @@
     "noResults": "No results",
     "countryAutoHint": "Derived from address, can be overridden",
     "setLocationOptional": "Set location now (optional)",
+    "nayaxMachineId": "Nayax Machine ID",
+    "nayaxMachineIdPlaceholder": "e.g. 92700604",
+    "nayaxMachineIdHint": "Required for Nayax sales reconciliation. You can find this ID in your Nayax back-office.",
     "save": "Save",
     "cancel": "Cancel"
   },

@@ -17,7 +17,7 @@ import { COUNTRY_OPTIONS } from '~/composables/useTaxSettings'
 const props = defineProps<{
   open: boolean
   machineId: string
-  initial: Partial<LocationModel>
+  initial: Partial<LocationModel & { nayax_machine_id: string | null }>
   publicListing: boolean
 }>()
 
@@ -30,7 +30,9 @@ const { t } = useI18n()
 const supabase = useSupabaseClient()
 const { updateMachineSettings } = useMachines()
 
-const form = ref<LocationModel>(cloneInitial())
+type MachineSettingsForm = LocationModel & { nayax_machine_id: string | null }
+
+const form = ref<MachineSettingsForm>(cloneInitial())
 const saving = ref(false)
 const errorMsg = ref<string | null>(null)
 
@@ -47,7 +49,7 @@ const publicUrl = computed(() => {
   return `${publicPageOrigin.value}/m/${props.machineId}`
 })
 
-function cloneInitial(): LocationModel {
+function cloneInitial(): MachineSettingsForm {
   return {
     location_lat: props.initial.location_lat ?? null,
     location_lon: props.initial.location_lon ?? null,
@@ -57,6 +59,7 @@ function cloneInitial(): LocationModel {
     address_city: props.initial.address_city ?? null,
     formatted_address: props.initial.formatted_address ?? null,
     country_code: props.initial.country_code ?? null,
+    nayax_machine_id: props.initial.nayax_machine_id ?? null,
   }
 }
 
@@ -149,6 +152,7 @@ async function save() {
   saving.value = true
   errorMsg.value = null
   try {
+    if (form.value.nayax_machine_id === '') form.value.nayax_machine_id = null
     await updateMachineSettings(props.machineId, form.value as MachineSettingsPatch)
     emit('saved')
     emit('update:open', false)
@@ -205,6 +209,19 @@ function cancel() {
             </option>
           </select>
           <p class="mt-1 text-[10px] text-muted-foreground">{{ t('machineSettings.countryAutoHint') }}</p>
+        </div>
+
+        <!-- Nayax machine ID -->
+        <div class="space-y-1">
+          <label class="text-xs font-medium text-muted-foreground">{{ t('machineSettings.nayaxMachineId') }}</label>
+          <input
+            v-model="form.nayax_machine_id"
+            type="text"
+            inputmode="numeric"
+            :placeholder="t('machineSettings.nayaxMachineIdPlaceholder')"
+            class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          />
+          <p class="mt-1 text-[10px] text-muted-foreground">{{ t('machineSettings.nayaxMachineIdHint') }}</p>
         </div>
 
         <p v-if="errorMsg" class="text-xs text-destructive">{{ errorMsg }}</p>

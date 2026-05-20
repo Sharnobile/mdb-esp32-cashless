@@ -193,7 +193,7 @@ const errorMsg = ref('')
 async function fetchMachine() {
   const { data, error } = await supabase
     .from('vendingMachine')
-    .select('id, name, location_lat, location_lon, embedded, country_code, public_listing, address_street, address_house_number, address_postal_code, address_city, formatted_address, embeddeds(id, status, status_at, subdomain, mac_address, firmware_version, firmware_build_date, mdb_address, mdb_diagnostics, last_restart_reason, last_restart_at, online_since, softap_password)')
+    .select('id, name, location_lat, location_lon, embedded, country_code, public_listing, address_street, address_house_number, address_postal_code, address_city, formatted_address, nayax_machine_id, embeddeds(id, status, status_at, subdomain, mac_address, firmware_version, firmware_build_date, mdb_address, mdb_diagnostics, last_restart_reason, last_restart_at, online_since, softap_password)')
     .eq('id', route.params.id)
     .single()
   if (error) {
@@ -2883,6 +2883,7 @@ async function handleAddSale() {
           address_city: (machine as any).address_city ?? null,
           formatted_address: (machine as any).formatted_address ?? null,
           country_code: machine.country_code,
+          nayax_machine_id: (machine as any).nayax_machine_id ?? null,
         }"
         @saved="fetchMachine"
       />
