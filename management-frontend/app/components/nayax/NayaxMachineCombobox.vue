@@ -54,6 +54,9 @@ function pick(id: string | null) {
     <PopoverTrigger as-child>
       <button
         type="button"
+        role="combobox"
+        :aria-expanded="open"
+        :aria-label="t('nayax.reconcile.mapping.pickMachine')"
         :disabled="disabled"
         :class="cn(
           'inline-flex h-9 w-full items-center justify-between rounded-md border border-input bg-background px-3 text-sm shadow-sm transition-colors hover:bg-muted/30 disabled:opacity-50',

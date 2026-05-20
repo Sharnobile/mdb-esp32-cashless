@@ -4,8 +4,11 @@ const emit = defineEmits<{ file: [f: File] }>()
 const { t } = useI18n()
 
 function onChange(e: Event) {
-  const file = (e.target as HTMLInputElement).files?.[0]
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
   if (file) emit('file', file)
+  // Reset so re-selecting the same file (e.g. after a parser error) refires.
+  input.value = ''
 }
 
 function onDrop(e: DragEvent) {
@@ -30,7 +33,7 @@ function onDrop(e: DragEvent) {
           <span class="mt-1 block text-xs">{{ t('nayax.reconcile.upload.supportsXlsx') }}</span>
         </template>
       </div>
-      <input type="file" accept=".xlsx,.xls" class="hidden" @change="onChange" />
+      <input type="file" accept=".xlsx,.xls" class="sr-only" @change="onChange" />
     </label>
     <p v-if="props.error" class="mt-3 text-sm text-destructive">{{ t(props.error) || props.error }}</p>
   </div>

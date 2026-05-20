@@ -27,13 +27,16 @@ function fromLocalInput(local: string): string {
 const tolerance = computed({
   get: () => recon.settings.value.toleranceSeconds,
   set: (v: number) => {
-    recon.settings.value.toleranceSeconds = Math.max(5, Math.min(600, Math.round(v)))
+    // Don't clamp on every keystroke — that snaps the input value mid-typing.
+    // The native min/max attributes + the clamp in submit() are enough.
+    recon.settings.value.toleranceSeconds = v
   },
 })
 
 function submit() {
   recon.settings.value.fromUtc = fromLocalInput(fromInput.value)
   recon.settings.value.toUtc = fromLocalInput(toInput.value)
+  recon.settings.value.toleranceSeconds = Math.max(5, Math.min(600, Math.round(recon.settings.value.toleranceSeconds)))
   emit('run')
 }
 </script>

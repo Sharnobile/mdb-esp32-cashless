@@ -45,15 +45,16 @@ function setPick(nayaxId: string, value: string | null) {
 }
 
 async function save() {
-  if (!props.isAdmin) {
-    error.value = 'nayax.reconcile.mapping.adminOnly'
-    return
-  }
   saving.value = true
   error.value = ''
   try {
-    for (const [nayaxId, vmId] of Object.entries(localPicks.value)) {
-      await recon.saveMapping(nayaxId, vmId)
+    const picks = Object.entries(localPicks.value)
+    // Viewers can't write to vendingMachine, but they can still proceed
+    // through the wizard with whatever mappings already exist.
+    if (props.isAdmin && picks.length > 0) {
+      for (const [nayaxId, vmId] of picks) {
+        await recon.saveMapping(nayaxId, vmId)
+      }
     }
     emit('done')
   }

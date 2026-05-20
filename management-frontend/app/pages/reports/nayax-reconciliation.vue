@@ -19,6 +19,12 @@ onMounted(() => {
   if (tz) recon.settings.value.timezone = tz
   const tol = localStorage.getItem('nayax-reconcile-tolerance')
   if (tol) recon.settings.value.toleranceSeconds = Math.max(5, Math.min(600, Number(tol)))
+
+  // If we land on the page in the 'results' state but there's no result
+  // data (e.g. after a page reload or stale navigation), reset to upload.
+  if (recon.step.value === 'results' && !recon.result.value) {
+    recon.reset()
+  }
 })
 
 async function onFileSelected(file: File) {
