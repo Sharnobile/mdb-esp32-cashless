@@ -1,4 +1,4 @@
-import { useState, useSupabaseClient } from '#imports'
+import { useState } from '#imports'
 import { fromZonedTime } from 'date-fns-tz'
 
 /**
@@ -14,6 +14,10 @@ export function localDtToUtc(local: string, tz: string): string {
   // Date at the corresponding UTC instant.
   const isoLocal = `${yyyy}-${mm}-${dd}T${hh}:${mi}:${ss}`
   const utc = fromZonedTime(isoLocal, tz)
+  // Regex-valid inputs can still be semantically invalid (Feb 29 in a
+  // non-leap year, hour 25, month 13, etc.) — fromZonedTime returns an
+  // Invalid Date for those, and .toISOString() would throw RangeError.
+  if (Number.isNaN(utc.getTime())) return ''
   return utc.toISOString()
 }
 
@@ -115,14 +119,17 @@ export function useNayaxReconciliation() {
   // call site its own isolated state — the wizard would not work. This
   // mirrors the pattern in `useMachines` (see `useState<VendingMachine[]>('machines', ...)`).
   const file = useState<File | null>('nayax-recon-file', () => null)
-  const rawRows = useState<NayaxRow[]>('nayax-recon-rawRows', () => [])
+  const rawRows = useState<NayaxRow[]>('nayax-recon-raw-rows', () => [])
   const dbSales = useState<DbSale[]>('nayax-recon-dbSales', () => [])
-  const mapping = useState<Map<string, string>>('nayax-recon-mapping', () => new Map())
+  // Use a plain object (Record) rather than Map: Vue's reactive system
+  // observes object property mutations (`mapping.value[k] = v`,
+  // `delete mapping.value[k]`) but not `Map.set` / `Map.delete`.
+  const mapping = useState<Record<string, string>>('nayax-recon-mapping', () => ({}))
   const settings = useState('nayax-recon-settings', () => ({
     timezone: 'Europe/Berlin',
     toleranceSeconds: 10,
-    fromUtc: '' as string,
-    toUtc: '' as string,
+    fromUtc: '',
+    toUtc: '',
   }))
   const result = useState<ReconResult | null>('nayax-recon-result', () => null)
   const step = useState<Step>('nayax-recon-step', () => 'upload' as Step)

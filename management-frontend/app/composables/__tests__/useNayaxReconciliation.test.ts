@@ -29,6 +29,15 @@ describe('localDtToUtc', () => {
     expect(localDtToUtc('not a date', 'Europe/Berlin')).toBe('')
     expect(localDtToUtc('', 'Europe/Berlin')).toBe('')
   })
+
+  it('returns empty string for regex-valid but semantically-invalid dates', () => {
+    // Feb 29 only exists in leap years; 2026 isn't one.
+    expect(localDtToUtc('29.02.2026 12:00:00', 'Europe/Berlin')).toBe('')
+    // April has 30 days.
+    expect(localDtToUtc('31.04.2026 12:00:00', 'Europe/Berlin')).toBe('')
+    // Hour out of range.
+    expect(localDtToUtc('01.05.2026 25:00:00', 'Europe/Berlin')).toBe('')
+  })
 })
 
 describe('parseSelectionInfo', () => {
