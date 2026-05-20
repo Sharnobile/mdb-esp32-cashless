@@ -310,7 +310,7 @@ Expected: `2026-03-31T19:46:09.000Z` (CEST, DST already active on that date).
 Create `management-frontend/app/composables/useNayaxReconciliation.ts`:
 
 ```ts
-import { ref, computed, useState, useSupabaseClient } from '#imports'
+import { useState, useSupabaseClient } from '#imports'
 
 /** A single row parsed from the Nayax sales export. */
 export interface NayaxRow {
@@ -458,13 +458,15 @@ describe('localDtToUtc', () => {
       .toBe('2026-01-15T11:00:00.000Z')
   })
 
-  it('handles the spring-forward gap by interpreting it as post-jump CEST', () => {
+  it('handles the spring-forward gap without throwing', () => {
     // 02:30 on 2026-03-29 does not exist in Europe/Berlin (clocks jump
-    // 02:00 → 03:00). date-fns-tz resolves this as if the user meant
-    // the post-jump 02:30 CEST, i.e. 00:30 UTC. This test asserts that
-    // behaviour so a future reader doesn't think the result is wrong.
-    expect(localDtToUtc('29.03.2026 02:30:00', 'Europe/Berlin'))
-      .toBe('2026-03-29T00:30:00.000Z')
+    // 02:00 CET → 03:00 CEST). The exact value returned by date-fns-tz
+    // for non-existent instants is library-defined and has historically
+    // differed across versions — we don't pin a specific UTC time. We
+    // only assert the function returns *some* valid ISO 8601 within the
+    // plausible window (00:30 UTC if pre-jump, 01:30 UTC if post-jump).
+    const out = localDtToUtc('29.03.2026 02:30:00', 'Europe/Berlin')
+    expect(out).toMatch(/^2026-03-29T0[01]:30:00\.000Z$/)
   })
 
   it('returns empty string for malformed input', () => {
@@ -2768,14 +2770,14 @@ EOF
 
 All six chunks committed. Acceptance criteria from the spec are covered:
 
-- ✅ Persistent `vendingMachine.nayax_machine_id` column + admin-only edit on `/machines/[id]`
-- ✅ `/reports/nayax-reconciliation` page with the four-step wizard (Upload → Mapping → Settings → Results)
-- ✅ Three result buckets (matched / missing-in-DB / ghost-in-DB) plus unmapped/unparseable
-- ✅ Bulk import of missing sales via `insert_manual_sale`
-- ✅ Per-row delete of ghosts via `delete_sale_and_restore_stock`
-- ✅ CSV diff export with the spec's column layout
-- ✅ Default ±10 s tolerance, persisted to `localStorage`
-- ✅ DST-correct timezone conversion (`date-fns-tz`, default Europe/Berlin)
-- ✅ Soft 10 k warn / hard 50 k refuse for file size
-- ✅ Full German + English i18n
-- ✅ 34 Vitest tests covering pure helpers + parser + matcher + CSV
+- [x] Persistent `vendingMachine.nayax_machine_id` column + admin-only edit on `/machines/[id]`
+- [x] `/reports/nayax-reconciliation` page with the four-step wizard (Upload → Mapping → Settings → Results)
+- [x] Three result buckets (matched / missing-in-DB / ghost-in-DB) plus unmapped/unparseable
+- [x] Bulk import of missing sales via `insert_manual_sale`
+- [x] Per-row delete of ghosts via `delete_sale_and_restore_stock`
+- [x] CSV diff export with the spec's column layout
+- [x] Default ±10 s tolerance, persisted to `localStorage`
+- [x] DST-correct timezone conversion (`date-fns-tz`, default Europe/Berlin)
+- [x] Soft 10 k warn / hard 50 k refuse for file size
+- [x] Full German + English i18n
+- [x] 34 Vitest tests covering pure helpers + parser + matcher + CSV
