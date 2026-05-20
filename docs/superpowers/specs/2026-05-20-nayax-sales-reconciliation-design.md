@@ -193,6 +193,20 @@ export function useNayaxReconciliation() {
   async function bulkImportMissing(rows: NayaxRow[]): Promise<{ imported: number; errors: string[] }>
   async function deleteGhost(saleId: string): Promise<void>
   function exportDiffCsv(): string
+  // CSV layout (one row per Nayax row + ghosts):
+  //   bucket            ("matched" | "missing_in_db" | "ghost_in_db" | "unmapped" | "unparseable")
+  //   nayax_time_local  ("DD.MM.YYYY HH:MM:SS")
+  //   nayax_time_utc    (ISO 8601)
+  //   db_time_utc       (ISO 8601, blank if no DB side)
+  //   delta_seconds     (blank unless matched)
+  //   machine_name      (DB side if available, else Nayax side)
+  //   slot              (item_number)
+  //   product           (DB side if available, else Nayax productName)
+  //   price             (gross, 2dp)
+  //   payment_source    (Nayax raw)
+  //   channel           (DB channel if available)
+  //   nayax_tx_id
+  //   db_sale_id        (blank if no DB side)
   function reset(): void
 
   // settings persistence
@@ -211,10 +225,10 @@ Step machine driven by `useNayaxReconciliation.step`:
 
    | Nayax ID | Nayax Machinename | Maps to                  |
    |----------|-------------------|--------------------------|
-   | 92700604 | Niedernhall Fr…   | [Dropdown: our machines] |
-   | 824257353| Giebelheide Z…    | [Dropdown: our machines] |
+   | 92700604 | Niedernhall Fr…   | [Combobox: our machines] |
+   | 824257353| Giebelheide Z…    | [Combobox: our machines] |
 
-   Each dropdown shows `vendingMachine.name`. A "Skip — don't analyze this machine" option leaves the mapping null and excludes those rows from the run. Save button writes via `updateNayaxMachineId(vmId, nayaxId)` then advances to step 3.
+   Each picker is a search-as-you-type combobox (reuse the existing `components/ProductCombobox.vue` pattern, renamed/abstracted as needed) — plain `<select>` is painful at 50+ machines. Combobox shows `vendingMachine.name`. A separate "Skip — don't analyze this machine for this upload" option leaves the mapping null and excludes those rows **from this run only** — the row reappears in the mapping step on the next upload, so skip is *not* a "don't ask again" flag. Save button writes the picked mappings via `updateNayaxMachineId(vmId, nayaxId)` then advances to step 3.
 
 3. **Settings** — three controls:
    - **Zeitraum** — date+time inputs, pre-filled from the file's row 1. Used to scope the DB sales query.
@@ -273,7 +287,7 @@ ghostInDb = dbSales.filter(s =>
 )
 ```
 
-Match is greedy + one-to-one: each DB sale matches at most one Nayax row. Greedy is fine because the realistic case is "1–3 sales drift per month" — no pathological ambiguity expected. Sort by Nayax time first so earlier rows get first pick on close candidates.
+Match is greedy + one-to-one: each DB sale matches at most one Nayax row. Greedy is fine because the realistic case is "1–3 sales drift per month" — no pathological ambiguity expected. Sort by Nayax time first so earlier rows get first pick on close candidates. **Note for implementation**: under a future workload with many near-simultaneous sales on the same slot (e.g. coffee machine at lunch rush), greedy can mis-assign by 1–2 seconds. If that becomes a real problem we can swap to Hungarian / minimum-cost matching — for v1 leave a code comment, don't pre-build it.
 
 ### Importing missing sales
 
@@ -317,7 +331,7 @@ The RPC restores tray stock (existing behavior). After success the row is remove
 | Nayax row's `Maschinen-ID` is empty | Treated as unmapped (joined as `""` key). |
 | File timezone changes between uploads | Stored in `localStorage` per browser, not per company — survives session, doesn't leak across users. |
 | Refund / negative-price rows | Out of scope for v1. If a row has `priceGross <= 0`, it goes into `unparseable` with reason "negative or zero amount". |
-| Very large files (>10 000 rows) | Match is O(n·m) but the inner filter is constant-time on small candidate sets; expected fine. We add a soft warning if `rawRows.length > 10000` recommending a narrower date range. |
+| Very large files | Soft warning at `rawRows.length > 10 000` recommending a narrower date range. Hard refusal at `rawRows.length > 50 000` with an explicit error ("File too large — split by month") to bound worst-case browser memory. Match is O(n·m) but the inner filter is constant-time on small candidate sets, so the soft threshold is conservative. |
 | Mapping a Nayax ID to "skip" | Persisted as no change to the DB (mapping stays null). Skip is a per-run choice. |
 | User uploads the wrong file (e.g. product import instead of sales) | Parser detects: missing required headers (`Transaktions-ID`, `Maschinen-Begleichszeit`, `Maschinen-ID`) → error toast, stay on step 1. |
 
@@ -360,7 +374,7 @@ Under `nayax.*` namespace in both `de.json` and `en.json`:
   - Timezone tests:
     - `2026-03-31 21:46:09` Europe/Berlin → `2026-03-31T19:46:09.000Z` (CEST)
     - `2026-01-15 12:00:00` Europe/Berlin → `2026-01-15T11:00:00.000Z` (CET)
-    - DST transition day (`2026-03-29 02:30:00` Europe/Berlin — nominally non-existent due to spring-forward) → fall-forward behavior documented and tested
+    - DST transition day — spring-forward gap. The local instant `2026-03-29 02:30:00` does not exist in Europe/Berlin (clocks jump 02:00 → 03:00). `date-fns-tz` resolves this to `2026-03-29T01:30:00.000Z` (i.e. it interprets the input as the *post-jump* 03:30 CEST). Test asserts exactly this so a future reader doesn't think the result is wrong.
 
 ### Manual smoke test plan
 
