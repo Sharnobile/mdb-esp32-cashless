@@ -5,10 +5,11 @@ import NayaxMatchedTable from './NayaxMatchedTable.vue'
 import NayaxMissingInDbTable from './NayaxMissingInDbTable.vue'
 import NayaxGhostInDbTable from './NayaxGhostInDbTable.vue'
 import NayaxUnmappedSection from './NayaxUnmappedSection.vue'
+import { formatDateTime } from '@/lib/utils'
 
 defineProps<{ isAdmin: boolean }>()
 const emit = defineEmits<{ restart: []; rerun: []; 'go-to-mapping': [] }>()
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const recon = useNayaxReconciliation()
 
 const result = computed(() => recon.result.value)
@@ -31,7 +32,7 @@ function downloadCsv() {
 function fmtRange(): string {
   const s = result.value?.fileDateRange
   if (!s) return ''
-  return `${new Date(s.fromUtc).toLocaleString()} – ${new Date(s.toUtc).toLocaleString()}`
+  return `${formatDateTime(s.fromUtc, locale.value)} – ${formatDateTime(s.toUtc, locale.value)}`
 }
 </script>
 
@@ -42,9 +43,9 @@ function fmtRange(): string {
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p class="text-sm">
-            <span class="font-medium text-green-700">{{ result.matched.length }} {{ t('nayax.reconcile.results.matchedShort') }}</span> ·
-            <span class="font-medium text-red-700">{{ result.missingInDb.length }} {{ t('nayax.reconcile.results.missingShort') }}</span> ·
-            <span class="font-medium text-yellow-700">{{ result.ghostInDb.length }} {{ t('nayax.reconcile.results.ghostShort') }}</span>
+            <span class="font-medium text-green-700 dark:text-green-400">{{ result.matched.length }} {{ t('nayax.reconcile.results.matchedShort') }}</span> ·
+            <span class="font-medium text-red-700 dark:text-red-400">{{ result.missingInDb.length }} {{ t('nayax.reconcile.results.missingShort') }}</span> ·
+            <span class="font-medium text-yellow-700 dark:text-yellow-400">{{ result.ghostInDb.length }} {{ t('nayax.reconcile.results.ghostShort') }}</span>
           </p>
           <p class="text-xs text-muted-foreground mt-1">
             {{ fmtRange() }} · {{ result.settings.timezone }} · ±{{ result.settings.toleranceSeconds }}s

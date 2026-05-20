@@ -1193,6 +1193,7 @@
         "importCta": "Als manuelle Verkäufe importieren",
         "importedN": "{n} Verkäufe importiert.",
         "importErrors": "{n} Fehler",
+        "showErrors": "Fehler anzeigen",
         "importConfirmTitle": "Manuelle Verkäufe anlegen?",
         "importConfirmBody": "{n} Nayax-Zeilen werden als manuelle Verkäufe angelegt und der Tray-Bestand entsprechend reduziert. Fortfahren?",
         "deleteConfirmTitle": "Verkauf löschen?",

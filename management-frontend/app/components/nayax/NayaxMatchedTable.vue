@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import type { MatchPair } from '~/composables/useNayaxReconciliation'
 import { IconChevronDown, IconChevronRight, IconCircleCheck } from '@tabler/icons-vue'
+import { formatCurrency } from '@/lib/utils'
 
 defineProps<{ rows: MatchPair[]; open: boolean }>()
 defineEmits<{ toggle: [] }>()
-const { t } = useI18n()
+const { t, locale } = useI18n()
 </script>
 
 <template>
@@ -16,7 +17,7 @@ const { t } = useI18n()
       </span>
       <component :is="open ? IconChevronDown : IconChevronRight" class="h-4 w-4 text-muted-foreground" />
     </button>
-    <div v-if="open && rows.length > 0" class="overflow-auto border-t">
+    <div v-if="open && rows.length > 0" class="overflow-x-auto border-t">
       <table class="w-full text-sm">
         <thead>
           <tr class="border-b bg-muted/40 text-left">
@@ -34,10 +35,10 @@ const { t } = useI18n()
             <td class="px-4 py-2">{{ m.nayax.machineName }}</td>
             <td class="px-4 py-2 tabular-nums">{{ m.nayax.itemNumber }}</td>
             <td class="px-4 py-2">{{ m.db.product_name ?? m.nayax.productName }}</td>
-            <td class="px-4 py-2 tabular-nums">{{ m.nayax.priceGross.toFixed(2) }} €</td>
+            <td class="px-4 py-2 tabular-nums">{{ formatCurrency(m.nayax.priceGross, locale) }}</td>
             <td
               class="px-4 py-2 tabular-nums"
-              :class="Math.abs(m.deltaSeconds) >= 5 ? 'text-yellow-700' : 'text-muted-foreground'"
+              :class="Math.abs(m.deltaSeconds) >= 5 ? 'text-yellow-700 dark:text-yellow-400' : 'text-muted-foreground'"
             >
               {{ m.deltaSeconds > 0 ? '+' : '' }}{{ m.deltaSeconds.toFixed(1) }}s
             </td>

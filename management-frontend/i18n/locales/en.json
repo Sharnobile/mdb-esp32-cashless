@@ -1193,6 +1193,7 @@
         "importCta": "Import as manual sales",
         "importedN": "{n} sales imported.",
         "importErrors": "{n} errors",
+        "showErrors": "Show errors",
         "importConfirmTitle": "Create manual sales?",
         "importConfirmBody": "{n} Nayax rows will be created as manual sales and the tray stock will be decremented accordingly. Continue?",
         "deleteConfirmTitle": "Delete sale?",
