@@ -63,7 +63,9 @@ All four bucket types (missing, ghost, also matched if reused later) share a uni
 - Missing rows: `NayaxRow.utcDt` (already ISO 8601 with `Z` suffix from `localDtToUtc`).
 - Ghost rows: `DbSale.created_at` (already UTC from Postgres `timestamptz`).
 
-Both ISO-8601-with-Z strings sort chronologically under plain lexicographic string comparison. No `Date.parse` needed at render time — a single `.sort((a, b) => a._sortKey.localeCompare(b._sortKey))` over a flat array of `{ kind: 'missing' | 'ghost', ...payload, _sortKey }` produces the right order.
+Both ISO-8601-with-Z strings sort chronologically under plain lexicographic string comparison. No `Date.parse` needed at render time — a single sort over a flat tagged array (see rendering details below) produces the right order.
+
+**Verified assumption**: `DbSale.created_at` is hydrated by `loadDbSales` from PostgREST, which serializes Postgres `timestamptz` as ISO-8601 with a `Z` suffix. `NayaxRow.utcDt` is produced by `localDtToUtc()` which always ends in `Z` (or an empty string if the date was malformed — but unparseable rows are routed to the `unparseable` bucket before reaching the matcher, so they never appear in `missing` or `ghosts`).
 
 ## Date format
 
@@ -98,10 +100,11 @@ management-frontend/app/components/nayax/
 Props:
 - `missing: NayaxRow[]` — from `result.missingInDb`
 - `ghosts: DbSale[]` — from `result.ghostInDb`
-- `mapping: Record<string, string>` — used for machine-name lookup on ghost rows (which only know `machine_id`, not the human name)
-- `nayaxRowsByVmId: Map<string, string>` — pre-computed reverse-lookup (vmId → machineName, derived from any Nayax row that referenced that VM). For ghosts on machines that the *current* Nayax file didn't touch, falls back to `'—'`.
+- `machineNameByVmId: Map<string, string>` — pre-computed reverse-lookup (vmId → machineName, derived from any Nayax row that referenced that VM). For ghosts on machines that the *current* Nayax file didn't touch, falls back to `'—'`.
 - `isAdmin: boolean`
 - `open: boolean`
+
+Note: `mapping` itself is NOT passed in as a prop — the component only needs the resolved machine-name lookup, which the parent (`NayaxResultsView.vue`) computes once from `recon.rawRows.value`.
 
 Emits:
 - `toggle` — open/close the section
@@ -114,8 +117,19 @@ Internal state:
 - `lastImportResult: Ref<{ imported, errors } | null>` — banner under the action bar.
 
 Rendering:
-1. Build a single flat array `rows = [...missing.map(m => ({kind:'missing', ts: m.utcDt, payload: m})), ...ghosts.map(g => ({kind:'ghost', ts: g.created_at, payload: g}))]`.
-2. Sort by `ts` ascending (lexicographic on ISO strings).
+1. Build a single flat array:
+   ```ts
+   const rows = [
+     ...missing.map(m => ({ kind: 'missing' as const, ts: m.utcDt, payload: m })),
+     ...ghosts.map(g => ({ kind: 'ghost' as const, ts: g.created_at, payload: g })),
+   ]
+   ```
+2. Sort ascending by `ts` with deterministic tiebreaker (`missing` before `ghost` at identical timestamps):
+   ```ts
+   rows.sort((a, b) =>
+     a.ts.localeCompare(b.ts) || (a.kind === 'missing' ? -1 : 1)
+   )
+   ```
 3. Render one `<tr>` per entry. Use a `<template v-if="kind === 'missing'">` / `v-else` switch to fill columns from the right payload type.
 
 Section header shows total count `missing.length + ghosts.length`. Card border tinted neutral (no red/yellow on the wrapper); the per-row badges carry the color cue.
@@ -147,6 +161,8 @@ The `machineNameByVmId` lookup is computed in `NayaxResultsView.vue` from `recon
 ### `NayaxMatchedTable.vue` change
 
 One-line change: replace `{{ m.nayax.localDt }}` with `{{ formatDateTime(m.nayax.utcDt, locale) }}` and add the matching imports + `locale` from `useI18n()`.
+
+**Sharp edge — do NOT propagate this to the composable.** `exportDiffCsv()` in `useNayaxReconciliation.ts` still emits `m.nayax.localDt` in the CSV `nayax_time_local` column. That's intentional — the CSV documents the *raw* Nayax timestamp string for the user to cross-reference with the source file. The UI display switching to `formatDateTime` is purely cosmetic; the CSV emission is unchanged.
 
 ### Row visual design
 
@@ -185,9 +201,14 @@ Existing keys reused:
 - `deleteConfirmTitle`, `deleteConfirmBody`
 - `allMatched`, `noGhosts` → fold into a single new key `noDifferences` ("Keine Abweichungen gefunden." / "No differences found.")
 
-Existing keys becoming dead (kept for backward-compat in this commit, can be cleaned up in a follow-up):
-- `missingTitle`, `missingShort`, `ghostTitle`, `ghostShort` — short forms still referenced by the header-bar count strip in `NayaxResultsView.vue`. Keep those references.
+Header-bar count strip in `NayaxResultsView.vue` continues to use:
+- `matchedShort`, `missingShort`, `ghostShort` — those references are preserved.
+
+Existing keys becoming orphaned after the refactor:
+- `missingTitle`, `ghostTitle` — were used as section headers in the two deleted components; after the merge the new section uses `differencesTitle` instead.
 - `allMatched`, `noGhosts` — replaced by `noDifferences`.
+
+These orphan keys remain in `de.json` / `en.json` for this commit (removing them is a separate i18n-cleanup concern) and they cause no runtime breakage — vue-i18n simply never resolves them. A follow-up cleanup task is captured at the bottom of this spec.
 
 ### Header-bar count strip
 
@@ -197,7 +218,7 @@ Existing keys becoming dead (kept for backward-compat in this commit, can be cle
 
 | Case | Behavior |
 |------|----------|
-| `missing.length + ghosts.length === 0` | Render an empty-state inside the section card: `t('nayax.reconcile.results.noDifferences')`. Card still shows with `(0)` count so the layout doesn't surprise. |
+| `missing.length + ghosts.length === 0` | The section card is rendered unconditionally (no `v-if` gate on the parent) and shows the `(0)` count. When opened, the body shows `t('nayax.reconcile.results.noDifferences')` instead of an empty table. The user always sees a "Differences" section so the layout never surprises. |
 | Ghost on a machine the current Nayax file didn't touch | `machineNameByVmId.get(machine_id)` returns `undefined` → display `—`. The CSV export already handles this case the same way. |
 | Two rows with identical UTC timestamps (one missing + one ghost) | Stable secondary sort: kind=`'missing'` comes before kind=`'ghost'` so the user sees the "what Nayax recorded" entry first. Implemented via a small tiebreaker in the sort comparator. |
 | Bulk import fails partway | Same as today: error list collapsible under the banner, banner switches to amber. No regression. |
