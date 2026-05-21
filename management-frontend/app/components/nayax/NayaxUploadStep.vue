@@ -35,6 +35,8 @@ function onDrop(e: DragEvent) {
       </div>
       <input type="file" accept=".xlsx,.xls" class="sr-only" @change="onChange" />
     </label>
-    <p v-if="props.error" class="mt-3 text-sm text-destructive">{{ t(props.error) || props.error }}</p>
+    <p v-if="props.error" class="mt-3 text-sm text-destructive">
+      {{ t(`nayax.reconcile.errors.${props.error}`, props.error) }}
+    </p>
   </div>
 </template>

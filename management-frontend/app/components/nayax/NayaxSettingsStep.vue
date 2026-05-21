@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { formatInTimeZone, fromZonedTime } from 'date-fns-tz'
 
 defineProps<{ isAdmin: boolean }>()
 const emit = defineEmits<{ run: []; back: [] }>()
@@ -14,14 +15,17 @@ onMounted(() => {
   if (recon.settings.value.toUtc) toInput.value = toLocalInput(recon.settings.value.toUtc)
 })
 
+// Both directions of the datetime-local conversion respect the file's
+// chosen timezone (recon.settings.value.timezone), NOT the browser's
+// timezone. Otherwise a user on an en-US browser reviewing a Berlin
+// file would see the date inputs shifted by 6 hours and any manual
+// adjustment would shift the query window by the browser offset.
 function toLocalInput(iso: string): string {
-  const d = new Date(iso)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+  return formatInTimeZone(iso, recon.settings.value.timezone, "yyyy-MM-dd'T'HH:mm")
 }
 
 function fromLocalInput(local: string): string {
-  return new Date(local).toISOString()
+  return fromZonedTime(local, recon.settings.value.timezone).toISOString()
 }
 
 const tolerance = computed({

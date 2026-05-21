@@ -197,7 +197,7 @@ Tables:
 - `sales` – vend events: `embedded_id`, `item_price` (**EUR, not cents**), `item_number`, `channel`, `lat`, `lng`, `machine_id`; has `REPLICA IDENTITY FULL` for realtime delete events
 - `paxcounter` – foot traffic: `embedded_id`, `count`
 - `device_provisioning` – one-time provisioning codes: `short_code`, `expires_at`, `used_at`, `embedded_id`
-- `vendingMachine` – physical machine records linked to embedded devices
+- `vendingMachine` – physical machine records linked to embedded devices; `nayax_machine_id` (nullable text, UNIQUE per company) maps to a Nayax serial for `/reports/nayax-reconciliation`
 - `products`, `product_category` – product catalogue per company; `products.image_path` stores the storage object path; `products.discontinued` (boolean) flag
 - `machine_trays` – per-machine tray/slot configuration: `machine_id`, `item_number` (unique per machine), `product_id`, `capacity`, `current_stock`, `fill_when_below` (refill threshold); stock auto-decremented on sales via `stamp_machine_and_decrement_stock` trigger
 - `api_keys` – API keys for external integrations: `company_id`, `key_hash`, `key_prefix`, `name`
@@ -327,6 +327,7 @@ Public routes (no auth check): `/auth/login`, `/auth/register`, `/onboarding/*`
 - `useStockHistory()` – merges stock events from sales, activity log, and `stock_decrement_log` into unified tray timeline
 - `useInsights()` – manages AI-powered machine/company insights, history, loading states via `machine-insights` edge function
 - `useProductImageSearch()` – wraps `search-product-images` edge function with debounce and caching
+- `useNayaxReconciliation()` – Nayax sales export reconciliation: xlsx parsing, timezone helpers (`localDtToUtc`, `parseSelectionInfo`, `parseTitleDateRange`, `derivedChannelFromPaymentSource`), `useState`-shared workflow state, paginated `loadDbSales` (1000-row chunks to defeat PostgREST `max_rows`), greedy one-to-one matcher with ±tolerance, bulk-import via `insert_manual_sale` + per-row ghost delete via `delete_sale_and_restore_stock` (both with `activity_log` entries tagged `source: nayax_reconciliation`), `exportDiffCsv`. Used by `/reports/nayax-reconciliation` page and the `app/components/nayax/*` step components.
 
 **UI utilities:**
 - `useTheme()` – wraps `useDark` from `@vueuse/core`; theme persisted to `localStorage` as `color-scheme`
@@ -360,6 +361,7 @@ Public routes (no auth check): `/auth/login`, `/auth/register`, `/onboarding/*`
 - `/warehouse` – Warehouse inventory management: stock intake with barcode scanning (`BarcodeScanner` component), FIFO batch tracking, transaction history, min-stock alerts, product position management
 - `/refill` – Multi-step guided refill wizard: select warehouse → pack items (combined/per-machine mode) → refill trays → summary with tour stats
 - `/tour-history` – Expandable list of completed refill tours with per-machine details, user names, timestamps
+- `/reports/nayax-reconciliation` – Upload Nayax sales export (.xlsx), wizard with persistent Nayax↔VM mapping (in `vendingMachine.nayax_machine_id`), greedy time-tolerant matcher, three result buckets (matched / missing-in-DB / ghost-in-DB), bulk import of missing as manual sales via `insert_manual_sale`, per-row ghost delete via `delete_sale_and_restore_stock`, CSV diff export. Auditing tagged with `source: nayax_reconciliation` in `activity_log`.
 - `/history` – Activity/audit log
 - `/devices` – Admin device management: registered embedded devices table, register new device with provisioning code + QR, pending tokens, delete device
 - `/firmware` – Firmware version management: upload .bin files + import from GitHub releases, deploy OTA to devices, delete versions

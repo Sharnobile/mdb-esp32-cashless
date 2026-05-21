@@ -1209,6 +1209,23 @@
         "unparseableHead": "{n} rows without a parseable slot number",
         "unparseableMore": "… and {n} more",
         "emptyField": "empty"
+      },
+      "errors": {
+        "parser.noSheet": "The file does not contain a readable sheet.",
+        "parser.empty": "The file is empty.",
+        "parser.tooLarge": "The file is too large (>50,000 rows). Please split it into smaller date ranges.",
+        "parser.unknown": "Could not read the file. Is this really a Nayax sales export?",
+        "parser.missingHeader.txId": "Column \"Transaktions-ID\" is missing — is this really a Nayax sales export?",
+        "parser.missingHeader.currency": "Column \"Währung\" is missing.",
+        "parser.missingHeader.machineName": "Column \"Maschinenname\" is missing.",
+        "parser.missingHeader.productGroup": "Column \"Produktgruppe\" is missing.",
+        "parser.missingHeader.paymentSource": "Column \"Payment Method (Source)\" is missing.",
+        "parser.missingHeader.productName": "Column \"Produktname\" is missing.",
+        "parser.missingHeader.machineDt": "Column \"Maschinen-Begleichszeit\" is missing.",
+        "parser.missingHeader.amount": "Column \"Zu begleichender Wert\" is missing.",
+        "parser.missingHeader.selectionInfo": "Column \"Produktauswahl-Informationen\" is missing.",
+        "parser.missingHeader.nayaxId": "Column \"Maschinen-ID\" is missing.",
+        "reconcile.noDateRange": "No date range set."
       }
     }
   },

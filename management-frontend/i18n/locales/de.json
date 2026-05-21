@@ -1209,6 +1209,23 @@
         "unparseableHead": "{n} Zeilen ohne erkennbare Slot-Nummer",
         "unparseableMore": "… und {n} weitere",
         "emptyField": "leer"
+      },
+      "errors": {
+        "parser.noSheet": "Die Datei enthält kein lesbares Tabellenblatt.",
+        "parser.empty": "Die Datei ist leer.",
+        "parser.tooLarge": "Die Datei ist zu groß (>50.000 Zeilen). Bitte teile sie in kleinere Zeiträume auf.",
+        "parser.unknown": "Datei konnte nicht gelesen werden. Ist es ein Nayax-Verkaufsexport?",
+        "parser.missingHeader.txId": "Spalte „Transaktions-ID\" fehlt — ist das wirklich ein Nayax-Verkaufsexport?",
+        "parser.missingHeader.currency": "Spalte „Währung\" fehlt.",
+        "parser.missingHeader.machineName": "Spalte „Maschinenname\" fehlt.",
+        "parser.missingHeader.productGroup": "Spalte „Produktgruppe\" fehlt.",
+        "parser.missingHeader.paymentSource": "Spalte „Payment Method (Source)\" fehlt.",
+        "parser.missingHeader.productName": "Spalte „Produktname\" fehlt.",
+        "parser.missingHeader.machineDt": "Spalte „Maschinen-Begleichszeit\" fehlt.",
+        "parser.missingHeader.amount": "Spalte „Zu begleichender Wert\" fehlt.",
+        "parser.missingHeader.selectionInfo": "Spalte „Produktauswahl-Informationen\" fehlt.",
+        "parser.missingHeader.nayaxId": "Spalte „Maschinen-ID\" fehlt.",
+        "reconcile.noDateRange": "Kein Zeitraum festgelegt."
       }
     }
   },

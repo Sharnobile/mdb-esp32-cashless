@@ -302,25 +302,42 @@ export function useNayaxReconciliation() {
       dbSales.value = []
       return
     }
-    // Join products so we can show a name in the ghost table.
-    const { data, error: err } = await supabase
-      .from('sales')
-      .select('id, created_at, machine_id, item_number, item_price, channel, product_id, products(name)')
-      .gte('created_at', fromUtc)
-      .lte('created_at', toUtc)
-      .in('machine_id', machineIds)
-      .order('created_at', { ascending: true })
-    if (err) throw err
-    dbSales.value = (data ?? []).map((row: any) => ({
-      id: row.id,
-      created_at: row.created_at,
-      machine_id: row.machine_id,
-      item_number: row.item_number,
-      item_price: row.item_price,
-      channel: row.channel,
-      product_id: row.product_id,
-      product_name: row.products?.name ?? null,
-    }))
+    // Paginate to avoid PostgREST's max_rows=1000 silent truncation.
+    // Without pagination, a busy operator with >1000 sales in the date
+    // range would see false "missing in DB" rows (because the truncated
+    // tail of dbSales hides real matches), which would in turn create
+    // duplicate sales on bulk import.
+    const PAGE = 1000
+    const all: DbSale[] = []
+    let from = 0
+    while (true) {
+      const { data, error: err } = await supabase
+        .from('sales')
+        .select('id, created_at, machine_id, item_number, item_price, channel, product_id, products(name)')
+        .gte('created_at', fromUtc)
+        .lte('created_at', toUtc)
+        .in('machine_id', machineIds)
+        .order('created_at', { ascending: true })
+        .range(from, from + PAGE - 1)
+      if (err) throw err
+      const rows = (data ?? []) as any[]
+      if (rows.length === 0) break
+      for (const row of rows) {
+        all.push({
+          id: row.id,
+          created_at: row.created_at,
+          machine_id: row.machine_id,
+          item_number: row.item_number,
+          item_price: row.item_price,
+          channel: row.channel,
+          product_id: row.product_id,
+          product_name: row.products?.name ?? null,
+        })
+      }
+      if (rows.length < PAGE) break
+      from += PAGE
+    }
+    dbSales.value = all
   }
 
   function runMatch(): void {
@@ -413,6 +430,45 @@ export function useNayaxReconciliation() {
       matching.value = false
     }
   }
+  /**
+   * Write an audit log entry tagged with `source: 'nayax_reconciliation'`
+   * so the activity feed can distinguish Nayax-driven actions from manual
+   * sale-add / sale-delete on /machines/[id]. Mirrors the `logSaleActivity`
+   * helper in `pages/machines/[id].vue`. Errors are swallowed — auditing
+   * is best-effort, the underlying RPC has already succeeded.
+   */
+  async function logNayaxActivity(
+    action: 'sale_inserted' | 'sale_deleted',
+    entityId: string | null,
+    metadata: Record<string, unknown>,
+  ): Promise<void> {
+    try {
+      const supabase = useSupabaseClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      const u = session?.user ?? null
+      const meta = (u?.user_metadata ?? {}) as { first_name?: string; last_name?: string }
+      const fullName = [meta.first_name, meta.last_name].filter(Boolean).join(' ').trim()
+      const userDisplay = fullName || u?.email || null
+      const { organization } = useOrganization()
+      if (!organization.value?.id) return
+      await (supabase as any).from('activity_log').insert({
+        company_id: organization.value.id,
+        user_id: u?.id ?? null,
+        entity_type: 'sale',
+        entity_id: entityId,
+        action,
+        metadata: {
+          ...metadata,
+          source: 'nayax_reconciliation',
+          _user_email: u?.email ?? null,
+          _user_display: userDisplay,
+        },
+      })
+    } catch (err) {
+      console.warn('nayax activity_log insert failed:', err)
+    }
+  }
+
   async function bulkImportMissing(
     rows: NayaxRow[],
   ): Promise<{ imported: number; errors: string[] }> {
@@ -427,11 +483,12 @@ export function useNayaxReconciliation() {
           errors.push(`row ${n.rowIndex}: cannot import (unmapped or unparseable)`)
           continue
         }
-        const { error: err } = await (supabase as any).rpc('insert_manual_sale', {
+        const channel = derivedChannelFromPaymentSource(n.paymentSource)
+        const { data, error: err } = await (supabase as any).rpc('insert_manual_sale', {
           p_machine_id: vmId,
           p_item_number: n.itemNumber,
           p_item_price: n.priceGross,
-          p_channel: derivedChannelFromPaymentSource(n.paymentSource),
+          p_channel: channel,
           p_created_at: n.utcDt,
         })
         if (err) {
@@ -439,6 +496,18 @@ export function useNayaxReconciliation() {
           continue
         }
         imported++
+        // Best-effort activity-log entry. The RPC response is sometimes a
+        // JSON string, sometimes a parsed object — match the existing
+        // pages/machines/[id].vue handling.
+        const inserted = data ? (typeof data === 'string' ? JSON.parse(data) : data) : null
+        await logNayaxActivity('sale_inserted', inserted?.id ?? null, {
+          machine_id: vmId,
+          item_number: n.itemNumber,
+          item_price: n.priceGross,
+          channel,
+          sale_created_at: n.utcDt,
+          nayax_tx_id: n.txId,
+        })
       }
       // Re-load DB sales so subsequent `runMatch` reflects new rows.
       // Wrap separately — a failure here shouldn't lose the per-row success
@@ -459,10 +528,19 @@ export function useNayaxReconciliation() {
     deleting.value = true
     try {
       const supabase = useSupabaseClient()
+      // Capture the sale's fields for the audit log before deletion.
+      const ghost = dbSales.value.find(s => s.id === saleId)
       const { error: err } = await (supabase as any).rpc('delete_sale_and_restore_stock', {
         p_sale_id: saleId,
       })
       if (err) throw err
+      await logNayaxActivity('sale_deleted', saleId, {
+        machine_id: ghost?.machine_id ?? null,
+        item_number: ghost?.item_number ?? null,
+        item_price: ghost?.item_price ?? null,
+        channel: ghost?.channel ?? null,
+        sale_created_at: ghost?.created_at ?? null,
+      })
       // Refresh state
       await loadDbSales()
       runMatch()
