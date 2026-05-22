@@ -2,8 +2,7 @@
 import { computed, ref } from 'vue'
 import { IconDownload } from '@tabler/icons-vue'
 import NayaxMatchedTable from './NayaxMatchedTable.vue'
-import NayaxMissingInDbTable from './NayaxMissingInDbTable.vue'
-import NayaxGhostInDbTable from './NayaxGhostInDbTable.vue'
+import NayaxDifferencesTable from './NayaxDifferencesTable.vue'
 import NayaxUnmappedSection from './NayaxUnmappedSection.vue'
 import { formatDateTime } from '@/lib/utils'
 
@@ -14,9 +13,24 @@ const recon = useNayaxReconciliation()
 
 const result = computed(() => recon.result.value)
 const matchedOpen = ref(false)
-const missingOpen = ref(true)
-const ghostOpen = ref(true)
+const diffOpen = ref(true)
 const otherOpen = ref(true)
+
+// Reverse-index vmId → machineName, derived from any Nayax row that
+// referenced that VM. Used by NayaxDifferencesTable to show a human
+// name on ghost rows (which only carry machine_id). Falls back to '—'
+// inside the component when a ghost is on a machine that the current
+// Nayax file didn't touch.
+const machineNameByVmId = computed(() => {
+  const map = new Map<string, string>()
+  for (const n of recon.rawRows.value) {
+    const vmId = recon.mapping.value[n.nayaxMachineId]
+    if (vmId && !map.has(vmId)) {
+      map.set(vmId, n.machineName)
+    }
+  }
+  return map
+})
 
 function downloadCsv() {
   const csv = recon.exportDiffCsv()
@@ -74,20 +88,14 @@ function fmtRange(): string {
       </div>
     </div>
 
-    <!-- Missing (focus bucket) -->
-    <NayaxMissingInDbTable
-      :rows="result.missingInDb"
+    <!-- Merged differences (focus bucket) -->
+    <NayaxDifferencesTable
+      :missing="result.missingInDb"
+      :ghosts="result.ghostInDb"
+      :machine-name-by-vm-id="machineNameByVmId"
       :is-admin="isAdmin"
-      :open="missingOpen"
-      @toggle="missingOpen = !missingOpen"
-    />
-
-    <!-- Ghost -->
-    <NayaxGhostInDbTable
-      :rows="result.ghostInDb"
-      :is-admin="isAdmin"
-      :open="ghostOpen"
-      @toggle="ghostOpen = !ghostOpen"
+      :open="diffOpen"
+      @toggle="diffOpen = !diffOpen"
     />
 
     <!-- Matched (collapsed by default) -->

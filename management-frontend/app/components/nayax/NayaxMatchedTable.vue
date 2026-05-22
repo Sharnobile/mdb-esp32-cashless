@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { MatchPair } from '~/composables/useNayaxReconciliation'
 import { IconChevronDown, IconChevronRight, IconCircleCheck } from '@tabler/icons-vue'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, formatDateTime } from '@/lib/utils'
 
 defineProps<{ rows: MatchPair[]; open: boolean }>()
 defineEmits<{ toggle: [] }>()
@@ -31,7 +31,7 @@ const { t, locale } = useI18n()
         </thead>
         <tbody>
           <tr v-for="m in rows" :key="m.nayax.txId" class="border-b last:border-0">
-            <td class="px-4 py-2">{{ m.nayax.localDt }}</td>
+            <td class="px-4 py-2">{{ formatDateTime(m.nayax.utcDt, locale) }}</td>
             <td class="px-4 py-2">{{ m.nayax.machineName }}</td>
             <td class="px-4 py-2 tabular-nums">{{ m.nayax.itemNumber }}</td>
             <td class="px-4 py-2">{{ m.db.product_name ?? m.nayax.productName }}</td>
