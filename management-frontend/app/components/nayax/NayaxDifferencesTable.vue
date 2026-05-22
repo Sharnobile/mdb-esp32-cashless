@@ -41,9 +41,12 @@ const mergedRows = computed<Row[]>(() => {
     ...props.missing.map(m => ({ kind: 'missing' as const, ts: m.utcDt, payload: m })),
     ...props.ghosts.map(g => ({ kind: 'ghost' as const, ts: g.created_at, payload: g })),
   ]
-  rows.sort((a, b) =>
-    a.ts.localeCompare(b.ts) || (a.kind === 'missing' ? -1 : 1),
-  )
+  rows.sort((a, b) => {
+    const c = a.ts.localeCompare(b.ts)
+    if (c !== 0) return c
+    if (a.kind === b.kind) return 0
+    return a.kind === 'missing' ? -1 : 1
+  })
   return rows
 })
 
@@ -91,7 +94,7 @@ function shortId(id: string): string {
   <div class="rounded-xl border bg-card shadow-sm">
     <button class="flex w-full items-center justify-between p-4 hover:bg-muted/30" @click="$emit('toggle')">
       <span class="flex items-center gap-2 text-sm font-medium">
-        <IconAlertTriangle class="h-4 w-4 text-muted-foreground" />
+        <IconAlertTriangle class="h-4 w-4 text-amber-600 dark:text-amber-400" />
         {{ t('nayax.reconcile.results.differencesTitle') }} ({{ total }})
       </span>
       <component :is="open ? IconChevronDown : IconChevronRight" class="h-4 w-4 text-muted-foreground" />
@@ -145,12 +148,14 @@ function shortId(id: string): string {
                   type="checkbox"
                   :checked="allMissingSelected"
                   :disabled="!isAdmin"
-                  :aria-label="t('nayax.reconcile.results.selectedN', { n: missing.length })"
+                  :aria-label="t('nayax.reconcile.results.selectAllMissingAria', { n: missing.length })"
                   @change="toggleAllMissing"
                 />
               </th>
               <th class="px-4 py-2 font-medium">{{ t('nayax.reconcile.results.colTime') }}</th>
-              <th class="px-4 py-2 font-medium"></th>
+              <th class="px-4 py-2 font-medium">
+                <span class="sr-only">{{ t('nayax.reconcile.results.colType') }}</span>
+              </th>
               <th class="px-4 py-2 font-medium">{{ t('nayax.reconcile.results.colMachine') }}</th>
               <th class="px-4 py-2 font-medium">{{ t('nayax.reconcile.results.colSlot') }}</th>
               <th class="px-4 py-2 font-medium">{{ t('nayax.reconcile.results.colProduct') }}</th>
@@ -169,12 +174,17 @@ function shortId(id: string): string {
                     type="checkbox"
                     :checked="selected.has(row.payload.txId)"
                     :disabled="!isAdmin"
+                    :aria-label="t('nayax.reconcile.results.selectRowAria', {
+                      product: row.payload.productName,
+                      slot: row.payload.itemNumber,
+                    })"
                     @change="toggleOne(row.payload.txId)"
                   />
                 </td>
                 <td class="px-4 py-2">{{ formatDateTime(row.payload.utcDt, locale) }}</td>
                 <td class="px-4 py-2">
                   <span class="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800 dark:bg-red-950 dark:text-red-200">
+                    <IconAlertTriangle class="mr-1 h-3 w-3" />
                     {{ t('nayax.reconcile.results.bucketMissing') }}
                   </span>
                 </td>
