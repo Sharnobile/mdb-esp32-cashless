@@ -13,18 +13,19 @@ cd "$SCRIPT_DIR"
 # ── Parse flags ──────────────────────────────────────────────────────────────
 SKIP_FRONTEND=false
 REBUILD_ALL=false
-PULL_STACK=false
+PULL_ALL=false
 for arg in "$@"; do
     case "$arg" in
         --no-frontend)   SKIP_FRONTEND=true ;;
         --rebuild-all)   REBUILD_ALL=true ;;
-        --pull-stack)    PULL_STACK=true ;;
+        --pull-all)      PULL_ALL=true ;;
         -h|--help)
             echo "Usage: bash update.sh [OPTIONS]"
             echo "  --no-frontend    Skip frontend rebuild"
             echo "  --rebuild-all    Force rebuild & restart all services (incl. broker)"
-            echo "  --pull-stack     Pull latest images for all stack services from registry"
-            echo "                   (Supabase, kong, mosquitto, …). Use after bumping image"
+            echo "  --pull-all       Pull latest images for every service from registry"
+            echo "                   (Supabase, kong, mosquitto, …; forwarder is built"
+            echo "                   locally so it's skipped). Use after bumping image"
             echo "                   tags in docker-compose.yml, or to refresh same-tag images."
             exit 0 ;;
     esac
@@ -349,19 +350,19 @@ info "Rebuilding forwarder..."
 docker compose build forwarder
 success "Forwarder image built"
 
-# ── Pull rest of the stack images (opt-in) ──────────────────────────────────
+# ── Pull all images from registry (opt-in) ──────────────────────────────────
 # Off by default because it adds 5-10s of registry round-trips per service
-# and most updates don't touch the Supabase stack. Use `--pull-stack` when:
+# and most updates don't touch the Supabase stack. Use `--pull-all` when:
 #   • You bumped image tags in docker-compose.yml (e.g. supabase/postgres-meta
 #     v0.91.0 → v0.92.0). The lazy pull during the reconcile below would also
 #     catch it, but explicit is nicer for visibility.
 #   • You want to refresh same-tag images (rare; Supabase doesn't usually
 #     republish stable tags, but security patches sometimes do).
 # --ignore-buildable skips the locally-built forwarder image (already done).
-if [ "$PULL_STACK" = true ]; then
-    info "Pulling latest images for all stack services..."
+if [ "$PULL_ALL" = true ]; then
+    info "Pulling latest images for every service..."
     docker compose pull --ignore-buildable
-    success "Stack images pulled"
+    success "All images pulled"
 fi
 
 # ── Determine which services to restart ──────────────────────────────────────
