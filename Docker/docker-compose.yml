@@ -447,13 +447,39 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXP: ${JWT_EXPIRY}
+    # Postgres tuning via -c flags overrides postgresql.conf and
+    # postgresql.auto.conf. Source of truth: this file. Default
+    # supabase/postgres image ships with shared_buffers=128MB which
+    # saturates a 4-core / 8 GB host once the realtime polling kicks in
+    # (see realtime.list_changes burst in superpowers-debug 2026-05-25).
+    # To change a value: edit here, then `docker compose up -d db`.
     command:
       [
         "postgres",
         "-c",
         "config_file=/etc/postgresql/postgresql.conf",
         "-c",
-        "log_min_messages=fatal"
+        "log_min_messages=fatal",
+        "-c",
+        "shared_buffers=2GB",
+        "-c",
+        "effective_cache_size=6GB",
+        "-c",
+        "work_mem=16MB",
+        "-c",
+        "maintenance_work_mem=512MB",
+        "-c",
+        "random_page_cost=1.1",
+        "-c",
+        "effective_io_concurrency=200",
+        "-c",
+        "wal_buffers=16MB",
+        "-c",
+        "checkpoint_completion_target=0.9",
+        "-c",
+        "max_wal_size=2GB",
+        "-c",
+        "min_wal_size=512MB"
       ]
 
 volumes:
