@@ -372,6 +372,19 @@ if echo "$RESTART_SERVICES" | grep -q "functions"; then
     docker compose restart kong
 fi
 
+# ── Reconcile other services with compose config ────────────────────────────
+# The targeted --force-recreate above only touches services we just rebuilt.
+# Compose changes to other services (init:, healthcheck:, environment,
+# depends_on, image version pin) need a generic `up -d` to be picked up.
+# Without this, prod silently drifts from the committed docker-compose.yml.
+# Seen 2026-05-25: an `init: true` zombie fix on `meta` landed in main on
+# 2026-05-11 but never reached the running container until manually
+# force-recreated 14 days later — load climbed to 26 on 4 cores from
+# 3500 unreaped healthcheck zombies.
+info "Reconciling other services with compose config..."
+docker compose up -d --remove-orphans
+success "Compose state reconciled"
+
 success "Services restarted"
 
 # ═══════════════════════════════════════════════════════════════════════════════
