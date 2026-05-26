@@ -739,11 +739,17 @@ private struct MachinePackingList: View {
                         HapticFeedback.light.fire()
                         viewModel.togglePackedForMachine(productId: item.productId, machineId: machineId)
                     } label: {
+                        // Mirror AllPackingList.machineNeedRow: checkbox follows
+                        // isPacked (machine-level commit), NOT isFullyPacked.
+                        // Partial state is signaled by the orange border +
+                        // "Partial" badge in the meta line, so the checkbox
+                        // stays clearly "checked" when the user has committed
+                        // even at less than full need.
                         Image(systemName: isDisabled ? "xmark.circle.fill" :
-                                (isFullyPacked ? "checkmark.circle.fill" : "circle"))
+                                (isPacked ? "checkmark.circle.fill" : "circle"))
                             .font(.title2)
                             .foregroundStyle(isDisabled ? .red.opacity(0.5) :
-                                            (isFullyPacked ? .green : .secondary))
+                                            (isPacked ? .green : .secondary))
                     }
                     .buttonStyle(.borderless)
                     .disabled(isDisabled)
