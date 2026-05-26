@@ -183,7 +183,7 @@ func chipIsFullyPacked(_ chip: ChipFilter) -> Bool {
 
 - [ ] **Step 2: Build to verify**
 
-In Xcode: ⌘B. Expected: no errors. (The new `refill.chip.all` localization key doesn't exist yet — Swift's `String(localized:)` falls back to the key string at runtime, so this still compiles. The key gets added in Chunk 2.)
+In Xcode: ⌘B. Expected: no errors. (The new `"All"` localization key doesn't exist yet — `String(localized:)` falls back to the key string at runtime if the key is missing, so this still compiles. The key gets added in Chunk 2.)
 
 - [ ] **Step 3: Commit**
 
@@ -363,7 +363,7 @@ If there is a visible regression, the ViewModel additions had a side effect. Che
 
 ## Chunk 2: Localization
 
-### Task 7: Add the eight chip / header localization keys
+### Task 7: Add the chip / header localization keys (8 new + 1 verify)
 
 **Files:**
 - Modify: `ios/VMflow/Resources/Localizable.xcstrings`
@@ -376,9 +376,9 @@ If there is a visible regression, the ViewModel additions had a side effect. Che
 
 Open `ios/VMflow/Resources/Localizable.xcstrings` in Xcode (preferred — gives the table editor) or your text editor. Inspect an existing entry like `"Add %lld Trays"` so you have a concrete shape to mimic.
 
-- [ ] **Step 2: Add the nine keys**
+- [ ] **Step 2: Add the keys (8 new + 1 verify)**
 
-Add the following nine entries to the top-level `"strings"` JSON object. Each key is the **exact** lookup string Swift will generate from the corresponding call site (Task 10 / Task 11). If Xcode's table editor is used: click "+" to add each key, set English value, switch to German and set the German value, ensure state is "manual" (translated). If editing JSON directly, exact key spelling matters down to the `%lld` vs `%@` and the spacing.
+Add the following entries to the top-level `"strings"` JSON object. The first 8 are new; the last one (`Select All`) already exists in xcstrings and is reused unchanged by `HeaderStrip` for `.all` mode — verify it's present, do not re-add or modify it. Each key is the **exact** lookup string Swift will generate from the corresponding call site (Task 10 / Task 11). If Xcode's table editor is used: click "+" to add each key, set English value, switch to German and set the German value, ensure state is "manual" (translated). If editing JSON directly, exact key spelling matters down to the `%lld` vs `%@` and the spacing.
 
 | Key (also the EN value) | DE value |
 | --- | --- |
@@ -390,7 +390,7 @@ Add the following nine entries to the top-level `"strings"` JSON object. Each ke
 | `⚠ %@ · new sale · box now %lld items (+%lld)` | `⚠ %@ · neuer Verkauf · Box jetzt %lld Items (+%lld)` |
 | `Pack all for %@` | `%@ komplett packen` |
 | `No products to pack for this machine` | `Keine Produkte für diesen Automaten zu packen` |
-| `Refill Tour` | (already exists — leave as is; just verifying) |
+| `Select All` | (already exists — verify only; do NOT modify) |
 
 **Format-specifier rules:**
 - `%lld` for any Swift `Int` argument (Foundation bridges `Int` to `CLong` → `%ld` on 32-bit, `%lld` on 64-bit; `%lld` is safe for both, and is what Swift's localization tooling emits).
@@ -1026,12 +1026,12 @@ git commit -m "ios(refill): wire ChipBar + HeaderStrip + list-switch into Pack b
 
 ---
 
-### Task 13: Delete the now-dead `summaryHeader` and unused `Select All` label key
+### Task 13: Delete the now-dead `summaryHeader`
 
 **Files:**
 - Modify: `ios/VMflow/Views/Refill/PackingStepView.swift`
 
-**Rationale:** Cleanup. `summaryHeader` is unreachable after Task 12.
+**Rationale:** Cleanup. `summaryHeader` is unreachable after Task 12. (Note: the `"Select All"` localization key is still used in `HeaderStrip.selectAllLabel` for `.all` mode — do NOT remove that key from xcstrings.)
 
 - [ ] **Step 1: Verify `summaryHeader` is truly unused**
 
