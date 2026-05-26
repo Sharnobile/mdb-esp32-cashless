@@ -573,3 +573,61 @@ struct MachineGridLayout: Equatable {
         )
     }
 }
+
+#Preview("MachineGridLayout — wide-slot computation") {
+    // Sample row 0 (slots 10, 12, 13, 15) and row 1 (slots 20, 21, 22).
+    // Slot 10 has next=12 → width 2. Slot 12 has next=13 → width 1.
+    // Slot 13 has next=15 → width 2. Slot 15 has no next → width 1.
+    // Row 1: all width 1.
+    let targetId = UUID()
+    let machineId = UUID()
+    let trays: [Tray] = [
+        Tray(id: UUID(), machineId: machineId, itemNumber: 10, productId: UUID(),
+             capacity: 10, currentStock: 5, minStock: 0, fillWhenBelow: 0,
+             products: TrayProduct(name: "Mars", imagePath: nil, discontinued: false, sellprice: 2.5)),
+        Tray(id: UUID(), machineId: machineId, itemNumber: 12, productId: UUID(),
+             capacity: 10, currentStock: 5, minStock: 0, fillWhenBelow: 0,
+             products: TrayProduct(name: "Twix", imagePath: nil, discontinued: false, sellprice: 2.5)),
+        Tray(id: UUID(), machineId: machineId, itemNumber: 13, productId: UUID(),
+             capacity: 10, currentStock: 5, minStock: 0, fillWhenBelow: 0,
+             products: TrayProduct(name: "Cola", imagePath: nil, discontinued: false, sellprice: 2.5)),
+        Tray(id: targetId, machineId: machineId, itemNumber: 15, productId: UUID(),
+             capacity: 10, currentStock: 0, minStock: 0, fillWhenBelow: 0,
+             products: TrayProduct(name: "Snickers", imagePath: nil, discontinued: false, sellprice: 2.5)),
+        Tray(id: UUID(), machineId: machineId, itemNumber: 20, productId: UUID(),
+             capacity: 10, currentStock: 5, minStock: 0, fillWhenBelow: 0,
+             products: TrayProduct(name: "Bounty", imagePath: nil, discontinued: false, sellprice: 2.5)),
+    ]
+
+    // Inline the same computation so we can preview without instantiating
+    // the full RefillWizardViewModel — kept structurally identical to the
+    // helper above. This is debug-only.
+    var trayByRow: [Int: [Tray]] = [:]
+    for t in trays {
+        trayByRow[max(0, (t.itemNumber / 10) - 1), default: []].append(t)
+    }
+    for k in trayByRow.keys { trayByRow[k]?.sort { $0.itemNumber < $1.itemNumber } }
+
+    var slots: [MachineGridSlot] = []
+    for (row, rowTrays) in trayByRow {
+        for (idx, t) in rowTrays.enumerated() {
+            let nextItem = idx + 1 < rowTrays.count ? rowTrays[idx + 1].itemNumber : nil
+            let width = nextItem.map { $0 - t.itemNumber } ?? 1
+            slots.append(MachineGridSlot(
+                id: t.id, itemNumber: t.itemNumber, row: row, column: t.itemNumber % 10,
+                width: max(1, width), productId: t.productId, productImagePath: nil,
+                isTarget: t.id == targetId
+            ))
+        }
+    }
+
+    return ScrollView {
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(slots.sorted { ($0.row, $0.column) < ($1.row, $1.column) }) { slot in
+                Text("Slot \(slot.itemNumber): row=\(slot.row) col=\(slot.column) width=\(slot.width)\(slot.isTarget ? " ✦" : "")")
+                    .font(.system(.body, design: .monospaced))
+            }
+        }
+        .padding()
+    }
+}
