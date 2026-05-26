@@ -6,7 +6,7 @@ struct PackingStepView: View {
     @ObservedObject var viewModel: RefillWizardViewModel
     @State private var selectedProduct: ProductSelection?
 
-    struct ProductSelection: Identifiable {
+    fileprivate struct ProductSelection: Identifiable {
         let id: UUID
         let name: String
         let imagePath: String?
@@ -17,25 +17,21 @@ struct PackingStepView: View {
         VStack(spacing: 0) {
             ScrollView {
                 VStack(spacing: 12) {
-                    // Warehouse Picker
                     if !viewModel.warehouses.isEmpty {
                         warehousePicker
                     }
+                    ChipBar(viewModel: viewModel)
+                    HeaderStrip(viewModel: viewModel)
 
-                    // Summary header
-                    summaryHeader
-
-                    // No machines needing refill
-                    if viewModel.visibleCombinedPackingList.isEmpty && !viewModel.isLoading {
-                        emptyState
-                    } else {
-                        // Product list (grouped across machines) — already
-                        // filtered so cards for out-of-stock products the user
-                        // hasn't touched are hidden rather than greyed out.
-                        ForEach(viewModel.visibleCombinedPackingList) { item in
-                            productCard(item)
+                    Group {
+                        switch viewModel.activeChip {
+                        case .all:
+                            AllPackingList(viewModel: viewModel, selectedProduct: $selectedProduct)
+                        case .machine(let id):
+                            MachinePackingList(viewModel: viewModel, machineId: id, selectedProduct: $selectedProduct)
                         }
                     }
+                    .animation(.easeInOut(duration: 0.2), value: viewModel.activeChip)
                 }
                 .padding(.horizontal)
                 .padding(.bottom, 100)
@@ -76,29 +72,66 @@ struct PackingStepView: View {
         }
     }
 
-    // MARK: - Summary Header
+    // MARK: - Bottom Bar
 
-    private var summaryHeader: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("\(viewModel.visibleCombinedPackingList.count) products to pack")
-                    .font(.subheadline.weight(.medium))
-                Text("\(viewModel.packedMachines.count) of \(viewModel.machines.count) machines ready")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+    private var bottomBar: some View {
+        VStack(spacing: 0) {
+            Divider()
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("\(viewModel.packedMachines.count) machines ready")
+                        .font(.subheadline.weight(.medium))
+                    Text("\(viewModel.totalItemsToPack) items to pack")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                Button {
+                    HapticFeedback.medium.fire()
+                    Task { await viewModel.startTour() }
+                } label: {
+                    if viewModel.isSaving {
+                        ProgressView()
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 12)
+                    } else {
+                        Label("Start Tour", systemImage: "arrow.right.circle.fill")
+                            .font(.headline)
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 12)
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(viewModel.packedMachines.isEmpty || viewModel.isSaving)
             }
-            Spacer()
-            Button {
-                HapticFeedback.light.fire()
-                viewModel.packAllMachines()
-            } label: {
-                Text("Select All")
-                    .font(.caption.weight(.semibold))
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
+            .padding(.horizontal)
+            .padding(.vertical, 12)
+            .background(.bar)
         }
-        .padding(.vertical, 4)
+    }
+}
+
+// MARK: - AllPackingList Subview
+
+/// Today's product-centric list — extracted unchanged from PackingStepView.
+/// Renders cards grouped by product with expandable per-machine sub-rows.
+/// Used when the active chip is `.all`.
+private struct AllPackingList: View {
+    @ObservedObject var viewModel: RefillWizardViewModel
+    @Binding var selectedProduct: PackingStepView.ProductSelection?
+
+    var body: some View {
+        VStack(spacing: 12) {
+            if viewModel.visibleCombinedPackingList.isEmpty && !viewModel.isLoading {
+                emptyState
+            } else {
+                ForEach(viewModel.visibleCombinedPackingList) { item in
+                    productCard(item)
+                }
+            }
+        }
     }
 
     // MARK: - Product Card
@@ -181,7 +214,7 @@ struct PackingStepView: View {
                     // the parent toggle. Nested Button + .borderless ensures
                     // SwiftUI treats it as a separate hit target.
                     Button {
-                        selectedProduct = ProductSelection(
+                        selectedProduct = PackingStepView.ProductSelection(
                             id: item.productId,
                             name: item.productName,
                             imagePath: item.imagePath,
@@ -434,44 +467,353 @@ struct PackingStepView: View {
         }
         .padding(.top, 60)
     }
+}
 
-    // MARK: - Bottom Bar
+// MARK: - ChipBar Subview
 
-    private var bottomBar: some View {
-        VStack(spacing: 0) {
-            Divider()
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("\(viewModel.packedMachines.count) machines ready")
-                        .font(.subheadline.weight(.medium))
-                    Text("\(viewModel.totalItemsToPack) items to pack")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+private struct ChipBar: View {
+    @ObservedObject var viewModel: RefillWizardViewModel
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(viewModel.chipOrder, id: \.self) { chip in
+                    chipPill(chip)
                 }
+            }
+            .padding(.horizontal, 4)
+            .padding(.vertical, 2)
+        }
+    }
+
+    private func chipPill(_ chip: ChipFilter) -> some View {
+        let isActive = viewModel.activeChip == chip
+        let isDone = viewModel.chipIsFullyPacked(chip)
+        let name = viewModel.chipName(chip)
+        let count = viewModel.chipItemCount(chip)
+
+        let bg: Color = {
+            if isActive && isDone { return .green }
+            if isActive { return .accentColor }
+            if isDone { return Color.green.opacity(0.15) }
+            return Color(.secondarySystemGroupedBackground)
+        }()
+        let fg: Color = {
+            if isActive { return .white }
+            if isDone { return .green }
+            return .primary
+        }()
+
+        return Button {
+            HapticFeedback.light.fire()
+            withAnimation(.easeInOut(duration: 0.2)) {
+                viewModel.activeChip = chip
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Text(name)
+                    .font(.caption.weight(isActive ? .semibold : .regular))
+                if isDone {
+                    Image(systemName: "checkmark")
+                        .font(.caption2.weight(.bold))
+                } else {
+                    Text(" · \(count)")
+                        .font(.caption2)
+                        .opacity(0.7)
+                        .monospacedDigit()
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 11)
+            .frame(minHeight: 44)
+            .background(Capsule().fill(bg))
+            .foregroundStyle(fg)
+            .overlay(Capsule().stroke(.black.opacity(0.06), lineWidth: 0.5))
+            .shadow(color: .black.opacity(isActive ? 0.15 : 0.05), radius: isActive ? 4 : 2, y: 1)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - HeaderStrip Subview
+
+private struct HeaderStrip: View {
+    @ObservedObject var viewModel: RefillWizardViewModel
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Text(headerText)
+                .font(.footnote.weight(.medium))
+                .foregroundStyle(foreground)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Button {
+                HapticFeedback.light.fire()
+                switch viewModel.activeChip {
+                case .all:
+                    viewModel.packAllMachines()
+                case .machine(let id):
+                    viewModel.packAllForMachine(id)
+                }
+            } label: {
+                Text(selectAllLabel)
+                    .font(.caption.weight(.semibold))
+                    .lineLimit(1)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.mini)
+            .tint(foreground)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(RoundedRectangle(cornerRadius: 10).fill(background))
+        .animation(.easeInOut(duration: 0.2), value: viewModel.activeChip)
+    }
+
+    // MARK: derived
+
+    private enum HeaderState { case pending, done, alert }
+
+    private var state: HeaderState {
+        switch viewModel.activeChip {
+        case .all:
+            return viewModel.chipIsFullyPacked(.all) ? .done : .pending
+        case .machine(let id):
+            let done = viewModel.chipIsFullyPacked(.machine(id))
+            if done { return .done }
+            // Alert = at least one product is packed for this machine but the
+            // overall chip is no longer fully packed (a sale increased deficit
+            // since pack time).
+            let anyPacked = viewModel.combinedPackingList.contains { item in
+                item.machineNeeds.contains(where: { $0.machineId == id })
+                    && viewModel.isMachinePacked(machineId: id, productId: item.productId)
+            }
+            return anyPacked ? .alert : .pending
+        }
+    }
+
+    private var background: Color {
+        switch state {
+        case .pending: return Color.blue.opacity(0.10)
+        case .done:    return Color.green.opacity(0.14)
+        case .alert:   return Color.orange.opacity(0.14)
+        }
+    }
+
+    private var foreground: Color {
+        switch state {
+        case .pending: return Color.blue
+        case .done:    return Color.green
+        case .alert:   return Color.orange
+        }
+    }
+
+    private var headerText: String {
+        switch viewModel.activeChip {
+        case .all:
+            let total = viewModel.chipItemCount(.all)
+            if state == .done {
+                return String(localized: "✓ All boxes packed · \(total) items")
+            } else {
+                let ready = viewModel.packedMachines.count
+                let totalM = viewModel.machines.count
+                return String(localized: "All machines · \(total) items · \(ready)/\(totalM) ready")
+            }
+        case .machine(let id):
+            let name = viewModel.chipName(.machine(id))
+            let total = viewModel.chipItemCount(.machine(id))
+            let packed = viewModel.chipPackedCount(.machine(id))
+            let totalNeeds = viewModel.chipNeedsCount(.machine(id))
+            switch state {
+            case .done:    return String(localized: "✓ \(name) · Box complete · \(packed)/\(totalNeeds) packed")
+            case .alert:
+                // Compute the delta — current "needed beyond packed" sum
+                let extra = viewModel.combinedPackingList.reduce(0) { sum, item in
+                    guard let n = item.machineNeeds.first(where: { $0.machineId == id }) else { return sum }
+                    guard viewModel.isMachinePacked(machineId: id, productId: item.productId) else { return sum }
+                    let packedQty = viewModel.displayQuantity(machineId: id, productId: item.productId)
+                    return sum + max(0, n.quantity - packedQty)
+                }
+                return String(localized: "⚠ \(name) · new sale · box now \(total) items (+\(extra))")
+            case .pending: return String(localized: "\(name) · Box: \(total) items · \(packed)/\(totalNeeds) packed")
+            }
+        }
+    }
+
+    private var selectAllLabel: String {
+        switch viewModel.activeChip {
+        case .all:
+            return String(localized: "Select All")
+        case .machine(let id):
+            let name = viewModel.chipName(.machine(id))
+            return String(localized: "Pack all for \(name)")
+        }
+    }
+}
+
+// MARK: - MachinePackingList Subview
+
+/// Flat per-product list scoped to one machine — used when the active chip
+/// is `.machine(id)`. Each card commits / adjusts the `(machineId, productId)`
+/// pair via the same ViewModel functions the `.all` view uses, so packed
+/// state stays in sync across both views.
+private struct MachinePackingList: View {
+    @ObservedObject var viewModel: RefillWizardViewModel
+    let machineId: UUID
+    @Binding var selectedProduct: PackingStepView.ProductSelection?
+
+    var body: some View {
+        if viewModel.visibleItemsForActiveChip.isEmpty {
+            emptyState
+        } else {
+            VStack(spacing: 12) {
+                ForEach(viewModel.visibleItemsForActiveChip) { item in
+                    card(item)
+                }
+            }
+        }
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "checkmark.seal.fill")
+                .font(.system(size: 40))
+                .foregroundStyle(.green)
+            Text(String(localized: "No products to pack for this machine"))
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 40)
+    }
+
+    @ViewBuilder
+    private func card(_ item: CombinedPackingItem) -> some View {
+        // By construction visibleItemsForActiveChip always returns items
+        // with exactly one MachineNeed for the active machine. Guard
+        // anyway — if a future refactor breaks that invariant we'd rather
+        // render nothing than crash.
+        if let need = item.machineNeeds.first {
+            let isPacked = viewModel.isMachinePacked(machineId: machineId, productId: item.productId)
+            let isDisabled = viewModel.isOutOfStockForMachine(machineId: machineId, productId: item.productId)
+            let qty = viewModel.displayQuantity(machineId: machineId, productId: item.productId)
+            let maxQty = viewModel.maxPackingQuantity(machineId: machineId, productId: item.productId)
+            let isFullyPacked = isPacked && qty >= need.quantity
+            let isPartial = isPacked && qty < need.quantity
+
+            let borderColor: Color = {
+                if isDisabled { return .clear }
+                if isFullyPacked { return .green.opacity(0.35) }
+                if isPartial { return .orange.opacity(0.55) }
+                return .clear
+            }()
+            let borderWidth: CGFloat = isPartial ? 2 : 1.5
+
+            HStack(spacing: 12) {
+                Button {
+                    guard !isDisabled else { return }
+                    HapticFeedback.light.fire()
+                    viewModel.togglePackedForMachine(productId: item.productId, machineId: machineId)
+                } label: {
+                    Image(systemName: isDisabled ? "xmark.circle.fill" :
+                            (isFullyPacked ? "checkmark.circle.fill" : "circle"))
+                        .font(.title3)
+                        .foregroundStyle(isDisabled ? .red.opacity(0.5) :
+                                        (isFullyPacked ? .green : .secondary))
+                }
+                .buttonStyle(.borderless)
+                .disabled(isDisabled)
+
+                ProductImage(imagePath: item.imagePath, size: 36)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(item.productName)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(isDisabled ? .secondary : .primary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    HStack(spacing: 6) {
+                        Text("needs \(need.quantity) / \(need.capacity)")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                        if let price = item.formattedSellprice {
+                            Text(price)
+                                .font(.caption2.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                        }
+                        if isDisabled {
+                            Text("No stock")
+                                .font(.caption2.weight(.medium))
+                                .foregroundStyle(.red)
+                        } else if isPartial {
+                            Text("Partial")
+                                .font(.caption2.weight(.medium))
+                                .foregroundStyle(.orange)
+                        }
+                    }
+                }
+
+                Button {
+                    selectedProduct = PackingStepView.ProductSelection(
+                        id: item.productId,
+                        name: item.productName,
+                        imagePath: item.imagePath,
+                        sellprice: item.sellprice
+                    )
+                } label: {
+                    Image(systemName: "info.circle")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .padding(8)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.borderless)
 
                 Spacer()
 
-                Button {
-                    HapticFeedback.medium.fire()
-                    Task { await viewModel.startTour() }
-                } label: {
-                    if viewModel.isSaving {
-                        ProgressView()
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 12)
-                    } else {
-                        Label("Start Tour", systemImage: "arrow.right.circle.fill")
-                            .font(.headline)
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 12)
+                HStack(spacing: 6) {
+                    Button {
+                        HapticFeedback.light.fire()
+                        viewModel.setPackingQuantity(machineId: machineId, productId: item.productId, quantity: qty - 1)
+                    } label: {
+                        Image(systemName: "minus")
+                            .font(.body.weight(.semibold))
+                            .frame(width: 36, height: 36)
+                            .contentShape(Rectangle())
+                            .background(RoundedRectangle(cornerRadius: 10).stroke(Color(.systemGray3), lineWidth: 1.5))
+                            .foregroundStyle(qty > 0 ? .primary : .quaternary)
                     }
+                    .disabled(qty <= 0 || isDisabled)
+
+                    Text("\(qty)")
+                        .font(.body.weight(.bold))
+                        .monospacedDigit()
+                        .frame(minWidth: 36, minHeight: 36)
+                        .background(RoundedRectangle(cornerRadius: 10).fill(isDisabled ? Color.gray.opacity(0.1) : Color.blue.opacity(0.1)))
+                        .foregroundStyle(isDisabled ? Color.secondary : Color.blue)
+
+                    Button {
+                        HapticFeedback.light.fire()
+                        viewModel.setPackingQuantity(machineId: machineId, productId: item.productId, quantity: qty + 1)
+                    } label: {
+                        Image(systemName: "plus")
+                            .font(.body.weight(.semibold))
+                            .frame(width: 36, height: 36)
+                            .contentShape(Rectangle())
+                            .background(RoundedRectangle(cornerRadius: 10).stroke(Color(.systemGray3), lineWidth: 1.5))
+                            .foregroundStyle(qty < maxQty && !isDisabled ? .primary : .quaternary)
+                    }
+                    .disabled(qty >= maxQty || isDisabled)
                 }
-                .buttonStyle(.borderedProminent)
-                .disabled(viewModel.packedMachines.isEmpty || viewModel.isSaving)
+                .buttonStyle(.borderless)
             }
-            .padding(.horizontal)
-            .padding(.vertical, 12)
-            .background(.bar)
+            .padding(14)
+            .background(RoundedRectangle(cornerRadius: 14).fill(.regularMaterial))
+            .overlay(RoundedRectangle(cornerRadius: 14).stroke(borderColor, lineWidth: borderWidth))
+            .shadow(color: .black.opacity(0.04), radius: 4, y: 2)
+            .opacity(isDisabled ? 0.5 : 1.0)
+            .animation(.easeInOut(duration: 0.2), value: isFullyPacked)
+            .animation(.easeInOut(duration: 0.2), value: isPartial)
         }
     }
 }

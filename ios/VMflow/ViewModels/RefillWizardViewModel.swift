@@ -213,6 +213,18 @@ enum RefillStep: Int, CaseIterable {
     }
 }
 
+// MARK: - Pack Chip Filter
+
+/// Filter chip selection in the Pack step. `.all` shows the full
+/// product-centric combined list (today's behavior); `.machine(id)` filters
+/// the list to just the products needed for that one machine. In-memory
+/// only — not persisted in `PersistedTourState` because the Pack step
+/// itself is never persisted.
+enum ChipFilter: Equatable, Hashable {
+    case all
+    case machine(UUID)
+}
+
 // MARK: - ViewModel
 
 /// Multi-step refill wizard: packing -> refill per machine -> summary.
@@ -243,6 +255,10 @@ final class RefillWizardViewModel: ObservableObject {
     /// to a quantity-based sort.
     @Published var warehouseProductOrder: [UUID: Int] = [:]
     @Published var currentMachineIndex: Int = 0
+    /// Active filter chip in the Pack step. Resets to `.all` whenever
+    /// `loadData()` runs (fresh start). Snap-back to `.all` if the active
+    /// machine vanishes from `chipOrder` (defensive — shouldn't happen mid-tour).
+    @Published var activeChip: ChipFilter = .all
     @Published var isLoading = false
     @Published var isSaving = false
     @Published var error: String?
@@ -552,6 +568,140 @@ final class RefillWizardViewModel: ObservableObject {
         }
     }
 
+    // MARK: - Chip Filter Helpers
+
+    /// Chips displayed in the Pack step, in order: `.all` first, then every
+    /// machine in `machines` order (matches the order surfaces in the rest of
+    /// the wizard).
+    var chipOrder: [ChipFilter] {
+        [.all] + machines.map { .machine($0.id) }
+    }
+
+    /// Display name for a chip. `.all` uses the localized "All" label; a
+    /// machine chip uses the machine's `displayName`.
+    func chipName(_ chip: ChipFilter) -> String {
+        switch chip {
+        case .all:
+            return String(localized: "All")
+        case .machine(let id):
+            return machines.first(where: { $0.id == id })?.machine.displayName ?? ""
+        }
+    }
+
+    /// Potential box size for a chip — sum of `displayQuantity` over every
+    /// `(machine, product)` pair that has a need. For `.all` the sum is
+    /// across every machine; for `.machine(id)` only that one machine.
+    ///
+    /// Intentionally distinct from `totalItemsToPack` (which only sums
+    /// across `packedMachines`). The chip shows "how big the box would be
+    /// if fully packed", the bottom bar shows "how many items the tour
+    /// will actually deliver".
+    func chipItemCount(_ chip: ChipFilter) -> Int {
+        let allMachineIds: [UUID]
+        switch chip {
+        case .all:
+            allMachineIds = machines.map(\.id)
+        case .machine(let id):
+            allMachineIds = [id]
+        }
+        var total = 0
+        for item in combinedPackingList {
+            for need in item.machineNeeds where allMachineIds.contains(need.machineId) {
+                total += displayQuantity(machineId: need.machineId, productId: item.productId)
+            }
+        }
+        return total
+    }
+
+    /// True when every needed `(machine, product)` pair for the chip is
+    /// both checked AND packed at the full required quantity. For `.all`
+    /// this requires every machine chip to be fully packed.
+    func chipIsFullyPacked(_ chip: ChipFilter) -> Bool {
+        switch chip {
+        case .all:
+            let machineChips = chipOrder.dropFirst()
+            guard !machineChips.isEmpty else { return false }
+            return machineChips.allSatisfy(chipIsFullyPacked)
+        case .machine(let id):
+            var hadAnyNeed = false
+            for item in combinedPackingList {
+                guard let need = item.machineNeeds.first(where: { $0.machineId == id }) else { continue }
+                hadAnyNeed = true
+                let packed = isMachinePacked(machineId: id, productId: item.productId)
+                guard packed else { return false }
+                guard displayQuantity(machineId: id, productId: item.productId) >= need.quantity else { return false }
+            }
+            return hadAnyNeed
+        }
+    }
+
+    /// Number of distinct products needed for a chip.
+    /// - `.all`: count across all machines (sums per-machine needs, may double-count
+    ///   a product needed in N machines — that's correct because the chip view
+    ///   shows N machine-need rows for it).
+    /// - `.machine(id)`: count just that machine's needs.
+    func chipNeedsCount(_ chip: ChipFilter) -> Int {
+        switch chip {
+        case .all:
+            return combinedPackingList.reduce(0) { $0 + $1.machineNeeds.count }
+        case .machine(let id):
+            return combinedPackingList.reduce(0) { sum, item in
+                sum + (item.machineNeeds.contains(where: { $0.machineId == id }) ? 1 : 0)
+            }
+        }
+    }
+
+    /// Number of (machine, product) pairs currently ticked for a chip.
+    /// For `.all`, counts ticked pairs across all machines.
+    /// For `.machine(id)`, counts ticked pairs scoped to that machine.
+    func chipPackedCount(_ chip: ChipFilter) -> Int {
+        let machineIds: [UUID]
+        switch chip {
+        case .all:        machineIds = machines.map(\.id)
+        case .machine(let id): machineIds = [id]
+        }
+        var count = 0
+        for item in combinedPackingList {
+            for need in item.machineNeeds where machineIds.contains(need.machineId) {
+                if isMachinePacked(machineId: need.machineId, productId: item.productId) {
+                    count += 1
+                }
+            }
+        }
+        return count
+    }
+
+    /// Items to render in the Pack step's list, dispatched on `activeChip`.
+    ///
+    /// - `.all`: passes through `visibleCombinedPackingList` unchanged (today's
+    ///   behavior — product cards with expandable per-machine sub-rows).
+    /// - `.machine(id)`: filters and rewrites — each returned `CombinedPackingItem`
+    ///   carries exactly one `MachineNeed` (the active machine's) and its
+    ///   `totalQuantity` is that machine's deficit. The same "hide if out-of-
+    ///   stock and nothing-packed-yet" rule as `visibleCombinedPackingList`
+    ///   applies, scoped to this one machine.
+    var visibleItemsForActiveChip: [CombinedPackingItem] {
+        switch activeChip {
+        case .all:
+            return visibleCombinedPackingList
+        case .machine(let id):
+            return combinedPackingList.compactMap { item in
+                guard let need = item.machineNeeds.first(where: { $0.machineId == id }) else { return nil }
+                let packed = isMachinePacked(machineId: id, productId: item.productId)
+                let outOfStock = isOutOfStockForMachine(machineId: id, productId: item.productId)
+                if outOfStock && !packed { return nil }
+                return CombinedPackingItem(
+                    productId: item.productId,
+                    productName: item.productName,
+                    imagePath: item.imagePath,
+                    sellprice: item.sellprice,
+                    totalQuantity: need.quantity,
+                    machineNeeds: [need]
+                )
+            }
+        }
+    }
+
     /// Whether a specific product is packed for a specific machine.
     func isMachinePacked(machineId: UUID, productId: UUID) -> Bool {
         packedItems[machineId]?.contains(productId) ?? false
@@ -856,6 +1006,13 @@ final class RefillWizardViewModel: ObservableObject {
             // will just see stale data until the next event.
             print("[RefillWizard] refreshDuringPacking failed: \(error)")
         }
+
+        // Snap-back: if the active machine vanished from chipOrder, drop to .all.
+        // Cannot happen in normal mid-tour flow, but cheap insurance against
+        // rendering a dangling chip selection.
+        if case .machine(let id) = activeChip, !machines.contains(where: { $0.id == id }) {
+            activeChip = .all
+        }
     }
 
     /// Refresh the **display-only** tray stock during the refill step.
@@ -1107,6 +1264,7 @@ final class RefillWizardViewModel: ObservableObject {
                 }
             }
 
+            activeChip = .all
         } catch {
             print("[RefillWizard] Error: \(error)")
             self.error = error.localizedDescription
@@ -1367,6 +1525,25 @@ final class RefillWizardViewModel: ObservableObject {
 
     func packAllMachines() {
         packEverything()
+    }
+
+    /// Pack every product needed for one specific machine (stock-aware).
+    /// Mirrors `packAllMachines` but scoped — drives the "Pack all for %@"
+    /// button shown when the Pack step has a machine chip active.
+    ///
+    /// Note: does NOT call `saveTourState()`. Consistent with the existing
+    /// pack-step helpers (`togglePackedForMachine`, `togglePackedAll`,
+    /// `packEverything`/`packAllMachines`) which also skip it. `saveTourState()`
+    /// is a no-op during `.packing` anyway (guard at line 361), but matching
+    /// the existing pattern keeps future maintenance simple.
+    func packAllForMachine(_ machineId: UUID) {
+        for item in combinedPackingList {
+            guard item.machineNeeds.contains(where: { $0.machineId == machineId }) else { continue }
+            guard !isOutOfStockForMachine(machineId: machineId, productId: item.productId) else { continue }
+            if !isMachinePacked(machineId: machineId, productId: item.productId) {
+                togglePackedForMachine(productId: item.productId, machineId: machineId)
+            }
+        }
     }
 
     // MARK: - Step Navigation
