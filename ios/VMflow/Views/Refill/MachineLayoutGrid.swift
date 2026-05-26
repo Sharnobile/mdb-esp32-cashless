@@ -74,12 +74,12 @@ struct MachineGridCell: View {
 
             // Slot-number pill.
             Text("\(slot.itemNumber)")
-                .font(.system(size: 9, weight: .semibold).monospacedDigit())
+                .font(.system(size: 11, weight: .semibold).monospacedDigit())
                 .foregroundStyle(.white)
-                .padding(.horizontal, 3)
+                .padding(.horizontal, 4)
                 .padding(.vertical, 1)
-                .background(Capsule().fill(.black.opacity(0.55)))
-                .padding(2)
+                .background(Capsule().fill(.black.opacity(0.6)))
+                .padding(3)
 
             // Target ✦ overlay (top-right).
             if slot.isTarget {
@@ -87,7 +87,7 @@ struct MachineGridCell: View {
                     HStack {
                         Spacer()
                         Image(systemName: "sparkle")
-                            .font(.system(size: 10, weight: .bold))
+                            .font(.system(size: 12, weight: .bold))
                             .foregroundStyle(Color.accentColor)
                             .padding(3)
                     }
@@ -137,20 +137,17 @@ struct MachineGridGap: View {
 /// grid of `MachineGridCell` + `MachineGridGap`. Cells are tappable via
 /// `onSlotTap`; gaps are not.
 ///
-/// Sizing: cells are a fixed 28pt for layout stability inside a List row
-/// (no `GeometryReader` — that's flaky in list rows). Comfortably fits the
-/// 10 columns + row label + padding within iPhone 13 mini's 375pt width.
-///
-/// When `rowCount > 5`, the grid becomes internally vertically scrollable
-/// with a 200pt max height.
+/// Sizing: cells are 40pt so product icons are large enough to recognize.
+/// On narrower iPhones the grid may overflow horizontally — wrapped in a
+/// horizontal `ScrollView` so the user can swipe to see the rest. Vertical
+/// scroll kicks in when `rowCount > 5`.
 struct MachineLayoutGrid: View {
     let layout: MachineGridLayout
     let onSlotTap: (MachineGridSlot) -> Void
 
-    private let cellSize: CGFloat = 28
+    private let cellSize: CGFloat = 40
     private let interitemSpacing: CGFloat = 4
     private let rowSpacing: CGFloat = 4
-    private let rowLabelWidth: CGFloat = 22
 
     var body: some View {
         let content = VStack(alignment: .leading, spacing: rowSpacing) {
@@ -163,10 +160,10 @@ struct MachineLayoutGrid: View {
 
         return Group {
             if layout.rowCount > 5 {
-                ScrollView(.vertical, showsIndicators: false) { content }
-                    .frame(maxHeight: 200)
+                ScrollView([.horizontal, .vertical], showsIndicators: false) { content }
+                    .frame(maxHeight: 260)
             } else {
-                content
+                ScrollView(.horizontal, showsIndicators: false) { content }
             }
         }
         .accessibilityElement(children: .contain)
@@ -176,11 +173,6 @@ struct MachineLayoutGrid: View {
     @ViewBuilder
     private func rowView(row: Int) -> some View {
         HStack(spacing: interitemSpacing) {
-            Text("R\(row + 1)")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .frame(width: rowLabelWidth, alignment: .trailing)
-
             rowCells(row: row)
         }
     }

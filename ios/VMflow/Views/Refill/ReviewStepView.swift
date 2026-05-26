@@ -337,13 +337,17 @@ struct ReviewStepView: View {
         for (row, rowTrays) in trayByRow {
             for (idx, tray) in rowTrays.enumerated() {
                 let nextItemNumber = idx + 1 < rowTrays.count ? rowTrays[idx + 1].itemNumber : nil
-                let width = nextItemNumber.map { $0 - tray.itemNumber } ?? 1
+                // Last slot in the row extends to the row's end: gap-to-end
+                // is interpreted as "this slot is wider," same as mid-row gaps.
+                // E.g. row ending at item 18 (col 8) with no 19 → width 2.
+                let column = tray.itemNumber % 10
+                let width = nextItemNumber.map { $0 - tray.itemNumber } ?? (10 - column)
                 slots.append(
                     MachineGridSlot(
                         id: tray.id,
                         itemNumber: tray.itemNumber,
                         row: row,
-                        column: tray.itemNumber % 10,
+                        column: column,
                         width: max(1, width),
                         productId: tray.productId,
                         productImagePath: tray.products?.imagePath,
