@@ -71,7 +71,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ · Box: %lld Items · %lld/%lld gepackt"
+            "value" : "%@ · Box: %lld Artikel · %lld/%lld gepackt"
           }
         },
         "en" : {
@@ -668,7 +668,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Alle Automaten · %lld Items · %lld/%lld ready"
+            "value" : "Alle Automaten · %lld Artikel · %lld/%lld bereit"
           }
         },
         "en" : {
@@ -2499,7 +2499,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Keine Produkte für diesen Automaten zu packen"
+            "value" : "Für diesen Automaten sind keine Produkte zu packen"
           }
         },
         "en" : {
@@ -3845,7 +3845,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "✓ Alle Boxen komplett · %lld Items gepackt"
+            "value" : "✓ Alle Boxen komplett · %lld Artikel gepackt"
           }
         },
         "en" : {
@@ -3861,7 +3861,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "⚠ %@ · neuer Verkauf · Box jetzt %lld Items (+%lld)"
+            "value" : "⚠ %@ · neuer Verkauf · Box jetzt %lld Artikel (+%lld)"
           }
         },
         "en" : {
