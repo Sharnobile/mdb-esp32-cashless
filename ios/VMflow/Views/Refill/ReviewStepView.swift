@@ -575,7 +575,7 @@ struct MachineGridLayout: Equatable {
 }
 
 #Preview("MachineGridLayout — wide-slot computation") {
-    // Sample row 0 (slots 10, 12, 13, 15) and row 1 (slots 20, 21, 22).
+    // Sample row 0 (slots 10, 12, 13, 15) and row 1 (slot 20).
     // Slot 10 has next=12 → width 2. Slot 12 has next=13 → width 1.
     // Slot 13 has next=15 → width 2. Slot 15 has no next → width 1.
     // Row 1: all width 1.
