@@ -43,6 +43,13 @@ struct BankDepositSheet: View {
                             .multilineTextAlignment(.trailing)
                             .font(.body.monospacedDigit())
                             .focused($amountFieldFocused)
+                            .toolbar {
+                                ToolbarItemGroup(placement: .keyboard) {
+                                    if amountFieldFocused {
+                                        calculatorToolbar
+                                    }
+                                }
+                            }
 
                         if isExpression, amount > 0 {
                             Text(verbatim: "= \(amountFormatted(amount))")
@@ -85,11 +92,6 @@ struct BankDepositSheet: View {
                         }
                     }
                     .disabled(isSubmitting || amount <= 0)
-                }
-                ToolbarItemGroup(placement: .keyboard) {
-                    if amountFieldFocused {
-                        calculatorToolbar
-                    }
                 }
             }
         }

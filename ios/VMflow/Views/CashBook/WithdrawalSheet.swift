@@ -89,11 +89,6 @@ struct WithdrawalSheet: View {
                     }
                     .disabled(isSubmitting || counted <= 0)
                 }
-                ToolbarItemGroup(placement: .keyboard) {
-                    if countedFieldFocused {
-                        calculatorToolbar
-                    }
-                }
             }
             .task {
                 // Always load fresh theoretical cash for the cash book this
@@ -143,6 +138,13 @@ struct WithdrawalSheet: View {
                     .multilineTextAlignment(.trailing)
                     .font(.body.monospacedDigit())
                     .focused($countedFieldFocused)
+                    .toolbar {
+                        ToolbarItemGroup(placement: .keyboard) {
+                            if countedFieldFocused {
+                                calculatorToolbar
+                            }
+                        }
+                    }
 
                 // Inline evaluated preview when the input is an expression
                 if isExpression, counted > 0 {
