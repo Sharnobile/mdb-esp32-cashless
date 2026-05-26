@@ -50,7 +50,14 @@ struct ReviewStepView: View {
                     selectedProductId: viewModel.replacements.first(where: { $0.trayId == trayId })?.replacementProductId,
                     existingSlotsByProduct: existingSlots(forTrayId: trayId),
                     machineLayout: machineLayout(forTrayId: trayId),
-                    isOutOfStock: { viewModel.isOutOfWarehouseStock(productId: $0) },
+                    remainingStock: { id in
+                        // Only show stock counts when a warehouse with stock
+                        // data is loaded — otherwise we'd render bogus zeros.
+                        guard viewModel.selectedWarehouseId != nil,
+                              !viewModel.warehouseStock.isEmpty
+                        else { return nil }
+                        return viewModel.remainingWarehouseStock(productId: id)
+                    },
                     onSelect: { productId in
                         viewModel.setReplacement(trayId: trayId, productId: productId)
                         pickerTrayId = nil
@@ -446,11 +453,12 @@ struct ReplacementProductPicker: View {
     let selectedProductId: UUID?
     let existingSlotsByProduct: [UUID: [Int]]
     let machineLayout: MachineGridLayout
-    /// Whether the given product has no remaining warehouse stock for this
-    /// tour. Out-of-stock products are visually de-emphasized but still
-    /// selectable — the user may want to plan ahead. Default: never out
-    /// of stock (used by previews and call sites without warehouse context).
-    var isOutOfStock: (UUID) -> Bool = { _ in false }
+    /// Remaining warehouse stock for the given product, or `nil` when the
+    /// caller has no warehouse context (e.g. previews, or no warehouse
+    /// selected in the refill wizard). When non-nil the row shows a
+    /// stock-count pill; a value of `0` additionally fades the row to mark
+    /// it as a poor replacement candidate.
+    var remainingStock: (UUID) -> Int? = { _ in nil }
     let onSelect: (UUID) -> Void
 
     @State private var searchText = ""
@@ -487,6 +495,22 @@ struct ReplacementProductPicker: View {
         return score
     }
 
+    @ViewBuilder
+    private func stockPill(_ count: Int) -> some View {
+        let isZero = count <= 0
+        Text("\(count) in stock")
+            .font(.caption2.weight(.semibold))
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(Capsule().fill(isZero ? Color.gray.opacity(0.18) : Color.blue.opacity(0.15)))
+            .foregroundStyle(isZero ? Color.secondary : Color.blue)
+            .accessibilityLabel(
+                isZero
+                    ? String(localized: "Out of warehouse stock")
+                    : String(localized: "\(count) units in warehouse stock")
+            )
+    }
+
     var body: some View {
         ScrollViewReader { proxy in
             List {
@@ -502,7 +526,8 @@ struct ReplacementProductPicker: View {
 
                 Section {
                     ForEach(filteredProducts) { product in
-                        let outOfStock = isOutOfStock(product.id)
+                        let stock = remainingStock(product.id)
+                        let outOfStock = stock == 0
                         Button {
                             onSelect(product.id)
                         } label: {
@@ -511,14 +536,8 @@ struct ReplacementProductPicker: View {
                                     .opacity(outOfStock ? 0.45 : 1.0)
                                 Text(product.name ?? "Unnamed")
                                     .foregroundStyle(outOfStock ? .secondary : .primary)
-                                if outOfStock {
-                                    Text("0 in stock")
-                                        .font(.caption2.weight(.semibold))
-                                        .padding(.horizontal, 6)
-                                        .padding(.vertical, 2)
-                                        .background(Capsule().fill(.gray.opacity(0.18)))
-                                        .foregroundStyle(.secondary)
-                                        .accessibilityLabel("Out of warehouse stock")
+                                if let stock {
+                                    stockPill(stock)
                                 }
                                 if let slots = existingSlotsByProduct[product.id], !slots.isEmpty {
                                     Text(slotBadgeLabel(slots))
