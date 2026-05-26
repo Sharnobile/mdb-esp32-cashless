@@ -104,7 +104,7 @@ Both modes must remain available — the cross-machine view is still useful when
 
 The existing "Select All" button in the summary header ([PackingStepView.swift:91-99](../../ios/VMflow/Views/Refill/PackingStepView.swift#L91-L99)) stays in place but its label changes contextually:
 
-- `.all` mode → "Alles auswählen" (calls existing `packAllMachines()` — unchanged behavior)
+- `.all` mode → "Alle auswählen" (calls existing `packAllMachines()` — unchanged behavior; matches existing localization key)
 - `.machine(id)` mode → "%@ komplett packen" with machine name (calls a new `packAllForMachine(machineId:)` helper that ticks every product for just that one machine)
 
 ### Bottom bar
@@ -132,7 +132,7 @@ enum ChipFilter: Equatable, Hashable {
 | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
 | `var chipOrder: [ChipFilter]`                                 | `.all` first, then `machines.map { .machine($0.id) }` in their natural order                                              |
 | `func chipName(_ chip: ChipFilter) -> String`                 | Localized "Alle" for `.all`, else `machines.first { $0.id == id }?.machine.name ?? ""`                                    |
-| `func chipItemCount(_ chip: ChipFilter) -> Int`               | `.all` → sum of all `displayQuantity` over all packed-or-needed pairs; `.machine(id)` → same sum filtered to that machine |
+| `func chipItemCount(_ chip: ChipFilter) -> Int`               | `.all` → delegate to the existing `totalItemsToPack` so the chip and bottom bar always agree; `.machine(id)` → same sum filtered to that machine |
 | `func chipIsFullyPacked(_ chip: ChipFilter) -> Bool`          | `.all` → every chip is fullyPacked. `.machine(id)` → every needed `(id, productId)` is `isMachinePacked` and at full qty |
 | `var visibleItemsForActiveChip: [CombinedPackingItem]`        | `.all` → `visibleCombinedPackingList` (unchanged). `.machine(id)` → list filtered + rewritten so each item has exactly one `MachineNeed` for the active machine and `totalQuantity = need.quantity` |
 | `func packAllForMachine(_ machineId: UUID)`                   | Ticks every product needed for just one machine; bounded by warehouse cap (same rule as `packAllMachines`)                |
@@ -155,7 +155,7 @@ enum ChipFilter: Equatable, Hashable {
 
 | File                                                                | Type                | Approx. lines |
 | ------------------------------------------------------------------- | ------------------- | ------------- |
-| `ios/VMflow/ViewModels/RefillWizardViewModel.swift`                 | additive            | ~30–50        |
+| `ios/VMflow/ViewModels/RefillWizardViewModel.swift`                 | additive            | ~50–65        |
 | `ios/VMflow/Views/Refill/PackingStepView.swift`                     | refactor + new code | ~150–200      |
 | `ios/VMflow/Resources/Localizable.xcstrings`                        | new keys            | ~6–8 entries  |
 
