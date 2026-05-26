@@ -455,6 +455,36 @@ struct ReplacementProductPicker: View {
     }
 }
 
+// MARK: - Machine Layout Grid Data
+
+/// A single cell in the machine layout grid. Computed from a `Tray`'s
+/// `itemNumber` plus knowledge of the next occupied slot in the same row.
+///
+/// `width > 1` means this slot physically occupies more than one column
+/// (e.g. a wide product that takes 2 standard slot positions). Gaps in
+/// the `item_number` sequence are interpreted as the preceding slot being
+/// wider.
+struct MachineGridSlot: Identifiable, Equatable {
+    let id: UUID                  // tray.id
+    let itemNumber: Int
+    let row: Int                  // 0-indexed, clamped to 0 if itemNumber < 10
+    let column: Int               // 0..9
+    let width: Int                // 1..10
+    let productId: UUID?
+    let productImagePath: String?
+    let isTarget: Bool
+}
+
+/// The full machine layout snapshot used to render `MachineLayoutGrid`.
+///
+/// `rowCount == 0` means the grid should not be shown at all (machine has
+/// no trays, or only the target slot — see edge cases in the spec).
+struct MachineGridLayout: Equatable {
+    let rowCount: Int
+    let columnsPerRow: Int        // hardcoded 10 for this fleet
+    let slots: [MachineGridSlot]
+}
+
 // MARK: - Previews
 
 #Preview("Picker with existing slots") {
