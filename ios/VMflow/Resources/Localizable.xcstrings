@@ -3304,12 +3304,21 @@
 
     },
     "Slot %lld" : {
-      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Fach %lld"
+          }
+        }
+      }
+    },
+    "Slot %lld, empty" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fach %lld, leer"
           }
         }
       }

@@ -100,8 +100,8 @@ struct MachineGridCell: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
             slot.productId == nil
-                ? "Slot \(slot.itemNumber), empty"
-                : "Slot \(slot.itemNumber)"
+                ? String(localized: "Slot \(slot.itemNumber), empty")
+                : String(localized: "Slot \(slot.itemNumber)")
         )
         .accessibilityHint(accessibilityHintForSlot)
         .onAppear {
