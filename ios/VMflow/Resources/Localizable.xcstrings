@@ -1618,6 +1618,16 @@
         }
       }
     },
+    "Current target slot" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aktueller Ziel-Slot"
+          }
+        }
+      }
+    },
     "Dashboard" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2194,6 +2204,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Automat %lld von %lld"
+          }
+        }
+      }
+    },
+    "Machine Layout" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automaten-Layout"
+          }
+        }
+      }
+    },
+    "Machine layout, %lld rows" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automaten-Layout, %lld Reihen"
           }
         }
       }
@@ -3274,12 +3304,21 @@
 
     },
     "Slot %lld" : {
-      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Fach %lld"
+          }
+        }
+      }
+    },
+    "Slot %lld, empty" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fach %lld, leer"
           }
         }
       }
@@ -3387,6 +3426,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tausch"
+          }
+        }
+      }
+    },
+    "Tap to find this product in the list" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tippe, um dieses Produkt in der Liste zu finden"
           }
         }
       }

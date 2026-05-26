@@ -49,6 +49,7 @@ struct ReviewStepView: View {
                     products: viewModel.availableProducts,
                     selectedProductId: viewModel.replacements.first(where: { $0.trayId == trayId })?.replacementProductId,
                     existingSlotsByProduct: existingSlots(forTrayId: trayId),
+                    machineLayout: machineLayout(forTrayId: trayId),
                     onSelect: { productId in
                         viewModel.setReplacement(trayId: trayId, productId: productId)
                         pickerTrayId = nil
@@ -298,6 +299,64 @@ struct ReviewStepView: View {
         return result
     }
 
+    /// Compute the full machine layout for the grid header in the picker.
+    ///
+    /// Reads `viewModel.allTraysByMachine` (the unfiltered tray set, same
+    /// as `existingSlots`). Returns `MachineGridLayout(rowCount: 0, ...)`
+    /// when the machine has no trays, or only the target slot — both
+    /// signal "do not render the grid section".
+    ///
+    /// - Row = `(itemNumber / 10) - 1`, clamped to 0 for itemNumber < 10.
+    /// - Column = `itemNumber % 10`.
+    /// - Width = next occupied slot in the same row's itemNumber minus
+    ///   this slot's itemNumber; 1 if there is no next slot in the row.
+    private func machineLayout(forTrayId trayId: UUID) -> MachineGridLayout {
+        guard let suggestion = viewModel.replacements.first(where: { $0.trayId == trayId })
+        else { return MachineGridLayout(rowCount: 0, columnsPerRow: 10, slots: []) }
+
+        let allTrays = viewModel.allTraysByMachine[suggestion.machineId] ?? []
+
+        // Skip grid entirely when the machine is empty or has only the target.
+        let nonTargetCount = allTrays.filter { $0.id != trayId }.count
+        guard nonTargetCount > 0 else {
+            return MachineGridLayout(rowCount: 0, columnsPerRow: 10, slots: [])
+        }
+
+        // Group trays by row, sort each row by itemNumber.
+        var trayByRow: [Int: [Tray]] = [:]
+        for tray in allTrays {
+            let row = max(0, (tray.itemNumber / 10) - 1)
+            trayByRow[row, default: []].append(tray)
+        }
+        for key in trayByRow.keys {
+            trayByRow[key]?.sort { $0.itemNumber < $1.itemNumber }
+        }
+
+        // Build slots with width = next.itemNumber - this.itemNumber.
+        var slots: [MachineGridSlot] = []
+        for (row, rowTrays) in trayByRow {
+            for (idx, tray) in rowTrays.enumerated() {
+                let nextItemNumber = idx + 1 < rowTrays.count ? rowTrays[idx + 1].itemNumber : nil
+                let width = nextItemNumber.map { $0 - tray.itemNumber } ?? 1
+                slots.append(
+                    MachineGridSlot(
+                        id: tray.id,
+                        itemNumber: tray.itemNumber,
+                        row: row,
+                        column: tray.itemNumber % 10,
+                        width: max(1, width),
+                        productId: tray.productId,
+                        productImagePath: tray.products?.imagePath,
+                        isTarget: tray.id == trayId
+                    )
+                )
+            }
+        }
+
+        let rowCount = (trayByRow.keys.max() ?? -1) + 1
+        return MachineGridLayout(rowCount: rowCount, columnsPerRow: 10, slots: slots)
+    }
+
     // MARK: - Bottom Bar
 
     private var bottomBar: some View {
@@ -381,9 +440,11 @@ struct ReplacementProductPicker: View {
     let products: [Product]
     let selectedProductId: UUID?
     let existingSlotsByProduct: [UUID: [Int]]
+    let machineLayout: MachineGridLayout
     let onSelect: (UUID) -> Void
 
     @State private var searchText = ""
+    @State private var highlightedProductId: UUID?
 
     private var filteredProducts: [Product] {
         guard !searchText.isEmpty else { return products }
@@ -417,41 +478,76 @@ struct ReplacementProductPicker: View {
     }
 
     var body: some View {
-        List {
-            ForEach(filteredProducts) { product in
-                Button {
-                    onSelect(product.id)
-                } label: {
-                    HStack(spacing: 12) {
-                        ProductImage(imagePath: product.imagePath, size: 36)
-                        Text(product.name ?? "Unnamed")
-                            .foregroundStyle(.primary)
-                        if let slots = existingSlotsByProduct[product.id], !slots.isEmpty {
-                            Text(slotBadgeLabel(slots))
-                                .font(.caption2.weight(.semibold))
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(Capsule().fill(.orange.opacity(0.15)))
-                                .foregroundStyle(.orange)
-                                .accessibilityLabel("Already in \(slots.count == 1 ? "slot" : "slots") \(slots.sorted().map(String.init).joined(separator: ", "))")
+        ScrollViewReader { proxy in
+            List {
+                if machineLayout.rowCount > 0 {
+                    Section(header: Text("Machine Layout").textCase(nil)) {
+                        MachineLayoutGrid(layout: machineLayout) { tappedSlot in
+                            handleGridTap(slot: tappedSlot, proxy: proxy)
                         }
-                        Spacer()
-                        if selectedProductId == product.id {
-                            Image(systemName: "checkmark")
-                                .foregroundStyle(.blue)
+                        .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+                        .listRowBackground(Color.clear)
+                    }
+                }
+
+                Section {
+                    ForEach(filteredProducts) { product in
+                        Button {
+                            onSelect(product.id)
+                        } label: {
+                            HStack(spacing: 12) {
+                                ProductImage(imagePath: product.imagePath, size: 36)
+                                Text(product.name ?? "Unnamed")
+                                    .foregroundStyle(.primary)
+                                if let slots = existingSlotsByProduct[product.id], !slots.isEmpty {
+                                    Text(slotBadgeLabel(slots))
+                                        .font(.caption2.weight(.semibold))
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background(Capsule().fill(.orange.opacity(0.15)))
+                                        .foregroundStyle(.orange)
+                                        .accessibilityLabel("Already in \(slots.count == 1 ? "slot" : "slots") \(slots.sorted().map(String.init).joined(separator: ", "))")
+                                }
+                                Spacer()
+                                if selectedProductId == product.id {
+                                    Image(systemName: "checkmark")
+                                        .foregroundStyle(.blue)
+                                }
+                            }
                         }
+                        .id(product.id)
+                        .listRowBackground(
+                            highlightedProductId == product.id
+                                ? Color.accentColor.opacity(0.18)
+                                : Color.clear
+                        )
+                    }
+
+                    if !searchText.isEmpty && filteredProducts.isEmpty {
+                        ContentUnavailableView.search(text: searchText)
+                            .listRowBackground(Color.clear)
                     }
                 }
             }
+            .searchable(text: $searchText, prompt: "Search products")
+            .navigationTitle("Select Replacement")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+    }
 
-            if !searchText.isEmpty && filteredProducts.isEmpty {
-                ContentUnavailableView.search(text: searchText)
-                    .listRowBackground(Color.clear)
+    private func handleGridTap(slot: MachineGridSlot, proxy: ScrollViewProxy) {
+        guard let productId = slot.productId, !slot.isTarget else { return }
+        withAnimation(.easeInOut(duration: 0.3)) {
+            proxy.scrollTo(productId, anchor: .center)
+        }
+        highlightedProductId = productId
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            if highlightedProductId == productId {
+                withAnimation(.easeOut(duration: 0.4)) {
+                    highlightedProductId = nil
+                }
             }
         }
-        .searchable(text: $searchText, prompt: "Search products")
-        .navigationTitle("Select Replacement")
-        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
@@ -481,6 +577,48 @@ struct ReplacementProductPicker: View {
             products: sampleProducts,
             selectedProductId: nil,
             existingSlotsByProduct: slots,
+            machineLayout: MachineGridLayout(rowCount: 0, columnsPerRow: 10, slots: []),
+            onSelect: { _ in }
+        )
+    }
+}
+
+#Preview("Picker with grid (typical)") {
+    let targetTrayId = UUID()
+    let layout = MachineGridLayout(
+        rowCount: 3,
+        columnsPerRow: 10,
+        slots: [
+            MachineGridSlot(id: UUID(), itemNumber: 10, row: 0, column: 0, width: 2,
+                            productId: UUID(), productImagePath: nil, isTarget: false),
+            MachineGridSlot(id: UUID(), itemNumber: 12, row: 0, column: 2, width: 1,
+                            productId: UUID(), productImagePath: nil, isTarget: false),
+            MachineGridSlot(id: targetTrayId, itemNumber: 15, row: 0, column: 5, width: 1,
+                            productId: UUID(), productImagePath: nil, isTarget: true),
+            MachineGridSlot(id: UUID(), itemNumber: 20, row: 1, column: 0, width: 1,
+                            productId: UUID(), productImagePath: nil, isTarget: false),
+            MachineGridSlot(id: UUID(), itemNumber: 30, row: 2, column: 0, width: 1,
+                            productId: UUID(), productImagePath: nil, isTarget: false),
+        ]
+    )
+
+    let products: [Product] = (1...12).map { i in
+        Product(
+            id: UUID(),
+            name: "Product \(i)",
+            imagePath: nil,
+            discontinued: false,
+            sellprice: 2.50,
+            category: nil
+        )
+    }
+
+    return NavigationStack {
+        ReplacementProductPicker(
+            products: products,
+            selectedProductId: nil,
+            existingSlotsByProduct: [:],
+            machineLayout: layout,
             onSelect: { _ in }
         )
     }

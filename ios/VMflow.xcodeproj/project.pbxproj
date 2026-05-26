@@ -77,6 +77,7 @@
 		D88E0EB43AF2F7FE4977B3C9 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 285CDF78E1AA2017C62282F8 /* NotificationService.swift */; };
 		DA9D08029AED0D27882468AF /* Inbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09910CF5FF28B2094BC5AEB1 /* Inbox.swift */; };
 		DB59F86A2E67E4D7B603D1E7 /* CompactTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 453803D692FAEE4E9DDA1040 /* CompactTabView.swift */; };
+		DEFACF7E52A6827C4C1C8BC2 /* MachineLayoutGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F54EBC4BB41B8FD7D53B95C /* MachineLayoutGrid.swift */; };
 		E161A2145944F1B03E599290 /* SidebarNavigationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 994B0EDA9D03328A131F4664 /* SidebarNavigationView.swift */; };
 		E49EF3FACFF4F910A4F7AA1F /* ProductImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A1ABF4B45C7B0D2415238F6 /* ProductImage.swift */; };
 		F0501A7FD0A96B9377D2DCCF /* SupabaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70E364431AFD63E8DE1238E3 /* SupabaseService.swift */; };
@@ -140,6 +141,7 @@
 		45AE89831021CC12416B0F89 /* VMflow.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = VMflow.entitlements; sourceTree = "<group>"; };
 		496AADA2A0C49A331A85311A /* TrayRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrayRow.swift; sourceTree = "<group>"; };
 		4E7EC46F36DD12575C056A1A /* VendingMachine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VendingMachine.swift; sourceTree = "<group>"; };
+		4F54EBC4BB41B8FD7D53B95C /* MachineLayoutGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MachineLayoutGrid.swift; sourceTree = "<group>"; };
 		4F7A80FB302C6380E0788244 /* FlowVisualisationCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlowVisualisationCard.swift; sourceTree = "<group>"; };
 		52A29D496BDB69F848C60674 /* RefillWizardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefillWizardView.swift; sourceTree = "<group>"; };
 		53A6211078603D2C7AD0EAD7 /* KPICard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KPICard.swift; sourceTree = "<group>"; };
@@ -260,6 +262,7 @@
 		1E65690806067FF339F02410 /* Refill */ = {
 			isa = PBXGroup;
 			children = (
+				4F54EBC4BB41B8FD7D53B95C /* MachineLayoutGrid.swift */,
 				90BC01B0752A47A20DF699E7 /* PackingStepView.swift */,
 				B84F596B8E26B3A5377BCAA0 /* RefillStepView.swift */,
 				9690B8B0412F05E68303EA15 /* RefillSummaryView.swift */,
@@ -670,6 +673,7 @@
 				301C227EBDC0E72136F542CD /* MachineCard.swift in Sources */,
 				893772831F630561F5DBEF01 /* MachineDetailView.swift in Sources */,
 				2B3AA6B25344C2BCAC8195EC /* MachineDetailViewModel.swift in Sources */,
+				DEFACF7E52A6827C4C1C8BC2 /* MachineLayoutGrid.swift in Sources */,
 				48101BA7F81D7ACA238B9101 /* MachineListView.swift in Sources */,
 				248616CB9DA18C4F098B2461 /* MachineListViewModel.swift in Sources */,
 				03840B5283B50C3D3193477A /* MachinesSplitView.swift in Sources */,
