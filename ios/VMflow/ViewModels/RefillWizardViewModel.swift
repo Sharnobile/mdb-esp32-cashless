@@ -970,6 +970,13 @@ final class RefillWizardViewModel: ObservableObject {
             // will just see stale data until the next event.
             print("[RefillWizard] refreshDuringPacking failed: \(error)")
         }
+
+        // Snap-back: if the active machine vanished from chipOrder, drop to .all.
+        // Cannot happen in normal mid-tour flow, but cheap insurance against
+        // rendering a dangling chip selection.
+        if case .machine(let id) = activeChip, !machines.contains(where: { $0.id == id }) {
+            activeChip = .all
+        }
     }
 
     /// Refresh the **display-only** tray stock during the refill step.
@@ -1221,6 +1228,7 @@ final class RefillWizardViewModel: ObservableObject {
                 }
             }
 
+            activeChip = .all
         } catch {
             print("[RefillWizard] Error: \(error)")
             self.error = error.localizedDescription
