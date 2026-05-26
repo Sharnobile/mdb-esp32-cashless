@@ -20,7 +20,18 @@ struct PackingStepView: View {
                     if !viewModel.warehouses.isEmpty {
                         warehousePicker
                     }
-                    AllPackingList(viewModel: viewModel, selectedProduct: $selectedProduct)
+                    ChipBar(viewModel: viewModel)
+                    HeaderStrip(viewModel: viewModel)
+
+                    Group {
+                        switch viewModel.activeChip {
+                        case .all:
+                            AllPackingList(viewModel: viewModel, selectedProduct: $selectedProduct)
+                        case .machine(let id):
+                            MachinePackingList(viewModel: viewModel, machineId: id, selectedProduct: $selectedProduct)
+                        }
+                    }
+                    .animation(.easeInOut(duration: 0.2), value: viewModel.activeChip)
                 }
                 .padding(.horizontal)
                 .padding(.bottom, 100)
@@ -113,7 +124,6 @@ private struct AllPackingList: View {
 
     var body: some View {
         VStack(spacing: 12) {
-            summaryHeader
             if viewModel.visibleCombinedPackingList.isEmpty && !viewModel.isLoading {
                 emptyState
             } else {
