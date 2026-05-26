@@ -141,45 +141,60 @@ struct MachineGridGap: View {
 /// grid of `MachineGridCell` + `MachineGridGap`. Cells are tappable via
 /// `onSlotTap`; gaps are not.
 ///
-/// Sizing: cells are 40pt wide × 56pt tall — non-square so product icons
-/// have more vertical room (typical product packaging is portrait-oriented).
-/// On narrower iPhones the grid may overflow horizontally — wrapped in a
-/// horizontal `ScrollView` so the user can swipe to see the rest. Vertical
-/// scroll kicks in when `rowCount > 5`.
+/// Sizing: cellHeight is fixed at 56pt so product icons have generous
+/// vertical room. cellWidth adapts to the container width via
+/// `GeometryReader` so the grid always uses the full available row width
+/// on any device — no horizontal scroll, no side margins. Vertical scroll
+/// kicks in when `rowCount > 5`.
 struct MachineLayoutGrid: View {
     let layout: MachineGridLayout
     let onSlotTap: (MachineGridSlot) -> Void
 
-    private let cellWidth: CGFloat = 40
     private let cellHeight: CGFloat = 56
     private let interitemSpacing: CGFloat = 4
     private let rowSpacing: CGFloat = 4
+    private let verticalPadding: CGFloat = 8
+    private let maxVisibleRows: Int = 5
+
+    private var totalHeight: CGFloat {
+        let rows = min(layout.rowCount, maxVisibleRows)
+        let rowsHeight = CGFloat(rows) * cellHeight + CGFloat(max(0, rows - 1)) * rowSpacing
+        return rowsHeight + verticalPadding * 2
+    }
 
     var body: some View {
-        let content = VStack(alignment: .leading, spacing: rowSpacing) {
-            ForEach(0..<layout.rowCount, id: \.self) { row in
-                rowView(row: row)
-            }
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        GeometryReader { geo in
+            let columns = max(1, layout.columnsPerRow)
+            let spacingTotal = CGFloat(columns - 1) * interitemSpacing
+            let cellWidth = max(0, (geo.size.width - spacingTotal) / CGFloat(columns))
 
-        return Group {
-            if layout.rowCount > 5 {
-                ScrollView([.horizontal, .vertical], showsIndicators: false) { content }
-                    .frame(maxHeight: 320)
-            } else {
-                ScrollView(.horizontal, showsIndicators: false) { content }
-            }
+            gridContent(cellWidth: cellWidth)
         }
+        .frame(height: totalHeight)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(String(localized: "Machine layout, \(layout.rowCount) rows"))
     }
 
     @ViewBuilder
-    private func rowView(row: Int) -> some View {
+    private func gridContent(cellWidth: CGFloat) -> some View {
+        let rows = VStack(alignment: .leading, spacing: rowSpacing) {
+            ForEach(0..<layout.rowCount, id: \.self) { row in
+                rowView(row: row, cellWidth: cellWidth)
+            }
+        }
+        .padding(.vertical, verticalPadding)
+
+        if layout.rowCount > maxVisibleRows {
+            ScrollView(.vertical, showsIndicators: false) { rows }
+        } else {
+            rows
+        }
+    }
+
+    @ViewBuilder
+    private func rowView(row: Int, cellWidth: CGFloat) -> some View {
         HStack(spacing: interitemSpacing) {
-            rowCells(row: row)
+            rowCells(row: row, cellWidth: cellWidth)
         }
     }
 
@@ -192,7 +207,7 @@ struct MachineLayoutGrid: View {
     /// Returns an ordered array of (column-index, view) pairs ready for
     /// `ForEach`. This is a plain function (not @ViewBuilder) so the
     /// `while`/`var` imperative logic is valid.
-    private func columnContent(row: Int) -> [(id: Int, view: AnyView)] {
+    private func columnContent(row: Int, cellWidth: CGFloat) -> [(id: Int, view: AnyView)] {
         let slotsInRow = layout.slots
             .filter { $0.row == row }
             .sorted { $0.column < $1.column }
@@ -236,8 +251,8 @@ struct MachineLayoutGrid: View {
     }
 
     @ViewBuilder
-    private func rowCells(row: Int) -> some View {
-        let items = columnContent(row: row)
+    private func rowCells(row: Int, cellWidth: CGFloat) -> some View {
+        let items = columnContent(row: row, cellWidth: cellWidth)
         HStack(spacing: interitemSpacing) {
             ForEach(items, id: \.id) { entry in
                 entry.view
