@@ -34,6 +34,7 @@ Vending machines in this fleet use a fixed 10-column convention. Row/column are 
 - **Width** of a slot = `nextItemNumberInRow - thisItemNumber`, or `1` if there is no next slot in the row. Example: trays at slots 10, 12, 13, 15 in row 0 → slot 10 has width 2 (covers columns 0–1), slot 12 width 1 (column 2), slot 13 width 2 (columns 3–4), slot 15 width 1 (column 5).
 - Empty columns between two occupied slots = rendered as a dashed thin placeholder (visual gap).
 - `rowCount` = `max(row over all occupied trays) + 1`.
+- Slots with `item_number < 10` are not expected in this fleet. If encountered, clamp `row` to `0` and proceed; do not crash.
 
 **Known limitation**: The width heuristic cannot detect a wide slot that ends the row, because there is no "next slot" to measure against. A 4-wide slot ending at column 6 would render as 1-wide with columns 7–9 shown as dashed empty placeholders. This is cosmetic only (the picker still functions). If this becomes a real-world problem we can add an explicit width column later. Logged as accepted risk, not blocking.
 
@@ -67,14 +68,14 @@ Vending machines in this fleet use a fixed 10-column convention. Row/column are 
 
 - Cell content: rounded-corner product image (Thumbnail via existing `ProductImage`), or `tray` SF Symbol placeholder when `productId == nil`.
 - Slot-number overlay: small pill in bottom-left, `caption2`, semi-transparent black background with white text — so the user can read the slot number without tapping.
-- **Target slot** (the one being replaced): 2pt accent-blue border + pulsing opacity animation (0.6 ↔ 1.0 over 1.5s, repeating) + `✦` SF Symbol overlay in top-right.
+- **Target slot** (the one being replaced): 2pt accent-blue border + pulsing opacity animation (0.6 ↔ 1.0 over 1.5s, repeating) + `✦` SF Symbol overlay in top-right. When `@Environment(\.accessibilityReduceMotion)` is true, skip the pulse — border + ✦ still convey target status statically.
 - **Empty gap** between two occupied slots in the same row: dashed thin border, 0.5 opacity, no content.
 
 ### Tap interaction
 
 - **Tap on occupied non-target cell** → list scrolls to that product (`ScrollViewReader.scrollTo(productId, anchor: .center)`) + 1-second background pulse on that list row (`accentColor.opacity(0.2)`). No auto-select.
 - **Tap on target cell** → no effect.
-- **Tap on empty gap cell** → no effect (optionally a light haptic bounce — flag for finetuning).
+- **Tap on empty gap cell** → no effect, no haptic (silent no-op is the conservative default; revisit if user testing shows people expect a response).
 
 ### List unchanged
 
@@ -114,11 +115,13 @@ ReviewStepView
           selectedProductId: ...,
           existingSlotsByProduct: existingSlots(forTrayId: trayId),     // existing
           machineLayout: machineLayout(forTrayId: trayId),               // NEW
-          targetItemNumber: <itemNumber from suggestion>,                // NEW
           onSelect: ...
         )
       }
 ```
+
+The target slot is identified inside the layout via `MachineGridSlot.isTarget` —
+no separate `targetItemNumber` param is needed.
 
 ### New helper in `ReviewStepView`
 
@@ -141,6 +144,7 @@ Data source: `viewModel.allTraysByMachine[machineId]` — already populated by `
 | Case | Behavior |
 |---|---|
 | Machine has 0 trays | Grid section hidden; picker behaves exactly like today. |
+| Only the target slot exists in the machine (no other trays) | Grid section hidden — a 1-slot grid is not useful context. |
 | Target slot is `unassigned` (no productId on its tray) | Slot is still rendered in the grid with the placeholder icon + ✦ overlay (we know its `itemNumber`). |
 | Tray exists at a slot but has `productId == nil` (and isn't the target) | Rendered as a single empty cell with placeholder icon, distinguishable from a between-slots gap (solid faded border vs. dashed). |
 | Last slot in a row with no successor | `width = 1` (heuristic limitation documented above). |
@@ -156,7 +160,7 @@ Data source: `viewModel.allTraysByMachine[machineId]` — already populated by `
 | Same file (inline subviews) | + `MachineLayoutGrid` view + `MachineGridCell` view. |
 | [Localizable.xcstrings](ios/VMflow/Localizable.xcstrings) | + `"Machine Layout"`, + `"Row %d"` (a11y), + `"Slot %d, %@"` (VoiceOver), + `"Current target slot"` (a11y hint). EN + DE. |
 
-No new files in this iteration. File stays under ~700 lines; if it grows beyond that, extract `MachineLayoutGrid.swift` in a follow-up.
+No new files in this iteration. `ReviewStepView.swift` is currently 487 lines; the estimated +150–200 lines puts the total at 637–687 lines — close to but under the ~700-line threshold. If the implementation ends up tighter (e.g. ~700 lines on the nose), extract `MachineLayoutGrid.swift` and `MachineGridCell.swift` in the same change rather than as a follow-up. Decision deferred to the implementation plan based on the actual line count at the end.
 
 ## Accessibility
 
