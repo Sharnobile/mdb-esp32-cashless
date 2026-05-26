@@ -158,17 +158,7 @@ struct WarehouseView: View {
 
     private var stockOverviewTab: some View {
         Group {
-            if viewModel.filteredSummaries.isEmpty && !viewModel.searchText.isEmpty {
-                VStack(spacing: 12) {
-                    Spacer()
-                    Image(systemName: "magnifyingglass")
-                        .font(.system(size: 40))
-                        .foregroundStyle(.secondary)
-                    Text("No products matching \"\(viewModel.searchText)\"")
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                }
-            } else if viewModel.productSummaries.isEmpty {
+            if viewModel.productSummaries.isEmpty {
                 VStack(spacing: 12) {
                     Spacer()
                     Image(systemName: "tray")
@@ -182,21 +172,40 @@ struct WarehouseView: View {
                     Spacer()
                 }
             } else {
-                List {
-                    ForEach(viewModel.filteredSummaries) { summary in
-                        NavigationLink {
-                            ProductBatchesView(
-                                productId: summary.productId,
-                                productName: summary.productName,
-                                productImagePath: summary.imagePath
-                            )
-                            .environmentObject(viewModel)
-                        } label: {
-                            StockSummaryRow(summary: summary)
+                // Stock exists: keep the search bar mounted on a stable
+                // container so it stays visible even when the current query
+                // has no matches (otherwise the empty-state view replaces the
+                // List that owns `.searchable`, and the bar disappears).
+                Group {
+                    if viewModel.filteredSummaries.isEmpty {
+                        VStack(spacing: 12) {
+                            Spacer()
+                            Image(systemName: "magnifyingglass")
+                                .font(.system(size: 40))
+                                .foregroundStyle(.secondary)
+                            Text("No products matching \"\(viewModel.searchText)\"")
+                                .foregroundStyle(.secondary)
+                            Spacer()
                         }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else {
+                        List {
+                            ForEach(viewModel.filteredSummaries) { summary in
+                                NavigationLink {
+                                    ProductBatchesView(
+                                        productId: summary.productId,
+                                        productName: summary.productName,
+                                        productImagePath: summary.imagePath
+                                    )
+                                    .environmentObject(viewModel)
+                                } label: {
+                                    StockSummaryRow(summary: summary)
+                                }
+                            }
+                        }
+                        .listStyle(.plain)
                     }
                 }
-                .listStyle(.plain)
                 .searchable(text: $viewModel.searchText, prompt: "Search products")
             }
         }
