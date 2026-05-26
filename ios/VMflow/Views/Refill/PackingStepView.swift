@@ -554,3 +554,123 @@ private struct ChipBar: View {
         .buttonStyle(.plain)
     }
 }
+
+// MARK: - HeaderStrip Subview
+
+private struct HeaderStrip: View {
+    @ObservedObject var viewModel: RefillWizardViewModel
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Text(headerText)
+                .font(.footnote.weight(.medium))
+                .foregroundStyle(foreground)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Button {
+                HapticFeedback.light.fire()
+                switch viewModel.activeChip {
+                case .all:
+                    viewModel.packAllMachines()
+                case .machine(let id):
+                    viewModel.packAllForMachine(id)
+                }
+            } label: {
+                Text(selectAllLabel)
+                    .font(.caption.weight(.semibold))
+                    .lineLimit(1)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.mini)
+            .tint(foreground)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(RoundedRectangle(cornerRadius: 10).fill(background))
+        .animation(.easeInOut(duration: 0.2), value: viewModel.activeChip)
+    }
+
+    // MARK: derived
+
+    private enum HeaderState { case pending, done, alert }
+
+    private var state: HeaderState {
+        switch viewModel.activeChip {
+        case .all:
+            return viewModel.chipIsFullyPacked(.all) ? .done : .pending
+        case .machine(let id):
+            let done = viewModel.chipIsFullyPacked(.machine(id))
+            if done { return .done }
+            // Alert = at least one product is packed for this machine but the
+            // overall chip is no longer fully packed (a sale increased deficit
+            // since pack time).
+            let anyPacked = viewModel.combinedPackingList.contains { item in
+                item.machineNeeds.contains(where: { $0.machineId == id })
+                    && viewModel.isMachinePacked(machineId: id, productId: item.productId)
+            }
+            return anyPacked ? .alert : .pending
+        }
+    }
+
+    private var background: Color {
+        switch state {
+        case .pending: return Color.blue.opacity(0.10)
+        case .done:    return Color.green.opacity(0.14)
+        case .alert:   return Color.orange.opacity(0.14)
+        }
+    }
+
+    private var foreground: Color {
+        switch state {
+        case .pending: return Color.blue
+        case .done:    return Color.green
+        case .alert:   return Color.orange
+        }
+    }
+
+    private var headerText: String {
+        switch viewModel.activeChip {
+        case .all:
+            let total = viewModel.chipItemCount(.all)
+            if state == .done {
+                return String(localized: "✓ All boxes packed · \(total) items")
+            } else {
+                let ready = viewModel.packedMachines.count
+                let totalM = viewModel.machines.count
+                return String(localized: "All machines · \(total) items · \(ready)/\(totalM) ready")
+            }
+        case .machine(let id):
+            let name = viewModel.chipName(.machine(id))
+            let total = viewModel.chipItemCount(.machine(id))
+            let needs = viewModel.combinedPackingList.compactMap { item -> (UUID, Int)? in
+                guard let n = item.machineNeeds.first(where: { $0.machineId == id }) else { return nil }
+                return (item.productId, n.quantity)
+            }
+            let packed = needs.filter { viewModel.isMachinePacked(machineId: id, productId: $0.0) }.count
+            switch state {
+            case .done:    return String(localized: "✓ \(name) · Box complete · \(packed)/\(needs.count) packed")
+            case .alert:
+                // Compute the delta — current "needed beyond packed" sum
+                let extra = needs.reduce(0) { sum, pair in
+                    let (pid, qty) = pair
+                    guard viewModel.isMachinePacked(machineId: id, productId: pid) else { return sum }
+                    let packedQty = viewModel.displayQuantity(machineId: id, productId: pid)
+                    return sum + max(0, qty - packedQty)
+                }
+                return String(localized: "⚠ \(name) · new sale · box now \(total) items (+\(extra))")
+            case .pending: return String(localized: "\(name) · Box: \(total) items · \(packed)/\(needs.count) packed")
+            }
+        }
+    }
+
+    private var selectAllLabel: String {
+        switch viewModel.activeChip {
+        case .all:
+            return String(localized: "Select All")
+        case .machine(let id):
+            let name = viewModel.chipName(.machine(id))
+            return String(localized: "Pack all for \(name)")
+        }
+    }
+}
