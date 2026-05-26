@@ -102,12 +102,6 @@ struct PackingStepView: View {
     }
 }
 
-#Preview {
-    NavigationStack {
-        PackingStepView(viewModel: RefillWizardViewModel())
-    }
-}
-
 // MARK: - AllPackingList Subview
 
 /// Today's product-centric list — extracted unchanged from PackingStepView.
@@ -834,5 +828,11 @@ private struct MachinePackingList: View {
         .opacity(isDisabled ? 0.5 : 1.0)
         .animation(.easeInOut(duration: 0.2), value: isFullyPacked)
         .animation(.easeInOut(duration: 0.2), value: isPartial)
+    }
+}
+
+#Preview {
+    NavigationStack {
+        PackingStepView(viewModel: RefillWizardViewModel())
     }
 }
