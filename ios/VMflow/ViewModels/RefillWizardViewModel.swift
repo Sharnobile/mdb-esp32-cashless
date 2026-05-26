@@ -568,6 +568,73 @@ final class RefillWizardViewModel: ObservableObject {
         }
     }
 
+    // MARK: - Chip Filter Helpers
+
+    /// Chips displayed in the Pack step, in order: `.all` first, then every
+    /// machine in `machines` order (matches the order surfaces in the rest of
+    /// the wizard).
+    var chipOrder: [ChipFilter] {
+        [.all] + machines.map { .machine($0.id) }
+    }
+
+    /// Display name for a chip. `.all` uses the localized "All" label; a
+    /// machine chip uses the machine's `displayName`.
+    func chipName(_ chip: ChipFilter) -> String {
+        switch chip {
+        case .all:
+            return String(localized: "All")
+        case .machine(let id):
+            return machines.first(where: { $0.id == id })?.machine.displayName ?? ""
+        }
+    }
+
+    /// Potential box size for a chip — sum of `displayQuantity` over every
+    /// `(machine, product)` pair that has a need. For `.all` the sum is
+    /// across every machine; for `.machine(id)` only that one machine.
+    ///
+    /// Intentionally distinct from `totalItemsToPack` (which only sums
+    /// across `packedMachines`). The chip shows "how big the box would be
+    /// if fully packed", the bottom bar shows "how many items the tour
+    /// will actually deliver".
+    func chipItemCount(_ chip: ChipFilter) -> Int {
+        let allMachineIds: [UUID]
+        switch chip {
+        case .all:
+            allMachineIds = machines.map(\.id)
+        case .machine(let id):
+            allMachineIds = [id]
+        }
+        var total = 0
+        for item in combinedPackingList {
+            for need in item.machineNeeds where allMachineIds.contains(need.machineId) {
+                total += displayQuantity(machineId: need.machineId, productId: item.productId)
+            }
+        }
+        return total
+    }
+
+    /// True when every needed `(machine, product)` pair for the chip is
+    /// both checked AND packed at the full required quantity. For `.all`
+    /// this requires every machine chip to be fully packed.
+    func chipIsFullyPacked(_ chip: ChipFilter) -> Bool {
+        switch chip {
+        case .all:
+            let machineChips = chipOrder.dropFirst()
+            guard !machineChips.isEmpty else { return false }
+            return machineChips.allSatisfy(chipIsFullyPacked)
+        case .machine(let id):
+            var hadAnyNeed = false
+            for item in combinedPackingList {
+                guard let need = item.machineNeeds.first(where: { $0.machineId == id }) else { continue }
+                hadAnyNeed = true
+                let packed = isMachinePacked(machineId: id, productId: item.productId)
+                guard packed else { return false }
+                guard displayQuantity(machineId: id, productId: item.productId) >= need.quantity else { return false }
+            }
+            return hadAnyNeed
+        }
+    }
+
     /// Whether a specific product is packed for a specific machine.
     func isMachinePacked(machineId: UUID, productId: UUID) -> Bool {
         packedItems[machineId]?.contains(productId) ?? false
