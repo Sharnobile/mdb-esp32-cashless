@@ -523,8 +523,9 @@ private struct ChipBar: View {
                         .monospacedDigit()
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 7)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 11)
+            .frame(minHeight: 44)
             .background(Capsule().fill(bg))
             .foregroundStyle(fg)
             .overlay(Capsule().stroke(.black.opacity(0.06), lineWidth: 0.5))
