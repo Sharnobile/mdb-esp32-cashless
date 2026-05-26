@@ -1483,6 +1483,25 @@ final class RefillWizardViewModel: ObservableObject {
         packEverything()
     }
 
+    /// Pack every product needed for one specific machine (stock-aware).
+    /// Mirrors `packAllMachines` but scoped — drives the "Pack all for %@"
+    /// button shown when the Pack step has a machine chip active.
+    ///
+    /// Note: does NOT call `saveTourState()`. Consistent with the existing
+    /// pack-step helpers (`togglePackedForMachine`, `togglePackedAll`,
+    /// `packEverything`/`packAllMachines`) which also skip it. `saveTourState()`
+    /// is a no-op during `.packing` anyway (guard at line 361), but matching
+    /// the existing pattern keeps future maintenance simple.
+    func packAllForMachine(_ machineId: UUID) {
+        for item in combinedPackingList {
+            guard item.machineNeeds.contains(where: { $0.machineId == machineId }) else { continue }
+            guard !isOutOfStockForMachine(machineId: machineId, productId: item.productId) else { continue }
+            if !isMachinePacked(machineId: machineId, productId: item.productId) {
+                togglePackedForMachine(productId: item.productId, machineId: machineId)
+            }
+        }
+    }
+
     // MARK: - Step Navigation
 
     func startTour() async {
