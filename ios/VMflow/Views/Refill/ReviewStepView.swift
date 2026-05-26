@@ -298,6 +298,64 @@ struct ReviewStepView: View {
         return result
     }
 
+    /// Compute the full machine layout for the grid header in the picker.
+    ///
+    /// Reads `viewModel.allTraysByMachine` (the unfiltered tray set, same
+    /// as `existingSlots`). Returns `MachineGridLayout(rowCount: 0, ...)`
+    /// when the machine has no trays, or only the target slot — both
+    /// signal "do not render the grid section".
+    ///
+    /// - Row = `(itemNumber / 10) - 1`, clamped to 0 for itemNumber < 10.
+    /// - Column = `itemNumber % 10`.
+    /// - Width = next occupied slot in the same row's itemNumber minus
+    ///   this slot's itemNumber; 1 if there is no next slot in the row.
+    private func machineLayout(forTrayId trayId: UUID) -> MachineGridLayout {
+        guard let suggestion = viewModel.replacements.first(where: { $0.trayId == trayId })
+        else { return MachineGridLayout(rowCount: 0, columnsPerRow: 10, slots: []) }
+
+        let allTrays = viewModel.allTraysByMachine[suggestion.machineId] ?? []
+
+        // Skip grid entirely when the machine is empty or has only the target.
+        let nonTargetCount = allTrays.filter { $0.id != trayId }.count
+        guard nonTargetCount > 0 else {
+            return MachineGridLayout(rowCount: 0, columnsPerRow: 10, slots: [])
+        }
+
+        // Group trays by row, sort each row by itemNumber.
+        var trayByRow: [Int: [Tray]] = [:]
+        for tray in allTrays {
+            let row = max(0, (tray.itemNumber / 10) - 1)
+            trayByRow[row, default: []].append(tray)
+        }
+        for key in trayByRow.keys {
+            trayByRow[key]?.sort { $0.itemNumber < $1.itemNumber }
+        }
+
+        // Build slots with width = next.itemNumber - this.itemNumber.
+        var slots: [MachineGridSlot] = []
+        for (row, rowTrays) in trayByRow {
+            for (idx, tray) in rowTrays.enumerated() {
+                let nextItemNumber = idx + 1 < rowTrays.count ? rowTrays[idx + 1].itemNumber : nil
+                let width = nextItemNumber.map { $0 - tray.itemNumber } ?? 1
+                slots.append(
+                    MachineGridSlot(
+                        id: tray.id,
+                        itemNumber: tray.itemNumber,
+                        row: row,
+                        column: tray.itemNumber % 10,
+                        width: max(1, width),
+                        productId: tray.productId,
+                        productImagePath: tray.products?.imagePath,
+                        isTarget: tray.id == trayId
+                    )
+                )
+            }
+        }
+
+        let rowCount = (trayByRow.keys.max() ?? -1) + 1
+        return MachineGridLayout(rowCount: rowCount, columnsPerRow: 10, slots: slots)
+    }
+
     // MARK: - Bottom Bar
 
     private var bottomBar: some View {
