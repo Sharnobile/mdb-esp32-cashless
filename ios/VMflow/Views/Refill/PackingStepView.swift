@@ -674,3 +674,165 @@ private struct HeaderStrip: View {
         }
     }
 }
+
+// MARK: - MachinePackingList Subview
+
+/// Flat per-product list scoped to one machine — used when the active chip
+/// is `.machine(id)`. Each card commits / adjusts the `(machineId, productId)`
+/// pair via the same ViewModel functions the `.all` view uses, so packed
+/// state stays in sync across both views.
+private struct MachinePackingList: View {
+    @ObservedObject var viewModel: RefillWizardViewModel
+    let machineId: UUID
+    @Binding var selectedProduct: PackingStepView.ProductSelection?
+
+    var body: some View {
+        if viewModel.visibleItemsForActiveChip.isEmpty {
+            emptyState
+        } else {
+            VStack(spacing: 12) {
+                ForEach(viewModel.visibleItemsForActiveChip) { item in
+                    card(item)
+                }
+            }
+        }
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "checkmark.seal.fill")
+                .font(.system(size: 40))
+                .foregroundStyle(.green)
+            Text(String(localized: "No products to pack for this machine"))
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 40)
+    }
+
+    private func card(_ item: CombinedPackingItem) -> some View {
+        // By construction visibleItemsForActiveChip always returns items
+        // with exactly one MachineNeed for the active machine.
+        let need = item.machineNeeds[0]
+        let isPacked = viewModel.isMachinePacked(machineId: machineId, productId: item.productId)
+        let isDisabled = viewModel.isOutOfStockForMachine(machineId: machineId, productId: item.productId)
+        let qty = viewModel.displayQuantity(machineId: machineId, productId: item.productId)
+        let maxQty = viewModel.maxPackingQuantity(machineId: machineId, productId: item.productId)
+        let isFullyPacked = isPacked && qty >= need.quantity
+        let isPartial = isPacked && qty < need.quantity
+
+        let borderColor: Color = {
+            if isDisabled { return .clear }
+            if isFullyPacked { return .green.opacity(0.35) }
+            if isPartial { return .orange.opacity(0.55) }
+            return .clear
+        }()
+        let borderWidth: CGFloat = isPartial ? 2 : 1.5
+
+        return HStack(spacing: 12) {
+            Button {
+                guard !isDisabled else { return }
+                HapticFeedback.light.fire()
+                viewModel.togglePackedForMachine(productId: item.productId, machineId: machineId)
+            } label: {
+                Image(systemName: isDisabled ? "xmark.circle.fill" :
+                        (isFullyPacked ? "checkmark.circle.fill" : "circle"))
+                    .font(.title3)
+                    .foregroundStyle(isDisabled ? .red.opacity(0.5) :
+                                    (isFullyPacked ? .green : .secondary))
+            }
+            .buttonStyle(.borderless)
+            .disabled(isDisabled)
+
+            ProductImage(imagePath: item.imagePath, size: 36)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(item.productName)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(isDisabled ? .secondary : .primary)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 6) {
+                    Text("needs \(need.quantity) / \(need.capacity)")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    if let price = item.formattedSellprice {
+                        Text(price)
+                            .font(.caption2.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                    }
+                    if isDisabled {
+                        Text("No stock")
+                            .font(.caption2.weight(.medium))
+                            .foregroundStyle(.red)
+                    } else if isPartial {
+                        Text("Partial")
+                            .font(.caption2.weight(.medium))
+                            .foregroundStyle(.orange)
+                    }
+                }
+            }
+
+            Button {
+                selectedProduct = PackingStepView.ProductSelection(
+                    id: item.productId,
+                    name: item.productName,
+                    imagePath: item.imagePath,
+                    sellprice: item.sellprice
+                )
+            } label: {
+                Image(systemName: "info.circle")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .padding(8)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.borderless)
+
+            Spacer()
+
+            HStack(spacing: 6) {
+                Button {
+                    HapticFeedback.light.fire()
+                    viewModel.setPackingQuantity(machineId: machineId, productId: item.productId, quantity: qty - 1)
+                } label: {
+                    Image(systemName: "minus")
+                        .font(.body.weight(.semibold))
+                        .frame(width: 36, height: 36)
+                        .contentShape(Rectangle())
+                        .background(RoundedRectangle(cornerRadius: 10).stroke(Color(.systemGray3), lineWidth: 1.5))
+                        .foregroundStyle(qty > 0 ? .primary : .quaternary)
+                }
+                .disabled(qty <= 0 || isDisabled)
+
+                Text("\(qty)")
+                    .font(.body.weight(.bold))
+                    .monospacedDigit()
+                    .frame(minWidth: 36, minHeight: 36)
+                    .background(RoundedRectangle(cornerRadius: 10).fill(isDisabled ? Color.gray.opacity(0.1) : Color.blue.opacity(0.1)))
+                    .foregroundStyle(isDisabled ? Color.secondary : Color.blue)
+
+                Button {
+                    HapticFeedback.light.fire()
+                    viewModel.setPackingQuantity(machineId: machineId, productId: item.productId, quantity: qty + 1)
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.body.weight(.semibold))
+                        .frame(width: 36, height: 36)
+                        .contentShape(Rectangle())
+                        .background(RoundedRectangle(cornerRadius: 10).stroke(Color(.systemGray3), lineWidth: 1.5))
+                        .foregroundStyle(qty < maxQty && !isDisabled ? .primary : .quaternary)
+                }
+                .disabled(qty >= maxQty || isDisabled)
+            }
+            .buttonStyle(.borderless)
+        }
+        .padding(14)
+        .background(RoundedRectangle(cornerRadius: 14).fill(.regularMaterial))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(borderColor, lineWidth: borderWidth))
+        .shadow(color: .black.opacity(0.04), radius: 4, y: 2)
+        .opacity(isDisabled ? 0.5 : 1.0)
+        .animation(.easeInOut(duration: 0.2), value: isFullyPacked)
+        .animation(.easeInOut(duration: 0.2), value: isPartial)
+    }
+}
