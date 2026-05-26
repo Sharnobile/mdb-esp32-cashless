@@ -489,3 +489,68 @@ private struct AllPackingList: View {
         .padding(.top, 60)
     }
 }
+
+// MARK: - ChipBar Subview
+
+private struct ChipBar: View {
+    @ObservedObject var viewModel: RefillWizardViewModel
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(viewModel.chipOrder, id: \.self) { chip in
+                    chipPill(chip)
+                }
+            }
+            .padding(.horizontal, 4)
+            .padding(.vertical, 2)
+        }
+    }
+
+    private func chipPill(_ chip: ChipFilter) -> some View {
+        let isActive = viewModel.activeChip == chip
+        let isDone = viewModel.chipIsFullyPacked(chip)
+        let name = viewModel.chipName(chip)
+        let count = viewModel.chipItemCount(chip)
+
+        let bg: Color = {
+            if isActive && isDone { return .green }
+            if isActive { return .accentColor }
+            if isDone { return Color.green.opacity(0.15) }
+            return Color(.secondarySystemGroupedBackground)
+        }()
+        let fg: Color = {
+            if isActive { return .white }
+            if isDone { return .green }
+            return .primary
+        }()
+
+        return Button {
+            HapticFeedback.light.fire()
+            withAnimation(.easeInOut(duration: 0.2)) {
+                viewModel.activeChip = chip
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Text(name)
+                    .font(.caption.weight(isActive ? .semibold : .regular))
+                if isDone {
+                    Image(systemName: "checkmark")
+                        .font(.caption2.weight(.bold))
+                } else {
+                    Text(" · \(count)")
+                        .font(.caption2)
+                        .opacity(0.7)
+                        .monospacedDigit()
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .background(Capsule().fill(bg))
+            .foregroundStyle(fg)
+            .overlay(Capsule().stroke(.black.opacity(0.06), lineWidth: 0.5))
+            .shadow(color: .black.opacity(isActive ? 0.15 : 0.05), radius: isActive ? 4 : 2, y: 1)
+        }
+        .buttonStyle(.plain)
+    }
+}
