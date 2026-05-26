@@ -589,8 +589,13 @@ final class RefillWizardViewModel: ObservableObject {
     }
 
     /// Potential box size for a chip — sum of `displayQuantity` over every
-    /// `(machine, product)` pair that has a need. For `.all` the sum is
-    /// across every machine; for `.machine(id)` only that one machine.
+    /// `(machine, product)` pair that has a need AND is visible in the
+    /// picklist. For `.all` the sum is across every machine; for
+    /// `.machine(id)` only that one machine.
+    ///
+    /// Skips pairs that are out-of-warehouse-stock AND not yet packed —
+    /// those don't render in the picklist, so they must not be counted
+    /// in the chip badge either.
     ///
     /// Intentionally distinct from `totalItemsToPack` (which only sums
     /// across `packedMachines`). The chip shows "how big the box would be
@@ -607,6 +612,9 @@ final class RefillWizardViewModel: ObservableObject {
         var total = 0
         for item in combinedPackingList {
             for need in item.machineNeeds where allMachineIds.contains(need.machineId) {
+                let packed = isMachinePacked(machineId: need.machineId, productId: item.productId)
+                let outOfStock = isOutOfStockForMachine(machineId: need.machineId, productId: item.productId)
+                if outOfStock && !packed { continue }
                 total += displayQuantity(machineId: need.machineId, productId: item.productId)
             }
         }
@@ -626,8 +634,13 @@ final class RefillWizardViewModel: ObservableObject {
             var hadAnyNeed = false
             for item in combinedPackingList {
                 guard let need = item.machineNeeds.first(where: { $0.machineId == id }) else { continue }
-                hadAnyNeed = true
                 let packed = isMachinePacked(machineId: id, productId: item.productId)
+                let outOfStock = isOutOfStockForMachine(machineId: id, productId: item.productId)
+                // Out-of-stock-and-unpacked pairs aren't in the picklist;
+                // the user has no way to act on them, so they must not
+                // block the chip from reaching "done".
+                if outOfStock && !packed { continue }
+                hadAnyNeed = true
                 guard packed else { return false }
                 // "Fully packed" = packed at the highest quantity currently
                 // possible. If the warehouse can't satisfy the full deficit,
@@ -643,20 +656,31 @@ final class RefillWizardViewModel: ObservableObject {
         }
     }
 
-    /// Number of distinct products needed for a chip.
+    /// Number of distinct products needed for a chip, filtered to what
+    /// actually appears in the picklist (out-of-stock-and-unpacked pairs
+    /// are excluded, matching `chipItemCount` and `chipIsFullyPacked`).
     /// - `.all`: count across all machines (sums per-machine needs, may double-count
     ///   a product needed in N machines — that's correct because the chip view
     ///   shows N machine-need rows for it).
     /// - `.machine(id)`: count just that machine's needs.
     func chipNeedsCount(_ chip: ChipFilter) -> Int {
+        let allMachineIds: [UUID]
         switch chip {
         case .all:
-            return combinedPackingList.reduce(0) { $0 + $1.machineNeeds.count }
+            allMachineIds = machines.map(\.id)
         case .machine(let id):
-            return combinedPackingList.reduce(0) { sum, item in
-                sum + (item.machineNeeds.contains(where: { $0.machineId == id }) ? 1 : 0)
+            allMachineIds = [id]
+        }
+        var count = 0
+        for item in combinedPackingList {
+            for need in item.machineNeeds where allMachineIds.contains(need.machineId) {
+                let packed = isMachinePacked(machineId: need.machineId, productId: item.productId)
+                let outOfStock = isOutOfStockForMachine(machineId: need.machineId, productId: item.productId)
+                if outOfStock && !packed { continue }
+                count += 1
             }
         }
+        return count
     }
 
     /// Number of (machine, product) pairs currently ticked for a chip.
