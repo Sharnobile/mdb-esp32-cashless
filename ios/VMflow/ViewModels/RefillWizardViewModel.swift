@@ -213,6 +213,18 @@ enum RefillStep: Int, CaseIterable {
     }
 }
 
+// MARK: - Pack Chip Filter
+
+/// Filter chip selection in the Pack step. `.all` shows the full
+/// product-centric combined list (today's behavior); `.machine(id)` filters
+/// the list to just the products needed for that one machine. In-memory
+/// only — not persisted in `PersistedTourState` because the Pack step
+/// itself is never persisted.
+enum ChipFilter: Equatable, Hashable {
+    case all
+    case machine(UUID)
+}
+
 // MARK: - ViewModel
 
 /// Multi-step refill wizard: packing -> refill per machine -> summary.
@@ -243,6 +255,10 @@ final class RefillWizardViewModel: ObservableObject {
     /// to a quantity-based sort.
     @Published var warehouseProductOrder: [UUID: Int] = [:]
     @Published var currentMachineIndex: Int = 0
+    /// Active filter chip in the Pack step. Resets to `.all` whenever
+    /// `loadData()` runs (fresh start). Snap-back to `.all` if the active
+    /// machine vanishes from `chipOrder` (defensive — shouldn't happen mid-tour).
+    @Published var activeChip: ChipFilter = .all
     @Published var isLoading = false
     @Published var isSaving = false
     @Published var error: String?
