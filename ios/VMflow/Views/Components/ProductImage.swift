@@ -7,9 +7,18 @@ import SwiftUI
 struct ProductImage: View {
     let imagePath: String?
     var size: CGFloat = 44
+    /// Optional explicit width. Defaults to `size`. Use when the surrounding
+    /// cell is non-square (e.g. the machine-layout grid uses a taller cell to
+    /// give product images more vertical room).
+    var width: CGFloat? = nil
+    /// Optional explicit height. Defaults to `size`.
+    var height: CGFloat? = nil
 
     @State private var image: UIImage?
     @State private var isLoading = false
+
+    private var effectiveWidth: CGFloat { width ?? size }
+    private var effectiveHeight: CGFloat { height ?? size }
 
     private var imageURL: URL? {
         guard let path = imagePath, !path.isEmpty else { return nil }
@@ -23,11 +32,11 @@ struct ProductImage: View {
                 Image(uiImage: image)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
-                    .frame(width: size, height: size)
+                    .frame(width: effectiveWidth, height: effectiveHeight)
                     .clipShape(RoundedRectangle(cornerRadius: 8))
             } else if isLoading {
                 ProgressView()
-                    .frame(width: size, height: size)
+                    .frame(width: effectiveWidth, height: effectiveHeight)
             } else {
                 placeholder
             }
@@ -57,11 +66,11 @@ struct ProductImage: View {
     private var placeholder: some View {
         RoundedRectangle(cornerRadius: 8)
             .fill(Color(.systemGray5))
-            .frame(width: size, height: size)
+            .frame(width: effectiveWidth, height: effectiveHeight)
             .overlay {
                 Image(systemName: "cube.box")
                     .foregroundStyle(.secondary)
-                    .font(.system(size: size * 0.4))
+                    .font(.system(size: min(effectiveWidth, effectiveHeight) * 0.4))
             }
     }
 }

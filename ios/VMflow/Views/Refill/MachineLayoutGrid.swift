@@ -37,16 +37,19 @@ struct MachineGridLayout: Equatable {
 /// a pulsing opacity animation (skipped under Reduce Motion), and a ✦ overlay.
 struct MachineGridCell: View {
     let slot: MachineGridSlot
-    /// Base cell side length in points. The actual width is
-    /// `cellSize * slot.width + interitemSpacing * (slot.width - 1)`.
-    let cellSize: CGFloat
+    /// Width of one column in points. The actual rendered width is
+    /// `cellWidth * slot.width + interitemSpacing * (slot.width - 1)`.
+    let cellWidth: CGFloat
+    /// Cell height in points — independent of width so cells can be
+    /// taller than wide, giving product images more vertical room.
+    let cellHeight: CGFloat
     let interitemSpacing: CGFloat
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var pulse = false
 
     var body: some View {
-        let totalWidth = cellSize * CGFloat(slot.width) + interitemSpacing * CGFloat(slot.width - 1)
+        let totalWidth = cellWidth * CGFloat(slot.width) + interitemSpacing * CGFloat(slot.width - 1)
 
         return ZStack(alignment: .bottomLeading) {
             // Background / image.
@@ -55,14 +58,14 @@ struct MachineGridCell: View {
                     .fill(.regularMaterial)
 
                 if let path = slot.productImagePath, !path.isEmpty {
-                    ProductImage(imagePath: path, size: cellSize - 4)
+                    ProductImage(imagePath: path, width: totalWidth - 4, height: cellHeight - 4)
                 } else {
                     Image(systemName: slot.productId == nil ? "tray" : "shippingbox")
-                        .font(.system(size: cellSize * 0.4))
+                        .font(.system(size: min(cellWidth, cellHeight) * 0.4))
                         .foregroundStyle(.secondary)
                 }
             }
-            .frame(width: totalWidth, height: cellSize)
+            .frame(width: totalWidth, height: cellHeight)
             .clipShape(RoundedRectangle(cornerRadius: 6))
             .overlay {
                 if slot.isTarget {
@@ -93,10 +96,10 @@ struct MachineGridCell: View {
                     }
                     Spacer()
                 }
-                .frame(width: totalWidth, height: cellSize)
+                .frame(width: totalWidth, height: cellHeight)
             }
         }
-        .frame(width: totalWidth, height: cellSize)
+        .frame(width: totalWidth, height: cellHeight)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
             slot.productId == nil
@@ -122,13 +125,14 @@ struct MachineGridCell: View {
 /// A non-interactive thin dashed placeholder for an unoccupied column
 /// between two occupied slots in the same row.
 struct MachineGridGap: View {
-    let cellSize: CGFloat
+    let cellWidth: CGFloat
+    let cellHeight: CGFloat
 
     var body: some View {
         RoundedRectangle(cornerRadius: 6)
             .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
             .foregroundStyle(.secondary.opacity(0.5))
-            .frame(width: cellSize, height: cellSize)
+            .frame(width: cellWidth, height: cellHeight)
             .accessibilityHidden(true)
     }
 }
@@ -137,7 +141,8 @@ struct MachineGridGap: View {
 /// grid of `MachineGridCell` + `MachineGridGap`. Cells are tappable via
 /// `onSlotTap`; gaps are not.
 ///
-/// Sizing: cells are 40pt so product icons are large enough to recognize.
+/// Sizing: cells are 40pt wide × 56pt tall — non-square so product icons
+/// have more vertical room (typical product packaging is portrait-oriented).
 /// On narrower iPhones the grid may overflow horizontally — wrapped in a
 /// horizontal `ScrollView` so the user can swipe to see the rest. Vertical
 /// scroll kicks in when `rowCount > 5`.
@@ -145,7 +150,8 @@ struct MachineLayoutGrid: View {
     let layout: MachineGridLayout
     let onSlotTap: (MachineGridSlot) -> Void
 
-    private let cellSize: CGFloat = 40
+    private let cellWidth: CGFloat = 40
+    private let cellHeight: CGFloat = 56
     private let interitemSpacing: CGFloat = 4
     private let rowSpacing: CGFloat = 4
 
@@ -161,7 +167,7 @@ struct MachineLayoutGrid: View {
         return Group {
             if layout.rowCount > 5 {
                 ScrollView([.horizontal, .vertical], showsIndicators: false) { content }
-                    .frame(maxHeight: 260)
+                    .frame(maxHeight: 320)
             } else {
                 ScrollView(.horizontal, showsIndicators: false) { content }
             }
@@ -205,7 +211,8 @@ struct MachineLayoutGrid: View {
                     } label: {
                         MachineGridCell(
                             slot: slot,
-                            cellSize: cellSize,
+                            cellWidth: cellWidth,
+                            cellHeight: cellHeight,
                             interitemSpacing: interitemSpacing
                         )
                     }
@@ -214,11 +221,13 @@ struct MachineLayoutGrid: View {
                 c += slot.width
                 slotIdx += 1
             } else if c <= lastOccupiedColumn {
-                result.append((c, AnyView(MachineGridGap(cellSize: cellSize))))
+                result.append((c, AnyView(
+                    MachineGridGap(cellWidth: cellWidth, cellHeight: cellHeight)
+                )))
                 c += 1
             } else {
                 result.append((c, AnyView(
-                    Color.clear.frame(width: cellSize, height: cellSize)
+                    Color.clear.frame(width: cellWidth, height: cellHeight)
                 )))
                 c += 1
             }
@@ -308,30 +317,30 @@ struct MachineLayoutGrid: View {
                 id: basicId, itemNumber: 12, row: 0, column: 2, width: 1,
                 productId: UUID(), productImagePath: nil, isTarget: false
             ),
-            cellSize: 32, interitemSpacing: 4
+            cellWidth: 40, cellHeight: 56, interitemSpacing: 4
         )
         MachineGridCell(
             slot: MachineGridSlot(
                 id: UUID(), itemNumber: 13, row: 0, column: 3, width: 2,
                 productId: UUID(), productImagePath: nil, isTarget: false
             ),
-            cellSize: 32, interitemSpacing: 4
+            cellWidth: 40, cellHeight: 56, interitemSpacing: 4
         )
         MachineGridCell(
             slot: MachineGridSlot(
                 id: targetId, itemNumber: 15, row: 0, column: 5, width: 1,
                 productId: UUID(), productImagePath: nil, isTarget: true
             ),
-            cellSize: 32, interitemSpacing: 4
+            cellWidth: 40, cellHeight: 56, interitemSpacing: 4
         )
         MachineGridCell(
             slot: MachineGridSlot(
                 id: unassignedId, itemNumber: 16, row: 0, column: 6, width: 1,
                 productId: nil, productImagePath: nil, isTarget: false
             ),
-            cellSize: 32, interitemSpacing: 4
+            cellWidth: 40, cellHeight: 56, interitemSpacing: 4
         )
-        MachineGridGap(cellSize: 32)
+        MachineGridGap(cellWidth: 40, cellHeight: 56)
     }
     .padding()
 }
