@@ -646,6 +646,118 @@ struct MachineGridGap: View {
     }
 }
 
+/// Header view in the picker sheet: renders the full machine layout as a
+/// grid of `MachineGridCell` + `MachineGridGap`. Cells are tappable via
+/// `onSlotTap`; gaps are not.
+///
+/// Sizing: cells are a fixed 28pt for layout stability inside a List row
+/// (no `GeometryReader` — that's flaky in list rows). Comfortably fits the
+/// 10 columns + row label + padding within iPhone 13 mini's 375pt width.
+///
+/// When `rowCount > 5`, the grid becomes internally vertically scrollable
+/// with a 200pt max height.
+struct MachineLayoutGrid: View {
+    let layout: MachineGridLayout
+    let onSlotTap: (MachineGridSlot) -> Void
+
+    private let cellSize: CGFloat = 28
+    private let interitemSpacing: CGFloat = 4
+    private let rowSpacing: CGFloat = 4
+    private let rowLabelWidth: CGFloat = 22
+
+    var body: some View {
+        let content = VStack(alignment: .leading, spacing: rowSpacing) {
+            ForEach(0..<layout.rowCount, id: \.self) { row in
+                rowView(row: row)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+
+        return Group {
+            if layout.rowCount > 5 {
+                ScrollView(.vertical, showsIndicators: false) { content }
+                    .frame(maxHeight: 200)
+            } else {
+                content
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(String(localized: "Machine layout, \(layout.rowCount) rows"))
+    }
+
+    @ViewBuilder
+    private func rowView(row: Int) -> some View {
+        HStack(spacing: interitemSpacing) {
+            Text("R\(row + 1)")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .frame(width: rowLabelWidth, alignment: .trailing)
+
+            rowCells(row: row)
+        }
+    }
+
+    /// Walk columns 0..9 deterministically. A slot at column c with width w
+    /// emits one cell at column c and advances the cursor by w. A column
+    /// between occupied positions that has no slot is emitted as a dashed
+    /// gap. Columns past the last occupied position emit invisible spacers
+    /// to keep rows horizontally aligned.
+    ///
+    /// Returns an ordered array of (column-index, view) pairs ready for
+    /// `ForEach`. This is a plain function (not @ViewBuilder) so the
+    /// `while`/`var` imperative logic is valid.
+    private func columnContent(row: Int) -> [(id: Int, view: AnyView)] {
+        let slotsInRow = layout.slots
+            .filter { $0.row == row }
+            .sorted { $0.column < $1.column }
+        let lastOccupiedColumn = slotsInRow.last.map { $0.column + $0.width - 1 } ?? -1
+
+        var result: [(id: Int, view: AnyView)] = []
+        var c = 0
+        var slotIdx = 0
+
+        while c < layout.columnsPerRow {
+            if slotIdx < slotsInRow.count, slotsInRow[slotIdx].column == c {
+                let slot = slotsInRow[slotIdx]
+                result.append((c, AnyView(
+                    Button {
+                        onSlotTap(slot)
+                    } label: {
+                        MachineGridCell(
+                            slot: slot,
+                            cellSize: cellSize,
+                            interitemSpacing: interitemSpacing
+                        )
+                    }
+                    .buttonStyle(.plain)
+                )))
+                c += slot.width
+                slotIdx += 1
+            } else if c <= lastOccupiedColumn {
+                result.append((c, AnyView(MachineGridGap(cellSize: cellSize))))
+                c += 1
+            } else {
+                result.append((c, AnyView(
+                    Color.clear.frame(width: cellSize, height: cellSize)
+                )))
+                c += 1
+            }
+        }
+        return result
+    }
+
+    @ViewBuilder
+    private func rowCells(row: Int) -> some View {
+        let items = columnContent(row: row)
+        HStack(spacing: interitemSpacing) {
+            ForEach(items, id: \.id) { entry in
+                entry.view
+            }
+        }
+    }
+}
+
 // MARK: - Previews
 
 #Preview("Picker with existing slots") {
@@ -772,4 +884,36 @@ struct MachineGridGap: View {
         MachineGridGap(cellSize: 32)
     }
     .padding()
+}
+
+#Preview("MachineLayoutGrid — typical 3-row machine") {
+    let targetId = UUID()
+    let layout = MachineGridLayout(
+        rowCount: 3,
+        columnsPerRow: 10,
+        slots: [
+            MachineGridSlot(id: UUID(), itemNumber: 10, row: 0, column: 0, width: 2,
+                            productId: UUID(), productImagePath: nil, isTarget: false),
+            MachineGridSlot(id: UUID(), itemNumber: 12, row: 0, column: 2, width: 1,
+                            productId: UUID(), productImagePath: nil, isTarget: false),
+            MachineGridSlot(id: UUID(), itemNumber: 13, row: 0, column: 3, width: 2,
+                            productId: UUID(), productImagePath: nil, isTarget: false),
+            MachineGridSlot(id: targetId, itemNumber: 15, row: 0, column: 5, width: 1,
+                            productId: UUID(), productImagePath: nil, isTarget: true),
+            MachineGridSlot(id: UUID(), itemNumber: 20, row: 1, column: 0, width: 1,
+                            productId: UUID(), productImagePath: nil, isTarget: false),
+            MachineGridSlot(id: UUID(), itemNumber: 21, row: 1, column: 1, width: 1,
+                            productId: UUID(), productImagePath: nil, isTarget: false),
+            MachineGridSlot(id: UUID(), itemNumber: 22, row: 1, column: 2, width: 1,
+                            productId: nil, productImagePath: nil, isTarget: false),
+            MachineGridSlot(id: UUID(), itemNumber: 30, row: 2, column: 0, width: 1,
+                            productId: UUID(), productImagePath: nil, isTarget: false),
+        ]
+    )
+
+    return MachineLayoutGrid(layout: layout) { slot in
+        print("Tapped slot \(slot.itemNumber)")
+    }
+    .frame(maxWidth: .infinity)
+    .background(.regularMaterial)
 }
