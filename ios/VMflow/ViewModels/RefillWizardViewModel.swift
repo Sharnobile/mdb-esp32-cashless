@@ -635,6 +635,42 @@ final class RefillWizardViewModel: ObservableObject {
         }
     }
 
+    /// Number of distinct products needed for a chip.
+    /// - `.all`: count across all machines (sums per-machine needs, may double-count
+    ///   a product needed in N machines — that's correct because the chip view
+    ///   shows N machine-need rows for it).
+    /// - `.machine(id)`: count just that machine's needs.
+    func chipNeedsCount(_ chip: ChipFilter) -> Int {
+        switch chip {
+        case .all:
+            return combinedPackingList.reduce(0) { $0 + $1.machineNeeds.count }
+        case .machine(let id):
+            return combinedPackingList.reduce(0) { sum, item in
+                sum + (item.machineNeeds.contains(where: { $0.machineId == id }) ? 1 : 0)
+            }
+        }
+    }
+
+    /// Number of (machine, product) pairs currently ticked for a chip.
+    /// For `.all`, counts ticked pairs across all machines.
+    /// For `.machine(id)`, counts ticked pairs scoped to that machine.
+    func chipPackedCount(_ chip: ChipFilter) -> Int {
+        let machineIds: [UUID]
+        switch chip {
+        case .all:        machineIds = machines.map(\.id)
+        case .machine(let id): machineIds = [id]
+        }
+        var count = 0
+        for item in combinedPackingList {
+            for need in item.machineNeeds where machineIds.contains(need.machineId) {
+                if isMachinePacked(machineId: need.machineId, productId: item.productId) {
+                    count += 1
+                }
+            }
+        }
+        return count
+    }
+
     /// Items to render in the Pack step's list, dispatched on `activeChip`.
     ///
     /// - `.all`: passes through `visibleCombinedPackingList` unchanged (today's

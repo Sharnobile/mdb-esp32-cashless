@@ -622,23 +622,20 @@ private struct HeaderStrip: View {
         case .machine(let id):
             let name = viewModel.chipName(.machine(id))
             let total = viewModel.chipItemCount(.machine(id))
-            let needs = viewModel.combinedPackingList.compactMap { item -> (UUID, Int)? in
-                guard let n = item.machineNeeds.first(where: { $0.machineId == id }) else { return nil }
-                return (item.productId, n.quantity)
-            }
-            let packed = needs.filter { viewModel.isMachinePacked(machineId: id, productId: $0.0) }.count
+            let packed = viewModel.chipPackedCount(.machine(id))
+            let totalNeeds = viewModel.chipNeedsCount(.machine(id))
             switch state {
-            case .done:    return String(localized: "✓ \(name) · Box complete · \(packed)/\(needs.count) packed")
+            case .done:    return String(localized: "✓ \(name) · Box complete · \(packed)/\(totalNeeds) packed")
             case .alert:
                 // Compute the delta — current "needed beyond packed" sum
-                let extra = needs.reduce(0) { sum, pair in
-                    let (pid, qty) = pair
-                    guard viewModel.isMachinePacked(machineId: id, productId: pid) else { return sum }
-                    let packedQty = viewModel.displayQuantity(machineId: id, productId: pid)
-                    return sum + max(0, qty - packedQty)
+                let extra = viewModel.combinedPackingList.reduce(0) { sum, item in
+                    guard let n = item.machineNeeds.first(where: { $0.machineId == id }) else { return sum }
+                    guard viewModel.isMachinePacked(machineId: id, productId: item.productId) else { return sum }
+                    let packedQty = viewModel.displayQuantity(machineId: id, productId: item.productId)
+                    return sum + max(0, n.quantity - packedQty)
                 }
                 return String(localized: "⚠ \(name) · new sale · box now \(total) items (+\(extra))")
-            case .pending: return String(localized: "\(name) · Box: \(total) items · \(packed)/\(needs.count) packed")
+            case .pending: return String(localized: "\(name) · Box: \(total) items · \(packed)/\(totalNeeds) packed")
             }
         }
     }
