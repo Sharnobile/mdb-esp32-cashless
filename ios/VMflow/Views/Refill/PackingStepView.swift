@@ -134,31 +134,6 @@ private struct AllPackingList: View {
         }
     }
 
-    // MARK: - Summary Header
-
-    private var summaryHeader: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("\(viewModel.visibleCombinedPackingList.count) products to pack")
-                    .font(.subheadline.weight(.medium))
-                Text("\(viewModel.packedMachines.count) of \(viewModel.machines.count) machines ready")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-            Button {
-                HapticFeedback.light.fire()
-                viewModel.packAllMachines()
-            } label: {
-                Text("Select All")
-                    .font(.caption.weight(.semibold))
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
-        }
-        .padding(.vertical, 4)
-    }
-
     // MARK: - Product Card
 
     private func productCard(_ item: CombinedPackingItem) -> some View {
