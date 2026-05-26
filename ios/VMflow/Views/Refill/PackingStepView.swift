@@ -6,7 +6,7 @@ struct PackingStepView: View {
     @ObservedObject var viewModel: RefillWizardViewModel
     @State private var selectedProduct: ProductSelection?
 
-    struct ProductSelection: Identifiable {
+    fileprivate struct ProductSelection: Identifiable {
         let id: UUID
         let name: String
         let imagePath: String?
@@ -17,25 +17,10 @@ struct PackingStepView: View {
         VStack(spacing: 0) {
             ScrollView {
                 VStack(spacing: 12) {
-                    // Warehouse Picker
                     if !viewModel.warehouses.isEmpty {
                         warehousePicker
                     }
-
-                    // Summary header
-                    summaryHeader
-
-                    // No machines needing refill
-                    if viewModel.visibleCombinedPackingList.isEmpty && !viewModel.isLoading {
-                        emptyState
-                    } else {
-                        // Product list (grouped across machines) — already
-                        // filtered so cards for out-of-stock products the user
-                        // hasn't touched are hidden rather than greyed out.
-                        ForEach(viewModel.visibleCombinedPackingList) { item in
-                            productCard(item)
-                        }
-                    }
+                    AllPackingList(viewModel: viewModel, selectedProduct: $selectedProduct)
                 }
                 .padding(.horizontal)
                 .padding(.bottom, 100)
@@ -72,6 +57,75 @@ struct PackingStepView: View {
         .onChange(of: viewModel.selectedWarehouseId) { _, newValue in
             if let warehouseId = newValue {
                 Task { await viewModel.loadWarehouseStock(warehouseId: warehouseId) }
+            }
+        }
+    }
+
+    // MARK: - Bottom Bar
+
+    private var bottomBar: some View {
+        VStack(spacing: 0) {
+            Divider()
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("\(viewModel.packedMachines.count) machines ready")
+                        .font(.subheadline.weight(.medium))
+                    Text("\(viewModel.totalItemsToPack) items to pack")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                Button {
+                    HapticFeedback.medium.fire()
+                    Task { await viewModel.startTour() }
+                } label: {
+                    if viewModel.isSaving {
+                        ProgressView()
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 12)
+                    } else {
+                        Label("Start Tour", systemImage: "arrow.right.circle.fill")
+                            .font(.headline)
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 12)
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(viewModel.packedMachines.isEmpty || viewModel.isSaving)
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 12)
+            .background(.bar)
+        }
+    }
+}
+
+#Preview {
+    NavigationStack {
+        PackingStepView(viewModel: RefillWizardViewModel())
+    }
+}
+
+// MARK: - AllPackingList Subview
+
+/// Today's product-centric list — extracted unchanged from PackingStepView.
+/// Renders cards grouped by product with expandable per-machine sub-rows.
+/// Used when the active chip is `.all`.
+private struct AllPackingList: View {
+    @ObservedObject var viewModel: RefillWizardViewModel
+    @Binding var selectedProduct: PackingStepView.ProductSelection?
+
+    var body: some View {
+        VStack(spacing: 12) {
+            summaryHeader
+            if viewModel.visibleCombinedPackingList.isEmpty && !viewModel.isLoading {
+                emptyState
+            } else {
+                ForEach(viewModel.visibleCombinedPackingList) { item in
+                    productCard(item)
+                }
             }
         }
     }
@@ -181,7 +235,7 @@ struct PackingStepView: View {
                     // the parent toggle. Nested Button + .borderless ensures
                     // SwiftUI treats it as a separate hit target.
                     Button {
-                        selectedProduct = ProductSelection(
+                        selectedProduct = PackingStepView.ProductSelection(
                             id: item.productId,
                             name: item.productName,
                             imagePath: item.imagePath,
@@ -433,51 +487,5 @@ struct PackingStepView: View {
                 .foregroundStyle(.secondary)
         }
         .padding(.top, 60)
-    }
-
-    // MARK: - Bottom Bar
-
-    private var bottomBar: some View {
-        VStack(spacing: 0) {
-            Divider()
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("\(viewModel.packedMachines.count) machines ready")
-                        .font(.subheadline.weight(.medium))
-                    Text("\(viewModel.totalItemsToPack) items to pack")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                Spacer()
-
-                Button {
-                    HapticFeedback.medium.fire()
-                    Task { await viewModel.startTour() }
-                } label: {
-                    if viewModel.isSaving {
-                        ProgressView()
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 12)
-                    } else {
-                        Label("Start Tour", systemImage: "arrow.right.circle.fill")
-                            .font(.headline)
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 12)
-                    }
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(viewModel.packedMachines.isEmpty || viewModel.isSaving)
-            }
-            .padding(.horizontal)
-            .padding(.vertical, 12)
-            .background(.bar)
-        }
-    }
-}
-
-#Preview {
-    NavigationStack {
-        PackingStepView(viewModel: RefillWizardViewModel())
     }
 }
