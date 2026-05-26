@@ -543,6 +543,109 @@ struct MachineGridLayout: Equatable {
     let slots: [MachineGridSlot]
 }
 
+// MARK: - Machine Layout Grid Views
+
+/// A single grid cell. Renders a product image (or placeholder), a slot-number
+/// pill in the bottom-left, and — for the target slot — a 2pt accent border,
+/// a pulsing opacity animation (skipped under Reduce Motion), and a ✦ overlay.
+struct MachineGridCell: View {
+    let slot: MachineGridSlot
+    /// Base cell side length in points. The actual width is
+    /// `cellSize * slot.width + interitemSpacing * (slot.width - 1)`.
+    let cellSize: CGFloat
+    let interitemSpacing: CGFloat
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var pulse = false
+
+    var body: some View {
+        let totalWidth = cellSize * CGFloat(slot.width) + interitemSpacing * CGFloat(slot.width - 1)
+
+        return ZStack(alignment: .bottomLeading) {
+            // Background / image.
+            ZStack {
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(.regularMaterial)
+
+                if let path = slot.productImagePath, !path.isEmpty {
+                    ProductImage(imagePath: path, size: cellSize - 4)
+                } else {
+                    Image(systemName: slot.productId == nil ? "tray" : "shippingbox")
+                        .font(.system(size: cellSize * 0.4))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .frame(width: totalWidth, height: cellSize)
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .overlay {
+                if slot.isTarget {
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(Color.accentColor, lineWidth: 2)
+                        .opacity(reduceMotion ? 1.0 : (pulse ? 1.0 : 0.6))
+                }
+            }
+
+            // Slot-number pill.
+            Text("\(slot.itemNumber)")
+                .font(.system(size: 9, weight: .semibold).monospacedDigit())
+                .foregroundStyle(.white)
+                .padding(.horizontal, 3)
+                .padding(.vertical, 1)
+                .background(Capsule().fill(.black.opacity(0.55)))
+                .padding(2)
+
+            // Target ✦ overlay (top-right).
+            if slot.isTarget {
+                VStack {
+                    HStack {
+                        Spacer()
+                        Image(systemName: "sparkle")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(Color.accentColor)
+                            .padding(3)
+                    }
+                    Spacer()
+                }
+                .frame(width: totalWidth, height: cellSize)
+            }
+        }
+        .frame(width: totalWidth, height: cellSize)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            slot.productId == nil
+                ? "Slot \(slot.itemNumber), empty"
+                : "Slot \(slot.itemNumber)"
+        )
+        .accessibilityHint(accessibilityHintForSlot)
+        .onAppear {
+            guard slot.isTarget, !reduceMotion else { return }
+            withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true)) {
+                pulse = true
+            }
+        }
+    }
+
+    private var accessibilityHintForSlot: String {
+        if slot.isTarget { return String(localized: "Current target slot") }
+        if slot.productId == nil { return "" }
+        return String(localized: "Tap to find this product in the list")
+    }
+}
+
+/// A non-interactive thin dashed placeholder for an unoccupied column
+/// between two occupied slots in the same row.
+struct MachineGridGap: View {
+    let cellSize: CGFloat
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: 6)
+            .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
+            .foregroundStyle(.secondary.opacity(0.5))
+            .frame(width: cellSize, height: cellSize)
+            .accessibilityHidden(true)
+    }
+}
+
 // MARK: - Previews
 
 #Preview("Picker with existing slots") {
@@ -630,4 +733,43 @@ struct MachineGridLayout: Equatable {
         }
         .padding()
     }
+}
+
+#Preview("MachineGridCell — all visual states") {
+    let basicId = UUID()
+    let targetId = UUID()
+    let unassignedId = UUID()
+
+    return HStack(spacing: 8) {
+        MachineGridCell(
+            slot: MachineGridSlot(
+                id: basicId, itemNumber: 12, row: 0, column: 2, width: 1,
+                productId: UUID(), productImagePath: nil, isTarget: false
+            ),
+            cellSize: 32, interitemSpacing: 4
+        )
+        MachineGridCell(
+            slot: MachineGridSlot(
+                id: UUID(), itemNumber: 13, row: 0, column: 3, width: 2,
+                productId: UUID(), productImagePath: nil, isTarget: false
+            ),
+            cellSize: 32, interitemSpacing: 4
+        )
+        MachineGridCell(
+            slot: MachineGridSlot(
+                id: targetId, itemNumber: 15, row: 0, column: 5, width: 1,
+                productId: UUID(), productImagePath: nil, isTarget: true
+            ),
+            cellSize: 32, interitemSpacing: 4
+        )
+        MachineGridCell(
+            slot: MachineGridSlot(
+                id: unassignedId, itemNumber: 16, row: 0, column: 6, width: 1,
+                productId: nil, productImagePath: nil, isTarget: false
+            ),
+            cellSize: 32, interitemSpacing: 4
+        )
+        MachineGridGap(cellSize: 32)
+    }
+    .padding()
 }
