@@ -50,6 +50,7 @@ struct ReviewStepView: View {
                     selectedProductId: viewModel.replacements.first(where: { $0.trayId == trayId })?.replacementProductId,
                     existingSlotsByProduct: existingSlots(forTrayId: trayId),
                     machineLayout: machineLayout(forTrayId: trayId),
+                    isOutOfStock: { viewModel.isOutOfWarehouseStock(productId: $0) },
                     onSelect: { productId in
                         viewModel.setReplacement(trayId: trayId, productId: productId)
                         pickerTrayId = nil
@@ -445,6 +446,11 @@ struct ReplacementProductPicker: View {
     let selectedProductId: UUID?
     let existingSlotsByProduct: [UUID: [Int]]
     let machineLayout: MachineGridLayout
+    /// Whether the given product has no remaining warehouse stock for this
+    /// tour. Out-of-stock products are visually de-emphasized but still
+    /// selectable — the user may want to plan ahead. Default: never out
+    /// of stock (used by previews and call sites without warehouse context).
+    var isOutOfStock: (UUID) -> Bool = { _ in false }
     let onSelect: (UUID) -> Void
 
     @State private var searchText = ""
@@ -496,13 +502,24 @@ struct ReplacementProductPicker: View {
 
                 Section {
                     ForEach(filteredProducts) { product in
+                        let outOfStock = isOutOfStock(product.id)
                         Button {
                             onSelect(product.id)
                         } label: {
                             HStack(spacing: 12) {
                                 ProductImage(imagePath: product.imagePath, size: 36)
+                                    .opacity(outOfStock ? 0.45 : 1.0)
                                 Text(product.name ?? "Unnamed")
-                                    .foregroundStyle(.primary)
+                                    .foregroundStyle(outOfStock ? .secondary : .primary)
+                                if outOfStock {
+                                    Text("0 in stock")
+                                        .font(.caption2.weight(.semibold))
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background(Capsule().fill(.gray.opacity(0.18)))
+                                        .foregroundStyle(.secondary)
+                                        .accessibilityLabel("Out of warehouse stock")
+                                }
                                 if let slots = existingSlotsByProduct[product.id], !slots.isEmpty {
                                     Text(slotBadgeLabel(slots))
                                         .font(.caption2.weight(.semibold))
