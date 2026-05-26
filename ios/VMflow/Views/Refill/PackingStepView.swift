@@ -706,102 +706,98 @@ private struct MachinePackingList: View {
             }()
             let borderWidth: CGFloat = isPartial ? 2 : 1.5
 
-            HStack(alignment: .center, spacing: 12) {
-                Button {
-                    guard !isDisabled else { return }
-                    HapticFeedback.light.fire()
-                    viewModel.togglePackedForMachine(productId: item.productId, machineId: machineId)
-                } label: {
-                    Image(systemName: isDisabled ? "xmark.circle.fill" :
-                            (isFullyPacked ? "checkmark.circle.fill" : "circle"))
-                        .font(.title2)
-                        .foregroundStyle(isDisabled ? .red.opacity(0.5) :
-                                        (isFullyPacked ? .green : .secondary))
-                }
-                .buttonStyle(.borderless)
-                .disabled(isDisabled)
-
-                ProductImage(imagePath: item.imagePath, size: 44)
-
-                VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 8) {
+                // Title row — full width, with info button pinned right
+                HStack(alignment: .top, spacing: 6) {
                     Text(item.productName)
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(isDisabled ? .secondary : .primary)
                         .lineLimit(2)
-                    HStack(spacing: 6) {
-                        Text("needs \(need.quantity)")
-                            .font(.caption2.monospacedDigit())
-                            .foregroundStyle(.secondary)
-                        if let price = item.formattedSellprice {
-                            Text("·").font(.caption2).foregroundStyle(.tertiary)
-                            Text(price)
-                                .font(.caption2.monospacedDigit())
-                                .foregroundStyle(.secondary)
-                        }
-                        if isDisabled {
-                            Text("No stock")
-                                .font(.caption2.weight(.semibold))
-                                .foregroundStyle(.red)
-                        } else if isPartial {
-                            Text("Partial")
-                                .font(.caption2.weight(.semibold))
-                                .foregroundStyle(.orange)
-                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    Button {
+                        selectedProduct = PackingStepView.ProductSelection(
+                            id: item.productId,
+                            name: item.productName,
+                            imagePath: item.imagePath,
+                            sellprice: item.sellprice
+                        )
+                    } label: {
+                        Image(systemName: "info.circle")
+                            .font(.body)
+                            .foregroundStyle(.tertiary)
+                            .frame(width: 32, height: 32, alignment: .trailing)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.borderless)
+                }
+
+                // Controls row — checkbox, image, meta (single-line truncated), stepper
+                HStack(alignment: .center, spacing: 10) {
+                    Button {
+                        guard !isDisabled else { return }
+                        HapticFeedback.light.fire()
+                        viewModel.togglePackedForMachine(productId: item.productId, machineId: machineId)
+                    } label: {
+                        Image(systemName: isDisabled ? "xmark.circle.fill" :
+                                (isFullyPacked ? "checkmark.circle.fill" : "circle"))
+                            .font(.title2)
+                            .foregroundStyle(isDisabled ? .red.opacity(0.5) :
+                                            (isFullyPacked ? .green : .secondary))
+                    }
+                    .buttonStyle(.borderless)
+                    .disabled(isDisabled)
+
+                    ProductImage(imagePath: item.imagePath, size: 40)
+
+                    metaLine(
+                        need: need,
+                        price: item.formattedSellprice,
+                        isDisabled: isDisabled,
+                        isPartial: isPartial
+                    )
+                    .font(.caption2.monospacedDigit())
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+
+                    Spacer(minLength: 4)
+
+                    HStack(spacing: 4) {
                         Button {
-                            selectedProduct = PackingStepView.ProductSelection(
-                                id: item.productId,
-                                name: item.productName,
-                                imagePath: item.imagePath,
-                                sellprice: item.sellprice
-                            )
+                            HapticFeedback.light.fire()
+                            viewModel.setPackingQuantity(machineId: machineId, productId: item.productId, quantity: qty - 1)
                         } label: {
-                            Image(systemName: "info.circle")
-                                .font(.caption)
-                                .foregroundStyle(.tertiary)
+                            Image(systemName: "minus")
+                                .font(.callout.weight(.semibold))
+                                .frame(width: 32, height: 32)
                                 .contentShape(Rectangle())
+                                .background(RoundedRectangle(cornerRadius: 8).stroke(Color(.systemGray3), lineWidth: 1.5))
+                                .foregroundStyle(qty > 0 ? .primary : .quaternary)
                         }
-                        .buttonStyle(.borderless)
+                        .disabled(qty <= 0 || isDisabled)
+
+                        Text("\(qty)")
+                            .font(.body.weight(.bold))
+                            .monospacedDigit()
+                            .frame(minWidth: 32, minHeight: 32)
+                            .background(RoundedRectangle(cornerRadius: 8).fill(isDisabled ? Color.gray.opacity(0.1) : Color.blue.opacity(0.1)))
+                            .foregroundStyle(isDisabled ? Color.secondary : Color.blue)
+
+                        Button {
+                            HapticFeedback.light.fire()
+                            viewModel.setPackingQuantity(machineId: machineId, productId: item.productId, quantity: qty + 1)
+                        } label: {
+                            Image(systemName: "plus")
+                                .font(.callout.weight(.semibold))
+                                .frame(width: 32, height: 32)
+                                .contentShape(Rectangle())
+                                .background(RoundedRectangle(cornerRadius: 8).stroke(Color(.systemGray3), lineWidth: 1.5))
+                                .foregroundStyle(qty < maxQty && !isDisabled ? .primary : .quaternary)
+                        }
+                        .disabled(qty >= maxQty || isDisabled)
                     }
+                    .buttonStyle(.borderless)
                 }
-                .layoutPriority(1)
-
-                Spacer(minLength: 4)
-
-                HStack(spacing: 4) {
-                    Button {
-                        HapticFeedback.light.fire()
-                        viewModel.setPackingQuantity(machineId: machineId, productId: item.productId, quantity: qty - 1)
-                    } label: {
-                        Image(systemName: "minus")
-                            .font(.callout.weight(.semibold))
-                            .frame(width: 32, height: 32)
-                            .contentShape(Rectangle())
-                            .background(RoundedRectangle(cornerRadius: 8).stroke(Color(.systemGray3), lineWidth: 1.5))
-                            .foregroundStyle(qty > 0 ? .primary : .quaternary)
-                    }
-                    .disabled(qty <= 0 || isDisabled)
-
-                    Text("\(qty)")
-                        .font(.body.weight(.bold))
-                        .monospacedDigit()
-                        .frame(minWidth: 32, minHeight: 32)
-                        .background(RoundedRectangle(cornerRadius: 8).fill(isDisabled ? Color.gray.opacity(0.1) : Color.blue.opacity(0.1)))
-                        .foregroundStyle(isDisabled ? Color.secondary : Color.blue)
-
-                    Button {
-                        HapticFeedback.light.fire()
-                        viewModel.setPackingQuantity(machineId: machineId, productId: item.productId, quantity: qty + 1)
-                    } label: {
-                        Image(systemName: "plus")
-                            .font(.callout.weight(.semibold))
-                            .frame(width: 32, height: 32)
-                            .contentShape(Rectangle())
-                            .background(RoundedRectangle(cornerRadius: 8).stroke(Color(.systemGray3), lineWidth: 1.5))
-                            .foregroundStyle(qty < maxQty && !isDisabled ? .primary : .quaternary)
-                    }
-                    .disabled(qty >= maxQty || isDisabled)
-                }
-                .buttonStyle(.borderless)
             }
             .padding(12)
             .background(RoundedRectangle(cornerRadius: 14).fill(.regularMaterial))
@@ -811,6 +807,28 @@ private struct MachinePackingList: View {
             .animation(.easeInOut(duration: 0.2), value: isFullyPacked)
             .animation(.easeInOut(duration: 0.2), value: isPartial)
         }
+    }
+
+    /// Single concatenated `Text` so the meta row stays on one line and
+    /// truncates at the tail when space runs out instead of wrapping the
+    /// "Partial" / "No stock" badge below the row.
+    private func metaLine(need: MachineNeed, price: String?, isDisabled: Bool, isPartial: Bool) -> Text {
+        var line = Text("needs \(need.quantity)").foregroundStyle(.secondary)
+        if let price {
+            line = line
+                + Text(" · ").foregroundStyle(.tertiary)
+                + Text(price).foregroundStyle(.secondary)
+        }
+        if isDisabled {
+            line = line
+                + Text(" · ").foregroundStyle(.tertiary)
+                + Text("No stock").foregroundStyle(.red).fontWeight(.semibold)
+        } else if isPartial {
+            line = line
+                + Text(" · ").foregroundStyle(.tertiary)
+                + Text("Partial").foregroundStyle(.orange).fontWeight(.semibold)
+        }
+        return line
     }
 }
 
