@@ -144,8 +144,9 @@ struct MachineGridGap: View {
 /// Sizing: cellHeight is fixed at 56pt so product icons have generous
 /// vertical room. cellWidth adapts to the container width via
 /// `GeometryReader` so the grid always uses the full available row width
-/// on any device — no horizontal scroll, no side margins. Vertical scroll
-/// kicks in when `rowCount > 5`.
+/// on any device — no horizontal scroll, no side margins. The grid renders
+/// every row at its full height; the outer `List` handles overall scroll
+/// so the user never sub-scrolls within the grid itself.
 struct MachineLayoutGrid: View {
     let layout: MachineGridLayout
     let onSlotTap: (MachineGridSlot) -> Void
@@ -154,10 +155,9 @@ struct MachineLayoutGrid: View {
     private let interitemSpacing: CGFloat = 4
     private let rowSpacing: CGFloat = 4
     private let verticalPadding: CGFloat = 8
-    private let maxVisibleRows: Int = 5
 
     private var totalHeight: CGFloat {
-        let rows = min(layout.rowCount, maxVisibleRows)
+        let rows = layout.rowCount
         let rowsHeight = CGFloat(rows) * cellHeight + CGFloat(max(0, rows - 1)) * rowSpacing
         return rowsHeight + verticalPadding * 2
     }
@@ -177,18 +177,12 @@ struct MachineLayoutGrid: View {
 
     @ViewBuilder
     private func gridContent(cellWidth: CGFloat) -> some View {
-        let rows = VStack(alignment: .leading, spacing: rowSpacing) {
+        VStack(alignment: .leading, spacing: rowSpacing) {
             ForEach(0..<layout.rowCount, id: \.self) { row in
                 rowView(row: row, cellWidth: cellWidth)
             }
         }
         .padding(.vertical, verticalPadding)
-
-        if layout.rowCount > maxVisibleRows {
-            ScrollView(.vertical, showsIndicators: false) { rows }
-        } else {
-            rows
-        }
     }
 
     @ViewBuilder
