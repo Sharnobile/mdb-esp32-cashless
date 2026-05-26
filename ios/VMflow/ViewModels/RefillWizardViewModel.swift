@@ -635,6 +635,37 @@ final class RefillWizardViewModel: ObservableObject {
         }
     }
 
+    /// Items to render in the Pack step's list, dispatched on `activeChip`.
+    ///
+    /// - `.all`: passes through `visibleCombinedPackingList` unchanged (today's
+    ///   behavior — product cards with expandable per-machine sub-rows).
+    /// - `.machine(id)`: filters and rewrites — each returned `CombinedPackingItem`
+    ///   carries exactly one `MachineNeed` (the active machine's) and its
+    ///   `totalQuantity` is that machine's deficit. The same "hide if out-of-
+    ///   stock and nothing-packed-yet" rule as `visibleCombinedPackingList`
+    ///   applies, scoped to this one machine.
+    var visibleItemsForActiveChip: [CombinedPackingItem] {
+        switch activeChip {
+        case .all:
+            return visibleCombinedPackingList
+        case .machine(let id):
+            return combinedPackingList.compactMap { item in
+                guard let need = item.machineNeeds.first(where: { $0.machineId == id }) else { return nil }
+                let packed = isMachinePacked(machineId: id, productId: item.productId)
+                let outOfStock = isOutOfStockForMachine(machineId: id, productId: item.productId)
+                if outOfStock && !packed { return nil }
+                return CombinedPackingItem(
+                    productId: item.productId,
+                    productName: item.productName,
+                    imagePath: item.imagePath,
+                    sellprice: item.sellprice,
+                    totalQuantity: need.quantity,
+                    machineNeeds: [need]
+                )
+            }
+        }
+    }
+
     /// Whether a specific product is packed for a specific machine.
     func isMachinePacked(machineId: UUID, productId: UUID) -> Bool {
         packedItems[machineId]?.contains(productId) ?? false
