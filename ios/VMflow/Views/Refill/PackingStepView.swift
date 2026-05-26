@@ -628,14 +628,10 @@ private struct HeaderStrip: View {
             switch state {
             case .done:    return String(localized: "✓ \(name) · Box complete · \(packed)/\(totalNeeds) packed")
             case .alert:
-                // Compute the delta — current "needed beyond packed" sum
-                let extra = viewModel.combinedPackingList.reduce(0) { sum, item in
-                    guard let n = item.machineNeeds.first(where: { $0.machineId == id }) else { return sum }
-                    guard viewModel.isMachinePacked(machineId: id, productId: item.productId) else { return sum }
-                    let packedQty = viewModel.displayQuantity(machineId: id, productId: item.productId)
-                    return sum + max(0, n.quantity - packedQty)
-                }
-                return String(localized: "⚠ \(name) · new sale · box now \(total) items (+\(extra))")
+                // Neutral wording: we can't distinguish a true "new sale"
+                // event from the user manually dialing down a stepper after
+                // packing. Both leave the box partial — say so directly.
+                return String(localized: "⚠ \(name) · Box partial · \(packed)/\(totalNeeds) packed")
             case .pending: return String(localized: "\(name) · Box: \(total) items · \(packed)/\(totalNeeds) packed")
             }
         }
@@ -710,7 +706,7 @@ private struct MachinePackingList: View {
             }()
             let borderWidth: CGFloat = isPartial ? 2 : 1.5
 
-            HStack(spacing: 12) {
+            HStack(alignment: .center, spacing: 12) {
                 Button {
                     guard !isDisabled else { return }
                     HapticFeedback.light.fire()
@@ -718,69 +714,69 @@ private struct MachinePackingList: View {
                 } label: {
                     Image(systemName: isDisabled ? "xmark.circle.fill" :
                             (isFullyPacked ? "checkmark.circle.fill" : "circle"))
-                        .font(.title3)
+                        .font(.title2)
                         .foregroundStyle(isDisabled ? .red.opacity(0.5) :
                                         (isFullyPacked ? .green : .secondary))
                 }
                 .buttonStyle(.borderless)
                 .disabled(isDisabled)
 
-                ProductImage(imagePath: item.imagePath, size: 36)
+                ProductImage(imagePath: item.imagePath, size: 44)
 
-                VStack(alignment: .leading, spacing: 3) {
+                VStack(alignment: .leading, spacing: 4) {
                     Text(item.productName)
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(isDisabled ? .secondary : .primary)
-                        .fixedSize(horizontal: false, vertical: true)
+                        .lineLimit(2)
                     HStack(spacing: 6) {
-                        Text("needs \(need.quantity) / \(need.capacity)")
-                            .font(.caption2)
+                        Text("needs \(need.quantity)")
+                            .font(.caption2.monospacedDigit())
                             .foregroundStyle(.secondary)
                         if let price = item.formattedSellprice {
+                            Text("·").font(.caption2).foregroundStyle(.tertiary)
                             Text(price)
                                 .font(.caption2.monospacedDigit())
                                 .foregroundStyle(.secondary)
                         }
                         if isDisabled {
                             Text("No stock")
-                                .font(.caption2.weight(.medium))
+                                .font(.caption2.weight(.semibold))
                                 .foregroundStyle(.red)
                         } else if isPartial {
                             Text("Partial")
-                                .font(.caption2.weight(.medium))
+                                .font(.caption2.weight(.semibold))
                                 .foregroundStyle(.orange)
                         }
+                        Button {
+                            selectedProduct = PackingStepView.ProductSelection(
+                                id: item.productId,
+                                name: item.productName,
+                                imagePath: item.imagePath,
+                                sellprice: item.sellprice
+                            )
+                        } label: {
+                            Image(systemName: "info.circle")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.borderless)
                     }
                 }
+                .layoutPriority(1)
 
-                Button {
-                    selectedProduct = PackingStepView.ProductSelection(
-                        id: item.productId,
-                        name: item.productName,
-                        imagePath: item.imagePath,
-                        sellprice: item.sellprice
-                    )
-                } label: {
-                    Image(systemName: "info.circle")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .padding(8)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.borderless)
+                Spacer(minLength: 4)
 
-                Spacer()
-
-                HStack(spacing: 6) {
+                HStack(spacing: 4) {
                     Button {
                         HapticFeedback.light.fire()
                         viewModel.setPackingQuantity(machineId: machineId, productId: item.productId, quantity: qty - 1)
                     } label: {
                         Image(systemName: "minus")
-                            .font(.body.weight(.semibold))
-                            .frame(width: 36, height: 36)
+                            .font(.callout.weight(.semibold))
+                            .frame(width: 32, height: 32)
                             .contentShape(Rectangle())
-                            .background(RoundedRectangle(cornerRadius: 10).stroke(Color(.systemGray3), lineWidth: 1.5))
+                            .background(RoundedRectangle(cornerRadius: 8).stroke(Color(.systemGray3), lineWidth: 1.5))
                             .foregroundStyle(qty > 0 ? .primary : .quaternary)
                     }
                     .disabled(qty <= 0 || isDisabled)
@@ -788,8 +784,8 @@ private struct MachinePackingList: View {
                     Text("\(qty)")
                         .font(.body.weight(.bold))
                         .monospacedDigit()
-                        .frame(minWidth: 36, minHeight: 36)
-                        .background(RoundedRectangle(cornerRadius: 10).fill(isDisabled ? Color.gray.opacity(0.1) : Color.blue.opacity(0.1)))
+                        .frame(minWidth: 32, minHeight: 32)
+                        .background(RoundedRectangle(cornerRadius: 8).fill(isDisabled ? Color.gray.opacity(0.1) : Color.blue.opacity(0.1)))
                         .foregroundStyle(isDisabled ? Color.secondary : Color.blue)
 
                     Button {
@@ -797,17 +793,17 @@ private struct MachinePackingList: View {
                         viewModel.setPackingQuantity(machineId: machineId, productId: item.productId, quantity: qty + 1)
                     } label: {
                         Image(systemName: "plus")
-                            .font(.body.weight(.semibold))
-                            .frame(width: 36, height: 36)
+                            .font(.callout.weight(.semibold))
+                            .frame(width: 32, height: 32)
                             .contentShape(Rectangle())
-                            .background(RoundedRectangle(cornerRadius: 10).stroke(Color(.systemGray3), lineWidth: 1.5))
+                            .background(RoundedRectangle(cornerRadius: 8).stroke(Color(.systemGray3), lineWidth: 1.5))
                             .foregroundStyle(qty < maxQty && !isDisabled ? .primary : .quaternary)
                     }
                     .disabled(qty >= maxQty || isDisabled)
                 }
                 .buttonStyle(.borderless)
             }
-            .padding(14)
+            .padding(12)
             .background(RoundedRectangle(cornerRadius: 14).fill(.regularMaterial))
             .overlay(RoundedRectangle(cornerRadius: 14).stroke(borderColor, lineWidth: borderWidth))
             .shadow(color: .black.opacity(0.04), radius: 4, y: 2)

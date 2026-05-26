@@ -629,7 +629,15 @@ final class RefillWizardViewModel: ObservableObject {
                 hadAnyNeed = true
                 let packed = isMachinePacked(machineId: id, productId: item.productId)
                 guard packed else { return false }
-                guard displayQuantity(machineId: id, productId: item.productId) >= need.quantity else { return false }
+                // "Fully packed" = packed at the highest quantity currently
+                // possible. If the warehouse can't satisfy the full deficit,
+                // packing at maxPackingQuantity still counts as done — the
+                // user has done all they can for this product. Without this,
+                // any warehouse-capped pack flips the chip into a misleading
+                // "alert" state on first pack.
+                let qty = displayQuantity(machineId: id, productId: item.productId)
+                let maxQty = maxPackingQuantity(machineId: id, productId: item.productId)
+                guard qty >= min(need.quantity, maxQty) else { return false }
             }
             return hadAnyNeed
         }
