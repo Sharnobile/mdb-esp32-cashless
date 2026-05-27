@@ -58,6 +58,8 @@ struct ReviewStepView: View {
                         else { return nil }
                         return viewModel.remainingWarehouseStock(productId: id)
                     },
+                    currentCategoryId: viewModel.currentCategoryId(forTrayId: trayId),
+                    categories: viewModel.productCategories,
                     onSelect: { productId in
                         viewModel.setReplacement(trayId: trayId, productId: productId)
                         pickerTrayId = nil
