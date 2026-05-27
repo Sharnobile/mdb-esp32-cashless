@@ -941,3 +941,73 @@ struct ReplacementProductPicker: View {
         )
     }
 }
+
+#Preview("Picker with grouping (typical)") {
+    let snacksId = UUID()
+    let drinksId = UUID()
+    let sweetsId = UUID()
+
+    let categories: [ProductCategory] = [
+        ProductCategory(id: snacksId, name: "Snacks", company: UUID()),
+        ProductCategory(id: drinksId, name: "Drinks", company: UUID()),
+        ProductCategory(id: sweetsId, name: "Sweets", company: UUID()),
+    ]
+
+    let mars = Product(id: UUID(), name: "Mars",
+                       imagePath: nil, discontinued: false, sellprice: 2.5,
+                       category: snacksId)
+    let bounty = Product(id: UUID(), name: "Bounty",
+                         imagePath: nil, discontinued: false, sellprice: 2.5,
+                         category: snacksId)
+    let kitkat = Product(id: UUID(), name: "Kitkat",
+                         imagePath: nil, discontinued: false, sellprice: 2.5,
+                         category: snacksId)
+    let twix = Product(id: UUID(), name: "Twix",
+                       imagePath: nil, discontinued: false, sellprice: 2.5,
+                       category: snacksId)
+    let snickers = Product(id: UUID(), name: "Snickers",
+                           imagePath: nil, discontinued: false, sellprice: 2.5,
+                           category: snacksId)
+    let fanta = Product(id: UUID(), name: "Fanta",
+                        imagePath: nil, discontinued: false, sellprice: 2.5,
+                        category: drinksId)
+    let cola = Product(id: UUID(), name: "Cola",
+                       imagePath: nil, discontinued: false, sellprice: 2.5,
+                       category: drinksId)
+    let gummy = Product(id: UUID(), name: "Gummy Bears",
+                        imagePath: nil, discontinued: false, sellprice: 2.5,
+                        category: sweetsId)
+
+    let products = [mars, bounty, kitkat, twix, snickers, fanta, cola, gummy]
+
+    // Stock map: snickers + fanta are out of stock.
+    let stockMap: [UUID: Int] = [
+        mars.id: 12,
+        bounty.id: 15,
+        kitkat.id: 4,
+        twix.id: 8,
+        snickers.id: 0,
+        fanta.id: 0,
+        cola.id: 10,
+        gummy.id: 3,
+    ]
+
+    // Twix is already in slot 23, Cola in slot 31.
+    let existing: [UUID: [Int]] = [
+        twix.id: [23],
+        cola.id: [31],
+    ]
+
+    return NavigationStack {
+        ReplacementProductPicker(
+            products: products,
+            selectedProductId: nil,
+            existingSlotsByProduct: existing,
+            machineLayout: MachineGridLayout(rowCount: 0, columnsPerRow: 10, slots: []),
+            remainingStock: { stockMap[$0] },
+            currentCategoryId: snacksId,
+            categories: categories,
+            onSelect: { _ in }
+        )
+    }
+}
