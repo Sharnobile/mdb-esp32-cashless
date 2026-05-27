@@ -529,6 +529,162 @@ struct ReplacementProductPicker: View {
         return score
     }
 
+    // MARK: - Stock buckets pipeline
+
+    /// Visible product structure for the picker body. Computed on every
+    /// re-render — depends only on `searchText`, `products`, `remainingStock`,
+    /// `existingSlotsByProduct`, `currentCategoryId`, and `categories`. Pure,
+    /// no side effects.
+    ///
+    /// Pipeline:
+    /// 1. Filter by search (existing fuzzyMatch, keep score)
+    /// 2. Partition by stock (nil or >0 = inStock, ==0 = outOfStock)
+    /// 3. Group by category within each bucket (current first, others A-Z, uncategorized last)
+    /// 4. Sort within each (stock × category) group: not-in-machine first, then
+    ///    fuzzy score (search-active only), then alphabetical
+    private var stockBuckets: [StockBucket] {
+        // Step 1: filter by search
+        let scored: [(Product, Int?)]
+        if searchText.isEmpty {
+            scored = products.map { ($0, nil) }
+        } else {
+            let query = searchText.lowercased()
+            scored = products.compactMap { product -> (Product, Int?)? in
+                guard let name = product.name?.lowercased() else { return nil }
+                guard let s = fuzzyMatch(query: query, target: name) else { return nil }
+                return (product, s)
+            }
+        }
+
+        // Step 2: partition by stock
+        var inStock: [(Product, Int?)] = []
+        var outOfStock: [(Product, Int?)] = []
+        for entry in scored {
+            if remainingStock(entry.0.id) == 0 {
+                outOfStock.append(entry)
+            } else {
+                inStock.append(entry)
+            }
+        }
+
+        // Step 3+4 for each bucket
+        let inStockGroups = groupByCategory(inStock)
+        let outOfStockGroups = groupByCategory(outOfStock)
+
+        return [
+            StockBucket(status: .inStock, categories: inStockGroups),
+            StockBucket(status: .outOfStock, categories: outOfStockGroups)
+        ].filter { !$0.categories.isEmpty }
+    }
+
+    /// Group a stock-bucket's products by category, sort categories
+    /// (current → alphabetical → uncategorized), and sort products within
+    /// each category. Pure function.
+    private func groupByCategory(_ scored: [(Product, Int?)]) -> [CategoryGroup] {
+        // Index categories by UUID for fast name lookup. `reduce(into:)`
+        // is crash-safe if `categories` ever contains duplicate IDs (later
+        // value wins) — unlike `Dictionary(uniqueKeysWithValues:)` which
+        // traps at runtime.
+        let categoryById: [UUID: ProductCategory] = categories.reduce(into: [:]) {
+            $0[$1.id] = $1
+        }
+
+        // Bucket products by category UUID; nil category → uncategorized bucket
+        var byCategoryId: [UUID?: [(Product, Int?)]] = [:]
+        for entry in scored {
+            let key = entry.0.category
+            byCategoryId[key, default: []].append(entry)
+        }
+
+        // Sort products within each category bucket using the multi-key sort:
+        // (not-in-machine, fuzzyScore?, alphabetical)
+        func sortKey(_ entry: (Product, Int?)) -> (Bool, Int, String) {
+            let inMachine = existingSlotsByProduct[entry.0.id]?.isEmpty == false
+            let score = entry.1 ?? 0
+            let name = entry.0.name ?? ""
+            // Treat empty/nil name as last by prepending a high-codepoint marker
+            let nameKey = name.isEmpty ? "\u{FFFF}" : name.lowercased()
+            return (inMachine, score, nameKey)
+        }
+        for key in byCategoryId.keys {
+            byCategoryId[key]?.sort { a, b in
+                let ka = sortKey(a)
+                let kb = sortKey(b)
+                if ka.0 != kb.0 { return !ka.0 && kb.0 }
+                if ka.1 != kb.1 { return ka.1 < kb.1 }
+                return ka.2.localizedCaseInsensitiveCompare(kb.2) == .orderedAscending
+            }
+        }
+
+        // Build CategoryGroup list with ordering: current → A-Z → uncategorized last
+        var orderedGroups: [CategoryGroup] = []
+
+        // 1. Current category (if any and has products)
+        if let curId = currentCategoryId,
+           let curCat = categoryById[curId],
+           let entries = byCategoryId[curId], !entries.isEmpty {
+            orderedGroups.append(
+                CategoryGroup(category: curCat, isCurrent: true, products: entries.map(\.0))
+            )
+        }
+
+        // 2. Other named categories alphabetically
+        let otherCategoryIds = byCategoryId.keys
+            .compactMap { $0 } // drop the nil key (uncategorized)
+            .filter { $0 != currentCategoryId }
+        let sortedOthers = otherCategoryIds
+            .compactMap { id -> (UUID, ProductCategory)? in
+                guard let cat = categoryById[id] else { return nil }
+                return (id, cat)
+            }
+            .sorted { $0.1.name.localizedCaseInsensitiveCompare($1.1.name) == .orderedAscending }
+        for (id, cat) in sortedOthers {
+            guard let entries = byCategoryId[id], !entries.isEmpty else { continue }
+            orderedGroups.append(
+                CategoryGroup(category: cat, isCurrent: false, products: entries.map(\.0))
+            )
+        }
+
+        // 3. Unknown-category-UUID products: products whose category UUID was
+        //    set but doesn't exist in `categories`. Fold into the uncategorized
+        //    bucket as a safe fallback. We deliberately DON'T filter out
+        //    `k == currentCategoryId` here — if the current product's category
+        //    UUID also isn't in the catalogue (rare race), those products
+        //    would otherwise be dropped entirely. They land in uncategorized.
+        let unknownCategoryEntries: [(Product, Int?)] = byCategoryId
+            .filter { key, _ in
+                guard let k = key else { return false }
+                return categoryById[k] == nil
+            }
+            .flatMap { $0.value }
+
+        #if DEBUG
+        if !unknownCategoryEntries.isEmpty {
+            let ids = Set(unknownCategoryEntries.compactMap { $0.0.category })
+            print("[RefillWizard] unknown category UUID(s) in picker: \(ids)")
+        }
+        #endif
+
+        // 4. Uncategorized group (nil category) + any unknown-category fallback
+        var uncategorizedEntries: [(Product, Int?)] = byCategoryId[nil] ?? []
+        uncategorizedEntries.append(contentsOf: unknownCategoryEntries)
+        if !uncategorizedEntries.isEmpty {
+            // Re-sort the merged uncategorized bucket
+            uncategorizedEntries.sort { a, b in
+                let ka = sortKey(a)
+                let kb = sortKey(b)
+                if ka.0 != kb.0 { return !ka.0 && kb.0 }
+                if ka.1 != kb.1 { return ka.1 < kb.1 }
+                return ka.2.localizedCaseInsensitiveCompare(kb.2) == .orderedAscending
+            }
+            orderedGroups.append(
+                CategoryGroup(category: nil, isCurrent: false, products: uncategorizedEntries.map(\.0))
+            )
+        }
+
+        return orderedGroups
+    }
+
     @ViewBuilder
     private func stockPill(_ count: Int) -> some View {
         let isZero = count <= 0
