@@ -459,10 +459,44 @@ struct ReplacementProductPicker: View {
     /// stock-count pill; a value of `0` additionally fades the row to mark
     /// it as a poor replacement candidate.
     var remainingStock: (UUID) -> Int? = { _ in nil }
+    /// Category UUID of the product currently in the tray being replaced.
+    /// `nil` if the tray is unassigned or the current product is uncategorized.
+    /// When non-nil, that category is rendered first in each stock bucket.
+    var currentCategoryId: UUID? = nil
+    /// Category catalogue for name lookup. Empty array is valid — uncategorized
+    /// products will still render; products whose `category` UUID is not
+    /// present in the array fall back to the "Uncategorized" group.
+    var categories: [ProductCategory] = []
     let onSelect: (UUID) -> Void
 
     @State private var searchText = ""
     @State private var highlightedProductId: UUID?
+
+    // MARK: - Grouping types
+
+    /// Top-level grouping by warehouse stock status.
+    private enum StockStatus: String {
+        case inStock
+        case outOfStock
+    }
+
+    /// One stock bucket containing zero or more category groups.
+    private struct StockBucket: Identifiable {
+        let status: StockStatus
+        let categories: [CategoryGroup]
+        var id: String { status.rawValue }
+        /// Total product count across all categories — shown in the mega-header.
+        var totalCount: Int { categories.reduce(0) { $0 + $1.products.count } }
+    }
+
+    /// One category's products inside a stock bucket. `category == nil`
+    /// represents the "Uncategorized" group rendered at the end.
+    private struct CategoryGroup: Identifiable {
+        let category: ProductCategory?
+        let isCurrent: Bool
+        let products: [Product]
+        var id: String { category?.id.uuidString ?? "uncategorized" }
+    }
 
     private var filteredProducts: [Product] {
         guard !searchText.isEmpty else { return products }
