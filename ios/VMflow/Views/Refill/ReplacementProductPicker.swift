@@ -74,21 +74,6 @@ struct ReplacementProductPicker: View {
         var id: String { category?.id.uuidString ?? "uncategorized" }
     }
 
-    private var filteredProducts: [Product] {
-        guard !searchText.isEmpty else { return products }
-        let query = searchText.lowercased()
-        return products
-            .compactMap { product -> (Product, Int)? in
-                guard let name = product.name?.lowercased() else { return nil }
-                if let score = fuzzyMatch(query: query, target: name) {
-                    return (product, score)
-                }
-                return nil
-            }
-            .sorted { $0.1 < $1.1 }
-            .map(\.0)
-    }
-
     private func fuzzyMatch(query: String, target: String) -> Int? {
         var score = 0
         var targetIdx = target.startIndex
@@ -311,7 +296,7 @@ struct ReplacementProductPicker: View {
                 Text(verbatim: "· ")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(Color.accentColor)
-                Text("current")
+                Text(String(localized: "current"))
                     .font(.system(size: 11, weight: .semibold))
                     .textCase(.lowercase)
                     .foregroundStyle(Color.accentColor)
