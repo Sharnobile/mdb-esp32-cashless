@@ -52,20 +52,23 @@ Within each stock bucket, group products by `Product.category` (UUID? — `nil` 
 
 Order the category groups:
 1. The **current category** first (the category of the product being replaced — derived from the picker's `currentCategoryId` parameter; `nil` means no current category, skip this step).
-2. Remaining categories alphabetically by `ProductCategory.name`.
-3. Uncategorized products (`category == nil`) as the last group with title "Uncategorized".
+2. Remaining **named** categories (excluding the uncategorized group) alphabetically by `ProductCategory.name`.
+3. Uncategorized products (`category == nil`) **always last**, regardless of whether step 1 was skipped.
 
 ### Step 4 — Sort within each (stock × category) group
-Multi-key sort, ascending:
+Multi-key sort, ascending. The fuzzy-score key is **only present when `searchText` is non-empty**; when search is empty, the sort is `(not-in-machine, alphabetical)`:
+
 1. **Not-in-machine first** — products whose ID is not a key in `existingSlotsByProduct` come before those that are.
-2. **Fuzzy score (when search active)** — lower score wins (existing behavior).
-3. **Alphabetical** — by `Product.name` case-insensitive (nil-named products sort last).
+2. **Fuzzy score** (search-active only) — lower score wins (existing behavior).
+3. **Alphabetical** — by `Product.name` using `localizedCaseInsensitiveCompare`. Both `name == nil` and `name?.isEmpty == true` sort to the end of their group (the row UI already renders `"Unnamed"` for these).
 
 ## UI rendering
 
 ### Structure
 
 One outer SwiftUI `Section` (the existing "Products" section under the Machine Layout section). Inside, the rows are emitted in this order:
+
+**Why one Section, not Section-per-group:** an alternative is to emit `Section(header: Text("In Stock — Snacks (current)"))` etc. — one Section per `(stock × category)` pair. That gives free header rendering and free separator suppression at section boundaries. We reject it because (a) the mega-header / sub-header visual hierarchy requested in the brainstorm doesn't compose well into a single Section-header `Text` view, and (b) iOS would render each Section with grouped-list styling (rounded corner clipping per Section), which fragments the visual rhythm of the list. The single-Section + manual-header approach keeps all rows in one continuous visual frame.
 
 ```
 [stock-mega-header "In Stock" — only if Out of Stock bucket is also non-empty]
@@ -87,6 +90,10 @@ One outer SwiftUI `Section` (the existing "Products" section under the Machine L
 - Visual: 13pt semibold uppercase, secondary color, with a small count badge on the right (e.g. `"In Stock"  ·  8`).
 - Non-interactive — `.selectionDisabled()` + `.listRowSeparator(.hidden)`.
 - Background: `listRowBackground(Color(.systemGroupedBackground))` so it blends with the iOS list separator zone.
+
+**Separator suppression (applies to ALL header rows — mega and sub):**
+
+iOS 17 draws hairline separators between every list row by default. Without explicit suppression, you'll see a separator between mega-header → sub-header → first-product-row, which looks like UI corruption. Each header row MUST set `.listRowSeparator(.hidden)`. The row directly **above** a header (last product of the previous group) should also set `.listRowSeparator(.hidden, edges: .bottom)` so the gap reads cleanly. The grouping helper or the rendering loop must track this — easiest implementation is a `isLastInGroup` flag on each product row.
 
 ### Category sub-header
 
@@ -121,17 +128,19 @@ Add:
 @Published var productCategories: [ProductCategory] = []
 ```
 
-In `loadData()` (the existing initial-load entry point), fetch categories alongside products:
+In `loadData()` (the existing initial-load entry point), fetch categories alongside products. Mirror `ProductsViewModel.loadCategories()` exactly — explicit column list + alphabetical order — so the decoder doesn't break if the schema gains columns later:
+
 ```swift
 let cats: [ProductCategory] = try await client
     .from("product_category")
-    .select()
+    .select("id, name, company")
+    .order("name", ascending: true)
     .execute()
     .value
 self.productCategories = cats
 ```
 
-This mirrors the existing pattern in `ProductsViewModel`. No new RPC, no new edge function.
+No new RPC, no new edge function.
 
 ### `ReplacementProductPicker`
 
@@ -149,7 +158,8 @@ struct ReplacementProductPicker: View {
     /// When non-nil, that category is rendered first in each stock bucket.
     var currentCategoryId: UUID? = nil
     /// Category catalogue for name lookup. Empty array is valid — uncategorized
-    /// products will still render; named categories will fall back to "Other".
+    /// products will still render; products whose `category` UUID is not
+    /// present in the array fall back to the "Uncategorized" group.
     var categories: [ProductCategory] = []
     let onSelect: (UUID) -> Void
     ...
@@ -158,7 +168,18 @@ struct ReplacementProductPicker: View {
 
 ### Call site in `ReviewStepView.body`
 
-The `.sheet(item: $pickerTrayId)` call site wires up the new parameters from the existing view model and the existing `ReplacementSuggestion`:
+Add a small helper on `RefillWizardViewModel` to keep the call site clean and to centralize the "look up the category of the product currently in this tray" semantics in one place:
+
+```swift
+// in RefillWizardViewModel
+func currentCategoryId(forTrayId trayId: UUID) -> UUID? {
+    guard let pid = replacements.first(where: { $0.trayId == trayId })?.currentProductId
+    else { return nil }
+    return availableProducts.first(where: { $0.id == pid })?.category
+}
+```
+
+The `.sheet(item: $pickerTrayId)` call site wires up the new parameters from the existing view model:
 
 ```swift
 ReplacementProductPicker(
@@ -172,10 +193,7 @@ ReplacementProductPicker(
         else { return nil }
         return viewModel.remainingWarehouseStock(productId: id)
     },
-    currentCategoryId: viewModel.replacements
-        .first(where: { $0.trayId == trayId })?
-        .currentProductId
-        .flatMap { pid in viewModel.availableProducts.first(where: { $0.id == pid })?.category },
+    currentCategoryId: viewModel.currentCategoryId(forTrayId: trayId),
     categories: viewModel.productCategories,
     onSelect: { productId in
         viewModel.setReplacement(trayId: trayId, productId: productId)
@@ -232,7 +250,7 @@ The user gets a grouped view of their search results — same mental model as th
 | No warehouse selected → all `remainingStock` return nil | All products land in "In Stock" bucket. Out-of-stock bucket is empty → its mega-header is suppressed. With only one bucket and no need for separation, the "In Stock" mega-header is also suppressed; only category sub-headers render. |
 | Current tray is unassigned (no `currentProductId`) | `currentCategoryId == nil`. No "· current" suffix shows; categories sort alphabetically. |
 | Current product's category is unknown (race or stale data) | Same as above — no current-category highlight, alphabetical fallback. |
-| Product has `category` UUID not present in `categories` array | Group under "Uncategorized" as a safe fallback. Logged as a console diagnostic via `print(...)` only in DEBUG. |
+| Product has `category` UUID not present in `categories` array | Group under "Uncategorized" as a safe fallback. In `#if DEBUG` blocks emit a one-time `print("[RefillWizard] unknown category UUID: …")` (matches the `[RefillWizard]` log-tag convention already used in `loadData()`). |
 | Single in-stock product, no warehouse | Renders as: category sub-header + one row. No mega-headers. |
 | All products out of stock | Only "Out of Stock" bucket has content → no mega-header (only one bucket). Category sub-headers render. |
 | Many uncategorized products | "Uncategorized" group renders last within its stock bucket, in alphabetical order. |
@@ -246,7 +264,7 @@ The user gets a grouped view of their search results — same mental model as th
 | `ios/VMflow/Views/Refill/ReviewStepView.swift` | + Two new picker parameters; rewrite picker `body` Section content to render mega-headers + category sub-headers + product rows; + `stockBuckets` computed property; + two row-style helpers. ~120 lines net. |
 | `ios/VMflow/Resources/Localizable.xcstrings` | + `"In Stock"`, `"Out of Stock"`, `"current"`, `"Uncategorized"`. EN + DE. 4 new keys. |
 
-No new files. `ReviewStepView.swift` is at ~640 lines after the previous Task 8 extraction; this change brings it to ~760 lines. Still acceptable — `ReplacementProductPicker` remains the dominant content and stays cohesive.
+No new files. `ReviewStepView.swift` is currently **665 lines** after the previous Task 8 extraction; this change brings it to ~785 lines. Still under the established 800-line "must extract" threshold from the prior milestone, but tight — if the implementation runs longer than projected and crosses 800, extract `ReplacementProductPicker` into its own file as part of the same change.
 
 ## Accessibility
 
@@ -274,6 +292,7 @@ iOS project has no unit-test target. Verification path:
 2. **Sort stability across re-renders**: SwiftUI re-computes `stockBuckets` on every state change. The sort uses `localizedCaseInsensitiveCompare` which is stable. `Product` is `Identifiable` — row identity preserved across re-renders.
 3. **`productCategories` not loaded yet**: during initial `loadData()`, categories may briefly be empty. Picker handles this gracefully — falls back to "Uncategorized" for everything until the next render after categories arrive.
 4. **Search performance with grouping**: O(n) filter + O(n log n) sort within groups. For typical product catalogs (<200 products) this is sub-millisecond.
+5. **Search doesn't collapse the grouping**: if the user types `"co"` and there are two Coke entries — one in `Snacks` and one in `Drinks` — they will see two separate category groups each with one row. The grouping wins over the global fuzzy ranking. This is intentional (preserves the mental model from empty-search) but worth noting; a user expecting a single ranked list of matches may briefly find it surprising.
 
 ## Out of scope
 
