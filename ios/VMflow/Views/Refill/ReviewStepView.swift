@@ -685,6 +685,72 @@ struct ReplacementProductPicker: View {
         return orderedGroups
     }
 
+    // MARK: - Header row helpers
+
+    /// Mega-header rendered above an entire stock bucket. Only shown when
+    /// both `stockBuckets` are present (i.e. some products are in stock AND
+    /// some are out of stock). With only one bucket, the mega-header is
+    /// suppressed and category sub-headers stand alone.
+    @ViewBuilder
+    private func stockMegaHeader(_ bucket: StockBucket) -> some View {
+        let title: String = {
+            switch bucket.status {
+            case .inStock: return String(localized: "In Stock")
+            case .outOfStock: return String(localized: "Out of Stock")
+            }
+        }()
+
+        HStack {
+            Text(title)
+                .font(.system(size: 13, weight: .semibold))
+                .textCase(.uppercase)
+                .foregroundStyle(.secondary)
+            Spacer()
+            Text("\(bucket.totalCount)")
+                .font(.caption.weight(.medium).monospacedDigit())
+                .foregroundStyle(.secondary)
+        }
+        .padding(.vertical, 6)
+        .listRowBackground(Color(.systemGroupedBackground))
+        .listRowSeparator(.hidden)
+        .selectionDisabled()
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            "\(title), \(bucket.totalCount) \(bucket.totalCount == 1 ? "product" : "products")"
+        )
+        .accessibilityAddTraits(.isHeader)
+    }
+
+    /// Sub-header for one category within a stock bucket. Highlights the
+    /// current category with accent color and an "· aktuell" suffix.
+    @ViewBuilder
+    private func categorySubHeader(_ group: CategoryGroup) -> some View {
+        let name: String = group.category?.name ?? String(localized: "Uncategorized")
+        HStack(spacing: 4) {
+            Text(name)
+                .font(.system(size: 11, weight: .semibold))
+                .textCase(.uppercase)
+                .foregroundStyle(group.isCurrent ? Color.accentColor : .secondary)
+            if group.isCurrent {
+                Text(verbatim: "· ")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Color.accentColor)
+                Text("current")
+                    .font(.system(size: 11, weight: .semibold))
+                    .textCase(.lowercase)
+                    .foregroundStyle(Color.accentColor)
+            }
+            Spacer()
+        }
+        .padding(.top, 4)
+        .padding(.bottom, 2)
+        .listRowSeparator(.hidden)
+        .selectionDisabled()
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(group.isCurrent ? "\(name), current category" : name)
+        .accessibilityAddTraits(.isHeader)
+    }
+
     @ViewBuilder
     private func stockPill(_ count: Int) -> some View {
         let isZero = count <= 0
@@ -714,48 +780,28 @@ struct ReplacementProductPicker: View {
                     }
                 }
 
-                Section {
-                    ForEach(filteredProducts) { product in
-                        let stock = remainingStock(product.id)
-                        let outOfStock = stock == 0
-                        Button {
-                            onSelect(product.id)
-                        } label: {
-                            HStack(spacing: 12) {
-                                ProductImage(imagePath: product.imagePath, size: 36)
-                                    .opacity(outOfStock ? 0.45 : 1.0)
-                                Text(product.name ?? "Unnamed")
-                                    .foregroundStyle(outOfStock ? .secondary : .primary)
-                                if let stock {
-                                    stockPill(stock)
-                                }
-                                if let slots = existingSlotsByProduct[product.id], !slots.isEmpty {
-                                    Text(slotBadgeLabel(slots))
-                                        .font(.caption2.weight(.semibold))
-                                        .padding(.horizontal, 6)
-                                        .padding(.vertical, 2)
-                                        .background(Capsule().fill(.orange.opacity(0.15)))
-                                        .foregroundStyle(.orange)
-                                        .accessibilityLabel("Already in \(slots.count == 1 ? "slot" : "slots") \(slots.sorted().map(String.init).joined(separator: ", "))")
-                                }
-                                Spacer()
-                                if selectedProductId == product.id {
-                                    Image(systemName: "checkmark")
-                                        .foregroundStyle(.blue)
-                                }
-                            }
-                        }
-                        .id(product.id)
-                        .listRowBackground(
-                            highlightedProductId == product.id
-                                ? Color.accentColor.opacity(0.18)
-                                : Color.clear
-                        )
-                    }
+                let buckets = stockBuckets
+                let showMegaHeaders = buckets.count > 1
 
-                    if !searchText.isEmpty && filteredProducts.isEmpty {
+                Section {
+                    if buckets.isEmpty, !searchText.isEmpty {
                         ContentUnavailableView.search(text: searchText)
                             .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
+                    }
+                    ForEach(buckets) { bucket in
+                        if showMegaHeaders {
+                            stockMegaHeader(bucket)
+                        }
+                        ForEach(bucket.categories) { group in
+                            categorySubHeader(group)
+                            ForEach(Array(group.products.enumerated()), id: \.element.id) { idx, product in
+                                productRow(
+                                    product: product,
+                                    isLastInGroup: idx == group.products.count - 1
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -778,6 +824,46 @@ struct ReplacementProductPicker: View {
                 }
             }
         }
+    }
+
+    @ViewBuilder
+    private func productRow(product: Product, isLastInGroup: Bool) -> some View {
+        let stock = remainingStock(product.id)
+        let outOfStock = stock == 0
+        Button {
+            onSelect(product.id)
+        } label: {
+            HStack(spacing: 12) {
+                ProductImage(imagePath: product.imagePath, size: 36)
+                    .opacity(outOfStock ? 0.45 : 1.0)
+                Text(product.name ?? "Unnamed")
+                    .foregroundStyle(outOfStock ? .secondary : .primary)
+                if let stock {
+                    stockPill(stock)
+                }
+                if let slots = existingSlotsByProduct[product.id], !slots.isEmpty {
+                    Text(slotBadgeLabel(slots))
+                        .font(.caption2.weight(.semibold))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Capsule().fill(.orange.opacity(0.15)))
+                        .foregroundStyle(.orange)
+                        .accessibilityLabel("Already in \(slots.count == 1 ? "slot" : "slots") \(slots.sorted().map(String.init).joined(separator: ", "))")
+                }
+                Spacer()
+                if selectedProductId == product.id {
+                    Image(systemName: "checkmark")
+                        .foregroundStyle(.blue)
+                }
+            }
+        }
+        .id(product.id)
+        .listRowBackground(
+            highlightedProductId == product.id
+                ? Color.accentColor.opacity(0.18)
+                : Color.clear
+        )
+        .listRowSeparator(isLastInGroup ? .hidden : .visible, edges: .bottom)
     }
 }
 
