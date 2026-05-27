@@ -437,6 +437,18 @@ final class RefillWizardViewModel: ObservableObject {
         return max(0, stock.totalQuantity - committedQuantity(productId: productId))
     }
 
+    /// Look up the category UUID of the product currently in the tray being
+    /// replaced. Returns `nil` if (a) no `ReplacementSuggestion` exists for
+    /// this tray, (b) the suggestion has no current product (unassigned
+    /// slot), (c) the current product isn't in `availableProducts`, or
+    /// (d) the product is uncategorized. The replacement picker uses this
+    /// to highlight the matching category first.
+    func currentCategoryId(forTrayId trayId: UUID) -> UUID? {
+        guard let pid = replacements.first(where: { $0.trayId == trayId })?.currentProductId
+        else { return nil }
+        return availableProducts.first(where: { $0.id == pid })?.category
+    }
+
     /// Whether a product is completely out of warehouse stock (nothing left to pack).
     func isOutOfWarehouseStock(productId: UUID) -> Bool {
         // If no warehouse is selected or no stock data loaded, don't restrict
