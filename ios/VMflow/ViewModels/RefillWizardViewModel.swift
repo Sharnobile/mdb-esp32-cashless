@@ -244,6 +244,9 @@ final class RefillWizardViewModel: ObservableObject {
     @Published var replacements: [ReplacementSuggestion] = []
     /// All active (non-discontinued) products for the replacement picker.
     @Published var availableProducts: [Product] = []
+    /// Product categories used to label/group products in the replacement
+    /// picker. Loaded alongside `availableProducts` in `loadData()`.
+    @Published var productCategories: [ProductCategory] = []
     /// Set after review step completes, so re-loading data doesn't re-trigger review.
     private var reviewCompleted = false
     @Published var warehouses: [Warehouse] = []
@@ -1210,6 +1213,18 @@ final class RefillWizardViewModel: ObservableObject {
                     .execute()
                     .value
                 self.availableProducts = activeProducts
+
+                // Load categories for the replacement picker's grouping UI.
+                // Mirrors ProductsViewModel.loadCategories() — explicit column
+                // list and alphabetical order so the decoder is safe against
+                // future schema additions.
+                let cats: [ProductCategory] = try await client
+                    .from("product_category")
+                    .select("id, name, company")
+                    .order("name", ascending: true)
+                    .execute()
+                    .value
+                self.productCategories = cats
 
                 // Build warehouse stock lookup for "no stock" detection
                 let warehouseProductIds = Set(warehouseStock.filter { $0.totalQuantity > 0 }.map(\.productId))
