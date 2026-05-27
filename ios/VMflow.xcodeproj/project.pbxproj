@@ -50,6 +50,7 @@
 		77D2B846D83C3623DF76EF46 /* WithdrawalSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B0D3D4BFCEB1A362499B0C9 /* WithdrawalSheet.swift */; };
 		7B251D0111BECD9C18F5DD02 /* TrayViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E9A5023EED5804698A679E6 /* TrayViewModel.swift */; };
 		893772831F630561F5DBEF01 /* MachineDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F302EE40A7DDA1135B7A9D7 /* MachineDetailView.swift */; };
+		9286828416CA9826CB3474B1 /* ReplacementProductPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24171AEC291F3AA1B07FEB50 /* ReplacementProductPicker.swift */; };
 		98DBB72485FA6701994E86A6 /* VMflowApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8ED1159C55CAF705215AD130 /* VMflowApp.swift */; };
 		994DEA5B68106C882733FA3E /* AddServerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 357877F547C30B7565611780 /* AddServerView.swift */; };
 		9AC610D3D52ECEEAF701A011 /* VendingMachine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E7EC46F36DD12575C056A1A /* VendingMachine.swift */; };
@@ -125,6 +126,7 @@
 		1C6D6D60C1508A2B07975E1F /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		204427FECDDE3A1BB3CB316C /* StockBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StockBar.swift; sourceTree = "<group>"; };
 		215EDEE2A21B82EE7D2ED841 /* Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Debug.xcconfig; sourceTree = "<group>"; };
+		24171AEC291F3AA1B07FEB50 /* ReplacementProductPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReplacementProductPicker.swift; sourceTree = "<group>"; };
 		25C77EB4B16044F00FE97E2E /* ProductDetailSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductDetailSheet.swift; sourceTree = "<group>"; };
 		262B82892D49D5104059509A /* DealDetailSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DealDetailSheet.swift; sourceTree = "<group>"; };
 		285CDF78E1AA2017C62282F8 /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
@@ -267,6 +269,7 @@
 				B84F596B8E26B3A5377BCAA0 /* RefillStepView.swift */,
 				9690B8B0412F05E68303EA15 /* RefillSummaryView.swift */,
 				52A29D496BDB69F848C60674 /* RefillWizardView.swift */,
+				24171AEC291F3AA1B07FEB50 /* ReplacementProductPicker.swift */,
 				C374A772F98B97BE6F2EE986 /* ReviewStepView.swift */,
 			);
 			path = Refill;
@@ -695,6 +698,7 @@
 				123DDC46EFE39435A5A69CB5 /* RefillWizardView.swift in Sources */,
 				A36AE2752621D3854B40CCE2 /* RefillWizardViewModel.swift in Sources */,
 				AD28437ACBB0F0A443AA458E /* RegisterView.swift in Sources */,
+				9286828416CA9826CB3474B1 /* ReplacementProductPicker.swift in Sources */,
 				009EBF498DA30943CF9B822D /* ReviewStepView.swift in Sources */,
 				C2A2406A5D534A262F1CB0BA /* Sale.swift in Sources */,
 				72C90C4ACF2607C4D2195724 /* ServerEntry.swift in Sources */,
