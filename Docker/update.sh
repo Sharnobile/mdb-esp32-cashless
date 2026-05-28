@@ -251,7 +251,7 @@ fi
 
 if [ -n "${SERVICE_ROLE_KEY:-}" ]; then
     INTERNAL_SUPABASE_URL="http://kong:8000"
-    docker compose exec -T db psql -U postgres -d postgres >/dev/null 2>&1 <<SQL
+    docker compose exec -T db psql -U postgres -d postgres >/dev/null <<SQL
 ALTER DATABASE postgres SET app.settings.supabase_url = '${INTERNAL_SUPABASE_URL}';
 ALTER DATABASE postgres SET app.settings.service_role_key = '${SERVICE_ROLE_KEY}';
 SQL
