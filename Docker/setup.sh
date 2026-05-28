@@ -157,6 +157,20 @@ if [ -f .env ]; then
             error "Database did not become ready within 60 seconds. Check logs: docker compose logs db"
         fi
 
+        # ─────────────────────────────────────────────────────────────
+        # Configure DB settings consumed by SECURITY DEFINER functions
+        # (e.g. public.dispatch_low_stock_pushes for low-stock cron).
+        # ─────────────────────────────────────────────────────────────
+        # shellcheck disable=SC1091
+        set -a; source ./.env; set +a
+        if [ -n "${SERVICE_ROLE_KEY:-}" ]; then
+            docker compose exec -T db psql -U postgres -d postgres >/dev/null <<SQL
+ALTER DATABASE postgres SET app.settings.supabase_url = 'http://kong:8000';
+ALTER DATABASE postgres SET app.settings.service_role_key = '${SERVICE_ROLE_KEY}';
+SQL
+            success "Configured app.settings.* for low-stock push dispatcher"
+        fi
+
         MIGRATION_DIR="supabase/migrations"
         MIGRATION_COUNT=$(find "$MIGRATION_DIR" -name '*.sql' 2>/dev/null | wc -l | tr -d ' ')
         APPLIED=0
@@ -561,6 +575,15 @@ fi
 # (roles, JWT, webhooks, etc. run via /docker-entrypoint-initdb.d/)
 info "Waiting for Supabase initialization to complete..."
 sleep 5
+
+# ─────────────────────────────────────────────────────────────
+# Configure DB settings consumed by SECURITY DEFINER functions
+# ─────────────────────────────────────────────────────────────
+docker compose exec -T db psql -U postgres -d postgres >/dev/null <<SQL
+ALTER DATABASE postgres SET app.settings.supabase_url = 'http://kong:8000';
+ALTER DATABASE postgres SET app.settings.service_role_key = '${SERVICE_ROLE_KEY}';
+SQL
+success "Configured app.settings.* for low-stock push dispatcher"
 
 MIGRATION_DIR="supabase/migrations"
 MIGRATION_COUNT=$(find "$MIGRATION_DIR" -name '*.sql' 2>/dev/null | wc -l | tr -d ' ')
