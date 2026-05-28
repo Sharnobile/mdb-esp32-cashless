@@ -160,9 +160,12 @@ if [ -f .env ]; then
         # ─────────────────────────────────────────────────────────────
         # Configure DB settings consumed by SECURITY DEFINER functions
         # (e.g. public.dispatch_low_stock_pushes for low-stock cron).
+        # Read SERVICE_ROLE_KEY directly without `source ./.env` — the
+        # upstream Supabase defaults ship unquoted values with spaces
+        # (STUDIO_DEFAULT_ORGANIZATION=Default Organization) that break
+        # bash source even though docker-compose tolerates them.
         # ─────────────────────────────────────────────────────────────
-        # shellcheck disable=SC1091
-        set -a; source ./.env; set +a
+        SERVICE_ROLE_KEY=$(grep -E '^SERVICE_ROLE_KEY=' .env 2>/dev/null | head -1 | cut -d= -f2-)
         if [ -n "${SERVICE_ROLE_KEY:-}" ]; then
             # ALTER DATABASE on custom GUCs requires superuser; `postgres` role
             # is not superuser in self-hosted Supabase. `supabase_admin` is,
@@ -441,8 +444,8 @@ ENABLE_PHONE_AUTOCONFIRM=false
 # Studio - Configuration for the Dashboard
 ############
 
-STUDIO_DEFAULT_ORGANIZATION=Default Organization
-STUDIO_DEFAULT_PROJECT=Default Project
+STUDIO_DEFAULT_ORGANIZATION="Default Organization"
+STUDIO_DEFAULT_PROJECT="Default Project"
 
 SUPABASE_PUBLIC_URL=${SUPABASE_PUBLIC_URL}
 

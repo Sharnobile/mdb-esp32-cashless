@@ -244,10 +244,11 @@ fi
 # (e.g. public.dispatch_low_stock_pushes for low-stock cron).
 # These are idempotent — re-running overwrites prior values.
 # ─────────────────────────────────────────────────────────────
-if [ -f .env ]; then
-    # shellcheck disable=SC1091
-    set -a; source ./.env; set +a
-fi
+# Read SERVICE_ROLE_KEY directly without `source ./.env` — the upstream
+# Supabase defaults ship unquoted values with spaces (e.g.
+# STUDIO_DEFAULT_ORGANIZATION=Default Organization) which break bash
+# source. docker-compose tolerates them via its own parser; we don't.
+SERVICE_ROLE_KEY=$(grep -E '^SERVICE_ROLE_KEY=' .env 2>/dev/null | head -1 | cut -d= -f2-)
 
 if [ -n "${SERVICE_ROLE_KEY:-}" ]; then
     INTERNAL_SUPABASE_URL="http://kong:8000"
