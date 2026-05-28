@@ -17,6 +17,7 @@ const isAdmin = computed(() => role.value === 'admin')
     <div v-else class="grid w-full max-w-3xl gap-6">
       <SettingsImprintCard />
       <SettingsAiKeyCard />
+      <SettingsLowStockCard />
       <SettingsStripeCard />
       <SettingsDealSearchCard />
       <SettingsTaxCard />

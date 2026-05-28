@@ -35,7 +35,7 @@ const {
   fetchWarehouses, createWarehouse, updateWarehouse, deleteWarehouse,
   fetchBarcodes, lookupBarcode, addBarcode, removeBarcode,
   fetchBatches, fetchProductSummaries, bookIncoming, adjustStock,
-  fetchMinStocks, setMinStock, fetchVelocityDays, setVelocityDays, velocityDays, checkLowStockNotifications,
+  fetchMinStocks, setMinStock, fetchVelocityDays, setVelocityDays, velocityDays,
   positions, groups, fetchPositions, savePositions, removePosition,
   fetchGroups, createGroup, updateGroup, deleteGroup, saveGroupOrder,
   fetchTransactions, fetchMoreTransactions,
@@ -102,8 +102,6 @@ async function loadWarehouseData() {
     fetchBatches(id),
     fetchMinStocks(id),
   ])
-  // Trigger processing of any queued low-stock notifications (best-effort)
-  checkLowStockNotifications()
 }
 
 // ── KPIs ────────────────────────────────────────────────────────────────────
