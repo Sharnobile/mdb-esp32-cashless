@@ -24,7 +24,7 @@ const editingProduct = computed<any | null>(() => {
 })
 
 // ── Product form state ────────────────────────────────────────────────────
-const productForm = ref({ name: '', sellprice: null as number | null, description: '', category: '' })
+const productForm = ref({ name: '', sellprice: null as number | null, description: '', category: '', discontinued: false })
 const productLoading = ref(false)
 const productError = ref('')
 
@@ -133,6 +133,7 @@ watch([() => props.open, () => props.productId], ([open]) => {
       sellprice: prod.sellprice,
       description: prod.description ?? '',
       category: prod.category ?? '',
+      discontinued: prod.discontinued ?? false,
     }
     imageFile.value = null
     imagePreview.value = prod.image_url ?? null
@@ -148,7 +149,7 @@ watch([() => props.open, () => props.productId], ([open]) => {
       searchDebounced(prod.name)
     }
   } else {
-    productForm.value = { name: '', sellprice: null, description: '', category: '' }
+    productForm.value = { name: '', sellprice: null, description: '', category: '', discontinued: false }
     imageFile.value = null
     imagePreview.value = null
     removeImage.value = false
@@ -177,6 +178,7 @@ async function submitProduct() {
         sellprice: productForm.value.sellprice,
         description: productForm.value.description.trim() || null,
         category: productForm.value.category || null,
+        discontinued: productForm.value.discontinued,
       })
     } else {
       productId = await createProduct({
@@ -185,6 +187,7 @@ async function submitProduct() {
         description: productForm.value.description.trim() || null,
         category: productForm.value.category || null,
         company: organization.value!.id,
+        discontinued: productForm.value.discontinued,
       })
     }
 
@@ -327,6 +330,17 @@ async function submitProduct() {
           :placeholder="t('products.optionalDescription')"
           class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
         />
+      </div>
+      <div class="flex items-center gap-2">
+        <input
+          id="product-discontinued"
+          v-model="productForm.discontinued"
+          type="checkbox"
+          class="size-4 rounded border-input accent-primary"
+        />
+        <label class="cursor-pointer select-none text-sm font-medium" for="product-discontinued">
+          {{ t('products.discontinued') }}
+        </label>
       </div>
       <!-- Barcodes -->
       <div v-if="isAdmin" class="space-y-2">

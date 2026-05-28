@@ -65,7 +65,7 @@ export function useProducts() {
     }
   }
 
-  async function createProduct(product: { name: string; sellprice: number | null; description: string | null; category: string | null; company: string }) {
+  async function createProduct(product: { name: string; sellprice: number | null; description: string | null; category: string | null; company: string; discontinued?: boolean }) {
     const supabase = useSupabaseClient()
     const { data, error } = await supabase.from('products').insert(product).select('id').single()
     if (error) throw error
@@ -74,7 +74,7 @@ export function useProducts() {
     return newId
   }
 
-  async function updateProduct(id: string, updates: { name?: string; sellprice?: number | null; description?: string | null; category?: string | null }) {
+  async function updateProduct(id: string, updates: { name?: string; sellprice?: number | null; description?: string | null; category?: string | null; discontinued?: boolean }) {
     const supabase = useSupabaseClient()
     const { error } = await supabase.from('products').update(updates).eq('id', id)
     if (error) throw error
