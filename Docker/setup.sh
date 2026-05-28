@@ -164,7 +164,10 @@ if [ -f .env ]; then
         # shellcheck disable=SC1091
         set -a; source ./.env; set +a
         if [ -n "${SERVICE_ROLE_KEY:-}" ]; then
-            docker compose exec -T db psql -U postgres -d postgres >/dev/null <<SQL
+            # ALTER DATABASE on custom GUCs requires superuser; `postgres` role
+            # is not superuser in self-hosted Supabase. `supabase_admin` is,
+            # and is reachable via 127.0.0.1 trust (per the image's pg_hba.conf).
+            docker compose exec -T db psql -U supabase_admin -h 127.0.0.1 -d postgres >/dev/null <<SQL
 ALTER DATABASE postgres SET app.settings.supabase_url = 'http://kong:8000';
 ALTER DATABASE postgres SET app.settings.service_role_key = '${SERVICE_ROLE_KEY}';
 SQL
@@ -579,7 +582,10 @@ sleep 5
 # ─────────────────────────────────────────────────────────────
 # Configure DB settings consumed by SECURITY DEFINER functions
 # ─────────────────────────────────────────────────────────────
-docker compose exec -T db psql -U postgres -d postgres >/dev/null <<SQL
+# ALTER DATABASE on custom GUCs requires superuser; `postgres` role
+# is not superuser in self-hosted Supabase. `supabase_admin` is,
+# and is reachable via 127.0.0.1 trust (per the image's pg_hba.conf).
+docker compose exec -T db psql -U supabase_admin -h 127.0.0.1 -d postgres >/dev/null <<SQL
 ALTER DATABASE postgres SET app.settings.supabase_url = 'http://kong:8000';
 ALTER DATABASE postgres SET app.settings.service_role_key = '${SERVICE_ROLE_KEY}';
 SQL

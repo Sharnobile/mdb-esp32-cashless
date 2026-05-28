@@ -251,7 +251,10 @@ fi
 
 if [ -n "${SERVICE_ROLE_KEY:-}" ]; then
     INTERNAL_SUPABASE_URL="http://kong:8000"
-    docker compose exec -T db psql -U postgres -d postgres >/dev/null <<SQL
+    # ALTER DATABASE on custom GUCs requires superuser; `postgres` role is
+    # not superuser in self-hosted Supabase. `supabase_admin` is, and is
+    # reachable via 127.0.0.1 trust (per the image's pg_hba.conf).
+    docker compose exec -T db psql -U supabase_admin -h 127.0.0.1 -d postgres >/dev/null <<SQL
 ALTER DATABASE postgres SET app.settings.supabase_url = '${INTERNAL_SUPABASE_URL}';
 ALTER DATABASE postgres SET app.settings.service_role_key = '${SERVICE_ROLE_KEY}';
 SQL
