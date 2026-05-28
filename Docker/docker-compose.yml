@@ -479,7 +479,11 @@ services:
         "-c",
         "max_wal_size=2GB",
         "-c",
-        "min_wal_size=512MB"
+        "min_wal_size=512MB",
+        "-c",
+        "shared_preload_libraries=pg_cron,pg_net",
+        "-c",
+        "cron.database_name=postgres"
       ]
 
 volumes:
