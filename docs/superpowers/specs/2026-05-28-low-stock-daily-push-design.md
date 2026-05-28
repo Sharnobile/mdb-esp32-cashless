@@ -410,6 +410,7 @@ shape decided during implementation; not a design-level concern.
 | iOS / Android native clients | Neither client reads `companies.timezone` or `companies.low_stock_notification_hour`. Web-push registration is PWA-only — native clients are not affected. |
 | Old frontend talking to new backend | Still calls `check-low-stock` on `/warehouse` visit. Function works without `company_id`. Worst case: company A admin visits `/warehouse` at 08:30 and the cron also fires at 09:00 — two pushes that hour. Acceptable transient until frontend is deployed. |
 | New frontend talking to old backend | Settings update writes columns that do not exist. Supabase returns `column "..." does not exist`. Frontend deploy MUST follow the DB migration. Standard ordering. |
+| Migration immutability | The migration uses `IF NOT EXISTS`, `CREATE OR REPLACE`, and the `DO $$ ... $$` guard around `cron.unschedule` / `cron.schedule`. Re-running it is a no-op. Future fixes to the dispatcher function go in a later migration. |
 
 ### Required deploy order
 
@@ -425,7 +426,6 @@ shape decided during implementation; not a design-level concern.
 Skipping step 2 leaves the dispatcher with `NULL` `app.settings.*`
 values — it logs a warning and no-ops, so it does not error, but no
 pushes are sent until step 2 completes.
-| Migration immutability | The migration uses `IF NOT EXISTS`, `CREATE OR REPLACE`, and the `DO $$ ... $$` guard around `cron.unschedule`. Re-running it is a no-op. Future fixes to the dispatcher function go in a later migration. |
 
 ## Configuration files
 
@@ -518,13 +518,12 @@ unchanged.
    `shared_preload_libraries=pg_cron` cleanly. Two consequences for
    local dev:
    - The migration's `CREATE EXTENSION pg_cron` and
-     `cron.schedule(...)` calls may fail. The migration must
-     therefore wrap the cron-specific block (the `DO $$ ...
-     unschedule ... $$` + `SELECT cron.schedule(...)`) in a single
-     `DO $$ BEGIN ... EXCEPTION WHEN OTHERS THEN RAISE WARNING ...
-     END $$` block so the migration applies cleanly on installs
-     without pg_cron. The dispatcher function and the columns are
-     created either way.
+     `cron.schedule(...)` calls may fail. The migration's
+     cron-setup `DO $$` block (shown in section 4 of "Database
+     changes" above) guards both calls with
+     `IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_cron')`
+     and emits a `RAISE WARNING` when pg_cron is absent. The
+     dispatcher function and the columns are created either way.
    - To verify push behavior in local dev, developers manually invoke
      `SELECT public.dispatch_low_stock_pushes();` from psql. The
      `app.settings.supabase_url` for local dev should be
