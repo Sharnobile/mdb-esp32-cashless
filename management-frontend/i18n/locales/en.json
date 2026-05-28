@@ -444,6 +444,7 @@
     "image": "Image",
     "barcodes": "Barcodes",
     "barcodePlaceholder": "EAN barcode...",
+    "discontinued": "Discontinued",
     "optionalDescription": "Optional description",
     "clickToUpload": "Click to upload",
     "imageSuggestions": "Image suggestions",
