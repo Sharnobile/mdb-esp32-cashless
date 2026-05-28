@@ -113,9 +113,28 @@ CREATE EXTENSION IF NOT EXISTS pg_net;
 ```
 
 `supabase/postgres:15.8.1.060` (the image pinned in
-`Docker/docker-compose.yml`) ships with both extensions available.
-`CREATE EXTENSION IF NOT EXISTS` is idempotent and safe on existing
-installs that already have them.
+`Docker/docker-compose.yml`) ships both extensions available, but
+**`pg_cron` requires `shared_preload_libraries` at Postgres startup**.
+The baked `postgresql.conf` in the Supabase image may already include
+it, but the project's tuning `-c` flags in
+`Docker/docker-compose.yml`'s `db.command` array currently do not
+re-specify `shared_preload_libraries`. To avoid relying on the image's
+baked default, the implementation **must** defensively add to the
+`db.command` array:
+
+```yaml
+  "-c", "shared_preload_libraries=pg_cron,pg_net",
+  "-c", "cron.database_name=postgres",
+```
+
+Without these, `CREATE EXTENSION pg_cron` fails with
+`pg_cron can only be loaded via shared_preload_libraries`. This is the
+single biggest risk in the change — verifying it on a fresh
+`docker compose up -d db` is the first implementation step before any
+migration is written.
+
+`pg_net` does not require preload but is named alongside for
+symmetry/defensiveness.
 
 ### 3. Dispatcher function
 
@@ -185,24 +204,36 @@ One global cron entry, fires at the top of every hour, in UTC (pg_cron
 default). The per-company timezone offset is applied inside
 `dispatch_low_stock_pushes`, not by the schedule expression.
 
-The migration must guard against duplicate cron entries on re-apply.
-`cron.schedule()` is upsert-style by job name in recent pg_cron
-versions, but the migration wraps the call to be explicit:
+The migration must guard against duplicate cron entries on re-apply,
+AND against pg_cron being unavailable (local dev `supabase start`
+case — see Risks #2). The full cron-setup block is wrapped:
 
 ```sql
 DO $$
 BEGIN
-  PERFORM cron.unschedule('low_stock_daily_push')
-  WHERE EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'low_stock_daily_push');
-EXCEPTION WHEN OTHERS THEN NULL;
-END $$;
+  -- Idempotent unschedule
+  IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_cron')
+     AND EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'low_stock_daily_push') THEN
+    PERFORM cron.unschedule('low_stock_daily_push');
+  END IF;
 
-SELECT cron.schedule(
-  'low_stock_daily_push',
-  '0 * * * *',
-  $$SELECT public.dispatch_low_stock_pushes();$$
-);
+  -- Schedule (only if pg_cron is available)
+  IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_cron') THEN
+    PERFORM cron.schedule(
+      'low_stock_daily_push',
+      '0 * * * *',
+      $cron$SELECT public.dispatch_low_stock_pushes();$cron$
+    );
+  ELSE
+    RAISE WARNING 'pg_cron not installed; low_stock_daily_push not scheduled. '
+                  'Fix shared_preload_libraries and re-run migration, or invoke '
+                  'dispatch_low_stock_pushes() manually.';
+  END IF;
+END $$;
 ```
+
+This makes the migration safe to apply on environments without
+pg_cron preload (local dev), while still scheduling the job on prod.
 
 The migration is otherwise immutable — fixes to the dispatcher
 function in the future use `CREATE OR REPLACE FUNCTION` in a later
@@ -219,23 +250,42 @@ ALTER DATABASE postgres SET app.settings.supabase_url     = 'http://kong:8000';
 ALTER DATABASE postgres SET app.settings.service_role_key = '<SERVICE_ROLE_KEY>';
 ```
 
-These go into:
-- `Docker/setup.sh` — append the two `ALTER DATABASE` calls after the
-  service-role key is generated, before any migration runs.
-- `Docker/update.sh` — same `ALTER DATABASE` calls, idempotent (they
-  overwrite the existing setting on every update so a regenerated key
-  is picked up).
+### Where in the scripts
+
+Both scripts already wait for the DB container to become healthy
+before applying migrations — that wait is the synchronization point
+for the `ALTER DATABASE` calls.
+
+- `Docker/setup.sh` — the calls go **after `docker compose up -d db`
+  is healthy** (the existing health-wait loop) and **before** the
+  migration runner runs. Exact line: immediately after the existing
+  healthcheck wait, using the same `docker compose exec -T db psql`
+  pattern that the script uses elsewhere.
+- `Docker/update.sh` — same placement: after the existing DB
+  healthcheck wait, before `npx supabase migration up` (or equivalent
+  migration step). Idempotent — re-running overwrites the existing
+  setting so a regenerated key is picked up automatically.
 
 The internal URL `http://kong:8000` is the docker-compose service
 hostname for the API gateway — the same URL used by the existing
 forwarder service for HTTP calls into the API. Edge functions sit
 behind the gateway under `/functions/v1/`.
 
-`ALTER DATABASE` settings persist across restarts but live only at the
-database level — they do not appear in `Docker/.env` and are not
-exposed to the rest of the stack. This is intentional: the
-service-role key is already in the gateway and the dispatcher should
-not need a separate route in or out.
+`ALTER DATABASE` settings persist across restarts and across `docker
+compose stop` / `start` (they live in the database volume's catalog,
+not in container memory). They are wiped by `docker compose down -v`
+along with everything else.
+
+### Recovery story after `docker compose down -v`
+
+`down -v` deletes the named volume `./volumes/db/data`. On the next
+`docker compose up`, the migration runner reapplies all migrations
+from scratch — including this one, which re-creates the cron job and
+the dispatcher function. The `ALTER DATABASE` calls from
+`setup.sh` / `update.sh` must also be re-run as part of bring-up.
+**Operators must re-run `update.sh` (or `setup.sh` for fresh installs)
+after `down -v`**, otherwise the dispatcher silently no-ops on its
+first tick.
 
 ## Edge function change
 
@@ -261,6 +311,26 @@ let q = adminClient
 if (filterCompanyId) q = q.eq('company_id', filterCompanyId)
 
 const { data: notifications, error: fetchError } = await q
+```
+
+### First-opt-in safeguard
+
+When a company opts in for the first time, the queue may contain
+arbitrarily old `low_stock_notifications` rows (from past stock drops
+that were never drained because the user never visited `/warehouse`).
+Sending all of them as a single push at the first cron tick would be
+overwhelming.
+
+Add a `created_at >= now() - interval '24 hours'` filter to the
+SELECT in the edge function so only recent drops are sent. Old
+entries remain in the queue with `sent_at = NULL`; an admin can
+manually mark them sent (or we can add a sweeper later if needed).
+
+```ts
+.is('sent_at', null)
+.gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+.order('created_at')
+.limit(100)
 ```
 
 Everything below this point (group-by-company, send, mark sent) is
@@ -340,6 +410,21 @@ shape decided during implementation; not a design-level concern.
 | iOS / Android native clients | Neither client reads `companies.timezone` or `companies.low_stock_notification_hour`. Web-push registration is PWA-only — native clients are not affected. |
 | Old frontend talking to new backend | Still calls `check-low-stock` on `/warehouse` visit. Function works without `company_id`. Worst case: company A admin visits `/warehouse` at 08:30 and the cron also fires at 09:00 — two pushes that hour. Acceptable transient until frontend is deployed. |
 | New frontend talking to old backend | Settings update writes columns that do not exist. Supabase returns `column "..." does not exist`. Frontend deploy MUST follow the DB migration. Standard ordering. |
+
+### Required deploy order
+
+1. Land the migration (which adds columns, extensions, dispatcher,
+   cron job).
+2. Re-run `Docker/update.sh` on each existing installation so the new
+   `ALTER DATABASE` calls land and the new `shared_preload_libraries`
+   in `docker-compose.yml` takes effect (this restarts the DB
+   container).
+3. Deploy the updated frontend so the new Settings card is visible
+   and the `/warehouse` page-load call is gone.
+
+Skipping step 2 leaves the dispatcher with `NULL` `app.settings.*`
+values — it logs a warning and no-ops, so it does not error, but no
+pushes are sent until step 2 completes.
 | Migration immutability | The migration uses `IF NOT EXISTS`, `CREATE OR REPLACE`, and the `DO $$ ... $$` guard around `cron.unschedule`. Re-running it is a no-op. Future fixes to the dispatcher function go in a later migration. |
 
 ## Configuration files
@@ -427,12 +512,31 @@ unchanged.
    silently no-ops. Mitigation: log a `WARNING` so it shows up in
    `docker compose logs db`; document in the release notes that
    existing installs must re-run `update.sh`.
-2. **pg_net edge function URL changes** when running locally vs.
-   self-hosted prod (`http://127.0.0.1:54321` for `supabase start` vs.
-   `http://kong:8000` for docker-compose). `setup.sh` writes the
-   correct value for its own environment; local dev needs an
-   equivalent setting. Add a `Docker/supabase/.env` line and a note
-   in `config.toml`'s comments.
+2. **Local dev environment (`supabase start`) is explicitly out of
+   scope for cron scheduling.** The Supabase CLI manages its own
+   Postgres container and does not expose a config option to add
+   `shared_preload_libraries=pg_cron` cleanly. Two consequences for
+   local dev:
+   - The migration's `CREATE EXTENSION pg_cron` and
+     `cron.schedule(...)` calls may fail. The migration must
+     therefore wrap the cron-specific block (the `DO $$ ...
+     unschedule ... $$` + `SELECT cron.schedule(...)`) in a single
+     `DO $$ BEGIN ... EXCEPTION WHEN OTHERS THEN RAISE WARNING ...
+     END $$` block so the migration applies cleanly on installs
+     without pg_cron. The dispatcher function and the columns are
+     created either way.
+   - To verify push behavior in local dev, developers manually invoke
+     `SELECT public.dispatch_low_stock_pushes();` from psql. The
+     `app.settings.supabase_url` for local dev should be
+     `http://host.docker.internal:54321` if dev edge runtime is
+     reachable from the DB container, or omitted (dispatcher
+     logs WARNING and no-ops). Setting these locally is the
+     developer's manual step, not part of `supabase start`.
+
+   Net effect: end-to-end cron tests happen on a prod-like
+   `docker compose up` stack, not on `supabase start`. The function +
+   queue logic still works locally; only the timed dispatch is
+   skipped.
 3. **Cron drift**: if pg_cron is paused (e.g. db restart) the
    dispatcher misses its tick. Next tick picks up the queue normally
    for the *next* hour's companies — companies whose hour just passed
@@ -460,10 +564,11 @@ unchanged.
 
 | File | Change |
 |---|---|
-| `Docker/supabase/migrations/YYYYMMDDHHMMSS_low_stock_daily_push.sql` | New file. Adds two columns to `companies`, enables `pg_cron` + `pg_net`, creates `dispatch_low_stock_pushes()`, schedules the cron job. |
-| `Docker/supabase/functions/check-low-stock/index.ts` | Additive: read optional `company_id` from request body, filter the query. |
-| `Docker/setup.sh` | Append `ALTER DATABASE` for `app.settings.supabase_url` and `app.settings.service_role_key`. |
-| `Docker/update.sh` | Same `ALTER DATABASE` calls, idempotent. |
+| `Docker/supabase/migrations/YYYYMMDDHHMMSS_low_stock_daily_push.sql` | New file. Adds two columns to `companies`, enables `pg_cron` + `pg_net`, creates `dispatch_low_stock_pushes()`, schedules the cron job (guarded for environments without pg_cron). |
+| `Docker/docker-compose.yml` | Add `-c shared_preload_libraries=pg_cron,pg_net` and `-c cron.database_name=postgres` to the `db.command` array. Without this, `CREATE EXTENSION pg_cron` fails. |
+| `Docker/supabase/functions/check-low-stock/index.ts` | Additive: read optional `company_id` from request body, filter the query, also filter to `created_at >= now() - 24h` so the first opt-in does not blast accumulated old rows. |
+| `Docker/setup.sh` | After the DB-healthcheck wait and before migration runs, append `ALTER DATABASE` for `app.settings.supabase_url` and `app.settings.service_role_key`. |
+| `Docker/update.sh` | Same `ALTER DATABASE` calls in the same position, idempotent. |
 | `management-frontend/app/pages/warehouse/index.vue` | Remove the `checkLowStockNotifications()` call in `loadWarehouseData()`. |
 | `management-frontend/app/components/SettingsLowStockCard.vue` | New file. Timezone select + send-time select + save button. |
 | `management-frontend/app/pages/settings/index.vue` | Add `<SettingsLowStockCard />` to the admin grid. |
