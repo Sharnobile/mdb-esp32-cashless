@@ -239,6 +239,28 @@ else
     success "ENV_NAME already configured in .env"
 fi
 
+# ─────────────────────────────────────────────────────────────
+# Configure DB settings consumed by SECURITY DEFINER functions
+# (e.g. public.dispatch_low_stock_pushes for low-stock cron).
+# These are idempotent — re-running overwrites prior values.
+# ─────────────────────────────────────────────────────────────
+if [ -f .env ]; then
+    # shellcheck disable=SC1091
+    set -a; source ./.env; set +a
+fi
+
+if [ -n "${SERVICE_ROLE_KEY:-}" ]; then
+    INTERNAL_SUPABASE_URL="http://kong:8000"
+    docker compose exec -T db psql -U postgres -d postgres >/dev/null 2>&1 <<SQL
+ALTER DATABASE postgres SET app.settings.supabase_url = '${INTERNAL_SUPABASE_URL}';
+ALTER DATABASE postgres SET app.settings.service_role_key = '${SERVICE_ROLE_KEY}';
+SQL
+    success "Configured app.settings.supabase_url + app.settings.service_role_key"
+else
+    warn "SERVICE_ROLE_KEY not found in .env — skipping app.settings configuration"
+    warn "Low-stock daily push will not fire until SERVICE_ROLE_KEY is set"
+fi
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # Step 2: Apply new database migrations
 # ═══════════════════════════════════════════════════════════════════════════════
