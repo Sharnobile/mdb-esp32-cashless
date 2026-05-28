@@ -41,13 +41,32 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Fetch unsent low-stock notifications
-    const { data: notifications, error: fetchError } = await adminClient
+    // Optional company_id filter — set by the pg_cron dispatcher so each
+    // company gets its own push. Calls without a body keep the existing
+    // "drain all" behavior (backward compat for older frontends).
+    const contentLength = req.headers.get('content-length')
+    const reqBody: Record<string, unknown> = contentLength && contentLength !== '0'
+      ? await req.json().catch(() => ({}))
+      : {}
+    const filterCompanyId = typeof reqBody.company_id === 'string'
+      ? reqBody.company_id
+      : null
+
+    // 24h guardrail: on first opt-in, the queue may contain arbitrarily
+    // old undelivered rows. Only send drops from the last 24 h.
+    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+
+    let query = adminClient
       .from('low_stock_notifications')
       .select('id, company_id, product_name, current_quantity, min_quantity')
       .is('sent_at', null)
+      .gte('created_at', cutoff)
       .order('created_at')
       .limit(100)
+
+    if (filterCompanyId) query = query.eq('company_id', filterCompanyId)
+
+    const { data: notifications, error: fetchError } = await query
 
     if (fetchError) throw fetchError
 
