@@ -12,6 +12,7 @@ import { useInsights, sortedRecommendations, priorityVariant, recommendationType
 import { useDeviceRestarts, reasonLabel, reasonVariant, formatUptime } from '@/composables/useDeviceRestarts'
 import { timeAgo, formatCurrency, formatDate, formatTime, formatDateTime } from '@/lib/utils'
 import MachineSettingsModal from '~/components/MachineSettingsModal.vue'
+import MachineAnalysisPanel from '~/components/analysis/MachineAnalysisPanel.vue'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,6 +27,7 @@ const defaultTab = computed(() => {
   if (tab === 'stock') return 'trays'
   if (tab === 'mdb') return 'mdb'
   if (tab === 'health') return 'health'
+  if (tab === 'analysis') return 'analysis'
   return 'sales'
 })
 const supabase = useSupabaseClient()
@@ -1278,6 +1280,7 @@ async function handleAddSale() {
               <TabsTrigger value="sales">{{ t('machineDetail.sales') }}</TabsTrigger>
               <TabsTrigger v-if="isAdmin" value="mdb">{{ t('machineDetail.mdb') }}</TabsTrigger>
               <TabsTrigger value="trays">{{ t('machineDetail.traysAndStock') }}</TabsTrigger>
+              <TabsTrigger value="analysis">{{ t('machineDetail.analysis') }}</TabsTrigger>
               <TabsTrigger v-if="machine?.embeddeds" value="health">{{ t('machineDetail.deviceHealth') }}</TabsTrigger>
             </TabsList>
 
@@ -1953,6 +1956,11 @@ async function handleAddSale() {
                     &larr; {{ t('machineDetail.doneBackToMachines') }}
                   </NuxtLink>
                 </div>
+            </TabsContent>
+
+            <!-- ── Analysis Tab ── -->
+            <TabsContent value="analysis" class="mt-4">
+              <MachineAnalysisPanel v-if="machine" :machine-id="machine.id" :is-admin="isAdmin" />
             </TabsContent>
 
             <!-- ── MDB Diagnostics Tab ── -->
