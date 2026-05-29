@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import type { SlotAnalysis, SlotTier } from '@/composables/useMachineAnalysis'
+import type { GridSlot, SlotTier } from '@/composables/useMachineAnalysis'
 
 const props = defineProps<{
-  slots: SlotAnalysis[]
+  slots: GridSlot[]
   rowCount: number
   selectedTrayId?: string | null
 }>()
 
-const emit = defineEmits<{ (e: 'select', slot: SlotAnalysis): void }>()
+const emit = defineEmits<{ (e: 'select', slot: GridSlot): void }>()
 
 const COLUMNS = 10
 
@@ -21,7 +21,7 @@ const tierClass: Record<SlotTier, string> = {
   empty: 'border-dashed border-muted-foreground/30 bg-transparent',
 }
 
-function cellStyle(slot: SlotAnalysis) {
+function cellStyle(slot: GridSlot) {
   return {
     gridColumn: `${slot.column + 1} / span ${slot.width}`,
     gridRow: `${slot.row + 1}`,
@@ -29,7 +29,7 @@ function cellStyle(slot: SlotAnalysis) {
 }
 
 // Short metric shown on each occupied cell.
-function badge(slot: SlotAnalysis): string {
+function badge(slot: GridSlot): string {
   if (!slot.product_id) return ''
   if (slot.tier === 'testing') return '⏳'
   return `${Math.round(slot.sell_through_pct)}%`

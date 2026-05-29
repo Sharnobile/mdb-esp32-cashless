@@ -4,14 +4,17 @@ import { Badge } from '@/components/ui/badge'
 import { IconSparkles, IconLoader2, IconArrowRight, IconFlask } from '@tabler/icons-vue'
 import { formatCurrency } from '@/lib/utils'
 import MachineLayoutGrid from './MachineLayoutGrid.vue'
-import { useMachineAnalysis, type SlotAnalysis, type SlotTier, type Suggestion } from '@/composables/useMachineAnalysis'
+import { useMachineAnalysis, type GridSlot, type ProductAnalysis, type SlotTier, type Suggestion } from '@/composables/useMachineAnalysis'
 import { useInsights, priorityVariant, recommendationTypeLabel } from '@/composables/useInsights'
 
 const props = defineProps<{ machineId: string; isAdmin: boolean }>()
 
 const { t, locale } = useI18n()
 
-const { slots, rowCount, loading, error, days, tierCounts, weakSlots, lostRevenuePotential, analyze, applySwap } = useMachineAnalysis()
+const {
+  products, slots, fillSuggestions, rowCount, loading, error, days,
+  tierCounts, slotTierCounts, weakProducts, lostRevenuePotential, analyze, applySwap,
+} = useMachineAnalysis()
 
 const PERIODS = [7, 30, 90]
 
@@ -31,22 +34,42 @@ function changePeriod(d: number) {
   analyze(props.machineId, d)
 }
 
-// ── Slot detail sheet ────────────────────────────────────────────────────────
+// ── Detail sheet ─────────────────────────────────────────────────────────────
+// The sheet shows a product's machine-wide performance. It can be opened from a
+// grid slot (apply targets that slot) or from the weak-products list (apply
+// targets the product's first slot). Empty slots open a "fill it" variant.
 const sheetOpen = ref(false)
-const selectedTrayId = ref<string | null>(null)
-const selectedSlot = computed(() => slots.value.find(s => s.trayId === selectedTrayId.value) ?? null)
+const selectedProductId = ref<string | null>(null)
+const targetTrayId = ref<string | null>(null)
 const applyingProductId = ref<string | null>(null)
 
-function openSlot(slot: SlotAnalysis) {
-  selectedTrayId.value = slot.trayId
+const selectedProduct = computed<ProductAnalysis | null>(() =>
+  products.value.find(p => p.product_id === selectedProductId.value) ?? null,
+)
+const sheetSuggestions = computed<Suggestion[]>(() =>
+  selectedProduct.value ? selectedProduct.value.suggestions : fillSuggestions.value,
+)
+const targetSlotNumber = computed(() =>
+  slots.value.find(s => s.trayId === targetTrayId.value)?.item_number ?? null,
+)
+
+function openSlot(slot: GridSlot) {
+  targetTrayId.value = slot.trayId
+  selectedProductId.value = slot.product_id
+  sheetOpen.value = true
+}
+
+function openProduct(p: ProductAnalysis) {
+  selectedProductId.value = p.product_id
+  targetTrayId.value = p.trayIds[0] ?? null
   sheetOpen.value = true
 }
 
 async function handleApply(suggestion: Suggestion) {
-  if (!selectedSlot.value) return
+  if (!targetTrayId.value) return
   applyingProductId.value = suggestion.product_id
   try {
-    await applySwap(selectedSlot.value.trayId, suggestion.product_id)
+    await applySwap(targetTrayId.value, suggestion.product_id)
     sheetOpen.value = false
   } catch { /* error surfaced via composable */ } finally {
     applyingProductId.value = null
@@ -100,7 +123,7 @@ const aiSwaps = computed(() =>
     </div>
 
     <template v-else>
-      <!-- KPI strip -->
+      <!-- KPI strip (counts of distinct products) -->
       <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div class="rounded-xl border bg-card p-3">
           <p class="text-xs text-muted-foreground">{{ t('analysis.tier.dead') }}</p>
@@ -125,51 +148,55 @@ const aiSwaps = computed(() =>
         <MachineLayoutGrid
           :slots="slots"
           :row-count="rowCount"
-          :selected-tray-id="selectedTrayId"
+          :selected-tray-id="targetTrayId"
           @select="openSlot"
         />
-        <!-- Legend -->
+        <!-- Legend (slot counts) -->
         <div class="mt-4 flex flex-wrap gap-x-4 gap-y-1.5">
           <div v-for="tier in TIER_ORDER" :key="tier" class="flex items-center gap-1.5 text-xs text-muted-foreground">
             <span class="size-2.5 rounded-full" :class="tierDot[tier]" />
-            {{ t(`analysis.tier.${tier}`) }} ({{ tierCounts[tier] }})
+            {{ t(`analysis.tier.${tier}`) }} ({{ slotTierCounts[tier] }})
           </div>
         </div>
       </div>
 
-      <!-- Weak slots list -->
+      <!-- Weak products list -->
       <div>
-        <h3 class="mb-2 text-sm font-medium">{{ t('analysis.weakSlots') }}</h3>
-        <p v-if="weakSlots.length === 0" class="text-sm text-muted-foreground">{{ t('analysis.noWeakSlots') }}</p>
+        <h3 class="mb-2 text-sm font-medium">{{ t('analysis.weakProducts') }}</h3>
+        <p v-if="weakProducts.length === 0" class="text-sm text-muted-foreground">{{ t('analysis.noWeakProducts') }}</p>
         <div v-else class="rounded-xl border bg-card divide-y">
           <button
-            v-for="slot in weakSlots"
-            :key="slot.trayId"
+            v-for="product in weakProducts"
+            :key="product.product_id"
             class="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/50"
-            @click="openSlot(slot)"
+            @click="openProduct(product)"
           >
             <img
-              v-if="slot.image_url"
-              :src="slot.image_url"
-              :alt="slot.product_name ?? ''"
+              v-if="product.image_url"
+              :src="product.image_url"
+              :alt="product.name"
               class="h-9 w-9 shrink-0 rounded object-cover"
             />
             <div v-else class="flex h-9 w-9 shrink-0 items-center justify-center rounded bg-muted text-xs text-muted-foreground">
-              {{ slot.item_number }}
+              ?
             </div>
             <div class="min-w-0 flex-1">
-              <p class="truncate text-sm font-medium">
-                {{ slot.product_name ?? t('analysis.emptySlot') }}
-              </p>
+              <p class="truncate text-sm font-medium">{{ product.name }}</p>
               <p class="text-xs text-muted-foreground">
-                {{ t('analysis.slot') }} {{ slot.item_number }} ·
-                {{ t('analysis.unitsShort', { n: slot.units_sold }) }} ·
-                {{ Math.round(slot.sell_through_pct) }}%
-                <template v-if="slot.days_in_slot != null"> · {{ t('analysis.inSlotFor', { days: slot.days_in_slot }) }}</template>
+                {{ t('analysis.unitsShort', { n: product.units_sold }) }} ·
+                {{ Math.round(product.sell_through_pct) }}%
+                <template v-if="product.tenure_days != null"> · {{ t('analysis.inMachineFor', { days: product.tenure_days }) }}</template>
               </p>
+              <div class="mt-1 flex flex-wrap gap-1">
+                <span
+                  v-for="s in product.slots"
+                  :key="s"
+                  class="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-muted-foreground"
+                >{{ t('analysis.slot') }} {{ s }}</span>
+              </div>
             </div>
-            <Badge :variant="slot.tier === 'dead' ? 'destructive' : 'secondary'">
-              {{ t(`analysis.tier.${slot.tier}`) }}
+            <Badge :variant="product.tier === 'dead' ? 'destructive' : 'secondary'">
+              {{ t(`analysis.tier.${product.tier}`) }}
             </Badge>
             <IconArrowRight class="size-4 shrink-0 text-muted-foreground" />
           </button>
@@ -212,52 +239,68 @@ const aiSwaps = computed(() =>
       </div>
     </template>
 
-    <!-- Slot detail sheet -->
+    <!-- Detail sheet -->
     <Sheet v-model:open="sheetOpen">
       <SheetContent class="w-full overflow-y-auto sm:max-w-md">
         <SheetHeader>
           <SheetTitle>
-            {{ selectedSlot?.product_name ?? t('analysis.emptySlot') }}
+            {{ selectedProduct?.name ?? t('analysis.emptySlot') }}
           </SheetTitle>
           <SheetDescription>
-            {{ t('analysis.slot') }} {{ selectedSlot?.item_number }}
+            <template v-if="targetSlotNumber != null">{{ t('analysis.slot') }} {{ targetSlotNumber }}</template>
           </SheetDescription>
         </SheetHeader>
 
-        <div v-if="selectedSlot" class="mt-4 space-y-5 px-1">
-          <!-- KPIs -->
-          <div class="grid grid-cols-2 gap-3">
-            <div class="rounded-lg border p-3">
-              <p class="text-xs text-muted-foreground">{{ t('analysis.unitsSold') }}</p>
-              <p class="text-lg font-semibold tabular-nums">{{ selectedSlot.units_sold }}</p>
+        <div class="mt-4 space-y-5 px-1">
+          <!-- Product performance (machine-wide) -->
+          <template v-if="selectedProduct">
+            <div class="grid grid-cols-2 gap-3">
+              <div class="rounded-lg border p-3">
+                <p class="text-xs text-muted-foreground">{{ t('analysis.unitsSold') }}</p>
+                <p class="text-lg font-semibold tabular-nums">{{ selectedProduct.units_sold }}</p>
+              </div>
+              <div class="rounded-lg border p-3">
+                <p class="text-xs text-muted-foreground">{{ t('analysis.revenue') }}</p>
+                <p class="text-lg font-semibold tabular-nums">{{ formatCurrency(selectedProduct.revenue_eur, locale) }}</p>
+              </div>
+              <div class="rounded-lg border p-3">
+                <p class="text-xs text-muted-foreground">{{ t('analysis.sellThrough') }}</p>
+                <p class="text-lg font-semibold tabular-nums">{{ Math.round(selectedProduct.sell_through_pct) }}%</p>
+              </div>
+              <div class="rounded-lg border p-3">
+                <p class="text-xs text-muted-foreground">{{ t('analysis.avgDaily') }}</p>
+                <p class="text-lg font-semibold tabular-nums">{{ selectedProduct.avg_daily_units }}</p>
+              </div>
             </div>
-            <div class="rounded-lg border p-3">
-              <p class="text-xs text-muted-foreground">{{ t('analysis.revenue') }}</p>
-              <p class="text-lg font-semibold tabular-nums">{{ formatCurrency(selectedSlot.revenue_eur, locale) }}</p>
-            </div>
-            <div class="rounded-lg border p-3">
-              <p class="text-xs text-muted-foreground">{{ t('analysis.sellThrough') }}</p>
-              <p class="text-lg font-semibold tabular-nums">{{ Math.round(selectedSlot.sell_through_pct) }}%</p>
-            </div>
-            <div class="rounded-lg border p-3">
-              <p class="text-xs text-muted-foreground">{{ t('analysis.avgDaily') }}</p>
-              <p class="text-lg font-semibold tabular-nums">{{ selectedSlot.avg_daily_units }}</p>
-            </div>
-          </div>
 
-          <p v-if="selectedSlot.days_in_slot != null" class="text-xs text-muted-foreground">
-            {{ t('analysis.inSlotFor', { days: selectedSlot.days_in_slot }) }}
-          </p>
-          <div v-if="selectedSlot.tier === 'testing'" class="rounded-lg border border-blue-400/40 bg-blue-400/10 p-3 text-sm">
-            {{ t('analysis.testingHint') }}
-          </div>
+            <p v-if="selectedProduct.tenure_days != null" class="text-xs text-muted-foreground">
+              {{ t('analysis.inMachineFor', { days: selectedProduct.tenure_days }) }}
+            </p>
 
-          <!-- Replacement suggestions -->
-          <div v-if="selectedSlot.suggestions.length > 0">
-            <h4 class="mb-2 text-sm font-medium">{{ t('analysis.suggestions') }}</h4>
+            <!-- Slots this product occupies -->
+            <div v-if="selectedProduct.slots.length > 1" class="flex flex-wrap items-center gap-1.5">
+              <span class="text-xs text-muted-foreground">{{ t('analysis.occupiesSlots') }}:</span>
+              <span
+                v-for="s in selectedProduct.slots"
+                :key="s"
+                class="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium tabular-nums"
+              >{{ s }}</span>
+            </div>
+
+            <div v-if="selectedProduct.tier === 'testing'" class="rounded-lg border border-blue-400/40 bg-blue-400/10 p-3 text-sm">
+              {{ t('analysis.testingHint') }}
+            </div>
+          </template>
+
+          <!-- Empty slot: offer products to fill it -->
+          <p v-else class="text-sm text-muted-foreground">{{ t('analysis.emptySlotHint') }}</p>
+
+          <!-- Replacement / fill suggestions -->
+          <div v-if="sheetSuggestions.length > 0">
+            <h4 class="mb-2 text-sm font-medium">{{ selectedProduct ? t('analysis.suggestions') : t('analysis.fillSuggestions') }}</h4>
             <div class="space-y-2">
               <div
-                v-for="sug in selectedSlot.suggestions"
+                v-for="sug in sheetSuggestions"
                 :key="sug.product_id"
                 class="flex items-center gap-3 rounded-lg border p-2.5"
               >
@@ -279,7 +322,7 @@ const aiSwaps = computed(() =>
                   </p>
                 </div>
                 <button
-                  v-if="props.isAdmin"
+                  v-if="props.isAdmin && targetTrayId"
                   class="inline-flex h-8 items-center gap-1 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
                   :disabled="applyingProductId !== null"
                   @click="handleApply(sug)"
@@ -289,7 +332,9 @@ const aiSwaps = computed(() =>
                 </button>
               </div>
             </div>
-            <p v-if="props.isAdmin" class="mt-2 text-xs text-muted-foreground">{{ t('analysis.swapHint') }}</p>
+            <p v-if="props.isAdmin && targetSlotNumber != null" class="mt-2 text-xs text-muted-foreground">
+              {{ t('analysis.swapHint', { slot: targetSlotNumber }) }}
+            </p>
           </div>
         </div>
       </SheetContent>

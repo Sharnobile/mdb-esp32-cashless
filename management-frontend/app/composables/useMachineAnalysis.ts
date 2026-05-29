@@ -3,38 +3,24 @@ import { useOrganization } from './useOrganization'
 import { getProductImageUrl } from './useProducts'
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Machine performance analysis
+// Product-centric machine performance analysis
 //
-// Combines three data sources to surface poorly-performing product slots and
-// suggest replacements:
-//   • get_machine_insights_kpis  → per-slot units_sold / sell-through / dead-stock
-//   • get_product_sales_velocity → fleet-wide avg daily units per product
-//   • machine_trays.created_at   → how long a product has occupied the slot
+// Performance is treated as a property of the PRODUCT, not the slot: a product's
+// sales are aggregated across every slot it occupies, and its "trial clock"
+// (tenure) survives being moved between trays. Sales attribution uses the
+// snapshotted sales.product_id; tenure comes from machine_product_offerings.
+// Both are aggregated server-side by get_machine_product_kpis.
 //
-// The slot layout (rows / columns / wide slots) is replicated 1:1 from the
-// native iOS app (ios/VMflow/Views/Refill/MachineLayoutGrid.swift): a fleet of
-// 10-column machines where item_number encodes position as
+// The slot layout grid (rows / columns / wide slots) is still rendered, but each
+// slot is coloured by ITS PRODUCT's tier — so a product spanning two slots
+// colours both identically. The layout maths is replicated 1:1 from the native
+// iOS app (ios/VMflow/Views/Refill/MachineLayoutGrid.swift):
 //   row    = max(0, floor(item_number / 10) - 1)
 //   column = item_number % 10
-// and a slot's physical width is the gap to the next occupied slot in its row.
+//   width  = gap to the next occupied slot in the row.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type SlotTier = 'empty' | 'testing' | 'dead' | 'weak' | 'ok' | 'strong'
-
-/** Raw per-tray KPI row as returned by get_machine_insights_kpis. */
-export interface TrayKpi {
-  item_number: number
-  product_name: string
-  product_id: string | null
-  capacity: number
-  current_stock: number
-  units_sold: number
-  revenue_eur: number
-  sell_through_pct: number
-  avg_daily_units: number
-  days_until_empty: number | null
-  is_dead_stock: boolean
-}
 
 export interface Suggestion {
   product_id: string
@@ -46,7 +32,30 @@ export interface Suggestion {
   velocity: number
 }
 
-export interface SlotAnalysis {
+/** Aggregated performance of one product within a single machine. */
+export interface ProductAnalysis {
+  product_id: string
+  name: string
+  image_url: string | null
+  /** item_numbers of the slots this product currently occupies. */
+  slots: number[]
+  /** tray ids of those slots (for applying swaps). */
+  trayIds: string[]
+  units_sold: number
+  revenue_eur: number
+  total_capacity: number
+  total_stock: number
+  sell_through_pct: number
+  avg_daily_units: number
+  days_until_empty: number | null
+  /** Days since the product was first offered in this machine (survives moves). */
+  tenure_days: number | null
+  tier: SlotTier
+  suggestions: Suggestion[]
+}
+
+/** A single cell in the rendered machine layout grid. */
+export interface GridSlot {
   trayId: string
   item_number: number
   row: number
@@ -55,17 +64,8 @@ export interface SlotAnalysis {
   product_id: string | null
   product_name: string | null
   image_url: string | null
-  capacity: number
-  current_stock: number
-  units_sold: number
-  revenue_eur: number
-  sell_through_pct: number
-  avg_daily_units: number
-  days_until_empty: number | null
-  /** Days since the tray (slot) was created — proxy for product tenure. */
-  days_in_slot: number | null
   tier: SlotTier
-  suggestions: Suggestion[]
+  sell_through_pct: number
 }
 
 const COLUMNS_PER_ROW = 10
@@ -110,7 +110,7 @@ export function computeSlotWidths(items: number[]): Map<number, number> {
 export interface ScoreOpts {
   /** Lookback window the KPIs were computed over. */
   days: number
-  /** Slots occupied for fewer days than this are kept in a "testing" grace period. */
+  /** Products offered for fewer days than this stay in a "testing" grace period. */
   gracePeriodDays?: number
   /** sell-through below this (%) is "weak". */
   weakSellThrough?: number
@@ -119,27 +119,27 @@ export interface ScoreOpts {
 }
 
 /**
- * Classify a slot's performance. Newly-stocked slots (occupied < grace period)
- * that would otherwise score dead/weak are surfaced as "testing" instead, so a
- * product that was only just placed isn't condemned before it has had a fair
- * chance — this is also how brand-new test products are tracked.
+ * Classify a product's performance in a machine. A product offered for fewer
+ * than the grace period — whether freshly placed OR a brand-new test product —
+ * that would otherwise score dead/weak is surfaced as "testing" instead, so it
+ * isn't condemned before it has had a fair chance. Because tenure is measured
+ * per (machine, product), moving the product between slots does NOT reset this.
  */
-export function scoreSlot(
-  row: Pick<SlotAnalysis, 'product_id' | 'units_sold' | 'sell_through_pct' | 'days_in_slot'>,
+export function scoreProduct(
+  p: { units_sold: number; sell_through_pct: number; tenure_days: number | null },
   opts: ScoreOpts,
 ): SlotTier {
-  if (!row.product_id) return 'empty'
   const weak = opts.weakSellThrough ?? 15
   const strong = opts.strongSellThrough ?? 40
   const grace = opts.gracePeriodDays ?? 14
 
   let base: SlotTier
-  if (row.units_sold <= 0) base = 'dead'
-  else if (row.sell_through_pct < weak) base = 'weak'
-  else if (row.sell_through_pct < strong) base = 'ok'
+  if (p.units_sold <= 0) base = 'dead'
+  else if (p.sell_through_pct < weak) base = 'weak'
+  else if (p.sell_through_pct < strong) base = 'ok'
   else base = 'strong'
 
-  if ((base === 'dead' || base === 'weak') && row.days_in_slot != null && row.days_in_slot < grace) {
+  if ((base === 'dead' || base === 'weak') && p.tenure_days != null && p.tenure_days < grace) {
     return 'testing'
   }
   return base
@@ -149,7 +149,7 @@ export interface SuggestionPoolParams {
   products: { id: string; name: string; image_url: string | null; discontinued: boolean }[]
   /** product_id → fleet-wide avg daily units. */
   velocity: Map<string, number>
-  /** product_ids already assigned to a slot in this machine. */
+  /** product_ids already offered in this machine. */
   productsInMachine: Set<string>
   maxBestsellers?: number
   maxNewcomers?: number
@@ -188,13 +188,41 @@ export function buildSuggestionPool(params: SuggestionPoolParams): {
   return { bestsellers, newcomers }
 }
 
+/** Build the layout grid cells, colouring each slot by its product's tier. */
+export function buildGridSlots(
+  trays: { id: string; item_number: number; product_id: string | null; product_name: string | null; image_url: string | null }[],
+  tierByProduct: Map<string, { tier: SlotTier; sell_through_pct: number }>,
+): GridSlot[] {
+  const widths = computeSlotWidths(trays.map(t => t.item_number))
+  return trays.map((t) => {
+    const { row, column } = slotRowCol(t.item_number)
+    const info = t.product_id ? tierByProduct.get(t.product_id) : undefined
+    return {
+      trayId: t.id,
+      item_number: t.item_number,
+      row,
+      column,
+      width: widths.get(t.item_number) ?? 1,
+      product_id: t.product_id,
+      product_name: t.product_name,
+      image_url: t.image_url,
+      tier: t.product_id ? (info?.tier ?? 'empty') : 'empty',
+      sell_through_pct: info?.sell_through_pct ?? 0,
+    }
+  })
+}
+
+const TIER_SEVERITY: Record<SlotTier, number> = { dead: 0, weak: 1, testing: 2, ok: 3, strong: 4, empty: 5 }
+
 // ── Composable ───────────────────────────────────────────────────────────────
 
 export function useMachineAnalysis() {
   const supabase = useSupabaseClient()
   const { organization } = useOrganization()
 
-  const slots = ref<SlotAnalysis[]>([])
+  const products = ref<ProductAnalysis[]>([])
+  const slots = ref<GridSlot[]>([])
+  const fillSuggestions = ref<Suggestion[]>([])
   const rowCount = ref(0)
   const loading = ref(false)
   const error = ref('')
@@ -202,27 +230,33 @@ export function useMachineAnalysis() {
 
   let currentMachineId: string | null = null
 
+  // Counts of distinct PRODUCTS in each tier.
   const tierCounts = computed(() => {
+    const counts: Record<SlotTier, number> = { empty: 0, testing: 0, dead: 0, weak: 0, ok: 0, strong: 0 }
+    for (const p of products.value) counts[p.tier]++
+    return counts
+  })
+
+  // Counts of SLOTS in each tier (for the grid legend).
+  const slotTierCounts = computed(() => {
     const counts: Record<SlotTier, number> = { empty: 0, testing: 0, dead: 0, weak: 0, ok: 0, strong: 0 }
     for (const s of slots.value) counts[s.tier]++
     return counts
   })
 
-  /** Underperforming, replaceable slots, worst first. */
-  const weakSlots = computed(() =>
-    slots.value
-      .filter(s => s.tier === 'dead' || s.tier === 'weak')
-      .sort((a, b) => a.sell_through_pct - b.sell_through_pct || a.units_sold - b.units_sold),
+  /** Underperforming products, worst first. */
+  const weakProducts = computed(() =>
+    products.value
+      .filter(p => p.tier === 'dead' || p.tier === 'weak')
+      .sort((a, b) => TIER_SEVERITY[a.tier] - TIER_SEVERITY[b.tier] || a.sell_through_pct - b.sell_through_pct),
   )
 
-  /** Estimated revenue currently "wasted" by dead/weak slots over the window. */
+  /** Rough estimate of revenue left on the table by dead/weak products. */
   const lostRevenuePotential = computed(() => {
-    // For each weak slot, the gap between its revenue and the median strong-slot
-    // revenue is an (intentionally rough) opportunity estimate.
-    const strong = slots.value.filter(s => s.tier === 'strong').map(s => s.revenue_eur).sort((a, b) => a - b)
+    const strong = products.value.filter(p => p.tier === 'strong').map(p => p.revenue_eur).sort((a, b) => a - b)
     if (strong.length === 0) return 0
     const median = strong[Math.floor(strong.length / 2)]!
-    return weakSlots.value.reduce((sum, s) => sum + Math.max(0, median - s.revenue_eur), 0)
+    return weakProducts.value.reduce((sum, p) => sum + Math.max(0, median - p.revenue_eur), 0)
   })
 
   async function analyze(machineId: string, windowDays = days.value) {
@@ -237,10 +271,10 @@ export function useMachineAnalysis() {
       const [trayRes, kpiRes, velocityRes, productsRes] = await Promise.all([
         (supabase as any)
           .from('machine_trays')
-          .select('id, item_number, product_id, capacity, current_stock, created_at, product_assigned_at, products(name, image_path)')
+          .select('id, item_number, product_id, products(name, image_path)')
           .eq('machine_id', machineId)
           .order('item_number'),
-        (supabase as any).rpc('get_machine_insights_kpis', {
+        (supabase as any).rpc('get_machine_product_kpis', {
           p_machine_id: machineId,
           p_company_id: companyId,
           p_days: windowDays,
@@ -258,25 +292,13 @@ export function useMachineAnalysis() {
       if (trayRes.error) throw trayRes.error
       if (kpiRes.error) throw kpiRes.error
 
-      const trays = (trayRes.data ?? []) as any[]
-
-      // KPI rows keyed by slot
-      const kpiByItem = new Map<number, TrayKpi>()
-      for (const k of (kpiRes.data?.trays ?? []) as any[]) {
-        kpiByItem.set(k.item_number, {
-          item_number: k.item_number,
-          product_name: k.product_name,
-          product_id: k.product_id,
-          capacity: k.capacity,
-          current_stock: k.current_stock,
-          units_sold: Number(k.units_sold) || 0,
-          revenue_eur: Number(k.revenue_eur) || 0,
-          sell_through_pct: Number(k.sell_through_pct) || 0,
-          avg_daily_units: Number(k.avg_daily_units) || 0,
-          days_until_empty: k.days_until_empty == null ? null : Number(k.days_until_empty),
-          is_dead_stock: !!k.is_dead_stock,
-        })
-      }
+      const trays = ((trayRes.data ?? []) as any[]).map(t => ({
+        id: t.id,
+        item_number: t.item_number,
+        product_id: t.product_id ?? null,
+        product_name: t.products?.name ?? null,
+        image_url: t.products?.image_path ? getProductImageUrl(t.products.image_path) : null,
+      }))
 
       // Fleet-wide velocity map
       const velocity = new Map<string, number>()
@@ -285,62 +307,76 @@ export function useMachineAnalysis() {
       }
 
       // Catalogue
-      const products = ((productsRes.data ?? []) as any[]).map(p => ({
+      const catalogue = ((productsRes.data ?? []) as any[]).map(p => ({
         id: p.id,
         name: p.name,
         image_url: p.image_path ? getProductImageUrl(p.image_path) : null,
         discontinued: !!p.discontinued,
       }))
+      const imageByProduct = new Map(catalogue.map(p => [p.id, p.image_url]))
 
       const productsInMachine = new Set<string>(
-        trays.map(t => t.product_id).filter((id: string | null): id is string => !!id),
+        trays.map(t => t.product_id).filter((id): id is string => !!id),
       )
-      const { bestsellers, newcomers } = buildSuggestionPool({ products, velocity, productsInMachine })
+      const { bestsellers, newcomers } = buildSuggestionPool({ products: catalogue, velocity, productsInMachine })
       const sharedSuggestions = [...bestsellers.slice(0, 3), ...newcomers.slice(0, 2)]
+      fillSuggestions.value = sharedSuggestions
 
-      const widths = computeSlotWidths(trays.map(t => t.item_number))
+      const trayIdsByProduct = new Map<string, string[]>()
+      for (const t of trays) {
+        if (!t.product_id) continue
+        if (!trayIdsByProduct.has(t.product_id)) trayIdsByProduct.set(t.product_id, [])
+        trayIdsByProduct.get(t.product_id)!.push(t.id)
+      }
+
       const now = Date.now()
-
-      const result: SlotAnalysis[] = trays.map((t) => {
-        const { row, column } = slotRowCol(t.item_number)
-        const kpi = kpiByItem.get(t.item_number)
-        // How long the CURRENT product has occupied the slot. Prefer the
-        // product-assignment timestamp; fall back to slot creation for rows
-        // predating the column / not yet backfilled.
-        const tenureAnchor = t.product_assigned_at ?? t.created_at
-        const daysInSlot = (t.product_id && tenureAnchor)
-          ? Math.floor((now - new Date(tenureAnchor).getTime()) / 86_400_000)
+      const analyses: ProductAnalysis[] = ((kpiRes.data?.products ?? []) as any[]).map((row) => {
+        const units = Number(row.units_sold) || 0
+        const capacity = Number(row.total_capacity) || 0
+        const stock = Number(row.total_stock) || 0
+        const sellThrough = capacity > 0 && windowDays > 0
+          ? Math.min((units / (capacity * windowDays / 7)) * 100, 100)
+          : 0
+        const avgDaily = windowDays > 0 ? units / windowDays : 0
+        const daysUntilEmpty = units > 0 && stock > 0
+          ? Math.round(stock / (units / windowDays))
+          : (stock === 0 ? 0 : null)
+        const tenureDays = row.offered_since
+          ? Math.floor((now - new Date(row.offered_since).getTime()) / 86_400_000)
           : null
-        const partial: SlotAnalysis = {
-          trayId: t.id,
-          item_number: t.item_number,
-          row,
-          column,
-          width: widths.get(t.item_number) ?? 1,
-          product_id: t.product_id ?? null,
-          product_name: t.products?.name ?? null,
-          image_url: t.products?.image_path ? getProductImageUrl(t.products.image_path) : null,
-          capacity: t.capacity ?? 0,
-          current_stock: t.current_stock ?? 0,
-          units_sold: kpi?.units_sold ?? 0,
-          revenue_eur: kpi?.revenue_eur ?? 0,
-          sell_through_pct: kpi?.sell_through_pct ?? 0,
-          avg_daily_units: kpi?.avg_daily_units ?? 0,
-          days_until_empty: kpi?.days_until_empty ?? null,
-          days_in_slot: daysInSlot,
-          tier: 'empty',
-          suggestions: [],
+
+        const tier = scoreProduct(
+          { units_sold: units, sell_through_pct: sellThrough, tenure_days: tenureDays },
+          { days: windowDays },
+        )
+
+        return {
+          product_id: row.product_id,
+          name: row.product_name ?? 'Unknown',
+          image_url: imageByProduct.get(row.product_id) ?? null,
+          slots: (row.slots ?? []) as number[],
+          trayIds: trayIdsByProduct.get(row.product_id) ?? [],
+          units_sold: units,
+          revenue_eur: Number(row.revenue_eur) || 0,
+          total_capacity: capacity,
+          total_stock: stock,
+          sell_through_pct: Math.round(sellThrough * 10) / 10,
+          avg_daily_units: Math.round(avgDaily * 100) / 100,
+          days_until_empty: daysUntilEmpty,
+          tenure_days: tenureDays,
+          tier,
+          suggestions: (tier === 'dead' || tier === 'weak')
+            ? sharedSuggestions.filter(s => s.product_id !== row.product_id)
+            : [],
         }
-        partial.tier = scoreSlot(partial, { days: windowDays })
-        if (partial.tier === 'dead' || partial.tier === 'weak') {
-          // Don't suggest the product that's already (under-performing) in the slot
-          partial.suggestions = sharedSuggestions.filter(s => s.product_id !== partial.product_id)
-        }
-        return partial
       })
 
-      slots.value = result
-      rowCount.value = result.reduce((max, s) => Math.max(max, s.row + 1), 0)
+      const tierByProduct = new Map<string, { tier: SlotTier; sell_through_pct: number }>()
+      for (const a of analyses) tierByProduct.set(a.product_id, { tier: a.tier, sell_through_pct: a.sell_through_pct })
+
+      products.value = analyses
+      slots.value = buildGridSlots(trays, tierByProduct)
+      rowCount.value = slots.value.reduce((max, s) => Math.max(max, s.row + 1), 0)
     } catch (err: unknown) {
       error.value = err instanceof Error ? err.message : 'Failed to analyze machine'
     } finally {
@@ -350,8 +386,9 @@ export function useMachineAnalysis() {
 
   /**
    * Swap the product assigned to a slot. Resets stock to 0 (the old product is
-   * physically removed) and re-runs the analysis. The page's tray realtime
-   * subscription keeps the Trays & Stock tab in sync automatically.
+   * physically removed) and re-runs the analysis. The offering-history trigger
+   * keeps tenure correct; the page's tray realtime subscription keeps the
+   * Trays & Stock tab in sync.
    */
   async function applySwap(trayId: string, productId: string) {
     if (!currentMachineId) return
@@ -389,5 +426,19 @@ export function useMachineAnalysis() {
     await analyze(currentMachineId, days.value)
   }
 
-  return { slots, rowCount, loading, error, days, tierCounts, weakSlots, lostRevenuePotential, analyze, applySwap }
+  return {
+    products,
+    slots,
+    fillSuggestions,
+    rowCount,
+    loading,
+    error,
+    days,
+    tierCounts,
+    slotTierCounts,
+    weakProducts,
+    lostRevenuePotential,
+    analyze,
+    applySwap,
+  }
 }

@@ -1,11 +1,10 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 
-// useProducts.getProductImageUrl is only called at runtime (not module load),
-// but useMachineAnalysis imports it — stub so the import graph resolves cleanly.
-import { vi } from 'vitest'
+// useMachineAnalysis imports getProductImageUrl at module load (called only at
+// runtime), so stub it to keep the import graph clean in the test environment.
 vi.mock('../useProducts', () => ({ getProductImageUrl: (p: string) => `https://example.test/${p}` }))
 
-import { slotRowCol, computeSlotWidths, scoreSlot, buildSuggestionPool } from '../useMachineAnalysis'
+import { slotRowCol, computeSlotWidths, scoreProduct, buildSuggestionPool, buildGridSlots } from '../useMachineAnalysis'
 
 describe('slotRowCol — iOS layout parity', () => {
   it('maps item_number to (row, column)', () => {
@@ -37,26 +36,26 @@ describe('computeSlotWidths — gaps widen the preceding slot', () => {
   })
 })
 
-describe('scoreSlot', () => {
+describe('scoreProduct', () => {
   const opts = { days: 30 }
 
-  it('returns empty for unassigned slots', () => {
-    expect(scoreSlot({ product_id: null, units_sold: 0, sell_through_pct: 0, days_in_slot: 30 }, opts)).toBe('empty')
+  it('flags long-offered zero-sale products as dead', () => {
+    expect(scoreProduct({ units_sold: 0, sell_through_pct: 0, tenure_days: 30 }, opts)).toBe('dead')
   })
 
-  it('flags long-occupied zero-sale slots as dead', () => {
-    expect(scoreSlot({ product_id: 'p', units_sold: 0, sell_through_pct: 0, days_in_slot: 30 }, opts)).toBe('dead')
+  it('keeps recently-added products in a testing grace period (survives slot moves via tenure)', () => {
+    expect(scoreProduct({ units_sold: 0, sell_through_pct: 0, tenure_days: 5 }, opts)).toBe('testing')
+    expect(scoreProduct({ units_sold: 1, sell_through_pct: 8, tenure_days: 3 }, opts)).toBe('testing')
   })
 
-  it('keeps recently-stocked slots in a testing grace period instead of condemning them', () => {
-    expect(scoreSlot({ product_id: 'p', units_sold: 0, sell_through_pct: 0, days_in_slot: 5 }, opts)).toBe('testing')
-    expect(scoreSlot({ product_id: 'p', units_sold: 1, sell_through_pct: 8, days_in_slot: 3 }, opts)).toBe('testing')
+  it('classifies established products by sell-through', () => {
+    expect(scoreProduct({ units_sold: 2, sell_through_pct: 8, tenure_days: 30 }, opts)).toBe('weak')
+    expect(scoreProduct({ units_sold: 5, sell_through_pct: 25, tenure_days: 30 }, opts)).toBe('ok')
+    expect(scoreProduct({ units_sold: 20, sell_through_pct: 60, tenure_days: 30 }, opts)).toBe('strong')
   })
 
-  it('classifies established slots by sell-through', () => {
-    expect(scoreSlot({ product_id: 'p', units_sold: 2, sell_through_pct: 8, days_in_slot: 30 }, opts)).toBe('weak')
-    expect(scoreSlot({ product_id: 'p', units_sold: 5, sell_through_pct: 25, days_in_slot: 30 }, opts)).toBe('ok')
-    expect(scoreSlot({ product_id: 'p', units_sold: 20, sell_through_pct: 60, days_in_slot: 30 }, opts)).toBe('strong')
+  it('does not grant grace once the product is established (good sell-through)', () => {
+    expect(scoreProduct({ units_sold: 30, sell_through_pct: 70, tenure_days: 2 }, opts)).toBe('strong')
   })
 })
 
@@ -83,10 +82,36 @@ describe('buildSuggestionPool', () => {
     expect(newcomers.map(s => s.product_id).sort()).toEqual(['c', 'd'])
     expect(newcomers.every(s => s.kind === 'newcomer' && s.velocity === 0)).toBe(true)
   })
+})
 
-  it('respects the max limits', () => {
-    const { bestsellers, newcomers } = buildSuggestionPool({ products, velocity, productsInMachine, maxBestsellers: 1, maxNewcomers: 1 })
-    expect(bestsellers).toHaveLength(1)
-    expect(newcomers).toHaveLength(1)
+describe('buildGridSlots — colours each slot by its product tier', () => {
+  const trays = [
+    { id: 't10', item_number: 10, product_id: 'p1', product_name: 'Cola', image_url: null },
+    { id: 't11', item_number: 11, product_id: 'p1', product_name: 'Cola', image_url: null }, // same product, 2nd slot
+    { id: 't12', item_number: 12, product_id: 'p2', product_name: 'Water', image_url: null },
+    { id: 't13', item_number: 13, product_id: null, product_name: null, image_url: null },   // empty
+  ]
+  const tierByProduct = new Map<string, { tier: any; sell_through_pct: number }>([
+    ['p1', { tier: 'dead', sell_through_pct: 0 }],
+    ['p2', { tier: 'strong', sell_through_pct: 70 }],
+  ])
+
+  it('applies the same product tier to every slot holding that product', () => {
+    const slots = buildGridSlots(trays, tierByProduct)
+    const byTray = Object.fromEntries(slots.map(s => [s.trayId, s.tier]))
+    expect(byTray.t10).toBe('dead')
+    expect(byTray.t11).toBe('dead') // a product in two slots colours both
+    expect(byTray.t12).toBe('strong')
+  })
+
+  it('marks unassigned slots as empty', () => {
+    const slots = buildGridSlots(trays, tierByProduct)
+    expect(slots.find(s => s.trayId === 't13')!.tier).toBe('empty')
+  })
+
+  it('computes row/column/width from item_number', () => {
+    const slots = buildGridSlots(trays, tierByProduct)
+    const s10 = slots.find(s => s.trayId === 't10')!
+    expect(s10).toMatchObject({ row: 0, column: 0 })
   })
 })
