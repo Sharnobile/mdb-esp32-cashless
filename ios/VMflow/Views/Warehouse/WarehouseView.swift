@@ -9,7 +9,15 @@ struct WarehouseView: View {
     @State private var quantityText = ""
     @State private var showScanner = false
     @State private var scanError: String?
+    @State private var productDetailSelection: ProductDetailSelection?
     @FocusState private var quantityFieldFocused: Bool
+
+    /// Identifies the product whose detail sheet is presented (image tap).
+    private struct ProductDetailSelection: Identifiable {
+        let id: UUID
+        let name: String
+        let imagePath: String?
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -80,6 +88,14 @@ struct WarehouseView: View {
                 }
                 .ignoresSafeArea(.all, edges: .bottom)
             }
+        }
+        .sheet(item: $productDetailSelection) { sel in
+            ProductDetailSheet(
+                productId: sel.id,
+                fallbackName: sel.name,
+                fallbackImagePath: sel.imagePath,
+                fallbackSellprice: nil
+            )
         }
         .alert("Barcode Not Found", isPresented: .init(
             get: { scanError != nil },
@@ -199,7 +215,13 @@ struct WarehouseView: View {
                                     )
                                     .environmentObject(viewModel)
                                 } label: {
-                                    StockSummaryRow(summary: summary)
+                                    StockSummaryRow(summary: summary) {
+                                        productDetailSelection = ProductDetailSelection(
+                                            id: summary.productId,
+                                            name: summary.productName,
+                                            imagePath: summary.imagePath
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -463,10 +485,17 @@ struct WarehouseView: View {
 
 struct StockSummaryRow: View {
     let summary: WarehouseProductSummary
+    /// Tapping the product image opens the product detail (separate from the
+    /// row's NavigationLink, which goes to the batches view).
+    var onImageTap: () -> Void = {}
 
     var body: some View {
         HStack(spacing: 12) {
-            ProductImage(imagePath: summary.imagePath, size: 40)
+            Button(action: onImageTap) {
+                ProductImage(imagePath: summary.imagePath, size: 40)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.borderless)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(summary.productName)

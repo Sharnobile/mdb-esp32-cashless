@@ -4,43 +4,80 @@ export interface SuggestedImage {
   title: string
 }
 
+const PAGE_SIZE = 8
+
+interface ImagePage {
+  images: SuggestedImage[]
+  hasMore: boolean
+}
+
 export function useProductImageSearch() {
   const supabase = useSupabaseClient()
   const images = ref<SuggestedImage[]>([])
   const searching = ref(false)
+  const loadingMore = ref(false)
+  const hasMore = ref(false)
   const error = ref('')
-  const cache = new Map<string, SuggestedImage[]>()
+  const cache = new Map<string, ImagePage>()
 
   let debounceTimer: ReturnType<typeof setTimeout> | null = null
+  let currentQuery = ''
+  let currentOffset = 0
+
+  async function fetchPage(q: string, offset: number): Promise<ImagePage> {
+    const cacheKey = `${q}|${offset}`
+    if (cache.has(cacheKey)) return cache.get(cacheKey)!
+
+    const { data, error: fnError } = await (supabase as any).functions.invoke('search-product-images', {
+      body: { query: q, offset },
+    })
+    if (fnError) throw fnError
+    const page: ImagePage = { images: data?.images ?? [], hasMore: data?.hasMore ?? false }
+    cache.set(cacheKey, page)
+    return page
+  }
 
   async function searchImages(query: string) {
     const q = query.trim()
     if (!q || q.length < 2) {
       images.value = []
+      hasMore.value = false
+      currentQuery = ''
       return
     }
 
-    // Check cache
-    if (cache.has(q)) {
-      images.value = cache.get(q)!
-      return
-    }
-
+    currentQuery = q
+    currentOffset = 0
     searching.value = true
     error.value = ''
     try {
-      const { data, error: fnError } = await (supabase as any).functions.invoke('search-product-images', {
-        body: { query: q },
-      })
-      if (fnError) throw fnError
-      const results = data?.images ?? []
-      cache.set(q, results)
-      images.value = results
+      const page = await fetchPage(q, 0)
+      images.value = page.images
+      hasMore.value = page.hasMore
     } catch (err: any) {
       error.value = err.message ?? 'Search failed'
       images.value = []
+      hasMore.value = false
     } finally {
       searching.value = false
+    }
+  }
+
+  async function loadMore() {
+    if (!currentQuery || loadingMore.value || !hasMore.value) return
+    loadingMore.value = true
+    error.value = ''
+    try {
+      const nextOffset = currentOffset + PAGE_SIZE
+      const page = await fetchPage(currentQuery, nextOffset)
+      currentOffset = nextOffset
+      const seen = new Set(images.value.map(i => i.image))
+      images.value = [...images.value, ...page.images.filter(i => !seen.has(i.image))]
+      hasMore.value = page.hasMore
+    } catch (err: any) {
+      error.value = err.message ?? 'Search failed'
+    } finally {
+      loadingMore.value = false
     }
   }
 
@@ -82,8 +119,11 @@ export function useProductImageSearch() {
   function clear() {
     images.value = []
     error.value = ''
+    hasMore.value = false
+    currentQuery = ''
+    currentOffset = 0
     if (debounceTimer) clearTimeout(debounceTimer)
   }
 
-  return { images, searching, error, searchDebounced, downloadImage, clear }
+  return { images, searching, loadingMore, hasMore, error, searchDebounced, loadMore, downloadImage, clear }
 }

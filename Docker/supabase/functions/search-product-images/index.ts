@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { decode, Image } from 'https://deno.land/x/imagescript@1.3.0/mod.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -7,6 +8,11 @@ const corsHeaders = {
 }
 
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; rv:102.0) Gecko/20100101 Firefox/102.0'
+
+const PAGE_SIZE = 8
+// Downscale downloaded suggestions so stored product images stay small.
+const MAX_IMAGE_DIM = 600
+const JPEG_QUALITY = 80
 
 interface ImageResult {
   thumbnail: string
@@ -35,7 +41,7 @@ async function getVqd(query: string): Promise<string> {
   throw new Error('Failed to extract VQD token')
 }
 
-async function searchImages(query: string): Promise<ImageResult[]> {
+async function searchImages(query: string, offset: number): Promise<{ images: ImageResult[]; hasMore: boolean }> {
   const vqd = await getVqd(query)
   const params = new URLSearchParams({
     q: query,
@@ -60,13 +66,38 @@ async function searchImages(query: string): Promise<ImageResult[]> {
   }
 
   const data = await response.json()
-  const results = (data.results ?? []).slice(0, 8)
+  const all = (data.results ?? []) as any[]
+  // Page server-side from the full result list so arbitrary offsets are exact,
+  // independent of how DuckDuckGo's own `s` cursor snaps.
+  const page = all.slice(offset, offset + PAGE_SIZE)
 
-  return results.map((r: any) => ({
-    thumbnail: r.thumbnail ?? '',
-    image: r.image ?? '',
-    title: r.title ?? '',
-  }))
+  return {
+    images: page.map((r: any) => ({
+      thumbnail: r.thumbnail ?? '',
+      image: r.image ?? '',
+      title: r.title ?? '',
+    })),
+    hasMore: all.length > offset + PAGE_SIZE,
+  }
+}
+
+// Decode, downscale to MAX_IMAGE_DIM on the longest edge, re-encode as JPEG.
+// Returns null on any failure so the caller falls back to the original bytes.
+async function shrinkImage(bytes: Uint8Array): Promise<Uint8Array | null> {
+  try {
+    const decoded = await decode(bytes)
+    if (!(decoded instanceof Image)) return null // skip animated GIFs etc.
+    let img = decoded
+    const longest = Math.max(img.width, img.height)
+    if (longest > MAX_IMAGE_DIM) {
+      img = img.width >= img.height
+        ? img.resize(MAX_IMAGE_DIM, Image.RESIZE_AUTO)
+        : img.resize(Image.RESIZE_AUTO, MAX_IMAGE_DIM)
+    }
+    return await img.encodeJPEG(JPEG_QUALITY)
+  } catch {
+    return null
+  }
 }
 
 async function proxyImage(url: string): Promise<Response> {
@@ -81,10 +112,14 @@ async function proxyImage(url: string): Promise<Response> {
     })
   }
 
-  const contentType = response.headers.get('Content-Type') ?? 'image/jpeg'
-  const body = await response.arrayBuffer()
+  const originalType = response.headers.get('Content-Type') ?? 'image/jpeg'
+  const originalBytes = new Uint8Array(await response.arrayBuffer())
 
-  return new Response(body, {
+  const shrunk = await shrinkImage(originalBytes)
+  const body = shrunk ?? originalBytes
+  const contentType = shrunk ? 'image/jpeg' : originalType
+
+  return new Response(body as BodyInit, {
     status: 200,
     headers: {
       ...corsHeaders,
@@ -126,8 +161,11 @@ Deno.serve(async (req) => {
         })
       }
 
-      const images = await searchImages(query)
-      return new Response(JSON.stringify({ images }), {
+      const rawOffset = Number(body.offset ?? 0)
+      const offset = Number.isFinite(rawOffset) && rawOffset > 0 ? Math.floor(rawOffset) : 0
+
+      const { images, hasMore } = await searchImages(query, offset)
+      return new Response(JSON.stringify({ images, hasMore }), {
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
@@ -151,7 +189,7 @@ Deno.serve(async (req) => {
     })
   } catch (err) {
     console.error('search-product-images error:', err)
-    return new Response(JSON.stringify({ error: err?.message ?? 'Internal error' }), {
+    return new Response(JSON.stringify({ error: (err as any)?.message ?? 'Internal error' }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })

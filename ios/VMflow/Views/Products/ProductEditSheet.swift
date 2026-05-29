@@ -27,6 +27,9 @@ struct ProductEditSheet: View {
     // Image search
     @State private var suggestedImages: [ProductsViewModel.SuggestedImage] = []
     @State private var isSearchingImages = false
+    @State private var isLoadingMoreImages = false
+    @State private var hasMoreImages = false
+    @State private var imageOffset = 0
     @State private var selectedSuggestedImageUrl: String?
     @State private var selectedThumbnailUrl: String?
     @State private var searchTask: Task<Void, Never>?
@@ -168,7 +171,10 @@ struct ProductEditSheet: View {
                 // Auto-search if product has no image yet
                 if product?.imagePath == nil, name.count >= 2 {
                     isSearchingImages = true
-                    suggestedImages = await viewModel.searchImages(query: name)
+                    imageOffset = 0
+                    let page = await viewModel.searchImages(query: name)
+                    suggestedImages = page.images
+                    hasMoreImages = page.hasMore
                     isSearchingImages = false
                 }
             }
@@ -325,6 +331,26 @@ struct ProductEditSheet: View {
                         .buttonStyle(.plain)
                     }
                 }
+
+                if hasMoreImages || isLoadingMoreImages {
+                    Button {
+                        loadMoreImages()
+                    } label: {
+                        HStack {
+                            Spacer()
+                            if isLoadingMoreImages {
+                                ProgressView().controlSize(.small)
+                            } else {
+                                Text("Show 8 more")
+                            }
+                            Spacer()
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(isLoadingMoreImages)
+                    .padding(.top, 4)
+                }
             }
         }
     }
@@ -345,8 +371,29 @@ struct ProductEditSheet: View {
             try? await Task.sleep(nanoseconds: 600_000_000) // 600ms debounce
             guard !Task.isCancelled else { return }
             isSearchingImages = true
-            suggestedImages = await viewModel.searchImages(query: query)
+            imageOffset = 0
+            let page = await viewModel.searchImages(query: query)
+            guard !Task.isCancelled else { return }
+            suggestedImages = page.images
+            hasMoreImages = page.hasMore
             isSearchingImages = false
+        }
+    }
+
+    /// Loads the next page of 8 suggestions and appends them.
+    private func loadMoreImages() {
+        let query = name.trimmingCharacters(in: .whitespaces)
+        guard query.count >= 2, hasMoreImages, !isLoadingMoreImages else { return }
+
+        Task {
+            isLoadingMoreImages = true
+            let nextOffset = imageOffset + 8
+            let page = await viewModel.searchImages(query: query, offset: nextOffset)
+            imageOffset = nextOffset
+            let existing = Set(suggestedImages.map(\.image))
+            suggestedImages.append(contentsOf: page.images.filter { !existing.contains($0.image) })
+            hasMoreImages = page.hasMore
+            isLoadingMoreImages = false
         }
     }
 

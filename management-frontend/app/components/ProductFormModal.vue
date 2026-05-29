@@ -13,7 +13,7 @@ const { t } = useI18n()
 const { organization, role } = useOrganization()
 const { products, categories, createProduct, updateProduct, uploadProductImage, deleteProductImage } = useProducts()
 const { barcodes: allBarcodes, addBarcode, removeBarcode } = useWarehouse()
-const { images: suggestedImages, searching: searchingImages, searchDebounced, downloadImage: downloadSuggestedImage, clear: clearImageSearch } = useProductImageSearch()
+const { images: suggestedImages, searching: searchingImages, loadingMore: loadingMoreImages, hasMore: hasMoreImages, searchDebounced, loadMore: loadMoreImages, downloadImage: downloadSuggestedImage, clear: clearImageSearch } = useProductImageSearch()
 
 const isAdmin = computed(() => role.value === 'admin')
 
@@ -283,18 +283,30 @@ async function submitProduct() {
           <div v-if="searchingImages" class="flex items-center gap-2 text-xs text-muted-foreground">
             <svg class="size-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
           </div>
-          <div v-else class="grid grid-cols-4 gap-1.5">
+          <template v-else>
+            <div class="grid grid-cols-4 gap-1.5">
+              <button
+                v-for="img in suggestedImages"
+                :key="img.image"
+                type="button"
+                class="group relative aspect-square overflow-hidden rounded-md border hover:ring-2 hover:ring-primary"
+                :title="img.title"
+                @click="selectSuggestedImage(img.thumbnail, img.image)"
+              >
+                <img :src="img.thumbnail" :alt="img.title" class="h-full w-full object-cover" loading="lazy" />
+              </button>
+            </div>
             <button
-              v-for="img in suggestedImages"
-              :key="img.image"
+              v-if="hasMoreImages || loadingMoreImages"
               type="button"
-              class="group relative aspect-square overflow-hidden rounded-md border hover:ring-2 hover:ring-primary"
-              :title="img.title"
-              @click="selectSuggestedImage(img.thumbnail, img.image)"
+              :disabled="loadingMoreImages"
+              class="mt-1.5 inline-flex h-8 w-full items-center justify-center gap-2 rounded-md border text-xs font-medium hover:bg-muted disabled:opacity-50"
+              @click="loadMoreImages"
             >
-              <img :src="img.thumbnail" :alt="img.title" class="h-full w-full object-cover" loading="lazy" />
+              <svg v-if="loadingMoreImages" class="size-3.5 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+              {{ loadingMoreImages ? t('common.loading') : t('products.showMoreImages') }}
             </button>
-          </div>
+          </template>
         </div>
       </div>
 

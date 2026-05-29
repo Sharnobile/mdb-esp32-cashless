@@ -331,13 +331,23 @@ final class ProductsViewModel: ObservableObject {
         let title: String
     }
 
+    /// One page of image suggestions plus whether more pages are available.
+    struct ImageSearchPage {
+        let images: [SuggestedImage]
+        let hasMore: Bool
+
+        static let empty = ImageSearchPage(images: [], hasMore: false)
+    }
+
     /// Searches DuckDuckGo for product images via the edge function.
-    func searchImages(query: String) async -> [SuggestedImage] {
-        guard query.count >= 2 else { return [] }
+    /// `offset` pages through the result list (8 per page).
+    func searchImages(query: String, offset: Int = 0) async -> ImageSearchPage {
+        guard query.count >= 2 else { return .empty }
 
         do {
             struct SearchResponse: Decodable {
                 let images: [ImageResult]
+                let hasMore: Bool?
                 struct ImageResult: Decodable {
                     let thumbnail: String
                     let image: String
@@ -345,38 +355,47 @@ final class ProductsViewModel: ObservableObject {
                 }
             }
 
+            let body: [String: AnyJSON] = ["query": .string(query), "offset": .integer(offset)]
             let response: SearchResponse = try await client.functions.invoke(
                 "search-product-images",
-                options: .init(body: ["query": query])
+                options: .init(body: body)
             )
 
-            return response.images.map {
-                SuggestedImage(thumbnail: $0.thumbnail, image: $0.image, title: $0.title)
-            }
+            return ImageSearchPage(
+                images: response.images.map {
+                    SuggestedImage(thumbnail: $0.thumbnail, image: $0.image, title: $0.title)
+                },
+                hasMore: response.hasMore ?? false
+            )
         } catch {
             print("[ProductsVM] Image search failed: \(error)")
-            return []
+            return .empty
         }
     }
 
-    /// Downloads an image from a URL and uploads it to the product-images bucket.
+    /// Downloads a suggested image and uploads it to the product-images bucket.
+    /// Routes through the edge function's proxy (downloadUrl mode) so the backend
+    /// downscales the image before it lands in storage.
     func downloadAndUploadImage(productId: UUID, imageUrl: String) async {
-        guard let url = URL(string: imageUrl) else { return }
-
         isSaving = true
         do {
-            let (data, response) = try await URLSession.shared.data(from: url)
-
-            // Detect file extension from content type
-            let contentType = (response as? HTTPURLResponse)?.value(forHTTPHeaderField: "Content-Type") ?? ""
-            let ext: String
-            if contentType.contains("png") {
-                ext = "png"
-            } else if contentType.contains("webp") {
-                ext = "webp"
-            } else {
-                ext = "jpg"
-            }
+            var ext = "jpg"
+            let body: [String: AnyJSON] = ["downloadUrl": .string(imageUrl)]
+            let data: Data = try await client.functions.invoke(
+                "search-product-images",
+                options: .init(body: body),
+                decode: { data, response in
+                    let contentType = response.value(forHTTPHeaderField: "Content-Type") ?? ""
+                    if contentType.contains("png") {
+                        ext = "png"
+                    } else if contentType.contains("webp") {
+                        ext = "webp"
+                    } else {
+                        ext = "jpg"
+                    }
+                    return data
+                }
+            )
 
             await uploadProductImage(productId: productId, imageData: data, fileExtension: ext)
         } catch is CancellationError {
