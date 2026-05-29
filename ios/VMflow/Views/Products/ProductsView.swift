@@ -39,6 +39,7 @@ struct ProductsTabView: View {
     @ObservedObject var viewModel: ProductsViewModel
     @State private var showAddSheet = false
     @State private var editingProduct: Product?
+    @State private var detailProduct: Product?
 
     var body: some View {
         Group {
@@ -101,6 +102,14 @@ struct ProductsTabView: View {
                 }
             )
         }
+        .sheet(item: $detailProduct) { product in
+            ProductDetailSheet(
+                productId: product.id,
+                fallbackName: product.name ?? "",
+                fallbackImagePath: product.imagePath,
+                fallbackSellprice: product.sellprice
+            )
+        }
     }
 
     private var emptyState: some View {
@@ -130,7 +139,8 @@ struct ProductsTabView: View {
             ForEach(viewModel.filteredProducts) { product in
                 ProductRow(
                     product: product,
-                    categoryName: viewModel.categoryName(for: product.category)
+                    categoryName: viewModel.categoryName(for: product.category),
+                    onImageTap: { detailProduct = product }
                 )
                 .contentShape(Rectangle())
                 .onTapGesture {
@@ -155,10 +165,17 @@ struct ProductsTabView: View {
 struct ProductRow: View {
     let product: Product
     let categoryName: String?
+    /// Tapping the product image opens the product detail (separate from the
+    /// row tap, which opens the edit sheet).
+    var onImageTap: () -> Void = {}
 
     var body: some View {
         HStack(spacing: 12) {
-            ProductImage(imagePath: product.imagePath, size: 40)
+            Button(action: onImageTap) {
+                ProductImage(imagePath: product.imagePath, size: 40)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.borderless)
 
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {

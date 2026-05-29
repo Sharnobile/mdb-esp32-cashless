@@ -19,6 +19,29 @@ final class WarehouseViewModel: ObservableObject {
     @Published var error: String?
     @Published var searchText = ""
 
+    // Stock list filters (parity with management frontend)
+    @Published var includeOutOfStock = false
+    @Published var includeArchived = false
+    @Published var expirationFilter: ExpirationFilterOption = .all
+
+    /// Filter options for the stock list's expiration severity.
+    enum ExpirationFilterOption: String, CaseIterable, Identifiable {
+        case all, expiringSoon, critical
+        var id: String { rawValue }
+        var label: String {
+            switch self {
+            case .all: return "All"
+            case .expiringSoon: return "Expiring soon"
+            case .critical: return "Critical / expired"
+            }
+        }
+    }
+
+    /// True when any filter deviates from the default (active in-stock) view.
+    var hasActiveFilters: Bool {
+        includeOutOfStock || includeArchived || expirationFilter != .all
+    }
+
     // Intake form state
     @Published var intakeProductId: UUID?
     @Published var intakeQuantity: Int = 1
@@ -31,16 +54,32 @@ final class WarehouseViewModel: ObservableObject {
 
     // MARK: - Computed
 
-    /// Product summaries filtered by search text, sorted: out of stock first, then low, then by name.
+    /// Product summaries after search + filters, sorted: archived last, then
+    /// out of stock first, then low, then by name.
     var filteredSummaries: [WarehouseProductSummary] {
-        let filtered: [WarehouseProductSummary]
-        if searchText.isEmpty {
-            filtered = productSummaries
-        } else {
+        var items = productSummaries
+
+        if !searchText.isEmpty {
             let query = searchText.lowercased()
-            filtered = productSummaries.filter { $0.productName.lowercased().contains(query) }
+            items = items.filter { $0.productName.lowercased().contains(query) }
         }
-        return filtered.sorted { lhs, rhs in
+        if !includeArchived {
+            items = items.filter { !$0.discontinued }
+        }
+        if !includeOutOfStock {
+            items = items.filter { !$0.isOutOfStock }
+        }
+        switch expirationFilter {
+        case .all:
+            break
+        case .expiringSoon:
+            items = items.filter { $0.expirationStatus == .warning || $0.expirationStatus == .critical }
+        case .critical:
+            items = items.filter { $0.expirationStatus == .critical }
+        }
+
+        return items.sorted { lhs, rhs in
+            if lhs.discontinued != rhs.discontinued { return !lhs.discontinued }
             if lhs.isOutOfStock != rhs.isOutOfStock { return lhs.isOutOfStock }
             if lhs.isLow != rhs.isLow { return lhs.isLow }
             return lhs.productName.localizedCaseInsensitiveCompare(rhs.productName) == .orderedAscending
@@ -73,7 +112,10 @@ final class WarehouseViewModel: ObservableObject {
 
     // MARK: - Load Product Summaries
 
-    /// Fetches stock batches for the selected warehouse, grouped by product.
+    /// Builds a summary for EVERY product (incl. zero-stock and discontinued),
+    /// merged with the selected warehouse's batches. Mirrors the management
+    /// frontend's `fetchProductSummaries` so out-of-stock / expired / archived
+    /// products can be surfaced via the stock-list filters.
     func loadProductSummaries() async {
         guard let warehouseId = selectedWarehouseId else {
             productSummaries = []
@@ -81,79 +123,73 @@ final class WarehouseViewModel: ObservableObject {
         }
 
         do {
-            // Fetch all batches for this warehouse with quantity > 0
-            struct BatchWithProduct: Codable {
+            struct ProductRow: Decodable {
                 let id: UUID
+                let name: String?
+                let imagePath: String?
+                let discontinued: Bool?
+
+                enum CodingKeys: String, CodingKey {
+                    case id, name, discontinued
+                    case imagePath = "image_path"
+                }
+            }
+            struct BatchRow: Decodable {
                 let productId: UUID
                 let quantity: Int
                 let expirationDate: String?
-                let products: BatchProduct?
-
-                struct BatchProduct: Codable {
-                    let name: String?
-                    let imagePath: String?
-
-                    enum CodingKeys: String, CodingKey {
-                        case name
-                        case imagePath = "image_path"
-                    }
-                }
 
                 enum CodingKeys: String, CodingKey {
-                    case id, quantity, products
+                    case quantity
                     case productId = "product_id"
                     case expirationDate = "expiration_date"
                 }
             }
 
-            let batches: [BatchWithProduct] = try await client
+            async let productsRes: [ProductRow] = client
+                .from("products")
+                .select("id, name, image_path, discontinued")
+                .order("name")
+                .execute()
+                .value
+            async let batchesRes: [BatchRow] = client
                 .from("warehouse_stock_batches")
-                .select("id, product_id, quantity, expiration_date, products(name, image_path)")
+                .select("product_id, quantity, expiration_date")
                 .eq("warehouse_id", value: warehouseId.uuidString)
                 .gt("quantity", value: 0)
                 .execute()
                 .value
 
-            // Group by product_id
-            var grouped: [UUID: (name: String, imagePath: String?, totalQty: Int, batchCount: Int, earliestExp: String?)] = [:]
+            let (productRows, batchRows) = try await (productsRes, batchesRes)
 
-            for batch in batches {
-                let productName = batch.products?.name ?? "Unknown"
-                let imagePath = batch.products?.imagePath
-
-                if var existing = grouped[batch.productId] {
-                    existing.totalQty += batch.quantity
-                    existing.batchCount += 1
-                    // Track earliest expiration
-                    if let exp = batch.expirationDate {
-                        if let currentEarliest = existing.earliestExp {
-                            if exp < currentEarliest {
-                                existing.earliestExp = exp
-                            }
-                        } else {
-                            existing.earliestExp = exp
-                        }
+            // Aggregate batches per product
+            var stock: [UUID: (total: Int, count: Int, earliest: String?)] = [:]
+            for batch in batchRows {
+                var entry = stock[batch.productId] ?? (total: 0, count: 0, earliest: nil)
+                entry.total += batch.quantity
+                entry.count += 1
+                if let exp = batch.expirationDate {
+                    if let current = entry.earliest {
+                        if exp < current { entry.earliest = exp }
+                    } else {
+                        entry.earliest = exp
                     }
-                    grouped[batch.productId] = existing
-                } else {
-                    grouped[batch.productId] = (
-                        name: productName,
-                        imagePath: imagePath,
-                        totalQty: batch.quantity,
-                        batchCount: 1,
-                        earliestExp: batch.expirationDate
-                    )
                 }
+                stock[batch.productId] = entry
             }
 
-            productSummaries = grouped.map { productId, info in
-                WarehouseProductSummary(
-                    productId: productId,
-                    productName: info.name,
-                    imagePath: info.imagePath,
-                    totalQuantity: info.totalQty,
-                    batchCount: info.batchCount,
-                    earliestExpiration: info.earliestExp
+            // Every product gets a summary (even with 0 stock)
+            productSummaries = productRows.map { p in
+                let s = stock[p.id]
+                return WarehouseProductSummary(
+                    productId: p.id,
+                    productName: p.name ?? "Unknown",
+                    imagePath: p.imagePath,
+                    totalQuantity: s?.total ?? 0,
+                    batchCount: s?.count ?? 0,
+                    earliestExpiration: s?.earliest,
+                    discontinued: p.discontinued ?? false,
+                    expirationStatus: WarehouseProductSummary.expirationStatus(for: s?.earliest)
                 )
             }
         } catch is CancellationError {

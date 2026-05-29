@@ -58,6 +58,13 @@ struct WarehouseView: View {
             }
         }
         .navigationTitle("Warehouse")
+        .toolbar {
+            if selectedTab == 0 {
+                ToolbarItem(placement: .topBarTrailing) {
+                    stockFilterMenu
+                }
+            }
+        }
         .task {
             await viewModel.loadAll()
         }
@@ -152,6 +159,34 @@ struct WarehouseView: View {
         viewModel.warehouses.first(where: { $0.id == viewModel.selectedWarehouseId })?.name ?? "Select Warehouse"
     }
 
+    // MARK: - Stock Filter Menu
+
+    private var stockFilterMenu: some View {
+        Menu {
+            Toggle("Show out of stock", isOn: $viewModel.includeOutOfStock)
+            Toggle("Show archived", isOn: $viewModel.includeArchived)
+
+            Picker("Expiration", selection: $viewModel.expirationFilter) {
+                ForEach(WarehouseViewModel.ExpirationFilterOption.allCases) { option in
+                    Text(option.label).tag(option)
+                }
+            }
+
+            if viewModel.hasActiveFilters {
+                Divider()
+                Button("Reset filters", systemImage: "arrow.counterclockwise") {
+                    viewModel.includeOutOfStock = false
+                    viewModel.includeArchived = false
+                    viewModel.expirationFilter = .all
+                }
+            }
+        } label: {
+            Label("Filter", systemImage: viewModel.hasActiveFilters
+                ? "line.3.horizontal.decrease.circle.fill"
+                : "line.3.horizontal.decrease.circle")
+        }
+    }
+
     // MARK: - Empty State
 
     private var emptyWarehouseState: some View {
@@ -199,8 +234,14 @@ struct WarehouseView: View {
                             Image(systemName: "magnifyingglass")
                                 .font(.system(size: 40))
                                 .foregroundStyle(.secondary)
-                            Text("No products matching \"\(viewModel.searchText)\"")
-                                .foregroundStyle(.secondary)
+                            if viewModel.searchText.isEmpty {
+                                Text("No products match the current filters")
+                                    .foregroundStyle(.secondary)
+                                    .multilineTextAlignment(.center)
+                            } else {
+                                Text("No products matching \"\(viewModel.searchText)\"")
+                                    .foregroundStyle(.secondary)
+                            }
                             Spacer()
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -498,9 +539,20 @@ struct StockSummaryRow: View {
             .buttonStyle(.borderless)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(summary.productName)
-                    .font(.body)
-                    .lineLimit(1)
+                HStack(spacing: 6) {
+                    Text(summary.productName)
+                        .font(.body)
+                        .lineLimit(1)
+
+                    if summary.discontinued {
+                        Text("Archived")
+                            .font(.caption2.bold())
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color(.systemGray5), in: Capsule())
+                    }
+                }
 
                 HStack(spacing: 8) {
                     Text("\(summary.batchCount) batch\(summary.batchCount == 1 ? "" : "es")")
@@ -539,6 +591,7 @@ struct StockSummaryRow: View {
             }
         }
         .padding(.vertical, 4)
+        .opacity(summary.discontinued ? 0.55 : 1)
     }
 
     private var quantityColor: Color {
@@ -549,22 +602,21 @@ struct StockSummaryRow: View {
 
     @ViewBuilder
     private func expirationBadge(_ dateString: String) -> some View {
-        let isExpiringSoon = isWithin30Days(dateString)
         HStack(spacing: 2) {
             Image(systemName: "calendar")
                 .font(.caption2)
             Text(formatExpirationDate(dateString))
                 .font(.caption)
         }
-        .foregroundStyle(isExpiringSoon ? .orange : .secondary)
+        .foregroundStyle(expirationColor)
     }
 
-    private func isWithin30Days(_ dateString: String) -> Bool {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        guard let date = formatter.date(from: dateString) else { return false }
-        let daysUntil = Calendar.current.dateComponents([.day], from: Date(), to: date).day ?? 0
-        return daysUntil < 30
+    private var expirationColor: Color {
+        switch summary.expirationStatus {
+        case .critical: return .red
+        case .warning: return .orange
+        case .ok: return .secondary
+        }
     }
 
     private func formatExpirationDate(_ dateString: String) -> String {

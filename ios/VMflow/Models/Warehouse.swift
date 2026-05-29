@@ -42,6 +42,12 @@ struct WarehouseProductStock: Identifiable, Equatable {
     var id: UUID { productId }
 }
 
+/// Expiration severity of a product's earliest-expiring batch.
+/// Mirrors the management frontend's `expirationStatus()` helper.
+enum ExpirationStatus: String {
+    case ok, warning, critical
+}
+
 /// Product stock summary for warehouse overview (with batch and expiration info).
 struct WarehouseProductSummary: Identifiable, Equatable {
     let productId: UUID
@@ -50,11 +56,30 @@ struct WarehouseProductSummary: Identifiable, Equatable {
     let totalQuantity: Int
     let batchCount: Int
     let earliestExpiration: String?  // date string or nil
+    let discontinued: Bool
+    let expirationStatus: ExpirationStatus
 
     var id: UUID { productId }
 
-    var isLow: Bool { totalQuantity < 10 }
+    var isLow: Bool { totalQuantity > 0 && totalQuantity < 10 }
     var isOutOfStock: Bool { totalQuantity == 0 }
+
+    /// Classifies a `yyyy-MM-dd` date string into an expiration severity.
+    /// critical: < 7 days away (incl. already expired); warning: ≤ 30 days; else ok.
+    static func expirationStatus(for dateStr: String?) -> ExpirationStatus {
+        guard let dateStr else { return .ok }
+        let f = DateFormatter()
+        f.calendar = Calendar(identifier: .iso8601)
+        f.timeZone = TimeZone(identifier: "UTC")
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyy-MM-dd"
+        guard let exp = f.date(from: dateStr) else { return .ok }
+        let today = Calendar.current.startOfDay(for: Date())
+        let days = Calendar.current.dateComponents([.day], from: today, to: Calendar.current.startOfDay(for: exp)).day ?? 0
+        if days < 7 { return .critical }
+        if days <= 30 { return .warning }
+        return .ok
+    }
 }
 
 /// A single stock intake entry for the recent intakes list.
