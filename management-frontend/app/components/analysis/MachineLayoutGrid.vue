@@ -39,7 +39,7 @@ function badge(slot: GridSlot): string {
 <template>
   <div
     class="grid gap-1.5"
-    :style="{ gridTemplateColumns: `repeat(${COLUMNS}, minmax(0, 1fr))`, gridAutoRows: '7rem' }"
+    :style="{ gridTemplateColumns: `repeat(${COLUMNS}, minmax(0, 1fr))`, gridAutoRows: '9rem' }"
   >
     <button
       v-for="slot in props.slots"
@@ -58,11 +58,11 @@ function badge(slot: GridSlot): string {
         v-if="slot.image_url"
         :src="slot.image_url"
         :alt="slot.product_name ?? ''"
-        class="h-14 w-14 rounded object-cover"
+        class="h-20 w-20 rounded object-cover"
       />
       <div
         v-else
-        class="flex h-14 w-14 items-center justify-center rounded bg-muted/50 text-xs text-muted-foreground"
+        class="flex h-20 w-20 items-center justify-center rounded bg-muted/50 text-sm text-muted-foreground"
       >
         {{ slot.product_id ? '?' : '—' }}
       </div>
