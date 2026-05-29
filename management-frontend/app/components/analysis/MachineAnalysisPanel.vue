@@ -165,6 +165,7 @@ const aiSwaps = computed(() =>
                 {{ t('analysis.slot') }} {{ slot.item_number }} ·
                 {{ t('analysis.unitsShort', { n: slot.units_sold }) }} ·
                 {{ Math.round(slot.sell_through_pct) }}%
+                <template v-if="slot.days_in_slot != null"> · {{ t('analysis.inSlotFor', { days: slot.days_in_slot }) }}</template>
               </p>
             </div>
             <Badge :variant="slot.tier === 'dead' ? 'destructive' : 'secondary'">

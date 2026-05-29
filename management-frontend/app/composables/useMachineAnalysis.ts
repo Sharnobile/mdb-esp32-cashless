@@ -237,7 +237,7 @@ export function useMachineAnalysis() {
       const [trayRes, kpiRes, velocityRes, productsRes] = await Promise.all([
         (supabase as any)
           .from('machine_trays')
-          .select('id, item_number, product_id, capacity, current_stock, created_at, products(name, image_path)')
+          .select('id, item_number, product_id, capacity, current_stock, created_at, product_assigned_at, products(name, image_path)')
           .eq('machine_id', machineId)
           .order('item_number'),
         (supabase as any).rpc('get_machine_insights_kpis', {
@@ -304,8 +304,12 @@ export function useMachineAnalysis() {
       const result: SlotAnalysis[] = trays.map((t) => {
         const { row, column } = slotRowCol(t.item_number)
         const kpi = kpiByItem.get(t.item_number)
-        const daysInSlot = t.created_at
-          ? Math.floor((now - new Date(t.created_at).getTime()) / 86_400_000)
+        // How long the CURRENT product has occupied the slot. Prefer the
+        // product-assignment timestamp; fall back to slot creation for rows
+        // predating the column / not yet backfilled.
+        const tenureAnchor = t.product_assigned_at ?? t.created_at
+        const daysInSlot = (t.product_id && tenureAnchor)
+          ? Math.floor((now - new Date(tenureAnchor).getTime()) / 86_400_000)
           : null
         const partial: SlotAnalysis = {
           trayId: t.id,
