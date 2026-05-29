@@ -826,7 +826,7 @@ Expected: an error about missing module `node_helper` IS acceptable only if Magi
   "REST_OK": "others ok", "OF": "of", "IN_STOCK": "In stock", "SWAP": "Swap", "NO_STOCK": "No stock",
   "OFFLINE": "offline", "ONLINE": "online", "EMPTY_N": "{n} empty", "LOW_N": "{n} low",
   "NO_DATA": "No data yet", "SETUP_NEEDED": "Set baseUrl + apiKey in config", "AS_OF": "as of {t}",
-  "ERR_UNAUTHORIZED": "API key rejected", "ERR_RATE_LIMITED": "Rate limited", "ERR_NETWORK": "Backend unreachable",
+  "ERR_UNAUTHORIZED": "API key rejected", "ERR_RATE_LIMITED": "Rate limited", "ERR_NETWORK": "Backend unreachable", "ERR_UNKNOWN": "Temporary error", "ERR_CONFIG": "Set baseUrl + apiKey in config",
   "AGO_NOW": "now", "AGO_MIN": "{n}m", "AGO_HOUR": "{n}h", "AGO_DAY": "{n}d"
 }
 ```
@@ -841,7 +841,7 @@ Expected: an error about missing module `node_helper` IS acceptable only if Magi
   "REST_OK": "Rest ok", "OF": "von", "IN_STOCK": "Im Lager", "SWAP": "Tauschen", "NO_STOCK": "Kein Lager",
   "OFFLINE": "offline", "ONLINE": "online", "EMPTY_N": "{n} leer", "LOW_N": "{n} niedrig",
   "NO_DATA": "Noch keine Daten", "SETUP_NEEDED": "baseUrl + apiKey in der Config setzen", "AS_OF": "Stand {t}",
-  "ERR_UNAUTHORIZED": "API-Key abgelehnt", "ERR_RATE_LIMITED": "Rate-Limit erreicht", "ERR_NETWORK": "Backend nicht erreichbar",
+  "ERR_UNAUTHORIZED": "API-Key abgelehnt", "ERR_RATE_LIMITED": "Rate-Limit erreicht", "ERR_NETWORK": "Backend nicht erreichbar", "ERR_UNKNOWN": "Vorübergehender Fehler", "ERR_CONFIG": "baseUrl + apiKey in der Config setzen",
   "AGO_NOW": "jetzt", "AGO_MIN": "vor {n}m", "AGO_HOUR": "vor {n}h", "AGO_DAY": "vor {n}d"
 }
 ```
