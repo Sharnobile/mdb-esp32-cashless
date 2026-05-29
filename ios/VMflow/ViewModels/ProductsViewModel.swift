@@ -126,27 +126,53 @@ final class ProductsViewModel: ObservableObject {
         isSaving = true
         error = nil
 
-        var params: [String: AnyJSON] = [
-            "name": .string(name),
-            "discontinued": .bool(discontinued),
-        ]
-        if let price = sellprice {
-            params["sellprice"] = .double(price)
-        } else {
-            params["sellprice"] = .null
+        // Typed payload (matches the working struct-based update used by
+        // adjustBatch). Custom encode sends explicit JSON null when sellprice
+        // or category are cleared, instead of omitting the key.
+        struct ProductUpdate: Encodable {
+            let name: String
+            let sellprice: Double?
+            let category: String?
+            let discontinued: Bool
+
+            enum CodingKeys: String, CodingKey { case name, sellprice, category, discontinued }
+            func encode(to encoder: Encoder) throws {
+                var c = encoder.container(keyedBy: CodingKeys.self)
+                try c.encode(name, forKey: .name)
+                try c.encode(discontinued, forKey: .discontinued)
+                try c.encode(sellprice, forKey: .sellprice)
+                try c.encode(category, forKey: .category)
+            }
         }
-        if let catId = categoryId {
-            params["category"] = .string(catId.uuidString)
-        } else {
-            params["category"] = .null
-        }
+
+        let payload = ProductUpdate(
+            name: name,
+            sellprice: sellprice,
+            category: categoryId?.uuidString,
+            discontinued: discontinued
+        )
 
         do {
             try await client
                 .from("products")
-                .update(params)
+                .update(payload)
                 .eq("id", value: id.uuidString)
                 .execute()
+
+            // The write above succeeded — reflect it in the local list right
+            // away so the row updates even if the reload below gets cancelled
+            // (e.g. the sheet dismisses mid-flight).
+            if let idx = products.firstIndex(where: { $0.id == id }) {
+                let existing = products[idx]
+                products[idx] = Product(
+                    id: id,
+                    name: name,
+                    imagePath: existing.imagePath,
+                    discontinued: discontinued,
+                    sellprice: sellprice,
+                    category: categoryId
+                )
+            }
 
             await loadProducts()
         } catch is CancellationError {
