@@ -154,7 +154,7 @@ Nuxt 4 dashboard for managing devices, viewing sales, and inviting team members.
 **Pages:**
 - `/` - Dashboard: KPI cards (today/week sales) + 30-day area chart
 - `/machines` - Device table with live status, "Add Device" provisioning flow
-- `/machines/[id]` - Per-device sales chart + history
+- `/machines/[id]` - Per-machine sales chart + history, Trays & Stock, and an Analysis tab (product-centric performance over an iOS-style layout grid with replacement suggestions)
 - `/members` - Team management + invite flow (admin only)
 - `/auth/login`, `/auth/register` - Authentication
 - `/onboarding/create-organization`, `/onboarding/accept-invitation` - Org setup

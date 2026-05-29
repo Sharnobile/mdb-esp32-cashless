@@ -5,7 +5,7 @@ Nuxt 4 management dashboard for the VMflow vending machine platform. Built with 
 ## Features
 
 - **Dashboard** — KPI cards, 30-day sales chart, activity feed, machine overview
-- **Machine Management** — Live status, revenue stats, tray/stock config, AI-powered insights
+- **Machine Management** — Live status, revenue stats, tray/stock config, product-centric performance analysis (iOS-style layout grid + replacement suggestions), AI-powered insights
 - **Refill Wizard** — Multi-step guided refill tours with warehouse stock tracking
 - **Products** — CRUD with image upload/search, categories, Nayax Excel import, discontinued flag
 - **Warehouse** — FIFO stock batches, barcode scanning, position management, min-stock alerts

@@ -170,6 +170,8 @@ supabase start    # starts local Supabase on ports 54321 (API), 54322 (DB), 5432
 supabase db reset # re-runs all migrations + seed
 ```
 
+`config.toml` sets a unique `project_id = "mdb-esp32-cashless"` so the CLI's local Docker containers/volumes (`supabase_db_mdb-esp32-cashless`, …) don't collide with other local Supabase projects on the same host. Two projects sharing a `project_id` would share one local database — bleeding each other's migration history and breaking `supabase migration up`. Run the CLI from `Docker/supabase` and start only one stack at a time (ports are shared on the defaults).
+
 ### Database Migrations (IMMUTABLE)
 
 **Migrations in `Docker/supabase/migrations/*.sql` are immutable once committed to `main`.** Never edit an existing migration file after it has been pushed — always create a new migration with a later timestamp instead.
@@ -199,7 +201,8 @@ Tables:
 - `device_provisioning` – one-time provisioning codes: `short_code`, `expires_at`, `used_at`, `embedded_id`
 - `vendingMachine` – physical machine records linked to embedded devices; `nayax_machine_id` (nullable text, UNIQUE per company) maps to a Nayax serial for `/reports/nayax-reconciliation`
 - `products`, `product_category` – product catalogue per company; `products.image_path` stores the storage object path; `products.discontinued` (boolean) flag
-- `machine_trays` – per-machine tray/slot configuration: `machine_id`, `item_number` (unique per machine), `product_id`, `capacity`, `current_stock`, `fill_when_below` (refill threshold); stock auto-decremented on sales via `stamp_machine_and_decrement_stock` trigger
+- `machine_trays` – per-machine tray/slot configuration: `machine_id`, `item_number` (unique per machine), `product_id`, `capacity`, `current_stock`, `fill_when_below` (refill threshold), `product_assigned_at` (timestamp the current product was assigned to the slot, restamped on product change via trigger); stock auto-decremented on sales via `stamp_machine_and_decrement_stock` trigger
+- `machine_product_offerings` – per-`(machine_id, product_id)` offering history for the Analysis tab: `offered_since` timestamp tracks how long a product has been offered in a machine **independent of which slot(s) it occupies**. Maintained by an AFTER trigger on `machine_trays` (`maintain_machine_product_offerings`): moving a product between slots keeps the offering open; only removing it from every slot closes it (a later re-add starts a fresh trial). Used so the "testing" grace period survives slot moves.
 - `api_keys` – API keys for external integrations: `company_id`, `key_hash`, `key_prefix`, `name`
 - `warehouses` – warehouse locations per company
 - `product_barcodes` – barcode-to-product mapping for scanning
@@ -214,7 +217,8 @@ Tables:
 - `history` – activity log for audit trail
 
 Key RPC functions:
-- `get_machine_insights_kpis(machine_id, company_id, days)` – per-tray KPIs, paxcounter conversion, refill history for AI insights
+- `get_machine_insights_kpis(machine_id, company_id, days)` – per-tray (slot-based) KPIs, paxcounter conversion, refill history for AI insights
+- `get_machine_product_kpis(machine_id, company_id, days)` – **product-centric** per-machine KPIs for the Analysis tab: aggregates sales by `sales.product_id` (snapshotted at sale time) across all of a product's slots, server-side (no PostgREST row-limit truncation), plus `total_capacity`/`total_stock`/`slots`/`offered_since`
 - `get_product_sales_velocity(company_id, days)` – avg daily units sold per product
 - `delete_sale_and_restore_stock(sale_id)` – manual sale deletion with stock restoration
 - `insert_manual_sale(machine_id, item_number, price, channel, created_at)` – manual sale insertion
@@ -314,6 +318,7 @@ Public routes (no auth check): `/auth/login`, `/auth/register`, `/onboarding/*`
 - `useMachines()` – fetches `vendingMachine` joined with `embeddeds`, batch-fetches per-machine stats (today/yesterday revenue, sales count, paxcounter, last sale) via `Promise.all`; `subscribeToStatusUpdates()` opens Supabase realtime channels on `embeddeds`, `vendingMachine`, and `sales` tables (live-updates today's stats on new sales)
 - `useProducts()` – CRUD for products + categories; `uploadProductImage(productId, file)` uploads to `product-images/{id}.{ext}` with upsert; `deleteProductImage()` removes from storage + nulls `image_path`; `deleteProduct()` cleans up storage; `getProductImageUrl(path)` builds public URL; `createProduct()` returns the new product ID
 - `useMachineTrays()` – CRUD for machine tray/slot configuration; `batchCreateTrays(machineId, startSlot, count, capacity)` bulk-inserts sequential slots; `updateTray()` updates by ID (allows slot number changes); `subscribeToTrayUpdates()` for realtime stock changes; stock auto-decrements on sales via DB trigger
+- `useMachineAnalysis()` – powers the Analysis tab on `/machines/[id]`. **Product-centric** performance analysis: combines `get_machine_product_kpis` (sales aggregated per product across all its slots), `get_product_sales_velocity` (fleet-wide velocity), the product catalogue, and `machine_product_offerings` tenure. Exposes pure, unit-tested helpers — `slotRowCol`/`computeSlotWidths`/`buildGridSlots` (replicate the iOS layout: 10 columns, `row=max(0,⌊item/10⌋-1)`, `col=item%10`, width=gap to next slot), `scoreProduct` (tier: dead/weak/ok/strong, plus a "testing" grace period for products offered < ~14 days so freshly-placed or brand-new test products aren't condemned), and `buildSuggestionPool` (replacement candidates = proven fleet bestsellers + never-sold "newcomer" test products). `applySwap(trayId, productId)` reassigns a slot's product (resets stock to 0, logs `product_swapped` to `activity_log`)
 - `useFirmware()` – CRUD for firmware versions in `firmware` storage bucket; `triggerOta(deviceId, firmwareId)` calls `trigger-ota` edge function
 - `useImportProducts()` – parses Nayax Excel exports, previews products, bulk imports via `import-products` edge function
 - `useNotifications()` – browser push notification registration and management via `register-push` edge function
@@ -356,7 +361,7 @@ Public routes (no auth check): `/auth/login`, `/auth/register`, `/onboarding/*`
 
 - `/` – Dashboard: KPI cards (today/week sales, machine counts) + 30-day sales chart + activity feed + machine list + recent sales
 - `/machines` – Responsive card grid (1/2/3 cols) of vending machines showing status badge, today/yesterday revenue, sales count, last sale time-ago, and paxcounter traffic; cards link to `/machines/[id]`
-- `/machines/[id]` – Per-machine detail: 30-day chart + sales history (with product image thumbnails from trays, manual sale add/delete); Trays & Stock tab with tray table, batch add (sequential slots), single add/edit (editable slot numbers), refill, and delete; AI insights tab
+- `/machines/[id]` – Per-machine detail with tabs: **Sales** (30-day chart + sales history with product image thumbnails from trays, manual sale add/delete); **Trays & Stock** (tray table, batch add (sequential slots), single add/edit (editable slot numbers), refill, delete); **Analysis** (product-centric performance — an iOS-springboard-style layout grid where each slot is colour-coded by its product's tier (dead/weak/testing/ok/strong); a "products to review" list with combined per-product KPIs + machine tenure; one-click replacement with fleet bestsellers or never-sold test products; on-demand AI `product_swap` recommendations); plus MDB diagnostics (admin) and Device Health tabs
 - `/products` – Products tab (table with image thumbnails, add/edit modal with image upload zone + image search, category selector, discontinued flag) + Categories tab + Import from Nayax Excel
 - `/warehouse` – Warehouse inventory management: stock intake with barcode scanning (`BarcodeScanner` component), FIFO batch tracking, transaction history, min-stock alerts, product position management
 - `/refill` – Multi-step guided refill wizard: select warehouse → pack items (combined/per-machine mode) → refill trays → summary with tour stats
