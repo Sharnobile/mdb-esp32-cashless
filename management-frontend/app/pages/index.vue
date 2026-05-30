@@ -11,7 +11,7 @@ import type { DashboardMachine } from "@/components/DashboardMachineList.vue"
 import type { RecentSale } from "@/components/DashboardRecentSales.vue"
 import type { ActivityEntry } from "@/components/DashboardActivityFeed.vue"
 import type { TopProduct } from "@/components/DashboardTopProducts.vue"
-import { IconAlertTriangle, IconSparkles, IconRefresh, IconLoader2 } from '@tabler/icons-vue'
+import { IconAlertTriangle, IconSparkles, IconRefresh, IconLoader2, IconTag } from '@tabler/icons-vue'
 import { useInsights, sortedRecommendations, priorityVariant, recommendationTypeLabel } from '@/composables/useInsights'
 import { expirationStatus } from '@/composables/useWarehouse'
 import { getProductImageUrl } from '@/composables/useProducts'
@@ -43,6 +43,7 @@ const stockLow = ref(0)
 const stockSwap = ref(0)
 const warehouseBelowMin = ref(0)
 const warehouseExpiringSoon = ref(0)
+const newDealsCount = ref(0)
 
 const machinesNeedingRefill = computed(() => stockCritical.value + stockLow.value + stockSwap.value)
 
@@ -527,6 +528,14 @@ async function loadDashboard() {
       || (e.metadata as any)?._user_email
       || (e.user_id ? e.user_id.slice(0, 8) : 'System'),
   }))
+
+  // ── New deals (inbox count for the banner) ──────────────────────────────────
+  // RPC returns 0 when deals are off / nothing new; tolerate its absence on
+  // backends where the migration hasn't been applied yet.
+  try {
+    const { data: newDeals, error: newDealsErr } = await (supabase as any).rpc('get_new_deals_count')
+    if (!newDealsErr && typeof newDeals === 'number') newDealsCount.value = newDeals
+  } catch { /* RPC not deployed yet */ }
 }
 </script>
 
@@ -545,6 +554,19 @@ async function loadDashboard() {
             {{ t('dashboard.refillBanner', machinesNeedingRefill) }}
           </div>
           <span class="shrink-0 text-xs font-medium text-red-500/70">{{ t('dashboard.viewMachines') }} →</span>
+        </NuxtLink>
+
+        <!-- New deals banner -->
+        <NuxtLink
+          v-if="newDealsCount > 0"
+          to="/deals"
+          class="mx-4 flex items-center justify-between gap-3 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 transition-colors hover:bg-emerald-500/15 lg:mx-6"
+        >
+          <div class="flex items-center gap-2 text-sm font-medium text-emerald-600 dark:text-emerald-400">
+            <IconTag class="size-4 shrink-0" />
+            {{ t('dashboard.newDealsBanner', newDealsCount) }}
+          </div>
+          <span class="shrink-0 text-xs font-medium text-emerald-600/70 dark:text-emerald-400/70">{{ t('dashboard.viewDeals') }} →</span>
         </NuxtLink>
 
         <!-- KPI Cards -->

@@ -189,6 +189,8 @@ export function useDeals() {
   // Deal search settings
   const dealsEnabled = ref(false)
   const dealsZipCode = ref('')
+  // Hour-of-day (0..23, company timezone) for the daily auto-refresh; null = off.
+  const dealsRefreshHour = ref<number | null>(null)
   const settingsLoading = ref(false)
   const settingsError = ref('')
   const settingsSuccess = ref('')
@@ -239,12 +241,13 @@ export function useDeals() {
     if (!organization.value?.id) return
     const { data } = await supabase
       .from('companies')
-      .select('deals_enabled, deals_zip_code, deals_config')
+      .select('deals_enabled, deals_zip_code, deals_config, deals_refresh_hour')
       .eq('id', organization.value.id)
       .single()
     if (data) {
       dealsEnabled.value = (data as any).deals_enabled ?? false
       dealsZipCode.value = (data as any).deals_zip_code ?? ''
+      dealsRefreshHour.value = (data as any).deals_refresh_hour ?? null
       const cfg = (data as any).deals_config
       if (cfg) {
         dealsConfig.value = {
@@ -281,6 +284,7 @@ export function useDeals() {
           deals_enabled: dealsEnabled.value,
           deals_zip_code: dealsZipCode.value.trim() || null,
           deals_config: configToSave,
+          deals_refresh_hour: dealsRefreshHour.value,
         })
         .eq('id', organization.value.id)
       if (err) throw err
@@ -671,6 +675,7 @@ export function useDeals() {
     lastFetchedAt,
     dealsEnabled,
     dealsZipCode,
+    dealsRefreshHour,
     dealsConfig,
     hasCustomConfig,
     settingsLoading,

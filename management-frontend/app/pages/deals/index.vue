@@ -53,6 +53,8 @@ const {
   pinDeal,
   unpinDeal,
   userStateError,
+  fetchNewDealKeys,
+  isNew,
 } = useDeals()
 
 const lastFetchLabel = computed(() => {
@@ -205,12 +207,12 @@ const groupedFiltered = computed<DealGroup[]>(() => {
 onMounted(async () => {
   await loadSettings()
   if (dealsEnabled.value) {
-    await Promise.all([fetchUserStates(), fetchDeals()])
+    await Promise.all([fetchUserStates(), fetchDeals(), fetchNewDealKeys()])
   }
 })
 
 async function refresh() {
-  await Promise.all([fetchUserStates(), fetchDeals(true)])
+  await Promise.all([fetchUserStates(), fetchDeals(true), fetchNewDealKeys()])
 }
 
 // ── Action handlers (keep detail sheet state in sync after mutation) ──────
@@ -538,6 +540,14 @@ function highlightTokens(text: string, tokens: string[] | null): { text: string;
                     :title="t('deals.pinned')"
                   >
                     <IconPin class="size-3" />
+                  </div>
+                  <!-- New (unhandled) marker — stays until pinned/archived. -->
+                  <div
+                    v-else-if="isNew(deal)"
+                    class="absolute -left-1 -top-1 z-10 rounded-full bg-emerald-500 px-1.5 py-0.5 text-[10px] font-bold uppercase leading-none tracking-wide text-white shadow"
+                    :title="t('deals.newTooltip')"
+                  >
+                    {{ t('deals.new') }}
                   </div>
 
                   <!-- Quick actions (top-right). On touch devices opacity-100 always;
