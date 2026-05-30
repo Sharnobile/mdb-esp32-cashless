@@ -1,0 +1,5 @@
+# minimal fixture for dev_db_container()
+project_id = "test-project"
+
+[db]
+port = 54322

@@ -25,6 +25,9 @@ check "mime jpeg"       "$(mime_for a.jpeg)"   "image/jpeg"
 check "mime webp"       "$(mime_for a.webp)"   "image/webp"
 check "mime fallback"   "$(mime_for a.bin)"    "application/octet-stream"
 
+# --- dev_db_container ---
+check "container from fixture" "$(dev_db_container "$HERE/fixtures/config.toml")" "supabase_db_test-project"
+
 echo "----"
 echo "passed: $pass, failed: $fail"
 [[ "$fail" -eq 0 ]]

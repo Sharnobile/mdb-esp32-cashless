@@ -35,6 +35,17 @@ mime_for() {
   esac
 }
 
+dev_db_container() {
+  # $1 = path to config.toml → echoes the local CLI db container name
+  local cfg="$1" pid
+  pid="$(grep -E '^[[:space:]]*project_id' "$cfg" | head -n1 | cut -d'"' -f2)"
+  if [[ -z "$pid" ]]; then
+    echo "ERROR: project_id not found in $cfg" >&2
+    return 1
+  fi
+  echo "supabase_db_${pid}"
+}
+
 # ---------- entry point ----------
 
 main() {
