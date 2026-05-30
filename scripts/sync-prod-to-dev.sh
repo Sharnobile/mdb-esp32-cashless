@@ -169,6 +169,42 @@ restore_db() {
   } | docker exec -i "$DEV_DB_CONTAINER" psql -v ON_ERROR_STOP=1 -U postgres -d postgres
 }
 
+upload_images() {
+  local key namedir obj file mime code total=0 fails=0
+  if $DRY_RUN; then
+    echo "[dry-run] would upload each product-images object via POST $DEV_SUPABASE_URL/storage/v1/object/product-images/<name>"
+    return 0
+  fi
+  [[ -d "$WORKDIR/product-images" ]] || { echo "No images to upload."; return 0; }
+
+  key="$( ( cd "$SUPABASE_PROJECT_DIR" && supabase status -o env ) \
+          | sed -n 's/^SERVICE_ROLE_KEY="\(.*\)"$/\1/p' )"
+  [[ -n "$key" ]] || { echo "ERROR: could not read SERVICE_ROLE_KEY from 'supabase status'" >&2; exit 1; }
+
+  echo "==> Uploading product images to dev Storage API..."
+  # process substitution (not a pipe) so the counters persist in this shell
+  while IFS= read -r namedir; do
+    obj="$(basename "$namedir")"
+    file="$(ls -t "$namedir" 2>/dev/null | head -n1)"
+    [[ -n "$file" ]] || continue
+    file="$namedir/$file"
+    mime="$(mime_for "$obj")"
+    total=$((total+1))
+    code="$(curl -sS -o /dev/null -w '%{http_code}' -X POST \
+      "$DEV_SUPABASE_URL/storage/v1/object/product-images/$obj" \
+      -H "Authorization: Bearer $key" \
+      -H "Content-Type: $mime" \
+      -H "x-upsert: true" \
+      --data-binary "@$file" || echo 000)"
+    if [[ ! "$code" =~ ^2 ]]; then
+      echo "WARN: upload failed (HTTP $code) for $obj" >&2
+      fails=$((fails+1))
+    fi
+  done < <(find "$WORKDIR/product-images" -mindepth 1 -maxdepth 1 -type d)
+
+  echo "Images uploaded: $((total - fails))/$total ($fails failed)."
+}
+
 # ---------- entry point ----------
 
 main() {
