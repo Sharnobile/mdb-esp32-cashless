@@ -29,6 +29,9 @@ check "mime WEBP upper" "$(mime_for A.WEBP)"   "image/webp"
 
 # --- dev_db_container ---
 check "container from fixture" "$(dev_db_container "$HERE/fixtures/config.toml")" "supabase_db_test-project"
+err_out="$( ( set -e; set -o pipefail; dev_db_container "$HERE/fixtures/no-project.toml" ) 2>&1 1>/dev/null )"
+case "$err_out" in *"project_id not found"*) _case_result="ok" ;; *) _case_result="no" ;; esac
+check "missing project_id errors gracefully" "$_case_result" "ok"
 
 # --- dump_looks_like_sql ---
 dump_looks_like_sql "$HERE/fixtures/good-dump.sql";       check_rc "good dump accepted"      "$?" "0"

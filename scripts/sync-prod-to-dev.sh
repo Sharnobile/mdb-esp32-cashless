@@ -38,7 +38,7 @@ mime_for() {
 dev_db_container() {
   # $1 = path to config.toml → echoes the local CLI db container name
   local cfg="$1" pid
-  pid="$(grep -E '^[[:space:]]*project_id[[:space:]]*=' "$cfg" | head -n1 | cut -d'"' -f2)"
+  pid="$(grep -E '^[[:space:]]*project_id[[:space:]]*=' "$cfg" | head -n1 | cut -d'"' -f2 || true)"
   if [[ -z "$pid" ]]; then
     echo "ERROR: project_id not found in $cfg" >&2
     return 1
@@ -99,7 +99,7 @@ preflight() {
     echo "  container : $DEV_DB_CONTAINER"
     echo "  source    : $PROD_SSH (read-only)"
     printf "Continue? [y/N] "
-    read -r ans
+    read -r ans || true
     [[ "$ans" =~ ^[Yy] ]] || { echo "Aborted."; exit 0; }
   fi
 }
@@ -178,7 +178,7 @@ upload_images() {
   [[ -d "$WORKDIR/product-images" ]] || { echo "No images to upload."; return 0; }
 
   key="$( ( cd "$SUPABASE_PROJECT_DIR" && supabase status -o env ) \
-          | sed -n 's/^SERVICE_ROLE_KEY="\(.*\)"$/\1/p' )"
+          | sed -n 's/^SERVICE_ROLE_KEY="\(.*\)"$/\1/p' || true )"
   [[ -n "$key" ]] || { echo "ERROR: could not read SERVICE_ROLE_KEY from 'supabase status'" >&2; exit 1; }
 
   echo "==> Uploading product images to dev Storage API..."
@@ -237,7 +237,7 @@ Refreshes the local Supabase CLI dev DB with production data
 
 Options:
   --yes          Skip the confirmation prompt (for unattended/cron runs)
-  --dry-run      Print what would happen; touch nothing
+  --dry-run      Preview; makes no writes (reads the dev DB catalog read-only to show the exact TRUNCATE)
   --skip-images  Refresh the DB only (no image fetch/upload)
   --keep-dumps   Keep tmp/sync/*.sql after the run
   --clean        Also delete the tmp/sync/product-images cache after the run

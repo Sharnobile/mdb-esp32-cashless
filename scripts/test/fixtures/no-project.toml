@@ -1,0 +1,3 @@
+# fixture: config.toml without a project_id key
+[db]
+port = 54322

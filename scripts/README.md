@@ -21,7 +21,7 @@ cp scripts/sync-prod-to-dev.env.example scripts/sync-prod-to-dev.env
 ### Run
 ```bash
 ./scripts/sync-prod-to-dev.sh            # prompts before replacing dev data
-./scripts/sync-prod-to-dev.sh --dry-run  # preview, touches nothing
+./scripts/sync-prod-to-dev.sh --dry-run  # preview — no writes (reads the dev DB catalog read-only to show the exact TRUNCATE)
 ./scripts/sync-prod-to-dev.sh --skip-images
 ./scripts/sync-prod-to-dev.sh --yes      # unattended (cron)
 ```
