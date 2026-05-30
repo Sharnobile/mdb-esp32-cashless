@@ -28,6 +28,11 @@ check "mime fallback"   "$(mime_for a.bin)"    "application/octet-stream"
 # --- dev_db_container ---
 check "container from fixture" "$(dev_db_container "$HERE/fixtures/config.toml")" "supabase_db_test-project"
 
+# --- dump_looks_like_sql ---
+dump_looks_like_sql "$HERE/fixtures/good-dump.sql"; check_rc "good dump accepted" "$?" "0"
+dump_looks_like_sql "$HERE/fixtures/bad-dump.txt"; check_rc "bad dump rejected"  "$?" "1"
+dump_looks_like_sql "$HERE/fixtures/empty.sql";    check_rc "empty dump rejected" "$?" "1"
+
 echo "----"
 echo "passed: $pass, failed: $fail"
 [[ "$fail" -eq 0 ]]
