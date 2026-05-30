@@ -23,6 +23,11 @@ export const notificationTypes: NotificationType[] = [
     label: 'Customer inbox',
     description: 'Get notified when a customer reports a problem, leaves feedback, or submits a product wish.',
   },
+  {
+    key: 'new_deals',
+    label: 'New deals',
+    description: 'Get a daily push when new retailer offers matching your products are found.',
+  },
 ]
 
 // ── Composable ──────────────────────────────────────────────────────────────

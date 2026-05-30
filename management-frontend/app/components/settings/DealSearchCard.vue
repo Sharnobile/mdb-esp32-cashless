@@ -10,6 +10,7 @@ const { organization, role } = useOrganization()
 const {
   dealsEnabled,
   dealsZipCode,
+  dealsRefreshHour,
   dealsConfig,
   hasCustomConfig,
   settingsLoading: dealsSettingsLoading,
