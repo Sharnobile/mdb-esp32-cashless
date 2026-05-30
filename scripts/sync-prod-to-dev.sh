@@ -104,6 +104,43 @@ preflight() {
   fi
 }
 
+dump_prod() {
+  if $DRY_RUN; then
+    echo "[dry-run] would dump public + auth.{users,identities} (data-only) from $PROD_SSH"
+    return 0
+  fi
+  echo "==> Dumping public schema from prod (data-only)..."
+  ssh "$PROD_SSH" "cd '$PROD_DIR' && docker compose exec -T db \
+    pg_dump -U postgres -d postgres --data-only --no-owner --no-privileges \
+    --schema=public 2>/dev/null" > "$WORKDIR/public.sql"
+  dump_looks_like_sql "$WORKDIR/public.sql" || {
+    echo "ERROR: public dump does not look like SQL (SSH/compose error?)" >&2; exit 1; }
+
+  echo "==> Dumping auth.users + auth.identities from prod (data-only)..."
+  ssh "$PROD_SSH" "cd '$PROD_DIR' && docker compose exec -T db \
+    pg_dump -U postgres -d postgres --data-only --no-owner --no-privileges \
+    --table=auth.users --table=auth.identities 2>/dev/null" > "$WORKDIR/auth.sql"
+  dump_looks_like_sql "$WORKDIR/auth.sql" || {
+    echo "ERROR: auth dump does not look like SQL (SSH/compose error?)" >&2; exit 1; }
+}
+
+fetch_images() {
+  local img_dir
+  if $DRY_RUN; then
+    echo "[dry-run] would find product-images under $PROD_STORAGE_DIR and rsync it to $WORKDIR/product-images/"
+    return 0
+  fi
+  echo "==> Locating product-images on prod..."
+  img_dir="$(ssh "$PROD_SSH" "find '$PROD_STORAGE_DIR' -type d -name product-images | head -n1")"
+  if [[ -z "$img_dir" ]]; then
+    echo "WARN: no 'product-images' directory found under $PROD_STORAGE_DIR; skipping images." >&2
+    return 0
+  fi
+  echo "==> Syncing images from $img_dir ..."
+  mkdir -p "$WORKDIR/product-images"
+  rsync -a -e ssh "$PROD_SSH:$img_dir/" "$WORKDIR/product-images/"
+}
+
 # ---------- entry point ----------
 
 main() {
