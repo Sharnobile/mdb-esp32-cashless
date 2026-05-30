@@ -60,11 +60,56 @@ build_truncate_stmt() {
   printf 'TRUNCATE %s, auth.users RESTART IDENTITY CASCADE;' "$1"
 }
 
+# ---------- integration phases (verified via --dry-run, not unit-tested) ----------
+
+preflight() {
+  local tool ans=""
+  for tool in docker rsync ssh curl supabase; do
+    command -v "$tool" >/dev/null 2>&1 \
+      || { echo "ERROR: required tool not found on PATH: $tool" >&2; exit 1; }
+  done
+
+  [[ -f "$ENV_FILE" ]] || {
+    echo "ERROR: config not found: $ENV_FILE" >&2
+    echo "       Copy scripts/sync-prod-to-dev.env.example and fill it in." >&2
+    exit 1; }
+  # shellcheck disable=SC1090
+  source "$ENV_FILE"
+  : "${PROD_SSH:?set PROD_SSH in $ENV_FILE}"
+  : "${PROD_DIR:?set PROD_DIR in $ENV_FILE}"
+  : "${PROD_STORAGE_DIR:?set PROD_STORAGE_DIR in $ENV_FILE}"
+  : "${DEV_SUPABASE_URL:?set DEV_SUPABASE_URL in $ENV_FILE}"
+
+  # Dev guard: target is resolved purely from local config.toml → local container only.
+  DEV_DB_CONTAINER="$(dev_db_container "$CONFIG_TOML")"
+  docker ps --format '{{.Names}}' | grep -qx "$DEV_DB_CONTAINER" || {
+    echo "ERROR: dev DB container '$DEV_DB_CONTAINER' is not running." >&2
+    echo "       Start the local stack first: (cd Docker && supabase start)" >&2
+    exit 1; }
+  docker exec "$DEV_DB_CONTAINER" pg_isready -U postgres >/dev/null 2>&1 || {
+    echo "ERROR: dev DB not accepting connections in $DEV_DB_CONTAINER" >&2; exit 1; }
+
+  echo "==> Applying any pending migrations to the dev DB (non-destructive)..."
+  ( cd "$SUPABASE_PROJECT_DIR" && supabase migration up ) || {
+    echo "ERROR: 'supabase migration up' failed" >&2; exit 1; }
+
+  if ! $ASSUME_YES && ! $DRY_RUN; then
+    echo ""
+    echo "This will REPLACE ALL DATA in your local dev DB"
+    echo "  container : $DEV_DB_CONTAINER"
+    echo "  source    : $PROD_SSH (read-only)"
+    printf "Continue? [y/N] "
+    read -r ans
+    [[ "$ans" =~ ^[Yy] ]] || { echo "Aborted."; exit 0; }
+  fi
+}
+
 # ---------- entry point ----------
 
 main() {
-  echo "main not yet implemented" >&2
-  exit 1
+  mkdir -p "$WORKDIR"
+  preflight
+  echo "preflight OK (container=$DEV_DB_CONTAINER)"
 }
 
 # Only run main when executed directly, not when sourced by tests.
