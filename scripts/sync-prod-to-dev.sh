@@ -90,7 +90,10 @@ preflight() {
     echo "ERROR: dev DB not accepting connections in $DEV_DB_CONTAINER" >&2; exit 1; }
 
   echo "==> Applying any pending migrations to the dev DB (non-destructive)..."
-  ( cd "$SUPABASE_PROJECT_DIR" && supabase migration up ) || {
+  # Use --workdir (NOT `cd`): the Bun-based supabase CLI parses ./supabase/.env
+  # strictly line-by-line in the cwd-resolution path and rejects multi-line values
+  # (e.g. a PEM APNS_PRIVATE_KEY); the --workdir path avoids that parse.
+  supabase --workdir "$SUPABASE_PROJECT_DIR" migration up || {
     echo "ERROR: 'supabase migration up' failed" >&2; exit 1; }
 
   if ! $ASSUME_YES && ! $DRY_RUN; then
@@ -177,7 +180,8 @@ upload_images() {
   fi
   [[ -d "$WORKDIR/product-images" ]] || { echo "No images to upload."; return 0; }
 
-  key="$( ( cd "$SUPABASE_PROJECT_DIR" && supabase status -o env ) \
+  # --workdir (not `cd`): see the note in preflight() re: the CLI's .env parser.
+  key="$( supabase --workdir "$SUPABASE_PROJECT_DIR" status -o env \
           | sed -n 's/^SERVICE_ROLE_KEY="\(.*\)"$/\1/p' || true )"
   [[ -n "$key" ]] || { echo "ERROR: could not read SERVICE_ROLE_KEY from 'supabase status'" >&2; exit 1; }
 
