@@ -205,12 +205,72 @@ upload_images() {
   echo "Images uploaded: $((total - fails))/$total ($fails failed)."
 }
 
+verify_and_cleanup() {
+  echo "==> Row counts in dev:"
+  docker exec "$DEV_DB_CONTAINER" psql -U postgres -d postgres -c "
+    SELECT 'auth.users'            AS entity, count(*) FROM auth.users
+    UNION ALL SELECT 'companies',      count(*) FROM public.companies
+    UNION ALL SELECT 'embeddeds',      count(*) FROM public.embeddeds
+    UNION ALL SELECT 'vendingMachine', count(*) FROM public.\"vendingMachine\"
+    UNION ALL SELECT 'products',       count(*) FROM public.products
+    UNION ALL SELECT 'sales',          count(*) FROM public.sales
+    UNION ALL SELECT 'storage(images)',count(*) FROM storage.objects WHERE bucket_id='product-images';"
+
+  if [[ -d "$WORKDIR/product-images" ]]; then
+    local local_imgs
+    local_imgs="$(find "$WORKDIR/product-images" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')"
+    echo "Local image objects fetched: $local_imgs (storage(images) below this = uploads skipped for size/mime)."
+  fi
+
+  if ! $KEEP_DUMPS; then rm -f "$WORKDIR/public.sql" "$WORKDIR/auth.sql"; fi
+  if $CLEAN_CACHE; then rm -rf "$WORKDIR/product-images"; fi
+}
+
 # ---------- entry point ----------
 
+usage() {
+  cat <<'EOF'
+Usage: scripts/sync-prod-to-dev.sh [options]
+
+Refreshes the local Supabase CLI dev DB with production data
+(clones prod auth.users/identities + all public data + product images).
+
+Options:
+  --yes          Skip the confirmation prompt (for unattended/cron runs)
+  --dry-run      Print what would happen; touch nothing
+  --skip-images  Refresh the DB only (no image fetch/upload)
+  --keep-dumps   Keep tmp/sync/*.sql after the run
+  --clean        Also delete the tmp/sync/product-images cache after the run
+  -h, --help     Show this help
+
+Config: scripts/sync-prod-to-dev.env (copy from .env.example). Requires a
+running local stack (cd Docker && supabase start).
+EOF
+}
+
 main() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --yes)         ASSUME_YES=true ;;
+      --dry-run)     DRY_RUN=true ;;
+      --skip-images) SKIP_IMAGES=true ;;
+      --keep-dumps)  KEEP_DUMPS=true ;;
+      --clean)       CLEAN_CACHE=true ;;
+      -h|--help)     usage; exit 0 ;;
+      *) echo "Unknown option: $1" >&2; usage; exit 2 ;;
+    esac
+    shift
+  done
+
   mkdir -p "$WORKDIR"
   preflight
-  echo "preflight OK (container=$DEV_DB_CONTAINER)"
+  dump_prod
+  $SKIP_IMAGES || fetch_images
+  restore_db
+  $SKIP_IMAGES || upload_images
+  verify_and_cleanup
+  echo ""
+  echo "Done. Log into dev (http://localhost:3000) with your PRODUCTION credentials."
 }
 
 # Only run main when executed directly, not when sourced by tests.
