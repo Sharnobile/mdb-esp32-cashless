@@ -212,6 +212,29 @@ export function useDeals() {
       || c.app_detection_patterns !== null || c.retailer_prospekt_urls !== null
   })
 
+  // ── New-deal tracking (inbox model) ──────────────────────────────────────
+  // Keys (`${retailer}::${offerId}`) of offers that are NEW + unhandled for the
+  // current user: first seen after their baseline and not yet pinned/archived.
+  // Computed server-side by get_new_deal_keys (which also seeds the baseline).
+  const newDealKeys = ref<Set<string>>(new Set())
+
+  async function fetchNewDealKeys() {
+    const { data, error: err } = await (supabase as any).rpc('get_new_deal_keys')
+    if (!err && data) {
+      newDealKeys.value = new Set(
+        (data as Array<{ retailer: string; offer_id: string }>).map(
+          (r) => `${r.retailer}::${r.offer_id}`,
+        ),
+      )
+    }
+  }
+
+  /** A deal is "new" if the RPC flagged it AND the user hasn't pinned/archived
+   *  it yet this session (so the badge clears optimistically on pin/archive). */
+  function isNew(deal: DedupedDeal): boolean {
+    return newDealKeys.value.has(deal.key) && !deal.archived && !deal.pinned
+  }
+
   async function loadSettings() {
     if (!organization.value?.id) return
     const { data } = await supabase
@@ -528,6 +551,9 @@ export function useDeals() {
   })
   const archivedCount = computed(() => archivedDeals.value.length)
 
+  // Count of new/unhandled deals (reacts to optimistic pin/archive via isNew).
+  const newDealsCount = computed(() => activeDeals.value.filter(isNew).length)
+
   // ── Keyword groups ─────────────────────────────────────────────────────────
 
   const keywords = useState<DealKeyword[]>('deal-keywords', () => [])
@@ -660,6 +686,10 @@ export function useDeals() {
     uniqueRetailers,
     avgDiscount,
     archivedCount,
+    newDealKeys,
+    newDealsCount,
+    fetchNewDealKeys,
+    isNew,
     dedupedDeals,
     activeDeals,
     archivedDeals,

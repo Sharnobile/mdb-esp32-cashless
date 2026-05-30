@@ -1,6 +1,8 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import type { NormalizedOffer } from '../_shared/providers/deal-source.ts'
 import { resolveProviders, type ResolvedProvider } from './resolve-providers.ts'
+import { sendPushToUsers } from '../_shared/web-push.ts'
+import { t, type Locale } from '../_shared/notification-i18n.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -275,30 +277,47 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     )
+
+    // Body is parsed up-front: scheduled (cron) invocations carry
+    // { company_id, scheduled } and authenticate with the service-role key
+    // instead of a user JWT, so we need it before the auth decision.
+    const body = await req.json().catch(() => ({}))
     const token = req.headers.get('Authorization')?.replace('Bearer ', '') ?? ''
-    const { data: { user }, error: userError } = await adminClient.auth.getUser(token)
-    if (userError || !user) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+
+    // Scheduled/service-role mode: dispatch_deal_refresh() (pg_cron) POSTs with
+    // the service-role key + company_id. Must be handled BEFORE getUser(), which
+    // would 401 on a non-JWT bearer. Mirrors trigger-ota / send-device-config.
+    const isScheduled = token === serviceRoleKey && typeof body.company_id === 'string'
+
+    let companyId: string
+    if (isScheduled) {
+      companyId = body.company_id as string
+    } else {
+      const { data: { user }, error: userError } = await adminClient.auth.getUser(token)
+      if (userError || !user) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+
+      // Get user's company
+      const { data: membership } = await adminClient
+        .from('organization_members')
+        .select('company_id')
+        .eq('user_id', user.id)
+        .single()
+
+      if (!membership) {
+        return new Response(JSON.stringify({ error: 'No organization found' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+
+      companyId = membership.company_id
     }
-
-    // Get user's company
-    const { data: membership } = await adminClient
-      .from('organization_members')
-      .select('company_id')
-      .eq('user_id', user.id)
-      .single()
-
-    if (!membership) {
-      return new Response(JSON.stringify({ error: 'No organization found' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
-
-    const companyId = membership.company_id
 
     // Check if deals feature is enabled + load config
     const { data: company } = await adminClient
@@ -318,8 +337,8 @@ Deno.serve(async (req) => {
     const countryCode = (company as any).country_code ?? 'DE'
     const dealConfig = resolveConfig(countryCode, (company as any).deals_config ?? null)
 
-    const body = await req.json().catch(() => ({}))
-    const forceRefresh = body.forceRefresh === true
+    // Scheduled runs always force a fresh fetch (that's the point of the cron).
+    const forceRefresh = body.forceRefresh === true || isScheduled
     const minConfidence = typeof body.minConfidence === 'number' ? body.minConfidence : 0.5
 
     // Check cache age — if we have fresh data (< 12h), return cached
@@ -716,6 +735,61 @@ Deno.serve(async (req) => {
     }
 
     console.log(`[deal-search] wrote ${productDealRows.length} product + ${keywordDealRows.length} keyword deals`)
+
+    // ── Persist first-seen + detect genuinely-new offers ──────────────────
+    // deal_cache is wiped + rewritten every run, so "new" can't come from it;
+    // deal_offer_first_seen survives. Dedup across product + keyword rows: the
+    // same (retailer, offer_id) can appear in both, so stamp the union ONCE.
+    const firstSeenRows = Array.from(
+      new Map(
+        allDeals
+          .filter((d) => d.offer_id)
+          .map((d) => [
+            `${d.retailer}::${d.offer_id}`,
+            { company_id: companyId, retailer: d.retailer, offer_id: d.offer_id as string },
+          ]),
+      ).values(),
+    )
+
+    let newOfferCount = 0
+    let newRetailers: string[] = []
+    if (firstSeenRows.length > 0) {
+      // ignoreDuplicates = ON CONFLICT DO NOTHING; .select() then returns ONLY
+      // the rows actually inserted = offers seen for the very first time.
+      const { data: inserted, error: fsErr } = await adminClient
+        .from('deal_offer_first_seen')
+        .upsert(firstSeenRows, {
+          onConflict: 'company_id,retailer,offer_id',
+          ignoreDuplicates: true,
+        })
+        .select('retailer, offer_id')
+      if (fsErr) {
+        console.error('[deal-search] first-seen stamp failed:', fsErr)
+      } else {
+        newOfferCount = inserted?.length ?? 0
+        newRetailers = [...new Set((inserted ?? []).map((r: any) => r.retailer))]
+      }
+    }
+    console.log(`[deal-search] ${newOfferCount} newly-first-seen offers this run`)
+
+    // ── Notify on genuinely-new offers (scheduled cron runs only) ─────────
+    // Manual frontend refreshes never push. Opt-in per user via the
+    // 'new_deals' notification preference (default-on, like the others).
+    if (isScheduled && newOfferCount > 0) {
+      try {
+        const topRetailers = newRetailers.slice(0, 3).join(', ')
+        await sendPushToUsers(adminClient, companyId, 'new_deals', (locale: Locale) => {
+          const strings = t(locale)
+          return {
+            title: `🏷️ ${strings.newDealsTitle}`,
+            body: strings.newDealsBody(newOfferCount, topRetailers),
+            data: { type: 'new_deals', url: '/deals' },
+          }
+        })
+      } catch (pushErr) {
+        console.error('[deal-search] new-deals push failed:', pushErr)
+      }
+    }
 
     // Read back with product joins for the response
     const { data: result } = await adminClient

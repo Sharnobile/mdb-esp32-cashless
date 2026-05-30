@@ -28,6 +28,8 @@ export interface TranslationSet {
   remaining: string
   testMachine: string
   sampleProduct: string
+  newDealsTitle: string
+  newDealsBody: (count: number, retailers: string) => string
 }
 
 const en: TranslationSet = {
@@ -39,6 +41,11 @@ const en: TranslationSet = {
   remaining: 'remaining',
   testMachine: 'Test Machine',
   sampleProduct: 'Sample Product',
+  newDealsTitle: 'New deals',
+  newDealsBody: (n, r) =>
+    r
+      ? `${n} new ${n === 1 ? 'deal' : 'deals'} — ${r}`
+      : `${n} new ${n === 1 ? 'deal' : 'deals'}`,
 }
 
 const de: TranslationSet = {
@@ -50,6 +57,11 @@ const de: TranslationSet = {
   remaining: 'übrig',
   testMachine: 'Testmaschine',
   sampleProduct: 'Beispielprodukt',
+  newDealsTitle: 'Neue Angebote',
+  newDealsBody: (n, r) =>
+    r
+      ? `${n} ${n === 1 ? 'neues Angebot' : 'neue Angebote'} — ${r}`
+      : `${n} ${n === 1 ? 'neues Angebot' : 'neue Angebote'}`,
 }
 
 export function t(locale: Locale): TranslationSet {
