@@ -141,6 +141,34 @@ fetch_images() {
   rsync -a -e ssh "$PROD_SSH:$img_dir/" "$WORKDIR/product-images/"
 }
 
+restore_db() {
+  local public_tables truncate_stmt
+  public_tables="$(docker exec "$DEV_DB_CONTAINER" psql -tA -U postgres -d postgres -c \
+    "SELECT string_agg(format('%I.%I', schemaname, tablename), ', ') FROM pg_tables WHERE schemaname='public'")"
+  [[ -n "$public_tables" ]] || { echo "ERROR: could not list public tables in dev" >&2; exit 1; }
+  truncate_stmt="$(build_truncate_stmt "$public_tables")"
+
+  if $DRY_RUN; then
+    echo "[dry-run] would restore into $DEV_DB_CONTAINER inside one transaction:"
+    echo "  BEGIN; SET session_replication_role = replica;"
+    echo "  $truncate_stmt"
+    echo "  \\i auth.sql ; \\i public.sql"
+    echo "  SET session_replication_role = default; COMMIT;"
+    return 0
+  fi
+
+  echo "==> Restoring into dev (single transaction, triggers/FK off)..."
+  {
+    echo "BEGIN;"
+    echo "SET session_replication_role = replica;"
+    echo "$truncate_stmt"
+    cat "$WORKDIR/auth.sql"
+    cat "$WORKDIR/public.sql"
+    echo "SET session_replication_role = default;"
+    echo "COMMIT;"
+  } | docker exec -i "$DEV_DB_CONTAINER" psql -v ON_ERROR_STOP=1 -U postgres -d postgres
+}
+
 # ---------- entry point ----------
 
 main() {
