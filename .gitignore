@@ -37,3 +37,7 @@ Docker/mqtt/data/
 Docker/volumes/db/data/
 Docker/volumes/storage/
 Docker/supabase/migrations.db
+
+# Prod→dev data sync (scripts/sync-prod-to-dev.sh)
+tmp/sync/
+scripts/sync-prod-to-dev.env
