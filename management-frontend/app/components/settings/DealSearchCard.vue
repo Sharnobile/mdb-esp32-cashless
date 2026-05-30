@@ -102,6 +102,22 @@ watch(() => organization.value?.id, (id) => {
         <p class="text-xs text-muted-foreground">{{ t('settings.dealsZipCodeHint') }}</p>
       </div>
 
+      <!-- Daily auto-refresh hour -->
+      <div v-if="dealsEnabled" class="space-y-1">
+        <label class="text-sm font-medium" for="deals-refresh-hour">{{ t('settings.dealsRefreshHour') }}</label>
+        <select
+          id="deals-refresh-hour"
+          v-model="dealsRefreshHour"
+          class="flex h-9 w-full max-w-[200px] rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        >
+          <option :value="null">{{ t('settings.dealsRefreshHourOff') }}</option>
+          <option v-for="h in 24" :key="h - 1" :value="h - 1">
+            {{ String(h - 1).padStart(2, '0') }}:00
+          </option>
+        </select>
+        <p class="text-xs text-muted-foreground">{{ t('settings.dealsRefreshHourHint') }}</p>
+      </div>
+
       <!-- Keyword configuration -->
       <div v-if="dealsEnabled" class="space-y-3 rounded-lg border p-4">
         <div class="flex items-center justify-between">
