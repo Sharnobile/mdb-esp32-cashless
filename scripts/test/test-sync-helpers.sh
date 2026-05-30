@@ -24,14 +24,19 @@ check "mime jpg"        "$(mime_for a.jpg)"    "image/jpeg"
 check "mime jpeg"       "$(mime_for a.jpeg)"   "image/jpeg"
 check "mime webp"       "$(mime_for a.webp)"   "image/webp"
 check "mime fallback"   "$(mime_for a.bin)"    "application/octet-stream"
+check "mime JPEG upper" "$(mime_for A.JPEG)"   "image/jpeg"
+check "mime WEBP upper" "$(mime_for A.WEBP)"   "image/webp"
 
 # --- dev_db_container ---
 check "container from fixture" "$(dev_db_container "$HERE/fixtures/config.toml")" "supabase_db_test-project"
 
 # --- dump_looks_like_sql ---
-dump_looks_like_sql "$HERE/fixtures/good-dump.sql"; check_rc "good dump accepted" "$?" "0"
-dump_looks_like_sql "$HERE/fixtures/bad-dump.txt"; check_rc "bad dump rejected"  "$?" "1"
-dump_looks_like_sql "$HERE/fixtures/empty.sql";    check_rc "empty dump rejected" "$?" "1"
+dump_looks_like_sql "$HERE/fixtures/good-dump.sql";       check_rc "good dump accepted"      "$?" "0"
+dump_looks_like_sql "$HERE/fixtures/bad-dump.txt";       check_rc "bad dump rejected"       "$?" "1"
+dump_looks_like_sql "$HERE/fixtures/empty.sql";          check_rc "empty dump rejected"     "$?" "1"
+dump_looks_like_sql "$HERE/fixtures/set-first-dump.sql";       check_rc "SET-first dump accepted"    "$?" "0"
+dump_looks_like_sql "$HERE/fixtures/select-first-dump.sql";    check_rc "SELECT-first dump accepted" "$?" "0"
+dump_looks_like_sql "$HERE/fixtures/backslash-dump.sql";       check_rc "backslash-first dump accepted" "$?" "0"
 
 # --- build_truncate_stmt ---
 check "truncate stmt" "$(build_truncate_stmt 'public.a, public.b')" \

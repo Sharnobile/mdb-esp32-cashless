@@ -35,23 +35,23 @@ mime_for() {
   esac
 }
 
+dev_db_container() {
+  # $1 = path to config.toml → echoes the local CLI db container name
+  local cfg="$1" pid
+  pid="$(grep -E '^[[:space:]]*project_id[[:space:]]*=' "$cfg" | head -n1 | cut -d'"' -f2)"
+  if [[ -z "$pid" ]]; then
+    echo "ERROR: project_id not found in $cfg" >&2
+    return 1
+  fi
+  echo "supabase_db_${pid}"
+}
+
 dump_looks_like_sql() {
   # $1 = path to a dump file. Returns 0 if it looks like pg_dump SQL output.
   local f="$1" line
   [[ -s "$f" ]] || return 1
   line="$(grep -m1 -vE '^[[:space:]]*$' "$f" 2>/dev/null || true)"
   [[ "$line" =~ ^(SET|SELECT|--|\\) ]]
-}
-
-dev_db_container() {
-  # $1 = path to config.toml → echoes the local CLI db container name
-  local cfg="$1" pid
-  pid="$(grep -E '^[[:space:]]*project_id' "$cfg" | head -n1 | cut -d'"' -f2)"
-  if [[ -z "$pid" ]]; then
-    echo "ERROR: project_id not found in $cfg" >&2
-    return 1
-  fi
-  echo "supabase_db_${pid}"
 }
 
 build_truncate_stmt() {
