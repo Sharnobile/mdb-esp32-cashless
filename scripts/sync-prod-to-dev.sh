@@ -54,6 +54,12 @@ dev_db_container() {
   echo "supabase_db_${pid}"
 }
 
+build_truncate_stmt() {
+  # $1 = comma-separated list of fully-qualified public tables
+  # → one TRUNCATE covering all public tables + auth.users (CASCADE clears auth internals).
+  printf 'TRUNCATE %s, auth.users RESTART IDENTITY CASCADE;' "$1"
+}
+
 # ---------- entry point ----------
 
 main() {

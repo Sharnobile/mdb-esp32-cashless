@@ -33,6 +33,10 @@ dump_looks_like_sql "$HERE/fixtures/good-dump.sql"; check_rc "good dump accepted
 dump_looks_like_sql "$HERE/fixtures/bad-dump.txt"; check_rc "bad dump rejected"  "$?" "1"
 dump_looks_like_sql "$HERE/fixtures/empty.sql";    check_rc "empty dump rejected" "$?" "1"
 
+# --- build_truncate_stmt ---
+check "truncate stmt" "$(build_truncate_stmt 'public.a, public.b')" \
+  "TRUNCATE public.a, public.b, auth.users RESTART IDENTITY CASCADE;"
+
 echo "----"
 echo "passed: $pass, failed: $fail"
 [[ "$fail" -eq 0 ]]
