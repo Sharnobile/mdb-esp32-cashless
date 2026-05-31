@@ -43,7 +43,7 @@ dump_looks_like_sql "$HERE/fixtures/backslash-dump.sql";       check_rc "backsla
 
 # --- build_truncate_stmt ---
 check "truncate stmt" "$(build_truncate_stmt 'public.a, public.b')" \
-  "TRUNCATE public.a, public.b, auth.users RESTART IDENTITY CASCADE;"
+  "TRUNCATE public.a, public.b, auth.users CASCADE;"
 
 echo "----"
 echo "passed: $pass, failed: $fail"

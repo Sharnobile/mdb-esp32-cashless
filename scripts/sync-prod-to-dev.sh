@@ -57,7 +57,10 @@ dump_looks_like_sql() {
 build_truncate_stmt() {
   # $1 = comma-separated list of fully-qualified public tables
   # → one TRUNCATE covering all public tables + auth.users (CASCADE clears auth internals).
-  printf 'TRUNCATE %s, auth.users RESTART IDENTITY CASCADE;' "$1"
+  # No RESTART IDENTITY: CASCADE reaches auth-owned sequences (e.g. refresh_tokens_id_seq)
+  # that the non-superuser `postgres` role cannot reset; public sequence values are restored
+  # by the setval() calls already present in the data-only dump.
+  printf 'TRUNCATE %s, auth.users CASCADE;' "$1"
 }
 
 # ---------- integration phases (verified via --dry-run, not unit-tested) ----------
