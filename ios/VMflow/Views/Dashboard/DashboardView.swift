@@ -32,6 +32,8 @@ struct DashboardView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 20) {
+                newDealsBanner
+
                 // KPI Cards
                 kpiSection
 
@@ -86,6 +88,44 @@ struct DashboardView: View {
                 fallbackImagePath: sel.imagePath,
                 fallbackSellprice: sel.sellprice
             )
+        }
+    }
+
+    // MARK: - New deals banner
+
+    /// Green banner shown when the daily refresh brought in new/unhandled deals.
+    /// Tapping deep-links into Deals so the user can pin or archive them.
+    @ViewBuilder
+    private var newDealsBanner: some View {
+        if viewModel.newDealsCount > 0 {
+            Button {
+                onNavigate(.deals)
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "tag.fill")
+                        .foregroundStyle(.green)
+                    Text(viewModel.newDealsCount == 1
+                        ? String(localized: "1 new deal")
+                        : String(localized: "\(viewModel.newDealsCount) new deals"))
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.green)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundStyle(.green.opacity(0.7))
+                }
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(.green.opacity(0.12))
+                }
+                .overlay {
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(.green.opacity(0.3), lineWidth: 1)
+                }
+            }
+            .buttonStyle(.plain)
         }
     }
 

@@ -23,6 +23,7 @@ final class DashboardViewModel: ObservableObject {
     @Published var machinesTotal: Int = 0
     @Published var stockCriticalCount: Int = 0
     @Published var stockLowCount: Int = 0
+    @Published var newDealsCount: Int = 0
 
     @Published var dailySales: [DailySales] = []
     @Published var recentSales: [SaleWithMachine] = []
@@ -71,8 +72,9 @@ final class DashboardViewModel: ObservableObject {
             async let machinesTask: () = loadMachineStats()
             async let chartTask: () = loadDailyChart()
             async let recentTask: () = loadRecentSales()
+            async let newDealsTask: () = loadNewDealsCount()
 
-            _ = try await (salesTask, machinesTask, chartTask, recentTask)
+            _ = try await (salesTask, machinesTask, chartTask, recentTask, newDealsTask)
         } catch is CancellationError {
             // Ignore — SwiftUI cancels refreshable tasks routinely
         } catch {
@@ -80,6 +82,21 @@ final class DashboardViewModel: ObservableObject {
         }
 
         isLoading = false
+    }
+
+    // MARK: - New deals
+
+    /// Count of new/unhandled deals for the current user (dashboard banner).
+    /// Swallows errors so backends without the RPC don't break the dashboard.
+    private func loadNewDealsCount() async {
+        do {
+            newDealsCount = try await client
+                .rpc("get_new_deals_count")
+                .execute()
+                .value
+        } catch {
+            newDealsCount = 0
+        }
     }
 
     // MARK: - Sales KPIs
