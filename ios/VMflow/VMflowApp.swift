@@ -121,46 +121,68 @@ enum AppTab: Hashable {
 struct MoreView: View {
     @EnvironmentObject var auth: AuthService
 
+    /// Deep-link target set by the dashboard (e.g. its "new deals" banner).
+    /// Drives a programmatic NavigationLink so a banner tap on the Dashboard
+    /// tab can open a destination that lives under More.
+    @Binding var deepLink: SidebarItem?
+
+    init(deepLink: Binding<SidebarItem?> = .constant(nil)) {
+        self._deepLink = deepLink
+    }
+
     var body: some View {
-        List {
-            Section {
-                NavigationLink {
-                    CashBookView()
-                } label: {
-                    Label {
-                        Text("cash_book_title")
-                    } icon: {
-                        Image(systemName: "banknote.fill")
+        NavigationStack {
+            List {
+                Section {
+                    NavigationLink {
+                        CashBookView()
+                    } label: {
+                        Label {
+                            Text("cash_book_title")
+                        } icon: {
+                            Image(systemName: "banknote.fill")
+                        }
+                    }
+
+                    NavigationLink {
+                        ProductsView()
+                    } label: {
+                        Label("Products", systemImage: "cube.box.fill")
+                    }
+
+                    NavigationLink {
+                        WarehouseView()
+                    } label: {
+                        Label("Warehouse", systemImage: "shippingbox.fill")
+                    }
+
+                    NavigationLink {
+                        DealsView()
+                    } label: {
+                        Label("Deals", systemImage: "tag.fill")
                     }
                 }
 
-                NavigationLink {
-                    ProductsView()
-                } label: {
-                    Label("Products", systemImage: "cube.box.fill")
-                }
-
-                NavigationLink {
-                    WarehouseView()
-                } label: {
-                    Label("Warehouse", systemImage: "shippingbox.fill")
-                }
-
-                NavigationLink {
-                    DealsView()
-                } label: {
-                    Label("Deals", systemImage: "tag.fill")
+                Section {
+                    NavigationLink {
+                        SettingsView()
+                    } label: {
+                        Label("Settings", systemImage: "gearshape.fill")
+                    }
                 }
             }
-
-            Section {
-                NavigationLink {
-                    SettingsView()
-                } label: {
-                    Label("Settings", systemImage: "gearshape.fill")
+            .navigationTitle("More")
+            // Programmatic deep-link: dashboard banner → a More destination.
+            .navigationDestination(item: $deepLink) { item in
+                switch item {
+                case .deals:     DealsView()
+                case .products:  ProductsView()
+                case .warehouse: WarehouseView()
+                case .cashBook:  CashBookView()
+                case .settings:  SettingsView()
+                default:         EmptyView()
                 }
             }
         }
-        .navigationTitle("More")
     }
 }

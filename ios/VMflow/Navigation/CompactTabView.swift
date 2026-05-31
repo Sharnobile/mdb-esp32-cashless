@@ -5,6 +5,9 @@ struct CompactTabView: View {
     @EnvironmentObject var auth: AuthService
     @StateObject private var notificationService = NotificationService.shared
     @State private var selectedTab: AppTab = .dashboard
+    /// Deep-link target for the More tab — lets the dashboard open a More
+    /// destination (e.g. Deals) when its banner is tapped.
+    @State private var moreDeepLink: SidebarItem?
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -12,6 +15,11 @@ struct CompactTabView: View {
                 DashboardView(onNavigate: { item in
                     if let tab = item.compactTab {
                         selectedTab = tab
+                    } else {
+                        // Destinations under "More" (deals, products, …):
+                        // switch to the More tab and push the destination.
+                        moreDeepLink = item
+                        selectedTab = .more
                     }
                 })
             }
@@ -45,9 +53,7 @@ struct CompactTabView: View {
             .badge(notificationService.openInboxCount)
             .tag(AppTab.inbox)
 
-            NavigationStack {
-                MoreView()
-            }
+            MoreView(deepLink: $moreDeepLink)
             .tabItem {
                 Label("More", systemImage: "ellipsis.circle.fill")
             }
