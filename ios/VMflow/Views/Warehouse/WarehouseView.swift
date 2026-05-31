@@ -205,6 +205,37 @@ struct WarehouseView: View {
         }
     }
 
+    // MARK: - Search Field
+
+    /// Inline search field rendered as the first row of the stock list (instead
+    /// of a nav-bar `.searchable`) so it scrolls with the content and never
+    /// reconfigures the navigation bar when switching tabs.
+    private var searchField: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary)
+            TextField("Search products", text: $viewModel.searchText)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .submitLabel(.search)
+            if !viewModel.searchText.isEmpty {
+                Button {
+                    viewModel.searchText = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.vertical, 8)
+        .padding(.horizontal, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color(.systemGray6))
+        )
+    }
+
     // MARK: - Stock Overview Tab
 
     private var stockOverviewTab: some View {
