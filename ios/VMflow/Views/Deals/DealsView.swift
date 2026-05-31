@@ -114,7 +114,7 @@ struct DealsView: View {
                 ForEach(viewModel.groupedDeals) { group in
                     Section {
                         ForEach(group.deals) { deal in
-                            DealCard(deal: deal)
+                            DealCard(deal: deal, isNew: viewModel.isNew(deal))
                                 .contentShape(Rectangle())
                                 .onTapGesture {
                                     selectedDeal = deal
@@ -161,6 +161,7 @@ struct DealsView: View {
         .refreshable {
             await viewModel.fetchUserStates()
             await viewModel.fetchDeals(forceRefresh: true)
+            await viewModel.fetchNewDealKeys()
         }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
@@ -168,6 +169,7 @@ struct DealsView: View {
                     Task {
                         await viewModel.fetchUserStates()
                         await viewModel.fetchDeals(forceRefresh: true)
+                        await viewModel.fetchNewDealKeys()
                     }
                 } label: {
                     Image(systemName: "arrow.clockwise")

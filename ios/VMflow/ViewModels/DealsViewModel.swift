@@ -23,6 +23,11 @@ final class DealsViewModel: ObservableObject {
     /// Only deals the user has interacted with have an entry here.
     @Published var userStates: [String: DealUserState] = [:]
 
+    /// Keys (`${retailer}::${offer_id}`) of offers that are NEW + unhandled for
+    /// the current user — first seen after their baseline and not yet pinned or
+    /// archived. Computed server-side by the get_new_deal_keys RPC.
+    @Published var newDealKeys: Set<String> = []
+
     enum GroupMode: String, CaseIterable {
         case retailer = "Retailer"
         case product = "Product"
@@ -143,6 +148,12 @@ final class DealsViewModel: ObservableObject {
 
     var archivedCount: Int { archivedDeals.count }
 
+    /// A deal is "new" if the RPC flagged it AND the user hasn't pinned or
+    /// archived it yet, so the NEU badge clears optimistically on pin/archive.
+    func isNew(_ deal: DedupedDeal) -> Bool {
+        newDealKeys.contains(deal.key) && !deal.archived && !deal.pinned
+    }
+
     var filteredDeals: [DedupedDeal] {
         let source = listMode == .archived ? archivedDeals : activeDeals
         guard !searchText.isEmpty else { return source }
@@ -225,6 +236,7 @@ final class DealsViewModel: ObservableObject {
         if dealsEnabled {
             await fetchUserStates()
             await fetchDeals()
+            await fetchNewDealKeys()
         }
     }
 
@@ -294,6 +306,25 @@ final class DealsViewModel: ObservableObject {
             // ignore
         } catch {
             self.error = error.localizedDescription
+        }
+    }
+
+    // MARK: - New deals
+
+    /// Fetch the set of new/unhandled offer keys for the current user via the
+    /// get_new_deal_keys RPC (returns rows of {retailer, offer_id}).
+    func fetchNewDealKeys() async {
+        do {
+            let rows: [NewDealKeyRow] = try await client
+                .rpc("get_new_deal_keys")
+                .execute()
+                .value
+            newDealKeys = Set(rows.map { Self.stateKey(retailer: $0.retailer, offerId: $0.offerId) })
+        } catch is CancellationError {
+            // ignore
+        } catch {
+            // Non-fatal — backends without the migration shouldn't break the list.
+            print("[DealsVM] fetchNewDealKeys failed: \(error.localizedDescription)")
         }
     }
 
@@ -475,6 +506,16 @@ private struct CompanyDealUpdate: Codable {
 private struct DealSearchBody: Codable {
     let forceRefresh: Bool
     let minConfidence: Double
+}
+
+private struct NewDealKeyRow: Decodable {
+    let retailer: String
+    let offerId: String
+
+    enum CodingKeys: String, CodingKey {
+        case retailer
+        case offerId = "offer_id"
+    }
 }
 
 private struct DealUserStateUpsert: Codable {

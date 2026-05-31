@@ -5,6 +5,7 @@ import SwiftUI
 /// per-user archive/pin state via small corner badges.
 struct DealCard: View {
     let deal: DedupedDeal
+    var isNew: Bool = false
 
     var body: some View {
         HStack(spacing: 12) {
@@ -12,6 +13,14 @@ struct DealCard: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 4) {
+                    if isNew {
+                        Text("NEW")
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1)
+                            .background(Capsule().fill(.green))
+                    }
                     if deal.pinned {
                         Image(systemName: "pin.fill")
                             .font(.caption2)
