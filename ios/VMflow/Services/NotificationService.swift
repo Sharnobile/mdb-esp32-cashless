@@ -79,6 +79,12 @@ final class NotificationService: ObservableObject {
             description: String(localized: "Get notified when a customer reports a problem, leaves feedback, or submits a product wish"),
             icon: "tray.full.fill"
         ),
+        NotificationType(
+            key: "new_deals",
+            label: String(localized: "New Deals"),
+            description: String(localized: "Get a daily push when new retailer offers match your products"),
+            icon: "tag.fill"
+        ),
     ]
 
     private var client: SupabaseClient { SupabaseService.shared.client }
