@@ -44,9 +44,9 @@ struct CompactTabView: View {
             }
             .tag(AppTab.refill)
 
-            // WarehouseView provides its own NavigationStack, so it is hosted
-            // directly (unlike the other tab roots wrapped above).
-            WarehouseView()
+            NavigationStack {
+                WarehouseView()
+            }
             .tabItem {
                 Label("Warehouse", systemImage: "shippingbox.fill")
             }
