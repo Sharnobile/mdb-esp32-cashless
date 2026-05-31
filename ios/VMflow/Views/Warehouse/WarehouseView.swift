@@ -254,14 +254,24 @@ struct WarehouseView: View {
                     Spacer()
                 }
             } else {
-                // Stock exists: keep the search bar mounted on a stable
-                // container so it stays visible even when the current query
-                // has no matches (otherwise the empty-state view replaces the
-                // List that owns `.searchable`, and the bar disappears).
-                Group {
+                // Search field lives INSIDE the list (first row) rather than as
+                // a nav-bar `.searchable`. It scrolls with the content and is
+                // revealed by pulling the list down. Because the nav bar no
+                // longer gains/loses a search field when switching between the
+                // Stock and Incoming tabs, the segmented picker and the content
+                // below it no longer jump on tab change.
+                List {
+                    Section {
+                        searchField
+                            .listRowSeparator(.hidden)
+                            .listRowInsets(EdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12))
+                            .listRowBackground(Color.clear)
+                    }
+
                     if viewModel.filteredSummaries.isEmpty {
+                        // No-match state as a list row so the search field above
+                        // stays mounted and usable while the user types.
                         VStack(spacing: 12) {
-                            Spacer()
                             Image(systemName: "magnifyingglass")
                                 .font(.system(size: 40))
                                 .foregroundStyle(.secondary)
@@ -273,34 +283,34 @@ struct WarehouseView: View {
                                 Text("No products matching \"\(viewModel.searchText)\"")
                                     .foregroundStyle(.secondary)
                             }
-                            Spacer()
                         }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 60)
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
                     } else {
-                        List {
-                            ForEach(viewModel.filteredSummaries) { summary in
-                                NavigationLink {
-                                    ProductBatchesView(
-                                        productId: summary.productId,
-                                        productName: summary.productName,
-                                        productImagePath: summary.imagePath
+                        ForEach(viewModel.filteredSummaries) { summary in
+                            NavigationLink {
+                                ProductBatchesView(
+                                    productId: summary.productId,
+                                    productName: summary.productName,
+                                    productImagePath: summary.imagePath
+                                )
+                                .environmentObject(viewModel)
+                            } label: {
+                                StockSummaryRow(summary: summary) {
+                                    productDetailSelection = ProductDetailSelection(
+                                        id: summary.productId,
+                                        name: summary.productName,
+                                        imagePath: summary.imagePath
                                     )
-                                    .environmentObject(viewModel)
-                                } label: {
-                                    StockSummaryRow(summary: summary) {
-                                        productDetailSelection = ProductDetailSelection(
-                                            id: summary.productId,
-                                            name: summary.productName,
-                                            imagePath: summary.imagePath
-                                        )
-                                    }
                                 }
                             }
                         }
-                        .listStyle(.plain)
                     }
                 }
-                .searchable(text: $viewModel.searchText, prompt: "Search products")
+                .listStyle(.plain)
+                .scrollDismissesKeyboard(.interactively)
             }
         }
     }
