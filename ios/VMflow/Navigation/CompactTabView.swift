@@ -44,14 +44,13 @@ struct CompactTabView: View {
             }
             .tag(AppTab.refill)
 
-            NavigationStack {
-                InboxView()
-            }
+            // WarehouseView provides its own NavigationStack, so it is hosted
+            // directly (unlike the other tab roots wrapped above).
+            WarehouseView()
             .tabItem {
-                Label("Inbox", systemImage: "tray.fill")
+                Label("Warehouse", systemImage: "shippingbox.fill")
             }
-            .badge(notificationService.openInboxCount)
-            .tag(AppTab.inbox)
+            .tag(AppTab.warehouse)
 
             MoreView(deepLink: $moreDeepLink)
             .tabItem {
@@ -60,12 +59,14 @@ struct CompactTabView: View {
             .tag(AppTab.more)
         }
         .tint(.blue)
-        // Notification tap deep-link routing.
+        // Notification tap deep-link routing. Inbox now lives under the More
+        // tab, so route there and push the Inbox destination.
         .onChange(of: notificationService.pendingDeepLink) { _, link in
             guard let link else { return }
             switch link {
             case .inbox:
-                selectedTab = .inbox
+                moreDeepLink = .inbox
+                selectedTab = .more
             }
             notificationService.pendingDeepLink = nil
         }

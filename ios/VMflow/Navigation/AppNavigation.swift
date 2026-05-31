@@ -48,8 +48,8 @@ enum SidebarItem: String, Hashable, CaseIterable, Identifiable {
         case .dashboard: .dashboard
         case .machines: .machines
         case .refill: .refill
-        case .inbox: .inbox
-        default: nil  // cashBook, products, warehouse, deals, settings → More tab
+        case .warehouse: .warehouse
+        default: nil  // inbox, cashBook, products, deals, settings → More tab
         }
     }
 }

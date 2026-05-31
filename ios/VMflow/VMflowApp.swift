@@ -113,17 +113,19 @@ struct AuthNavigationView: View {
 // MARK: - Tab Selection
 
 enum AppTab: Hashable {
-    case dashboard, machines, refill, inbox, more
+    case dashboard, machines, refill, warehouse, more
 }
 
 // MARK: - More View
 
 struct MoreView: View {
     @EnvironmentObject var auth: AuthService
+    @StateObject private var notificationService = NotificationService.shared
 
-    /// Deep-link target set by the dashboard (e.g. its "new deals" banner).
-    /// Drives a programmatic NavigationLink so a banner tap on the Dashboard
-    /// tab can open a destination that lives under More.
+    /// Deep-link target set by the dashboard (e.g. its "new deals" banner) or
+    /// by a push-notification tap (e.g. inbox). Drives a programmatic
+    /// navigationDestination so callers outside the More tab can open a
+    /// destination that lives under More.
     @Binding var deepLink: SidebarItem?
 
     init(deepLink: Binding<SidebarItem?> = .constant(nil)) {
@@ -134,6 +136,13 @@ struct MoreView: View {
         NavigationStack {
             List {
                 Section {
+                    NavigationLink {
+                        InboxView()
+                    } label: {
+                        Label("Inbox", systemImage: "tray.fill")
+                            .badge(notificationService.openInboxCount)
+                    }
+
                     NavigationLink {
                         CashBookView()
                     } label: {
@@ -148,12 +157,6 @@ struct MoreView: View {
                         ProductsView()
                     } label: {
                         Label("Products", systemImage: "cube.box.fill")
-                    }
-
-                    NavigationLink {
-                        WarehouseView()
-                    } label: {
-                        Label("Warehouse", systemImage: "shippingbox.fill")
                     }
 
                     NavigationLink {
@@ -172,9 +175,10 @@ struct MoreView: View {
                 }
             }
             .navigationTitle("More")
-            // Programmatic deep-link: dashboard banner → a More destination.
+            // Programmatic deep-link: dashboard banner / push tap → a More dest.
             .navigationDestination(item: $deepLink) { item in
                 switch item {
+                case .inbox:     InboxView()
                 case .deals:     DealsView()
                 case .products:  ProductsView()
                 case .warehouse: WarehouseView()
