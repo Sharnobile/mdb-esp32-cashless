@@ -1,26 +1,17 @@
 <script setup lang="ts">
 import { IconBellRinging, IconLoader2 } from '@tabler/icons-vue'
-import { CURATED_TIMEZONES, detectBrowserTimezone } from '~/lib/timezones'
 
 const { t } = useI18n()
 const supabase = useSupabaseClient()
 const { organization, role } = useOrganization()
 
-const timezone = ref<string>(detectBrowserTimezone())
+// Timezone is a company-wide setting edited on the Imprint (operator) card —
+// here it's read-only context for the send-time picker.
+const timezone = ref<string>('Europe/Berlin')
 const hour = ref<number | null>(null)
 const loading = ref(false)
 const error = ref('')
 const success = ref('')
-
-/** Merged dropdown list: curated zones + browser-detected zone if not in list. */
-const timezoneOptions = computed(() => {
-  const browserTz = detectBrowserTimezone()
-  const known = new Set(CURATED_TIMEZONES.map(z => z.id))
-  if (!known.has(browserTz)) {
-    return [{ id: browserTz, label: `${browserTz} (detected)` }, ...CURATED_TIMEZONES]
-  }
-  return CURATED_TIMEZONES
-})
 
 const hourOptions = computed(() => {
   return Array.from({ length: 24 }, (_, i) => ({
@@ -61,7 +52,6 @@ async function save() {
     const { error: updateErr } = await supabase
       .from('companies')
       .update({
-        timezone: timezone.value,
         low_stock_notification_hour: hour.value,
       })
       .eq('id', organization.value.id)
@@ -91,17 +81,6 @@ watch(() => organization.value?.id, (id) => {
 
     <form class="space-y-4" @submit.prevent="save">
       <div class="space-y-1">
-        <label for="ls-timezone" class="text-sm font-medium">{{ t('settings.lowStockTimezone') }}</label>
-        <select
-          id="ls-timezone"
-          v-model="timezone"
-          class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-        >
-          <option v-for="tz in timezoneOptions" :key="tz.id" :value="tz.id">{{ tz.label }}</option>
-        </select>
-      </div>
-
-      <div class="space-y-1">
         <label for="ls-hour" class="text-sm font-medium">{{ t('settings.lowStockSendTime') }}</label>
         <select
           id="ls-hour"
@@ -111,6 +90,7 @@ watch(() => organization.value?.id, (id) => {
           <option :value="null">{{ t('settings.lowStockDisabledOption') }}</option>
           <option v-for="opt in hourOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
         </select>
+        <p class="text-xs text-muted-foreground">{{ t('settings.timezoneContextHint', { tz: timezone }) }}</p>
       </div>
 
       <p v-if="error" class="text-sm text-destructive">{{ error }}</p>

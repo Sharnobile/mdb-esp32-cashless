@@ -14,6 +14,7 @@ import {
   IconArchiveOff,
   IconBuildingWarehouse,
   IconBox,
+  IconPlug,
 } from '@tabler/icons-vue'
 import Badge from '@/components/ui/badge/Badge.vue'
 import {
@@ -37,6 +38,7 @@ const {
   loading,
   error,
   fromCache,
+  noProviders,
   dealsEnabled,
   lastFetchedAt,
   loadSettings,
@@ -487,6 +489,26 @@ function highlightTokens(text: string, tokens: string[] | null): { text: string;
           <!-- Loading skeleton -->
           <div v-if="loading && deals.length === 0" class="space-y-4">
             <div v-for="i in 3" :key="i" class="h-24 animate-pulse rounded-xl border bg-muted" />
+          </div>
+
+          <!-- No deal-source provider configured -->
+          <div
+            v-else-if="!loading && noProviders"
+            class="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed bg-card p-12 text-center"
+          >
+            <IconPlug class="size-10 text-muted-foreground" />
+            <div>
+              <h2 class="text-base font-semibold">{{ t('deals.noProvidersTitle') }}</h2>
+              <p class="mt-1 text-sm text-muted-foreground">{{ t('deals.noProvidersDescription') }}</p>
+            </div>
+            <NuxtLink
+              v-if="role === 'admin'"
+              to="/settings/extensions/deal-source"
+              class="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90"
+            >
+              <IconPlug class="size-4" />
+              {{ t('deals.noProvidersAction') }}
+            </NuxtLink>
           </div>
 
           <!-- Empty state -->

@@ -51,6 +51,7 @@ interface DealSearchResponse {
   searchedProducts?: number
   totalDeals?: number
   error?: string
+  message?: string
 }
 
 /**
@@ -176,6 +177,9 @@ export function useDeals() {
   const fromCache = ref(false)
   const searchedProducts = ref(0)
   const lastFetchedAt = ref<string | null>(null)
+  // True when deal-search reports no enabled deal-source provider — drives a
+  // distinct empty state on /deals that points the admin at the extensions UI.
+  const noProviders = ref(false)
 
   // Per-user state for each (retailer, offer_id) — archived / pinned flags.
   // Keyed by `${retailer}::${offer_id}` to match DedupedDeal.key.
@@ -288,6 +292,33 @@ export function useDeals() {
         })
         .eq('id', organization.value.id)
       if (err) throw err
+
+      // Auto-enable Marktguru as the default deal-source provider the first
+      // time deals are turned on, so enabling deals "just works". The provider
+      // pattern otherwise needs a separate toggle, which surfaces a confusing
+      // "No deal-source providers enabled" empty state. Only seeds when NO
+      // deal-source row exists yet — never re-enables one the user disabled.
+      if (dealsEnabled.value) {
+        const { data: existingProviders } = await supabase
+          .from('provider_settings')
+          .select('provider_id')
+          .eq('company_id', organization.value.id)
+          .eq('extension_point', 'deal-source')
+          .limit(1)
+        if (!existingProviders || existingProviders.length === 0) {
+          const { error: seedErr } = await supabase
+            .from('provider_settings')
+            .insert({
+              company_id: organization.value.id,
+              extension_point: 'deal-source',
+              provider_id: 'marktguru',
+              enabled: true,
+              config: {},
+            })
+          if (seedErr) console.error('[useDeals] marktguru auto-seed failed:', seedErr)
+        }
+      }
+
       settingsSuccess.value = 'saved'
     } catch (err: unknown) {
       settingsError.value = err instanceof Error ? err.message : 'Failed to save settings'
@@ -319,6 +350,7 @@ export function useDeals() {
       deals.value = res.deals ?? []
       fromCache.value = res.fromCache ?? false
       searchedProducts.value = res.searchedProducts ?? 0
+      noProviders.value = res.message === 'No deal-source providers enabled'
       // Use the fetched_at from the first deal, or current time for fresh data
       if (deals.value.length > 0 && deals.value[0].fetched_at) {
         lastFetchedAt.value = deals.value[0].fetched_at
@@ -673,6 +705,7 @@ export function useDeals() {
     fromCache,
     searchedProducts,
     lastFetchedAt,
+    noProviders,
     dealsEnabled,
     dealsZipCode,
     dealsRefreshHour,

@@ -1,9 +1,25 @@
 <script setup lang="ts">
 import { IconBuildingStore } from '@tabler/icons-vue'
+import { CURATED_TIMEZONES, detectBrowserTimezone } from '~/lib/timezones'
 
 const { t } = useI18n()
 const supabase = useSupabaseClient()
 const { organization, role } = useOrganization()
+
+// Company-wide IANA timezone. Operator-level setting consumed by the daily
+// low-stock push AND the daily deal refresh, so it lives here on the operator
+// card rather than on any single feature card.
+const timezone = ref<string>(detectBrowserTimezone())
+
+/** Curated zones + browser-detected zone if not already in the list. */
+const timezoneOptions = computed(() => {
+  const browserTz = detectBrowserTimezone()
+  const known = new Set(CURATED_TIMEZONES.map(z => z.id))
+  if (!known.has(browserTz)) {
+    return [{ id: browserTz, label: `${browserTz} (detected)` }, ...CURATED_TIMEZONES]
+  }
+  return CURATED_TIMEZONES
+})
 
 // ── Company imprint / Betreiberinformationen (admin only) ─────────────────
 // Shown read-only on the public /m/[machine_id] storefront for customers;
@@ -37,10 +53,10 @@ async function loadImprint() {
   if (!organization.value?.id) return
   const { data } = await supabase
     .from('companies')
-    .select('legal_name, contact_email, contact_phone, website, address_street, address_house_number, address_postal_code, address_city')
+    .select('legal_name, contact_email, contact_phone, website, address_street, address_house_number, address_postal_code, address_city, timezone')
     .eq('id', organization.value.id)
     .single()
-  const d = data as Partial<ImprintForm> | null
+  const d = data as (Partial<ImprintForm> & { timezone?: string }) | null
   if (!d) return
   imprintForm.legal_name           = d.legal_name           ?? ''
   imprintForm.contact_email        = d.contact_email        ?? ''
@@ -50,6 +66,7 @@ async function loadImprint() {
   imprintForm.address_house_number = d.address_house_number ?? ''
   imprintForm.address_postal_code  = d.address_postal_code  ?? ''
   imprintForm.address_city         = d.address_city         ?? ''
+  if (d.timezone) timezone.value = d.timezone
 }
 
 async function saveImprint() {
@@ -77,6 +94,7 @@ async function saveImprint() {
         address_house_number: norm(imprintForm.address_house_number),
         address_postal_code:  norm(imprintForm.address_postal_code),
         address_city:         norm(imprintForm.address_city),
+        timezone:             timezone.value,
       })
       .eq('id', organization.value.id)
     if (error) throw error
@@ -179,6 +197,18 @@ watch(() => organization.value?.id, (id) => {
             class="col-span-3 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
           />
         </div>
+      </div>
+
+      <div class="space-y-1 sm:col-span-2">
+        <label class="text-sm font-medium" for="imprint-timezone">{{ t('settings.timezoneLabel') }}</label>
+        <select
+          id="imprint-timezone"
+          v-model="timezone"
+          class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        >
+          <option v-for="tz in timezoneOptions" :key="tz.id" :value="tz.id">{{ tz.label }}</option>
+        </select>
+        <p class="text-xs text-muted-foreground">{{ t('settings.timezoneHint') }}</p>
       </div>
 
       <div class="sm:col-span-2">

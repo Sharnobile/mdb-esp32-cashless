@@ -118,6 +118,18 @@ watch(() => organization.value?.id, (id) => {
         <p class="text-xs text-muted-foreground">{{ t('settings.dealsRefreshHourHint') }}</p>
       </div>
 
+      <!-- Deal-source providers reference -->
+      <div v-if="dealsEnabled" class="rounded-lg border border-dashed bg-muted/30 p-3">
+        <p class="text-sm font-medium">{{ t('settings.dealsProvidersTitle') }}</p>
+        <p class="mt-0.5 text-xs text-muted-foreground">{{ t('settings.dealsProvidersHint') }}</p>
+        <NuxtLink
+          to="/settings/extensions/deal-source"
+          class="mt-2 inline-flex h-8 items-center gap-1.5 rounded-md border bg-card px-3 text-xs font-medium shadow-sm transition-colors hover:bg-accent"
+        >
+          {{ t('settings.dealsProvidersLink') }}
+        </NuxtLink>
+      </div>
+
       <!-- Keyword configuration -->
       <div v-if="dealsEnabled" class="space-y-3 rounded-lg border p-4">
         <div class="flex items-center justify-between">

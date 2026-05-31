@@ -1087,7 +1087,13 @@
     "backfillSales": "Backfill historical sales",
     "backfillDescription": "Updates older sales records with tax data based on current configuration.",
     "backfillSuccess": "{count} sales updated with tax data.",
-    "backfillNoChanges": "All sales already have tax data — nothing to update."
+    "backfillNoChanges": "All sales already have tax data — nothing to update.",
+    "timezoneLabel": "Timezone",
+    "timezoneHint": "Operator-wide timezone used for scheduled daily notifications (low stock & new deals).",
+    "timezoneContextHint": "Send time is in {tz}. Change it under operator information.",
+    "dealsProvidersTitle": "Deal sources",
+    "dealsProvidersHint": "Deals need at least one active source. Marktguru is enabled automatically when you turn deals on.",
+    "dealsProvidersLink": "Manage deal sources"
   },
   "softap": {
     "title": "WiFi access (SoftAP)",
@@ -1193,7 +1199,10 @@
       "emptyHint": "Example: a \"Haribo\" group with terms \"Haribo Fruchtgummis\", \"Haribo versch. Sorten\" linked to every Haribo product — brand-wide offers then show up as a single card.",
       "noLinkedProducts": "No products linked to this group yet — edit the group to add products.",
       "deleteConfirm": "Delete keyword group \"{label}\"?"
-    }
+    },
+    "noProvidersTitle": "No deal source configured",
+    "noProvidersDescription": "Deals need at least one active source to fetch offers.",
+    "noProvidersAction": "Set up deal sources"
   },
   "nayax": {
     "reconcile": {

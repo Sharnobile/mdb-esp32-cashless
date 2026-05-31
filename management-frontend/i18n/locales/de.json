@@ -1087,7 +1087,13 @@
     "backfillSales": "Historische Verkäufe nachberechnen",
     "backfillDescription": "Aktualisiert ältere Verkaufsdaten mit Steuerinformationen basierend auf der aktuellen Konfiguration.",
     "backfillSuccess": "{count} Verkäufe mit Steuerdaten aktualisiert.",
-    "backfillNoChanges": "Alle Verkäufe haben bereits Steuerdaten — nichts zu aktualisieren."
+    "backfillNoChanges": "Alle Verkäufe haben bereits Steuerdaten — nichts zu aktualisieren.",
+    "timezoneLabel": "Zeitzone",
+    "timezoneHint": "Firmenweite Zeitzone für tägliche geplante Benachrichtigungen (Niedrigbestand & neue Angebote).",
+    "timezoneContextHint": "Sendezeit in {tz}. Änderbar unter Betreiberinformationen.",
+    "dealsProvidersTitle": "Angebotsquellen",
+    "dealsProvidersHint": "Angebote brauchen mindestens eine aktive Quelle. Marktguru wird automatisch aktiviert, sobald du Angebote einschaltest.",
+    "dealsProvidersLink": "Angebotsquellen verwalten"
   },
   "softap": {
     "title": "WLAN-Zugang (SoftAP)",
@@ -1193,7 +1199,10 @@
       "emptyHint": "Beispiel: Gruppe „Haribo\" mit Begriffen „Haribo Fruchtgummis\", „Haribo versch. Sorten\" und allen Haribo-Produkten verknüpfen — Angebote über alle Haribo-Sorten erscheinen dann als eine Karte.",
       "noLinkedProducts": "Noch keine Produkte verknüpft — Gruppe bearbeiten, um Produkte hinzuzufügen.",
       "deleteConfirm": "Schlagwort-Gruppe \"{label}\" wirklich löschen?"
-    }
+    },
+    "noProvidersTitle": "Keine Angebotsquelle konfiguriert",
+    "noProvidersDescription": "Angebote brauchen mindestens eine aktive Quelle, um Angebote abzurufen.",
+    "noProvidersAction": "Angebotsquellen einrichten"
   },
   "nayax": {
     "reconcile": {
