@@ -462,6 +462,10 @@ export function useNayaxReconciliation() {
       dbSales.value = []
       return
     }
+    // Widen the QUERY window by ±2 min so a sale that drifted just across the
+    // file boundary still loads and can align. `settings.fromUtc/toUtc` (the
+    // strict range used by runMatch's ghost filter) are left untouched.
+    const { gte, lte } = bufferRange(fromUtc, toUtc, 120)
     // Paginate to avoid PostgREST's max_rows=1000 silent truncation.
     // Without pagination, a busy operator with >1000 sales in the date
     // range would see false "missing in DB" rows (because the truncated
@@ -474,8 +478,8 @@ export function useNayaxReconciliation() {
       const { data, error: err } = await supabase
         .from('sales')
         .select('id, created_at, machine_id, item_number, item_price, channel, product_id, products(name)')
-        .gte('created_at', fromUtc)
-        .lte('created_at', toUtc)
+        .gte('created_at', gte)
+        .lte('created_at', lte)
         .in('machine_id', machineIds)
         .order('created_at', { ascending: true })
         .range(from, from + PAGE - 1)
