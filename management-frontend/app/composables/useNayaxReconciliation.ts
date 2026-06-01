@@ -120,8 +120,10 @@ export function alignSequences(
 
 /**
  * Align one machine's Nayax sequence (a) against its DB sequence (b), keyed on
- * slot. `aDays`/`bDays` are the per-element UTC day strings ("YYYY-MM-DD"),
+ * slot. `aDays`/`bDays` are the per-element **UTC** day strings ("YYYY-MM-DD"),
  * positionally paired with `aKeys`/`bKeys` (both pre-sorted by time).
+ * Callers must derive these strings from UTC ISO timestamps; passing
+ * browser-local day strings would bucket incorrectly at UTC midnight.
  *
  * Normally one `alignSequences` call. If the DP table would exceed `maxCells`
  * (a pathological single-machine upload), it falls back to aligning within
@@ -162,6 +164,10 @@ export function alignMachine(
  * Widen an ISO date range by `seconds` on both ends, for the DB query only.
  * Lets a sale that drifted just across the file's start/end still load and
  * align. The strict range (for ghost classification) is left untouched.
+ *
+ * Precondition: `fromUtc` and `toUtc` must be valid ISO 8601 strings.
+ * Invalid input yields `NaN` from `Date.parse`, and the subsequent
+ * `toISOString()` call will throw a `RangeError`.
  */
 export function bufferRange(
   fromUtc: string,
@@ -190,6 +196,7 @@ export interface DiffDayGroup { dayKey: string; rows: DiffRow[] }
  * The day key uses the BROWSER-LOCAL date (getFullYear/Month/Date) — the same
  * basis `formatDateTime`/`formatDate` render with (no `timeZone` option) — so a
  * row never groups under a day that differs from its displayed time.
+ * dayKey is a browser-local `YYYY-MM-DD` key (month is 1-based, zero-padded).
  */
 export function groupDifferencesByDay(
   missing: NayaxRow[],
@@ -208,7 +215,7 @@ export function groupDifferencesByDay(
   const groups: DiffDayGroup[] = []
   for (const row of rows) {
     const d = new Date(row.ts)
-    const dayKey = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
+    const dayKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
     const last = groups[groups.length - 1]
     if (last && last.dayKey === dayKey) last.rows.push(row)
     else groups.push({ dayKey, rows: [row] })

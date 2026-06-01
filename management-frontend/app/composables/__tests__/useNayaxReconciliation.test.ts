@@ -432,6 +432,10 @@ describe('alignSequences', () => {
     expect(alignSequences([], [5, 6])).toEqual({ pairs: [], aOnly: [], bOnly: [0, 1] })
     expect(alignSequences([5, 6], [])).toEqual({ pairs: [], aOnly: [0, 1], bOnly: [] })
   })
+
+  it('simplest non-matching pair: single distinct elements are both unmatched', () => {
+    expect(alignSequences([1], [2])).toEqual({ pairs: [], aOnly: [0], bOnly: [0] })
+  })
 })
 
 describe('alignMachine', () => {
@@ -465,6 +469,26 @@ describe('alignMachine', () => {
     expect(out.pairs).toEqual([])
     expect(out.aOnly).toEqual([0])
     expect(out.bOnly).toEqual([0])
+  })
+
+  it('budget check is <=: 4-cell table stays single-LCS at maxCells=4 but buckets at maxCells=3', () => {
+    // One element each -> DP table is (1+1)*(1+1) = 4 cells.
+    // Same UTC day, same key value so the single pair [0,0] is the LCS in both paths.
+    const aKeys = [7]
+    const bKeys = [7]
+    const aDay = ['2026-03-10']
+    const bDay = ['2026-03-10']
+
+    const exact = alignMachine(aKeys, aDay, bKeys, bDay, 4)
+    expect(exact.bucketed).toBe(false)
+    expect(exact.pairs).toEqual([[0, 0]])
+
+    const bucketed = alignMachine(aKeys, aDay, bKeys, bDay, 3)
+    expect(bucketed.bucketed).toBe(true)
+    // Same pairs regardless of path because the elements are on the same day.
+    expect(bucketed.pairs).toEqual([[0, 0]])
+    expect(bucketed.aOnly).toEqual([])
+    expect(bucketed.bOnly).toEqual([])
   })
 })
 
