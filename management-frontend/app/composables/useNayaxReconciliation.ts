@@ -94,13 +94,14 @@ export function alignSequences(
   const m = b.length
   const w = m + 1
   const dp = new Int32Array((n + 1) * w)
+  // All index reads below are in-bounds by construction (i ≤ n, j ≤ m); ! assertions are safe.
   for (let i = n - 1; i >= 0; i--) {
     for (let j = m - 1; j >= 0; j--) {
       if (a[i] === b[j]) {
-        dp[i * w + j] = dp[(i + 1) * w + (j + 1)] + 1
+        dp[i * w + j] = dp[(i + 1) * w + (j + 1)]! + 1
       } else {
-        const down = dp[(i + 1) * w + j]
-        const right = dp[i * w + (j + 1)]
+        const down = dp[(i + 1) * w + j]!
+        const right = dp[i * w + (j + 1)]!
         dp[i * w + j] = down >= right ? down : right
       }
     }
@@ -113,7 +114,7 @@ export function alignSequences(
   while (i < n && j < m) {
     if (a[i] === b[j]) {
       pairs.push([i, j]); i++; j++
-    } else if (dp[(i + 1) * w + j] >= dp[i * w + (j + 1)]) {
+    } else if (dp[(i + 1) * w + j]! >= dp[i * w + (j + 1)]!) {
       aOnly.push(i); i++
     } else {
       bOnly.push(j); j++
