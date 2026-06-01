@@ -155,11 +155,12 @@ function shortId(id: string): string {
               <th class="w-20 px-4 py-2"></th>
             </tr>
           </thead>
+          <!-- One <tbody>: data rows keep border-b; last:border-0 resolves to the final data row across all day groups -->
           <tbody>
             <template v-for="group in dayGroups" :key="group.dayKey">
-              <!-- Day divider: light spacing + muted date label, spans all 10 columns -->
+              <!-- Day divider: previous group's row border-b provides one clean line; pt-4 gives the gap above the date label -->
               <tr class="bg-muted/20">
-                <td :colspan="10" class="border-t px-4 pt-3 pb-1 text-xs font-medium text-muted-foreground">
+                <td :colspan="10" class="px-4 pt-4 pb-1 text-xs font-medium text-muted-foreground">
                   {{ formatDate(group.rows[0]!.ts, locale) }}
                 </td>
               </tr>
