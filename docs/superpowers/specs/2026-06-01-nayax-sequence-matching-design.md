@@ -186,7 +186,8 @@ after the ghost-badge icon swap.
 
 - **Remove** `nayax.reconcile.settings.tolerance` and `…settings.toleranceHint`.
 - **Add** under `nayax.reconcile.results`: `matchMethod`, `priceDiffers`,
-  `priceDiffersN`, `bucketGhostWarn`, `ghostExplain`.
+  `priceDiffersN`, `bucketGhostWarn`, `ghostExplain`, and `bucketedNotice` (the
+  size-guard fallback message, shown only when a machine was day-bucketed).
 - German strings use the informal *du* form, consistent with the existing file.
 
 ## Out of scope (YAGNI)
