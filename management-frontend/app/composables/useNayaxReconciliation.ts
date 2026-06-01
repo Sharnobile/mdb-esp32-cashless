@@ -5,6 +5,12 @@ import { fromZonedTime } from 'date-fns-tz'
 export const MAX_ROWS_SOFT_WARN = 10000
 /** Hard cap: parser rejects files with more rows than this. */
 export const MAX_ROWS_HARD_CAP = 50000
+/**
+ * DP cell budget per machine for the sequence aligner. ~20M Int32 cells ≈ 80MB
+ * transient — comfortably covers a very busy machine's billing period
+ * (~4500×4500). Beyond this, `alignMachine` day-buckets that one machine.
+ */
+export const MAX_LCS_CELLS = 20_000_000
 
 /**
  * Parse a Nayax "DD.MM.YYYY HH:MM:SS" timestamp interpreted in the given
@@ -254,7 +260,8 @@ export interface DbSale {
 export interface MatchPair {
   nayax: NayaxRow
   db: DbSale
-  deltaSeconds: number      // db.created_at - nayax.utcDt
+  deltaSeconds: number      // db.created_at - nayax.utcDt (informational only now)
+  priceDiffers: boolean     // round2(nayax.priceGross) !== round2(db.item_price)
 }
 
 export interface ReconResult {
@@ -264,6 +271,7 @@ export interface ReconResult {
   unmapped: NayaxRow[]
   unparseable: NayaxRow[]
   fileDateRange: { fromUtc: string; toUtc: string } | null
+  bucketedVmIds: string[]   // machines that hit the size guard (day-bucketed)
   settings: {
     timezone: string
     toleranceSeconds: number
@@ -495,74 +503,68 @@ export function useNayaxReconciliation() {
   function runMatch(): void {
     matching.value = true
     try {
-      const tolMs = settings.value.toleranceSeconds * 1000
       const tz = settings.value.timezone
-      const mappedVmIds = new Set<string>(Object.values(mapping.value))
-
-      // Bucket: unmapped + unparseable upfront.
-      const unmapped: NayaxRow[] = []
-      const unparseable: NayaxRow[] = []
-      const eligible: NayaxRow[] = []
-      for (const n of rawRows.value) {
-        if (!n.nayaxMachineId || !(n.nayaxMachineId in mapping.value)) {
-          unmapped.push(n)
-          continue
-        }
-        if (n.itemNumber == null || n.priceGross <= 0) {
-          unparseable.push(n)
-          continue
-        }
-        eligible.push(n)
-      }
-
-      // Sort by Nayax time ascending so earlier rows get first pick on
-      // tight DB candidates (deterministic tie-breaking).
-      // Note: greedy one-to-one matching. If a future workload has many
-      // near-simultaneous identical sales, swap to a Hungarian-style
-      // optimal assignment — for v1 a code comment is enough.
-      eligible.sort((a, b) => a.utcDt.localeCompare(b.utcDt))
-
-      const usedDbIds = new Set<string>()
-      const matched: MatchPair[] = []
-      const missingInDb: NayaxRow[] = []
-
-      for (const n of eligible) {
-        const vmId = mapping.value[n.nayaxMachineId]!
-        const nTime = Date.parse(n.utcDt)
-        let best: DbSale | null = null
-        let bestDelta = Infinity
-        for (const s of dbSales.value) {
-          if (usedDbIds.has(s.id)) continue
-          if (s.machine_id !== vmId) continue
-          if (s.item_number !== n.itemNumber) continue
-          if (s.item_price == null) continue
-          if (roundTo2(s.item_price) !== roundTo2(n.priceGross)) continue
-          const dTime = Date.parse(s.created_at)
-          const delta = dTime - nTime
-          if (Math.abs(delta) > tolMs) continue
-          if (Math.abs(delta) < Math.abs(bestDelta)) {
-            best = s
-            bestDelta = delta
-          }
-        }
-        if (best == null) {
-          missingInDb.push(n)
-        } else {
-          matched.push({ nayax: n, db: best, deltaSeconds: bestDelta / 1000 })
-          usedDbIds.add(best.id)
-        }
-      }
-
-      // Ghosts: DB sales in range, on a mapped machine, not consumed.
       const fromMs = Date.parse(settings.value.fromUtc)
       const toMs = Date.parse(settings.value.toUtc)
-      const ghostInDb: DbSale[] = dbSales.value.filter(s =>
-        s.machine_id != null
-        && mappedVmIds.has(s.machine_id)
-        && !usedDbIds.has(s.id)
-        && Date.parse(s.created_at) >= fromMs
-        && Date.parse(s.created_at) <= toMs,
-      )
+
+      // Pre-filter: unmapped + unparseable (unchanged), then group eligible
+      // Nayax rows by mapped VM.
+      const unmapped: NayaxRow[] = []
+      const unparseable: NayaxRow[] = []
+      const eligibleByVm = new Map<string, NayaxRow[]>()
+      for (const n of rawRows.value) {
+        if (!n.nayaxMachineId || !(n.nayaxMachineId in mapping.value)) { unmapped.push(n); continue }
+        if (n.itemNumber == null || n.priceGross <= 0) { unparseable.push(n); continue }
+        const vmId = mapping.value[n.nayaxMachineId]!
+        const list = eligibleByVm.get(vmId)
+        if (list) list.push(n)
+        else eligibleByVm.set(vmId, [n])
+      }
+
+      // Group loaded DB sales (incl. the ±buffer rows) by machine.
+      const dbByVm = new Map<string, DbSale[]>()
+      for (const s of dbSales.value) {
+        if (s.machine_id == null) continue
+        const list = dbByVm.get(s.machine_id)
+        if (list) list.push(s)
+        else dbByVm.set(s.machine_id, [s])
+      }
+
+      const matched: MatchPair[] = []
+      const missingInDb: NayaxRow[] = []
+      const ghostInDb: DbSale[] = []
+      const bucketedVmIds: string[] = []
+
+      const vmIds = new Set<string>([...eligibleByVm.keys(), ...dbByVm.keys()])
+      for (const vmId of vmIds) {
+        const aRows = (eligibleByVm.get(vmId) ?? []).slice()
+          .sort((x, y) => x.utcDt.localeCompare(y.utcDt))
+        const bRows = (dbByVm.get(vmId) ?? []).slice()
+          .sort((x, y) => x.created_at.localeCompare(y.created_at))
+
+        const aKeys = aRows.map(r => r.itemNumber as number)   // non-null (eligible)
+        const bKeys = bRows.map(r => r.item_number ?? -1)      // null slot matches nothing
+        const aDays = aRows.map(r => r.utcDt.slice(0, 10))
+        const bDays = bRows.map(r => r.created_at.slice(0, 10))
+
+        const { pairs, aOnly, bOnly, bucketed } = alignMachine(aKeys, aDays, bKeys, bDays, MAX_LCS_CELLS)
+        if (bucketed) bucketedVmIds.push(vmId)
+
+        for (const [ai, bi] of pairs) {
+          const nrow = aRows[ai]!
+          const srow = bRows[bi]!
+          const delta = (Date.parse(srow.created_at) - Date.parse(nrow.utcDt)) / 1000
+          const priceDiffers = srow.item_price == null
+            || roundTo2(srow.item_price) !== roundTo2(nrow.priceGross)
+          matched.push({ nayax: nrow, db: srow, deltaSeconds: delta, priceDiffers })
+        }
+        for (const ai of aOnly) missingInDb.push(aRows[ai]!)
+        for (const bi of bOnly) {
+          const srow = bRows[bi]!
+          const t = Date.parse(srow.created_at)
+          if (t >= fromMs && t <= toMs) ghostInDb.push(srow)   // strict range only
+        }
+      }
 
       result.value = {
         matched,
@@ -570,6 +572,7 @@ export function useNayaxReconciliation() {
         ghostInDb,
         unmapped,
         unparseable,
+        bucketedVmIds,
         fileDateRange: settings.value.fromUtc && settings.value.toUtc
           ? { fromUtc: settings.value.fromUtc, toUtc: settings.value.toUtc }
           : null,

@@ -209,124 +209,172 @@ function mkSale(over: Partial<DbSale> = {}): DbSale {
   }
 }
 
-describe('runMatch', () => {
-  it('matches exact (Δ < tolerance) on machine + item + price + time', () => {
+describe('runMatch (sequence)', () => {
+  it('matches an exact in-order subset; reports the single gap', () => {
     const r = setupRecon({
-      rawRows: [mkNayax()],
+      rawRows: [
+        mkNayax({ txId: 'A', itemNumber: 10, utcDt: '2026-03-10T08:00:00.000Z' }),
+        mkNayax({ txId: 'B', itemNumber: 20, utcDt: '2026-03-10T09:00:00.000Z' }),
+        mkNayax({ txId: 'C', itemNumber: 30, utcDt: '2026-03-10T10:00:00.000Z' }),
+      ],
       mapping: { N1: 'vm1' },
-      dbSales: [mkSale()],   // Δ = +2 s
+      dbSales: [
+        mkSale({ id: 's1', item_number: 10, created_at: '2026-03-10T08:00:05.000Z' }),
+        mkSale({ id: 's3', item_number: 30, created_at: '2026-03-10T10:00:05.000Z' }),
+      ],
     })
     r.runMatch()
-    expect(r.result.value!.matched).toHaveLength(1)
-    expect(r.result.value!.matched[0]!.deltaSeconds).toBeCloseTo(2, 0)
+    expect(r.result.value!.matched.map(m => m.nayax.txId)).toEqual(['A', 'C'])
+    expect(r.result.value!.missingInDb.map(n => n.txId)).toEqual(['B'])
+    expect(r.result.value!.ghostInDb).toHaveLength(0)
+  })
+
+  it('matches identical order even when timestamps are wildly off (drift regression)', () => {
+    const r = setupRecon({
+      rawRows: [
+        mkNayax({ txId: 'A', itemNumber: 10, utcDt: '2026-03-10T08:00:00.000Z' }),
+        mkNayax({ txId: 'B', itemNumber: 20, utcDt: '2026-03-10T09:00:00.000Z' }),
+        mkNayax({ txId: 'C', itemNumber: 30, utcDt: '2026-03-10T10:00:00.000Z' }),
+      ],
+      mapping: { N1: 'vm1' },
+      dbSales: [
+        mkSale({ id: 's1', item_number: 10, created_at: '2026-03-10T08:03:00.000Z' }),
+        mkSale({ id: 's2', item_number: 20, created_at: '2026-03-10T09:03:00.000Z' }),
+        mkSale({ id: 's3', item_number: 30, created_at: '2026-03-10T10:03:00.000Z' }),
+      ],
+    })
+    r.runMatch()
+    expect(r.result.value!.matched).toHaveLength(3)
     expect(r.result.value!.missingInDb).toHaveLength(0)
     expect(r.result.value!.ghostInDb).toHaveLength(0)
   })
 
-  it('counts a Δ within tolerance as a match (Δ = 9 s with 10 s tolerance)', () => {
+  it('flags a DB-only sale as a phantom (ghost) in range', () => {
     const r = setupRecon({
-      rawRows: [mkNayax()],
+      rawRows: [mkNayax({ itemNumber: 10, utcDt: '2026-03-10T08:00:00.000Z' })],
       mapping: { N1: 'vm1' },
-      dbSales: [mkSale({ created_at: '2026-03-31T19:46:18.000Z' })],
-      toleranceSeconds: 10,
+      dbSales: [
+        mkSale({ id: 'ok',    item_number: 10, created_at: '2026-03-10T08:00:01.000Z' }),
+        mkSale({ id: 'extra', item_number: 99, created_at: '2026-03-10T09:00:00.000Z' }),
+      ],
     })
     r.runMatch()
     expect(r.result.value!.matched).toHaveLength(1)
+    expect(r.result.value!.ghostInDb.map(s => s.id)).toEqual(['extra'])
+  })
+
+  it('handles a repeated slot: one of two equal sales is missing', () => {
+    const r = setupRecon({
+      rawRows: [
+        mkNayax({ txId: 'A', itemNumber: 10, utcDt: '2026-03-10T08:00:00.000Z' }),
+        mkNayax({ txId: 'B', itemNumber: 10, utcDt: '2026-03-10T08:05:00.000Z' }),
+        mkNayax({ txId: 'C', itemNumber: 20, utcDt: '2026-03-10T08:10:00.000Z' }),
+      ],
+      mapping: { N1: 'vm1' },
+      dbSales: [
+        mkSale({ id: 's1', item_number: 10, created_at: '2026-03-10T08:00:30.000Z' }),
+        mkSale({ id: 's2', item_number: 20, created_at: '2026-03-10T08:10:30.000Z' }),
+      ],
+    })
+    r.runMatch()
+    expect(r.result.value!.matched).toHaveLength(2)
+    expect(r.result.value!.missingInDb.map(n => n.txId)).toEqual(['B'])
+    expect(r.result.value!.ghostInDb).toHaveLength(0)
+  })
+
+  it('matches on slot but flags a price difference', () => {
+    const r = setupRecon({
+      rawRows: [mkNayax({ itemNumber: 10, priceGross: 2.5, utcDt: '2026-03-10T08:00:00.000Z' })],
+      mapping: { N1: 'vm1' },
+      dbSales: [mkSale({ item_number: 10, item_price: 3.0, created_at: '2026-03-10T08:00:02.000Z' })],
+    })
+    r.runMatch()
+    expect(r.result.value!.matched).toHaveLength(1)
+    expect(r.result.value!.matched[0]!.priceDiffers).toBe(true)
     expect(r.result.value!.missingInDb).toHaveLength(0)
   })
 
-  it('treats a Δ outside tolerance as missing (Δ = 11 s with 10 s tolerance)', () => {
+  it('does not flag price when slot and price both match', () => {
     const r = setupRecon({
-      rawRows: [mkNayax()],
+      rawRows: [mkNayax({ itemNumber: 10, priceGross: 2.5, utcDt: '2026-03-10T08:00:00.000Z' })],
       mapping: { N1: 'vm1' },
-      dbSales: [mkSale({ created_at: '2026-03-31T19:46:20.000Z' })],
-      toleranceSeconds: 10,
+      dbSales: [mkSale({ item_number: 10, item_price: 2.5001, created_at: '2026-03-10T08:00:02.000Z' })],
     })
     r.runMatch()
-    expect(r.result.value!.matched).toHaveLength(0)
+    expect(r.result.value!.matched[0]!.priceDiffers).toBe(false)
+  })
+
+  it('reports an adjacent order swap as one missing + one ghost', () => {
+    const r = setupRecon({
+      rawRows: [
+        mkNayax({ txId: 'A', itemNumber: 10, utcDt: '2026-03-10T08:00:00.000Z' }),
+        mkNayax({ txId: 'B', itemNumber: 20, utcDt: '2026-03-10T08:01:00.000Z' }),
+      ],
+      mapping: { N1: 'vm1' },
+      dbSales: [
+        mkSale({ id: 's-20', item_number: 20, created_at: '2026-03-10T08:00:30.000Z' }),
+        mkSale({ id: 's-10', item_number: 10, created_at: '2026-03-10T08:01:30.000Z' }),
+      ],
+    })
+    r.runMatch()
+    expect(r.result.value!.matched).toHaveLength(1)
     expect(r.result.value!.missingInDb).toHaveLength(1)
-    // The DB sale is in the date range with a mapped machine → ghost
     expect(r.result.value!.ghostInDb).toHaveLength(1)
   })
 
-  it('treats sub-cent price drift as a match (0.001 difference rounds away)', () => {
+  it('aligns each machine independently (no cross-machine matching)', () => {
     const r = setupRecon({
-      rawRows: [mkNayax({ priceGross: 2.5 })],
+      rawRows: [
+        mkNayax({ txId: 'A', nayaxMachineId: 'N1', itemNumber: 10, utcDt: '2026-03-10T08:00:00.000Z' }),
+        mkNayax({ txId: 'B', nayaxMachineId: 'N2', itemNumber: 10, utcDt: '2026-03-10T08:00:00.000Z' }),
+      ],
+      mapping: { N1: 'vm1', N2: 'vm2' },
+      dbSales: [mkSale({ machine_id: 'vm1', item_number: 10, created_at: '2026-03-10T08:00:02.000Z' })],
+    })
+    r.runMatch()
+    expect(r.result.value!.matched.map(m => m.nayax.txId)).toEqual(['A'])
+    expect(r.result.value!.missingInDb.map(n => n.txId)).toEqual(['B'])
+    expect(r.result.value!.ghostInDb).toHaveLength(0)
+  })
+
+  it('keeps a matched pair when the DB row is just outside the strict range (buffer)', () => {
+    const r = setupRecon({
+      rawRows: [mkNayax({ itemNumber: 10, utcDt: '2026-03-31T23:59:00.000Z' })],
       mapping: { N1: 'vm1' },
-      dbSales: [mkSale({ item_price: 2.5001 })],
+      // DB twin recorded one minute past the file's `toUtc` (still loaded via the
+      // ±2-min query buffer). Must match, not become a ghost.
+      dbSales: [mkSale({ item_number: 10, created_at: '2026-04-01T00:00:30.000Z' })],
+      fromUtc: '2026-03-01T00:00:00.000Z',
+      toUtc: '2026-03-31T23:59:59.000Z',
     })
     r.runMatch()
     expect(r.result.value!.matched).toHaveLength(1)
+    expect(r.result.value!.missingInDb).toHaveLength(0)
+    expect(r.result.value!.ghostInDb).toHaveLength(0)
   })
 
-  it('treats 0.01 price drift as a genuine mismatch', () => {
-    const r = setupRecon({
-      rawRows: [mkNayax({ priceGross: 2.5 })],
-      mapping: { N1: 'vm1' },
-      dbSales: [mkSale({ item_price: 2.51 })],
-    })
-    r.runMatch()
-    expect(r.result.value!.matched).toHaveLength(0)
-    expect(r.result.value!.missingInDb).toHaveLength(1)
-  })
-
-  it('one-to-one: two Nayax rows compete for one DB sale; earlier wins', () => {
+  it('routes unmapped and unparseable rows to their buckets', () => {
     const r = setupRecon({
       rawRows: [
-        mkNayax({ txId: 'A', utcDt: '2026-03-31T19:46:09.000Z' }),
-        mkNayax({ txId: 'B', utcDt: '2026-03-31T19:46:11.000Z' }),
+        mkNayax({ txId: 'U', nayaxMachineId: 'UNKNOWN', itemNumber: 10 }),
+        mkNayax({ txId: 'P', itemNumber: null }),
       ],
-      mapping: { N1: 'vm1' },
-      dbSales: [mkSale({ created_at: '2026-03-31T19:46:10.000Z' })],
-    })
-    r.runMatch()
-    // Sort by Nayax time asc → A claims the DB sale first
-    expect(r.result.value!.matched.map(m => m.nayax.txId)).toEqual(['A'])
-    expect(r.result.value!.missingInDb.map(n => n.txId)).toEqual(['B'])
-  })
-
-  it('one Nayax row with two DB candidates: closer Δ wins', () => {
-    const r = setupRecon({
-      rawRows: [mkNayax({ utcDt: '2026-03-31T19:46:10.000Z' })],
-      mapping: { N1: 'vm1' },
-      dbSales: [
-        mkSale({ id: 'far',  created_at: '2026-03-31T19:46:15.000Z' }),  // Δ +5
-        mkSale({ id: 'near', created_at: '2026-03-31T19:46:11.000Z' }),  // Δ +1
-      ],
-    })
-    r.runMatch()
-    expect(r.result.value!.matched[0]!.db.id).toBe('near')
-    expect(r.result.value!.ghostInDb.map(s => s.id)).toEqual(['far'])
-  })
-
-  it('unmapped Nayax rows go into `unmapped` and not `missingInDb`', () => {
-    const r = setupRecon({
-      rawRows: [mkNayax({ nayaxMachineId: 'UNKNOWN' })],
       mapping: { N1: 'vm1' },
       dbSales: [],
     })
     r.runMatch()
-    expect(r.result.value!.unmapped).toHaveLength(1)
+    expect(r.result.value!.unmapped.map(n => n.txId)).toEqual(['U'])
+    expect(r.result.value!.unparseable.map(n => n.txId)).toEqual(['P'])
     expect(r.result.value!.missingInDb).toHaveLength(0)
   })
 
-  it('rows with itemNumber=null go into `unparseable`', () => {
-    const r = setupRecon({
-      rawRows: [mkNayax({ itemNumber: null })],
-      mapping: { N1: 'vm1' },
-      dbSales: [],
-    })
-    r.runMatch()
-    expect(r.result.value!.unparseable).toHaveLength(1)
-  })
-
-  it('DB sales outside the date range are not flagged as ghosts', () => {
+  it('flags a DB sale on a mapped machine absent from the file as a ghost', () => {
     const r = setupRecon({
       rawRows: [],
       mapping: { N1: 'vm1' },
       dbSales: [
-        mkSale({ id: 'in',  created_at: '2026-03-15T12:00:00.000Z' }),
-        mkSale({ id: 'out', created_at: '2026-04-01T12:00:00.000Z' }),
+        mkSale({ id: 'in',  item_number: 10, created_at: '2026-03-15T12:00:00.000Z' }),
+        mkSale({ id: 'out', item_number: 10, created_at: '2026-04-15T12:00:00.000Z' }),
       ],
       fromUtc: '2026-03-01T00:00:00.000Z',
       toUtc:   '2026-03-31T23:59:59.000Z',
