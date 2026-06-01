@@ -476,3 +476,39 @@ describe('bufferRange', () => {
     })
   })
 })
+
+describe('groupDifferencesByDay', () => {
+  // vitest pins TZ=UTC (Task 1.0), so getFullYear/Month/Date == UTC parts —
+  // grouping is by UTC day and these assertions are deterministic on any runner.
+  it('groups by day, sorts chronologically, missing-before-ghost on ties', () => {
+    const missing = [
+      mkNayax({ txId: 'm-d2', utcDt: '2026-03-11T12:00:00.000Z' }),
+      mkNayax({ txId: 'm-d1', utcDt: '2026-03-10T12:00:00.000Z' }),
+    ]
+    const ghosts = [
+      mkSale({ id: 'g-d1', created_at: '2026-03-10T12:00:00.000Z' }),
+    ]
+    const groups = groupDifferencesByDay(missing, ghosts)
+    expect(groups).toHaveLength(2)
+    // Day 1 group: missing then ghost (same ts -> missing first)
+    expect(groups[0]!.rows.map(r => r.kind)).toEqual(['missing', 'ghost'])
+    expect(groups[0]!.rows[0]!.kind === 'missing' && groups[0]!.rows[0]!.payload.txId).toBe('m-d1')
+    // Day 2 group: the later missing row
+    expect(groups[1]!.rows).toHaveLength(1)
+    expect(groups[1]!.rows[0]!.kind === 'missing' && groups[1]!.rows[0]!.payload.txId).toBe('m-d2')
+  })
+
+  it('returns one group when all rows share a day', () => {
+    // TZ=UTC pinned, so these two same-UTC-day instants land in one group.
+    const groups = groupDifferencesByDay(
+      [mkNayax({ utcDt: '2026-03-10T08:00:00.000Z' }), mkNayax({ utcDt: '2026-03-10T20:00:00.000Z' })],
+      [],
+    )
+    expect(groups).toHaveLength(1)
+    expect(groups[0]!.rows).toHaveLength(2)
+  })
+
+  it('returns no groups for no differences', () => {
+    expect(groupDifferencesByDay([], [])).toEqual([])
+  })
+})

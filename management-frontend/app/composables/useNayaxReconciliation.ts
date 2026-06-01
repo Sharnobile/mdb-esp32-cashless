@@ -175,6 +175,47 @@ export function bufferRange(
   }
 }
 
+/** A single differences-table row: a Nayax gap or a DB phantom. */
+export type DiffRow =
+  | { kind: 'missing'; ts: string; payload: NayaxRow }
+  | { kind: 'ghost'; ts: string; payload: DbSale }
+
+/** Differences rows for one calendar day (browser-local), in chronological order. */
+export interface DiffDayGroup { dayKey: string; rows: DiffRow[] }
+
+/**
+ * Merge the missing + ghost rows, sort chronologically (missing before ghost
+ * on identical timestamps), and group into consecutive calendar-day buckets.
+ *
+ * The day key uses the BROWSER-LOCAL date (getFullYear/Month/Date) — the same
+ * basis `formatDateTime`/`formatDate` render with (no `timeZone` option) — so a
+ * row never groups under a day that differs from its displayed time.
+ */
+export function groupDifferencesByDay(
+  missing: NayaxRow[],
+  ghosts: DbSale[],
+): DiffDayGroup[] {
+  const rows: DiffRow[] = [
+    ...missing.map(m => ({ kind: 'missing' as const, ts: m.utcDt, payload: m })),
+    ...ghosts.map(g => ({ kind: 'ghost' as const, ts: g.created_at, payload: g })),
+  ]
+  rows.sort((a, b) => {
+    const c = a.ts.localeCompare(b.ts)
+    if (c !== 0) return c
+    if (a.kind === b.kind) return 0
+    return a.kind === 'missing' ? -1 : 1
+  })
+  const groups: DiffDayGroup[] = []
+  for (const row of rows) {
+    const d = new Date(row.ts)
+    const dayKey = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
+    const last = groups[groups.length - 1]
+    if (last && last.dayKey === dayKey) last.rows.push(row)
+    else groups.push({ dayKey, rows: [row] })
+  }
+  return groups
+}
+
 /** A single row parsed from the Nayax sales export. */
 export interface NayaxRow {
   rowIndex: number          // 1-based index in the source file, for messages
