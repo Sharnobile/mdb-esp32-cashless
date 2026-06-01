@@ -294,6 +294,19 @@ describe('runMatch (sequence)', () => {
     expect(r.result.value!.missingInDb).toHaveLength(0)
   })
 
+  it('flags priceDiffers when the DB sale has item_price null', () => {
+    const r = setupRecon({
+      rawRows: [mkNayax({ itemNumber: 10, priceGross: 2.5, utcDt: '2026-03-10T08:00:00.000Z' })],
+      mapping: { N1: 'vm1' },
+      dbSales: [mkSale({ item_number: 10, item_price: null, created_at: '2026-03-10T08:00:02.000Z' })],
+    })
+    r.runMatch()
+    expect(r.result.value!.matched).toHaveLength(1)
+    expect(r.result.value!.matched[0]!.priceDiffers).toBe(true)
+    expect(r.result.value!.missingInDb).toHaveLength(0)
+    expect(r.result.value!.ghostInDb).toHaveLength(0)
+  })
+
   it('does not flag price when slot and price both match', () => {
     const r = setupRecon({
       rawRows: [mkNayax({ itemNumber: 10, priceGross: 2.5, utcDt: '2026-03-10T08:00:00.000Z' })],

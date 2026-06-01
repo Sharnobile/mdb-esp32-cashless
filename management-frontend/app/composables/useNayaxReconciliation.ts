@@ -582,6 +582,7 @@ export function useNayaxReconciliation() {
           : null,
         settings: {
           timezone: tz,
+          // toleranceSeconds: retained only for the results header; no longer used for matching — removed in the Chunk 2 cleanup
           toleranceSeconds: settings.value.toleranceSeconds,
         },
       }
