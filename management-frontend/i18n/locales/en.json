@@ -1236,8 +1236,6 @@
         "to": "To",
         "tz": "Timezone of the Nayax file",
         "tzHint": "Nayax timestamps are interpreted in this timezone and converted to UTC for comparison.",
-        "tolerance": "Time tolerance (seconds)",
-        "toleranceHint": "Default 10 s. Allows a small drift between machine and MQTT timestamps.",
         "runCta": "Run analysis"
       },
       "results": {
@@ -1283,7 +1281,13 @@
         "openMapping": "Open mapping",
         "unparseableHead": "{n} rows without a parseable slot number",
         "unparseableMore": "… and {n} more",
-        "emptyField": "empty"
+        "emptyField": "empty",
+        "matchMethod": "matched by product order",
+        "priceDiffers": "price differs",
+        "priceDiffersN": "{n} price differences",
+        "bucketGhostWarn": "DB only — likely false sale",
+        "ghostExplain": "These sales are in the database but not in Nayax — likely false or double-counted sales. Review and remove them.",
+        "bucketedNotice": "Large dataset on {machines} — matched day by day."
       },
       "errors": {
         "parser.noSheet": "The file does not contain a readable sheet.",

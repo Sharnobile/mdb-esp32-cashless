@@ -1236,8 +1236,6 @@
         "to": "Bis",
         "tz": "Zeitzone der Nayax-Datei",
         "tzHint": "Nayax-Zeiten werden in dieser Zeitzone interpretiert und für den Vergleich nach UTC umgerechnet.",
-        "tolerance": "Zeit-Toleranz (Sekunden)",
-        "toleranceHint": "Standard 10 s. Erlaubt eine kleine Drift zwischen Maschinen- und MQTT-Zeitstempel.",
         "runCta": "Analyse starten"
       },
       "results": {
@@ -1283,7 +1281,13 @@
         "openMapping": "Zuordnung öffnen",
         "unparseableHead": "{n} Zeilen ohne erkennbare Slot-Nummer",
         "unparseableMore": "… und {n} weitere",
-        "emptyField": "leer"
+        "emptyField": "leer",
+        "matchMethod": "Abgleich nach Produkt-Reihenfolge",
+        "priceDiffers": "Preis weicht ab",
+        "priceDiffersN": "{n} Preisabweichungen",
+        "bucketGhostWarn": "nur in DB — vermutlich Fehlverkauf",
+        "ghostExplain": "Diese Verkäufe stehen in der Datenbank, aber nicht in Nayax — vermutlich fälschlich gezählte Doppelverkäufe. Bitte prüfen und entfernen.",
+        "bucketedNotice": "Große Datenmenge bei {machines} — Abgleich erfolgte tageweise."
       },
       "errors": {
         "parser.noSheet": "Die Datei enthält kein lesbares Tabellenblatt.",
