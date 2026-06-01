@@ -10,6 +10,7 @@ export default defineConfig({
   test: {
     environment: 'happy-dom',
     include: ['app/**/*.test.ts', 'app/**/*.spec.ts'],
+    env: { TZ: 'UTC' },
   },
   resolve: {
     alias: {
