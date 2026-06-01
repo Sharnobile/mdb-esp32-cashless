@@ -71,6 +71,53 @@ export function derivedChannelFromPaymentSource(src: string): string {
   return 'nayax'
 }
 
+/**
+ * Longest-common-subsequence alignment of two integer sequences.
+ * Returns matched index pairs (ascending) plus the unmatched indices on each
+ * side. Pure and deterministic; used to reconcile Nayax vs DB sale order
+ * keyed on slot/item number. Time is NOT consulted — callers pre-sort.
+ *
+ * Suffix DP (dp[i][j] = LCS length of a[i:], b[j:]) with a front backtrack.
+ * O(n·m) time and space; see `alignMachine` for the size guard.
+ */
+export function alignSequences(
+  a: number[],
+  b: number[],
+): { pairs: Array<[number, number]>; aOnly: number[]; bOnly: number[] } {
+  const n = a.length
+  const m = b.length
+  const w = m + 1
+  const dp = new Int32Array((n + 1) * w)
+  for (let i = n - 1; i >= 0; i--) {
+    for (let j = m - 1; j >= 0; j--) {
+      if (a[i] === b[j]) {
+        dp[i * w + j] = dp[(i + 1) * w + (j + 1)] + 1
+      } else {
+        const down = dp[(i + 1) * w + j]
+        const right = dp[i * w + (j + 1)]
+        dp[i * w + j] = down >= right ? down : right
+      }
+    }
+  }
+  const pairs: Array<[number, number]> = []
+  const aOnly: number[] = []
+  const bOnly: number[] = []
+  let i = 0
+  let j = 0
+  while (i < n && j < m) {
+    if (a[i] === b[j]) {
+      pairs.push([i, j]); i++; j++
+    } else if (dp[(i + 1) * w + j] >= dp[i * w + (j + 1)]) {
+      aOnly.push(i); i++
+    } else {
+      bOnly.push(j); j++
+    }
+  }
+  while (i < n) { aOnly.push(i); i++ }
+  while (j < m) { bOnly.push(j); j++ }
+  return { pairs, aOnly, bOnly }
+}
+
 /** A single row parsed from the Nayax sales export. */
 export interface NayaxRow {
   rowIndex: number          // 1-based index in the source file, for messages

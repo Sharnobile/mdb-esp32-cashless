@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { alignSequences, alignMachine, bufferRange, groupDifferencesByDay } from '../useNayaxReconciliation'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
@@ -388,5 +389,47 @@ describe('exportDiffCsv', () => {
     // product column should be quoted, internal quotes doubled
     expect(csv).toContain('"Coke, Zero"')
     expect(csv).toContain('"t""x"')
+  })
+})
+
+describe('alignSequences', () => {
+  it('aligns two identical sequences fully', () => {
+    expect(alignSequences([1, 2, 3], [1, 2, 3])).toEqual({
+      pairs: [[0, 0], [1, 1], [2, 2]], aOnly: [], bOnly: [],
+    })
+  })
+
+  it('flags a gap in B as aOnly (in order)', () => {
+    // A=[1,2,3], B=[1,3]  -> 2 is missing from B
+    expect(alignSequences([1, 2, 3], [1, 3])).toEqual({
+      pairs: [[0, 0], [2, 1]], aOnly: [1], bOnly: [],
+    })
+  })
+
+  it('flags an extra in B as bOnly', () => {
+    // A=[1,3], B=[1,2,3] -> 2 is extra in B
+    expect(alignSequences([1, 3], [1, 2, 3])).toEqual({
+      pairs: [[0, 0], [1, 2]], aOnly: [], bOnly: [1],
+    })
+  })
+
+  it('handles repeats: one of two equal tokens is missing', () => {
+    // A=[1,1,2], B=[1,2] -> one of the 1s is aOnly
+    expect(alignSequences([1, 1, 2], [1, 2])).toEqual({
+      pairs: [[0, 0], [2, 1]], aOnly: [1], bOnly: [],
+    })
+  })
+
+  it('reports both directions for an adjacent swap of distinct tokens', () => {
+    // A=[1,2], B=[2,1] -> LCS length 1
+    const out = alignSequences([1, 2], [2, 1])
+    expect(out.pairs).toEqual([[1, 0]]) // the 2s align
+    expect(out.aOnly).toEqual([0])      // the leading 1 in A
+    expect(out.bOnly).toEqual([1])      // the trailing 1 in B
+  })
+
+  it('handles empty inputs', () => {
+    expect(alignSequences([], [5, 6])).toEqual({ pairs: [], aOnly: [], bOnly: [0, 1] })
+    expect(alignSequences([5, 6], [])).toEqual({ pairs: [], aOnly: [0, 1], bOnly: [] })
   })
 })
