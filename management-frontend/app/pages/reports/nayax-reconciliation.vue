@@ -17,8 +17,6 @@ const isAdmin = computed(() => role.value === 'admin')
 onMounted(() => {
   const tz = localStorage.getItem('nayax-reconcile-tz')
   if (tz) recon.settings.value.timezone = tz
-  const tol = localStorage.getItem('nayax-reconcile-tolerance')
-  if (tol) recon.settings.value.toleranceSeconds = Math.max(5, Math.min(600, Number(tol)))
 
   // If we land on the page in the 'results' state but there's no result
   // data (e.g. after a page reload or stale navigation), reset to upload.
@@ -41,7 +39,6 @@ async function onMappingDone() {
 
 async function onSettingsRun() {
   localStorage.setItem('nayax-reconcile-tz', recon.settings.value.timezone)
-  localStorage.setItem('nayax-reconcile-tolerance', String(recon.settings.value.toleranceSeconds))
   await recon.loadDbSales()
   recon.runMatch()
   recon.step.value = 'results'

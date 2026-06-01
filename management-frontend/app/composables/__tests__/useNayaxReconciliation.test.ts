@@ -170,7 +170,6 @@ function setupRecon(seed: {
   rawRows: NayaxRow[]
   mapping: Record<string, string>
   dbSales: DbSale[]
-  toleranceSeconds?: number
   fromUtc?: string
   toUtc?: string
 }) {
@@ -183,7 +182,6 @@ function setupRecon(seed: {
   r.dbSales.value = seed.dbSales
   r.settings.value = {
     timezone: 'Europe/Berlin',
-    toleranceSeconds: seed.toleranceSeconds ?? 10,
     fromUtc: seed.fromUtc ?? '2026-03-01T00:00:00.000Z',
     toUtc: seed.toUtc ?? '2026-03-31T23:59:59.000Z',
   }

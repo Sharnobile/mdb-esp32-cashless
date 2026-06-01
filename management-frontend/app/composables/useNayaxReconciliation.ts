@@ -274,7 +274,6 @@ export interface ReconResult {
   bucketedVmIds: string[]   // machines that hit the size guard (day-bucketed)
   settings: {
     timezone: string
-    toleranceSeconds: number
   }
 }
 
@@ -303,7 +302,6 @@ export function useNayaxReconciliation() {
   const mapping = useState<Record<string, string>>('nayax-recon-mapping', () => ({}))
   const settings = useState('nayax-recon-settings', () => ({
     timezone: 'Europe/Berlin',
-    toleranceSeconds: 10,
     fromUtc: '',
     toUtc: '',
   }))
@@ -582,8 +580,6 @@ export function useNayaxReconciliation() {
           : null,
         settings: {
           timezone: tz,
-          // toleranceSeconds: retained only for the results header; no longer used for matching — removed in the Chunk 2 cleanup
-          toleranceSeconds: settings.value.toleranceSeconds,
         },
       }
     } finally {
