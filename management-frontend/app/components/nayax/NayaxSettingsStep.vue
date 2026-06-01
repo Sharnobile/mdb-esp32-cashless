@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { formatInTimeZone, fromZonedTime } from 'date-fns-tz'
 
 defineProps<{ isAdmin: boolean }>()
@@ -28,19 +28,9 @@ function fromLocalInput(local: string): string {
   return fromZonedTime(local, recon.settings.value.timezone).toISOString()
 }
 
-const tolerance = computed({
-  get: () => recon.settings.value.toleranceSeconds,
-  set: (v: number) => {
-    // Don't clamp on every keystroke — that snaps the input value mid-typing.
-    // The native min/max attributes + the clamp in submit() are enough.
-    recon.settings.value.toleranceSeconds = v
-  },
-})
-
 function submit() {
   recon.settings.value.fromUtc = fromLocalInput(fromInput.value)
   recon.settings.value.toUtc = fromLocalInput(toInput.value)
-  recon.settings.value.toleranceSeconds = Math.max(5, Math.min(600, Math.round(recon.settings.value.toleranceSeconds)))
   emit('run')
 }
 </script>
@@ -67,11 +57,6 @@ function submit() {
           <option value="UTC">UTC</option>
         </select>
         <p class="text-[10px] text-muted-foreground">{{ t('nayax.reconcile.settings.tzHint') }}</p>
-      </div>
-      <div class="space-y-1">
-        <label class="text-sm font-medium">{{ t('nayax.reconcile.settings.tolerance') }}</label>
-        <input v-model.number="tolerance" type="number" min="5" max="600" class="flex h-9 w-full rounded-md border bg-background px-3 text-sm" />
-        <p class="text-[10px] text-muted-foreground">{{ t('nayax.reconcile.settings.toleranceHint') }}</p>
       </div>
     </div>
 
