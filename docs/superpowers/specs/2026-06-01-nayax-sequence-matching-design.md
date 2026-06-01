@@ -149,6 +149,34 @@ treatment**:
 - **Removal stays per-row** (existing `IconTrash` + `deleteConfirmBody` confirm). No
   bulk-delete surface is added (decided: safer/more deliberate for record deletion).
 
+**Day grouping.** The merged rows (already sorted chronologically) are visually
+grouped by calendar day, with light spacing between days so the operator can tell
+days apart at a glance:
+
+- A `dayGroups` computed folds the flat `mergedRows` into
+  `[{ dayKey, dayLabel, rows }]` in a single linear pass (rows are already sorted,
+  so same-day rows are contiguous).
+- **Day key uses the browser-local day**, derived from the same `Date` the cells
+  render — i.e. local `getFullYear()/getMonth()/getDate()` of `utcDt` (missing) or
+  `created_at` (ghost). This is deliberate: `formatDateTime` renders with no
+  `timeZone` option (browser-local), so grouping by anything else (e.g. the file
+  timezone) could place a row under a day that differs from its shown time. Grouping
+  and display must share one basis.
+- Each group is preceded by a **subtle divider row** spanning all columns
+  (`<td :colspan>`): a muted, small date label (`formatDate(ts, locale)`), a hairline
+  `border-t`, and a bit of extra top padding for the "light spacing." No heavy header,
+  no background fill beyond a faint tint. The first group needs no leading gap.
+- Row markup, selection (`select all missing` still spans all days by `txId`),
+  import, and per-row delete are **unchanged** — only the wrapping/iteration changes.
+- No new i18n string (the divider shows a formatted date). Purely presentational;
+  verified via the preview workflow, no new unit test required.
+
+Implementation notes (from spec review): the divider `<td>` uses `colspan="10"`
+(the table has 10 columns); keep **all** rows under one `<tbody>` so the data rows'
+`last:border-0` still resolves to the final row; add `formatDate` to the existing
+`@/lib/utils` import; and remove the now-unused `IconInfoCircle` import left dangling
+after the ghost-badge icon swap.
+
 ### Matched table (`NayaxMatchedTable.vue`)
 
 - Add a small "price differs" badge (`results.priceDiffers`) on rows where
@@ -206,7 +234,7 @@ cases:
 | `app/components/nayax/NayaxSettingsStep.vue` | remove tolerance field/clamp |
 | `app/pages/reports/nayax-reconciliation.vue` | remove tolerance localStorage + clamp |
 | `app/components/nayax/NayaxResultsView.vue` | header method label + price-diff count |
-| `app/components/nayax/NayaxDifferencesTable.vue` | phantom warning styling + explanation |
+| `app/components/nayax/NayaxDifferencesTable.vue` | phantom warning styling + explanation; day-grouped rows with light spacing |
 | `app/components/nayax/NayaxMatchedTable.vue` | price-differs badge |
 | `i18n/locales/en.json`, `i18n/locales/de.json` | remove tolerance keys; add new result keys |
 | `app/composables/__tests__/useNayaxReconciliation.test.ts` | rewrite `runMatch` tests |
