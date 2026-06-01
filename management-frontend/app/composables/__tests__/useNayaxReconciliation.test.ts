@@ -433,3 +433,37 @@ describe('alignSequences', () => {
     expect(alignSequences([5, 6], [])).toEqual({ pairs: [], aOnly: [0, 1], bOnly: [] })
   })
 })
+
+describe('alignMachine', () => {
+  const days = (n: number, d = '2026-03-10') => Array(n).fill(d)
+
+  it('uses a single LCS under the cell budget (bucketed=false)', () => {
+    const out = alignMachine([1, 2, 3], days(3), [1, 3], days(2), 1_000_000)
+    expect(out.bucketed).toBe(false)
+    expect(out.pairs).toEqual([[0, 0], [2, 1]])
+    expect(out.aOnly).toEqual([1])
+    expect(out.bOnly).toEqual([])
+  })
+
+  it('falls back to per-UTC-day buckets over budget (bucketed=true), translating indices', () => {
+    // Two days; force the fallback with a tiny budget.
+    const aKeys = [1, 2, 9]
+    const aDays = ['2026-03-10', '2026-03-10', '2026-03-11']
+    const bKeys = [1, 2, 9]
+    const bDays = ['2026-03-10', '2026-03-10', '2026-03-11']
+    const out = alignMachine(aKeys, aDays, bKeys, bDays, 1)
+    expect(out.bucketed).toBe(true)
+    expect(out.pairs).toEqual([[0, 0], [1, 1], [2, 2]])
+    expect(out.aOnly).toEqual([])
+    expect(out.bOnly).toEqual([])
+  })
+
+  it('does not align identical tokens that fall in different day buckets (the fallback tradeoff)', () => {
+    // Same token 5 but on different days -> cannot pair under day-bucketing.
+    const out = alignMachine([5], ['2026-03-10'], [5], ['2026-03-11'], 1)
+    expect(out.bucketed).toBe(true)
+    expect(out.pairs).toEqual([])
+    expect(out.aOnly).toEqual([0])
+    expect(out.bOnly).toEqual([0])
+  })
+})

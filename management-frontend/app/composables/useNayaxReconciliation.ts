@@ -118,6 +118,46 @@ export function alignSequences(
   return { pairs, aOnly, bOnly }
 }
 
+/**
+ * Align one machine's Nayax sequence (a) against its DB sequence (b), keyed on
+ * slot. `aDays`/`bDays` are the per-element UTC day strings ("YYYY-MM-DD"),
+ * positionally paired with `aKeys`/`bKeys` (both pre-sorted by time).
+ *
+ * Normally one `alignSequences` call. If the DP table would exceed `maxCells`
+ * (a pathological single-machine upload), it falls back to aligning within
+ * each UTC-day bucket and sets `bucketed: true`. Day-bucketing bounds cost but
+ * cannot pair two equal slots that drifted across UTC midnight — an accepted
+ * tradeoff that only ever applies to over-budget machines.
+ */
+export function alignMachine(
+  aKeys: number[],
+  aDays: string[],
+  bKeys: number[],
+  bDays: string[],
+  maxCells: number,
+): { pairs: Array<[number, number]>; aOnly: number[]; bOnly: number[]; bucketed: boolean } {
+  const n = aKeys.length
+  const m = bKeys.length
+  if ((n + 1) * (m + 1) <= maxCells) {
+    return { ...alignSequences(aKeys, bKeys), bucketed: false }
+  }
+  const dayKeys = [...new Set([...aDays, ...bDays])].sort()
+  const pairs: Array<[number, number]> = []
+  const aOnly: number[] = []
+  const bOnly: number[] = []
+  for (const day of dayKeys) {
+    const aIdx: number[] = []
+    for (let i = 0; i < n; i++) if (aDays[i] === day) aIdx.push(i)
+    const bIdx: number[] = []
+    for (let j = 0; j < m; j++) if (bDays[j] === day) bIdx.push(j)
+    const sub = alignSequences(aIdx.map(i => aKeys[i]!), bIdx.map(j => bKeys[j]!))
+    for (const [x, y] of sub.pairs) pairs.push([aIdx[x]!, bIdx[y]!])
+    for (const x of sub.aOnly) aOnly.push(aIdx[x]!)
+    for (const y of sub.bOnly) bOnly.push(bIdx[y]!)
+  }
+  return { pairs, aOnly, bOnly, bucketed: true }
+}
+
 /** A single row parsed from the Nayax sales export. */
 export interface NayaxRow {
   rowIndex: number          // 1-based index in the source file, for messages
