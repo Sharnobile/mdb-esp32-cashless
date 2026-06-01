@@ -12,6 +12,7 @@ const { t, locale } = useI18n()
 const recon = useNayaxReconciliation()
 
 const result = computed(() => recon.result.value)
+const priceDiffN = computed(() => (result.value?.matched ?? []).filter(m => m.priceDiffers).length)
 const matchedOpen = ref(false)
 const diffOpen = ref(true)
 const otherOpen = ref(true)
@@ -31,6 +32,9 @@ const machineNameByVmId = computed(() => {
   }
   return map
 })
+const bucketedNames = computed(() =>
+  (result.value?.bucketedVmIds ?? []).map(id => machineNameByVmId.value.get(id) ?? id),
+)
 
 function downloadCsv() {
   const csv = recon.exportDiffCsv()
@@ -62,7 +66,8 @@ function fmtRange(): string {
             <span class="font-medium text-yellow-700 dark:text-yellow-400">{{ result.ghostInDb.length }} {{ t('nayax.reconcile.results.ghostShort') }}</span>
           </p>
           <p class="text-xs text-muted-foreground mt-1">
-            {{ fmtRange() }} · {{ result.settings.timezone }} · ±{{ result.settings.toleranceSeconds }}s
+            {{ fmtRange() }} · {{ result.settings.timezone }} · {{ t('nayax.reconcile.results.matchMethod') }}
+            <span v-if="priceDiffN > 0"> · {{ t('nayax.reconcile.results.priceDiffersN', { n: priceDiffN }) }}</span>
           </p>
         </div>
         <div class="flex gap-2">
@@ -86,6 +91,12 @@ function fmtRange(): string {
           </button>
         </div>
       </div>
+      <p
+        v-if="bucketedNames.length > 0"
+        class="mt-2 rounded-md bg-amber-50 px-3 py-1.5 text-xs text-amber-900 dark:bg-amber-950 dark:text-amber-200"
+      >
+        {{ t('nayax.reconcile.results.bucketedNotice', { machines: bucketedNames.join(', ') }) }}
+      </p>
     </div>
 
     <!-- Merged differences (focus bucket) -->
