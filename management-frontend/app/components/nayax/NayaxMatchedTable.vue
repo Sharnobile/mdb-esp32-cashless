@@ -34,7 +34,15 @@ const { t, locale } = useI18n()
             <td class="px-4 py-2">{{ formatDateTime(m.nayax.utcDt, locale) }}</td>
             <td class="px-4 py-2">{{ m.nayax.machineName }}</td>
             <td class="px-4 py-2 tabular-nums">{{ m.nayax.itemNumber }}</td>
-            <td class="px-4 py-2">{{ m.db.product_name ?? m.nayax.productName }}</td>
+            <td class="px-4 py-2">
+              {{ m.db.product_name ?? m.nayax.productName }}
+              <span
+                v-if="m.priceDiffers"
+                class="ml-2 inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-200"
+              >
+                {{ t('nayax.reconcile.results.priceDiffers') }}
+              </span>
+            </td>
             <td class="px-4 py-2 tabular-nums">{{ formatCurrency(m.nayax.priceGross, locale) }}</td>
             <td
               class="px-4 py-2 tabular-nums"
