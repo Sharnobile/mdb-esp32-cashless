@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import type { NayaxRow, DbSale } from '~/composables/useNayaxReconciliation'
-import { formatCurrency, formatDateTime } from '@/lib/utils'
-import { IconAlertTriangle, IconChevronDown, IconChevronRight, IconInfoCircle, IconTrash } from '@tabler/icons-vue'
+import { groupDifferencesByDay } from '~/composables/useNayaxReconciliation'
+import { formatCurrency, formatDate, formatDateTime } from '@/lib/utils'
+import { IconAlertTriangle, IconChevronDown, IconChevronRight, IconTrash } from '@tabler/icons-vue'
 import AppModal from '~/components/AppModal.vue'
 
 const props = defineProps<{
@@ -28,27 +29,7 @@ const showDeleteConfirm = computed({
   set: (v: boolean) => { if (!v) pendingDelete.value = null },
 })
 
-// Chronologically merged rows. Both NayaxRow.utcDt and DbSale.created_at are
-// ISO 8601 with a 'Z' suffix, so lexicographic localeCompare is chronological.
-// Stable tiebreaker: at identical timestamps, the missing-in-DB row comes
-// before the ghost row (the Nayax-recorded event first).
-type Row =
-  | { kind: 'missing'; ts: string; payload: NayaxRow }
-  | { kind: 'ghost'; ts: string; payload: DbSale }
-
-const mergedRows = computed<Row[]>(() => {
-  const rows: Row[] = [
-    ...props.missing.map(m => ({ kind: 'missing' as const, ts: m.utcDt, payload: m })),
-    ...props.ghosts.map(g => ({ kind: 'ghost' as const, ts: g.created_at, payload: g })),
-  ]
-  rows.sort((a, b) => {
-    const c = a.ts.localeCompare(b.ts)
-    if (c !== 0) return c
-    if (a.kind === b.kind) return 0
-    return a.kind === 'missing' ? -1 : 1
-  })
-  return rows
-})
+const dayGroups = computed(() => groupDifferencesByDay(props.missing, props.ghosts))
 
 const total = computed(() => props.missing.length + props.ghosts.length)
 const allMissingSelected = computed(() =>
@@ -132,6 +113,15 @@ function shortId(id: string): string {
         </details>
       </div>
 
+      <!-- Ghost explanation banner -->
+      <p
+        v-if="ghosts.length > 0"
+        class="flex items-start gap-2 border-b bg-amber-50/60 px-4 py-2 text-xs text-amber-900 dark:bg-amber-950/40 dark:text-amber-200"
+      >
+        <IconAlertTriangle class="mt-0.5 h-3.5 w-3.5 shrink-0" />
+        <span>{{ t('nayax.reconcile.results.ghostExplain') }}</span>
+      </p>
+
       <!-- Empty state -->
       <div v-if="total === 0" class="p-4 text-sm text-muted-foreground">
         {{ t('nayax.reconcile.results.noDifferences') }}
@@ -166,63 +156,74 @@ function shortId(id: string): string {
             </tr>
           </thead>
           <tbody>
-            <template v-for="row in mergedRows" :key="row.kind + ':' + (row.kind === 'missing' ? row.payload.txId : row.payload.id)">
-              <!-- Missing row -->
-              <tr v-if="row.kind === 'missing'" class="border-b last:border-0">
-                <td class="px-4 py-2">
-                  <input
-                    type="checkbox"
-                    :checked="selected.has(row.payload.txId)"
-                    :disabled="!isAdmin"
-                    :aria-label="t('nayax.reconcile.results.selectRowAria', {
-                      product: row.payload.productName,
-                      slot: row.payload.itemNumber,
-                    })"
-                    @change="toggleOne(row.payload.txId)"
-                  />
-                </td>
-                <td class="px-4 py-2">{{ formatDateTime(row.payload.utcDt, locale) }}</td>
-                <td class="px-4 py-2">
-                  <span class="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800 dark:bg-red-950 dark:text-red-200">
-                    <IconAlertTriangle class="mr-1 h-3 w-3" />
-                    {{ t('nayax.reconcile.results.bucketMissing') }}
-                  </span>
-                </td>
-                <td class="px-4 py-2">{{ row.payload.machineName }}</td>
-                <td class="px-4 py-2 tabular-nums">{{ row.payload.itemNumber }}</td>
-                <td class="px-4 py-2">{{ row.payload.productName }}</td>
-                <td class="px-4 py-2 tabular-nums">{{ formatCurrency(row.payload.priceGross, locale) }}</td>
-                <td class="px-4 py-2">{{ row.payload.paymentSource }}</td>
-                <td class="px-4 py-2 font-mono text-xs">{{ row.payload.txId }}</td>
-                <td class="px-4 py-2"></td>
-              </tr>
-              <!-- Ghost row -->
-              <tr v-else class="border-b last:border-0">
-                <td class="px-4 py-2"><span class="text-muted-foreground">—</span></td>
-                <td class="px-4 py-2">{{ formatDateTime(row.payload.created_at, locale) }}</td>
-                <td class="px-4 py-2">
-                  <span class="inline-flex items-center rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-800 dark:bg-yellow-950 dark:text-yellow-200">
-                    <IconInfoCircle class="mr-1 h-3 w-3" />
-                    {{ t('nayax.reconcile.results.bucketGhost') }}
-                  </span>
-                </td>
-                <td class="px-4 py-2">{{ ghostMachineName(row.payload) }}</td>
-                <td class="px-4 py-2 tabular-nums">{{ row.payload.item_number ?? '—' }}</td>
-                <td class="px-4 py-2">{{ row.payload.product_name ?? '—' }}</td>
-                <td class="px-4 py-2 tabular-nums">{{ formatCurrency(row.payload.item_price ?? null, locale) }}</td>
-                <td class="px-4 py-2">{{ row.payload.channel ?? '—' }}</td>
-                <td class="px-4 py-2 font-mono text-xs">{{ shortId(row.payload.id) }}</td>
-                <td class="px-4 py-2 text-right">
-                  <button
-                    v-if="isAdmin"
-                    class="inline-flex h-8 items-center gap-1 rounded-md border border-red-200 px-2 text-xs text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950"
-                    @click="pendingDelete = row.payload"
-                  >
-                    <IconTrash class="h-3 w-3" />
-                    {{ t('common.delete') }}
-                  </button>
+            <template v-for="group in dayGroups" :key="group.dayKey">
+              <!-- Day divider: light spacing + muted date label, spans all 10 columns -->
+              <tr class="bg-muted/20">
+                <td :colspan="10" class="border-t px-4 pt-3 pb-1 text-xs font-medium text-muted-foreground">
+                  {{ formatDate(group.rows[0]!.ts, locale) }}
                 </td>
               </tr>
+              <template
+                v-for="row in group.rows"
+                :key="row.kind + ':' + (row.kind === 'missing' ? row.payload.txId : row.payload.id)"
+              >
+                <!-- Missing row -->
+                <tr v-if="row.kind === 'missing'" class="border-b last:border-0">
+                  <td class="px-4 py-2">
+                    <input
+                      type="checkbox"
+                      :checked="selected.has(row.payload.txId)"
+                      :disabled="!isAdmin"
+                      :aria-label="t('nayax.reconcile.results.selectRowAria', {
+                        product: row.payload.productName,
+                        slot: row.payload.itemNumber,
+                      })"
+                      @change="toggleOne(row.payload.txId)"
+                    />
+                  </td>
+                  <td class="px-4 py-2">{{ formatDateTime(row.payload.utcDt, locale) }}</td>
+                  <td class="px-4 py-2">
+                    <span class="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800 dark:bg-red-950 dark:text-red-200">
+                      <IconAlertTriangle class="mr-1 h-3 w-3" />
+                      {{ t('nayax.reconcile.results.bucketMissing') }}
+                    </span>
+                  </td>
+                  <td class="px-4 py-2">{{ row.payload.machineName }}</td>
+                  <td class="px-4 py-2 tabular-nums">{{ row.payload.itemNumber }}</td>
+                  <td class="px-4 py-2">{{ row.payload.productName }}</td>
+                  <td class="px-4 py-2 tabular-nums">{{ formatCurrency(row.payload.priceGross, locale) }}</td>
+                  <td class="px-4 py-2">{{ row.payload.paymentSource }}</td>
+                  <td class="px-4 py-2 font-mono text-xs">{{ row.payload.txId }}</td>
+                  <td class="px-4 py-2"></td>
+                </tr>
+                <!-- Ghost (phantom) row — highlighted as a likely false sale -->
+                <tr v-else class="border-b last:border-0 bg-amber-50/60 dark:bg-amber-950/30">
+                  <td class="px-4 py-2"><span class="text-muted-foreground">—</span></td>
+                  <td class="px-4 py-2">{{ formatDateTime(row.payload.created_at, locale) }}</td>
+                  <td class="px-4 py-2">
+                    <span class="inline-flex items-center rounded-full bg-amber-200 px-2 py-0.5 text-xs font-medium text-amber-900 dark:bg-amber-900 dark:text-amber-100">
+                      <IconAlertTriangle class="mr-1 h-3 w-3" />
+                      {{ t('nayax.reconcile.results.bucketGhostWarn') }}
+                    </span>
+                  </td>
+                  <td class="px-4 py-2">{{ ghostMachineName(row.payload) }}</td>
+                  <td class="px-4 py-2 tabular-nums">{{ row.payload.item_number ?? '—' }}</td>
+                  <td class="px-4 py-2">{{ row.payload.product_name ?? '—' }}</td>
+                  <td class="px-4 py-2 tabular-nums">{{ formatCurrency(row.payload.item_price ?? null, locale) }}</td>
+                  <td class="px-4 py-2">{{ row.payload.channel ?? '—' }}</td>
+                  <td class="px-4 py-2 font-mono text-xs">{{ shortId(row.payload.id) }}</td>
+                  <td class="px-4 py-2 text-right">
+                    <button
+                      v-if="isAdmin"
+                      class="inline-flex h-8 items-center gap-1 rounded-md border border-red-200 px-2 text-xs text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950"
+                      @click="pendingDelete = row.payload"
+                    >
+                      <IconTrash class="h-3 w-3" />
+                      {{ t('common.delete') }}
+                    </button>
+                  </td>
+                </tr>
+              </template>
             </template>
           </tbody>
         </table>
