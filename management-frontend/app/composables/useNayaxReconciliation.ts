@@ -158,6 +158,23 @@ export function alignMachine(
   return { pairs, aOnly, bOnly, bucketed: true }
 }
 
+/**
+ * Widen an ISO date range by `seconds` on both ends, for the DB query only.
+ * Lets a sale that drifted just across the file's start/end still load and
+ * align. The strict range (for ghost classification) is left untouched.
+ */
+export function bufferRange(
+  fromUtc: string,
+  toUtc: string,
+  seconds: number,
+): { gte: string; lte: string } {
+  const pad = seconds * 1000
+  return {
+    gte: new Date(Date.parse(fromUtc) - pad).toISOString(),
+    lte: new Date(Date.parse(toUtc) + pad).toISOString(),
+  }
+}
+
 /** A single row parsed from the Nayax sales export. */
 export interface NayaxRow {
   rowIndex: number          // 1-based index in the source file, for messages

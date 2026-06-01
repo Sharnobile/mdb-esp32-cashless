@@ -467,3 +467,12 @@ describe('alignMachine', () => {
     expect(out.bOnly).toEqual([0])
   })
 })
+
+describe('bufferRange', () => {
+  it('pads both bounds by the given seconds without mutating inputs', () => {
+    expect(bufferRange('2026-03-01T00:00:00.000Z', '2026-03-31T23:59:59.000Z', 120)).toEqual({
+      gte: '2026-02-28T23:58:00.000Z',
+      lte: '2026-04-01T00:01:59.000Z',
+    })
+  })
+})
