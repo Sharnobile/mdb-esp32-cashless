@@ -70,6 +70,9 @@ Everything else is **grouped by mapped VM id** and aligned independently:
    - A-only items → `missingInDb` (the importable gaps).
    - B-only items, **strictly within `[fromUtc, toUtc]`** → `ghostInDb` (phantoms).
      (B items only in the boundary buffer — see below — are dropped, never ghosts.)
+   - **The strict-range filter applies only to the B-only remainder.** An aligned
+     pair stays `matched` even when its DB row's `created_at` falls in the buffer
+     (outside the strict range) — i.e. don't re-filter aligned pairs by range.
 4. Concatenate all machines' results into the existing `ReconResult` shape.
 
 Repeated products (same slot vended several times) are handled naturally by the
@@ -92,6 +95,11 @@ truncation — if the fallback engages, the operator is told.
 still find its twin and align (no false gap at the edges). The ghost filter stays
 **strict** to the real `[fromUtc, toUtc]`, so a buffer-only DB row can partner a
 match but can never itself be flagged as a phantom.
+
+The buffer is a **local computation inside `loadDbSales`** applied only to the
+Supabase `.gte` / `.lte` query bounds. It must **not** mutate `settings.fromUtc` /
+`settings.toUtc` — those remain the strict range used by `runMatch`'s ghost filter
+and by `fileDateRange` in the results header.
 
 ## Data model changes (`useNayaxReconciliation.ts`)
 
@@ -182,6 +190,8 @@ cases:
    when the DB only has one of them.
 6. **Price differs, slot matches** → `matched` with `priceDiffers === true`.
 7. **Adjacent order swap** → documents the accepted behavior (1 missing + 1 ghost).
+   Fixture uses two genuinely distinct `item_number`s so the LCS can't absorb the
+   swap via another equal-key path.
 8. **Per-machine independence** → identical slot sequences on two different VMs do
    not cross-align.
 9. **Boundary buffer** → a DB sale just outside `[fromUtc,toUtc]` but within the
