@@ -391,7 +391,12 @@
     "unstable": "Instabil",
     "critical": "Kritisch",
     "restartsLast24h": "{count} Neustart in 24h | {count} Neustarts in 24h",
-    "uptime": "Laufzeit"
+    "uptime": "Laufzeit",
+    "suppressedTitle": "Automatisch entfernte Duplikate",
+    "suppressedHint": "Verkäufe, die als vermutliche Brownout-Doppelmeldungen automatisch verworfen wurden.",
+    "suppressedEmpty": "Keine — es wurden keine Duplikate automatisch entfernt.",
+    "suppressedCount": "{n} automatisch entfernt",
+    "suppressedReason": "vermutlich Brownout-Doppelmeldung"
   },
   "machineSettings": {
     "title": "Automat-Einstellungen",

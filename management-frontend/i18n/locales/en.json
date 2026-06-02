@@ -391,7 +391,12 @@
     "unstable": "Unstable",
     "critical": "Critical",
     "restartsLast24h": "{count} restart in 24h | {count} restarts in 24h",
-    "uptime": "Uptime"
+    "uptime": "Uptime",
+    "suppressedTitle": "Auto-removed duplicates",
+    "suppressedHint": "Sales auto-dropped as suspected brownout re-reports.",
+    "suppressedEmpty": "None — no duplicates auto-removed.",
+    "suppressedCount": "{n} auto-removed",
+    "suppressedReason": "likely brownout re-report"
   },
   "machineSettings": {
     "title": "Machine settings",
