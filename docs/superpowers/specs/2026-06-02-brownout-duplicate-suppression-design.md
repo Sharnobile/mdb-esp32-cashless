@@ -111,7 +111,11 @@ if (timeUncertain) {
   if (match) {
     await adminClient.from('suppressed_sales').insert([{
       embedded_id: embedded.id, item_number: itemNumber, item_price: salePrice,
-      channel, sale_seq: saleSeq, device_created_at: <device ts or null>,
+      channel, sale_seq: saleSeq,
+      // the RAW device timestamp, NOT saleTime (which was overwritten with
+      // server time because time_uncertain) — preserve the device's own ts:
+      device_created_at: timestampUnsigned > 0
+        ? new Date(timestampUnsigned * 1000).toISOString() : null,
       received_at: new Date().toISOString(), matched_sale_id: match.id,
       reason: 'time_uncertain_duplicate',
     }])
@@ -130,6 +134,12 @@ if (timeUncertain) {
   on the hot path and on legitimate rapid repeat sales.
 - The existing seq `ON CONFLICT` path is untouched and still runs for everything
   that isn't suppressed (covers same-seq replay).
+- **Window-miss is a safe false-negative:** if the original was stored with a
+  *device* timestamp and the re-report arrives >30 s (server time) after that
+  `created_at` (very slow reconnect/SNTP), the query misses and the duplicate
+  inserts normally — it then shows up as a phantom in the Nayax reconciliation
+  tool for manual review. This is a *miss*, never a wrong drop. Worth a one-line
+  code comment next to `SUPPRESS_WINDOW_SECONDS`.
 
 **Testability:** extract a pure `decideSuppress(incoming, recentMatches, windowMs)`
 (returns boolean) where `incoming` carries `{ timeUncertain, createdAtMs }` and
