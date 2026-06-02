@@ -137,6 +137,9 @@ export function alignSequences(
  * each UTC-day bucket and sets `bucketed: true`. Day-bucketing bounds cost but
  * cannot pair two equal slots that drifted across UTC midnight — an accepted
  * tradeoff that only ever applies to over-budget machines.
+ *
+ * Note: this day-bucket fallback is independent of `runMatch`'s two-pass
+ * strict-range/buffer split — the two mechanisms operate at different layers.
  */
 export function alignMachine(
   aKeys: number[],
@@ -538,34 +541,55 @@ export function useNayaxReconciliation() {
       const ghostInDb: DbSale[] = []
       const bucketedVmIds: string[] = []
 
+      // Record a matched pair (deltaSeconds informational; priceDiffers flags a
+      // slot match whose prices disagree, incl. a null DB price).
+      const pushMatch = (nrow: NayaxRow, srow: DbSale) => {
+        const delta = (Date.parse(srow.created_at) - Date.parse(nrow.utcDt)) / 1000
+        const priceDiffers = srow.item_price == null
+          || roundTo2(srow.item_price) !== roundTo2(nrow.priceGross)
+        matched.push({ nayax: nrow, db: srow, deltaSeconds: delta, priceDiffers })
+      }
+
       const vmIds = new Set<string>([...eligibleByVm.keys(), ...dbByVm.keys()])
       for (const vmId of vmIds) {
         const aRows = (eligibleByVm.get(vmId) ?? []).slice()
           .sort((x, y) => x.utcDt.localeCompare(y.utcDt))
-        const bRows = (dbByVm.get(vmId) ?? []).slice()
+        const bAll = (dbByVm.get(vmId) ?? []).slice()
           .sort((x, y) => x.created_at.localeCompare(y.created_at))
 
-        const aKeys = aRows.map(r => r.itemNumber as number)   // non-null (eligible)
-        const bKeys = bRows.map(r => r.item_number ?? -1)      // null slot matches nothing
-        const aDays = aRows.map(r => r.utcDt.slice(0, 10))
-        const bDays = bRows.map(r => r.created_at.slice(0, 10))
-
-        const { pairs, aOnly, bOnly, bucketed } = alignMachine(aKeys, aDays, bKeys, bDays, MAX_LCS_CELLS)
-        if (bucketed) bucketedVmIds.push(vmId)
-
-        for (const [ai, bi] of pairs) {
-          const nrow = aRows[ai]!
-          const srow = bRows[bi]!
-          const delta = (Date.parse(srow.created_at) - Date.parse(nrow.utcDt)) / 1000
-          const priceDiffers = srow.item_price == null
-            || roundTo2(srow.item_price) !== roundTo2(nrow.priceGross)
-          matched.push({ nayax: nrow, db: srow, deltaSeconds: delta, priceDiffers })
+        // Split DB rows into in-strict-range vs buffer-only. In-range rows are
+        // matched FIRST (authoritatively) so a ±2-min buffer row can never steal
+        // a match from a real in-range sale and orphan it into a false phantom.
+        const bStrict: DbSale[] = []
+        const bBuffer: DbSale[] = []
+        for (const s of bAll) {
+          const t = Date.parse(s.created_at)
+          if (t >= fromMs && t <= toMs) bStrict.push(s)
+          else bBuffer.push(s)
         }
-        for (const ai of aOnly) missingInDb.push(aRows[ai]!)
-        for (const bi of bOnly) {
-          const srow = bRows[bi]!
-          const t = Date.parse(srow.created_at)
-          if (t >= fromMs && t <= toMs) ghostInDb.push(srow)   // strict range only
+
+        // Pass 1: eligible Nayax rows vs in-range DB rows.
+        const aKeys = aRows.map(r => r.itemNumber as number)
+        const aDays = aRows.map(r => r.utcDt.slice(0, 10))
+        const sKeys = bStrict.map(r => r.item_number ?? -1)
+        const sDays = bStrict.map(r => r.created_at.slice(0, 10))
+        const r1 = alignMachine(aKeys, aDays, sKeys, sDays, MAX_LCS_CELLS)
+        if (r1.bucketed) bucketedVmIds.push(vmId)
+        for (const [ai, bi] of r1.pairs) pushMatch(aRows[ai]!, bStrict[bi]!)
+        for (const bi of r1.bOnly) ghostInDb.push(bStrict[bi]!)   // in-range by construction → true phantoms
+
+        // Pass 2: rescue Nayax rows with no in-range twin against buffer-only DB
+        // rows (genuine cross-boundary drift). Unmatched here are true gaps;
+        // unmatched buffer rows are dropped (never phantoms).
+        const residualA = r1.aOnly.map(ai => aRows[ai]!)
+        if (residualA.length > 0 && bBuffer.length > 0) {
+          const raKeys = residualA.map(r => r.itemNumber as number)
+          const rbKeys = bBuffer.map(r => r.item_number ?? -1)
+          const r2 = alignSequences(raKeys, rbKeys)
+          for (const [ai, bi] of r2.pairs) pushMatch(residualA[ai]!, bBuffer[bi]!)
+          for (const ai of r2.aOnly) missingInDb.push(residualA[ai]!)
+        } else {
+          for (const a of residualA) missingInDb.push(a)
         }
       }
 

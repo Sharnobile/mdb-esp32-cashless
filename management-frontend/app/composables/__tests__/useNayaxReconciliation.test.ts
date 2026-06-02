@@ -393,6 +393,29 @@ describe('runMatch (sequence)', () => {
     r.runMatch()
     expect(r.result.value!.ghostInDb.map(s => s.id)).toEqual(['in'])
   })
+
+  it('does not flag a real in-range sale as a phantom when a same-slot buffer row precedes the range (start-edge collision)', () => {
+    const r = setupRecon({
+      rawRows: [
+        mkNayax({ txId: 'A', itemNumber: 11, utcDt: '2026-03-01T08:10:00.000Z' }),
+        mkNayax({ txId: 'B', itemNumber: 22, utcDt: '2026-03-01T08:30:00.000Z' }),
+      ],
+      mapping: { N1: 'vm1' },
+      dbSales: [
+        // slot 11 ~90s BEFORE fromUtc — only present because loadDbSales buffers ±2min
+        mkSale({ id: 'buf',    item_number: 11, created_at: '2026-03-01T07:58:30.000Z' }),
+        mkSale({ id: 'real11', item_number: 11, created_at: '2026-03-01T08:10:05.000Z' }),
+        mkSale({ id: 'real22', item_number: 22, created_at: '2026-03-01T08:30:05.000Z' }),
+      ],
+      fromUtc: '2026-03-01T08:00:00.000Z',
+      toUtc:   '2026-03-01T20:00:00.000Z',
+    })
+    r.runMatch()
+    // Both Nayax rows match their REAL in-range sales; the pre-range buffer row is dropped, not a phantom.
+    expect([...r.result.value!.matched.map(m => m.db.id)].sort()).toEqual(['real11', 'real22'])
+    expect(r.result.value!.missingInDb).toHaveLength(0)
+    expect(r.result.value!.ghostInDb).toHaveLength(0)
+  })
 })
 
 describe('derivedChannelFromPaymentSource', () => {
