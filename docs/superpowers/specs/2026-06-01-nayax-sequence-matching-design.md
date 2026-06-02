@@ -96,6 +96,20 @@ still find its twin and align (no false gap at the edges). The ghost filter stay
 **strict** to the real `[fromUtc, toUtc]`, so a buffer-only DB row can partner a
 match but can never itself be flagged as a phantom.
 
+**In-range rows are matched authoritatively (two-pass).** Aligning the Nayax
+sequence against *all* loaded DB rows at once is unsafe at the start edge: because
+LCS greedily takes the earliest equal slot, a buffer row just *before* `fromUtc`
+with the same slot as a real in-range sale would steal the match and orphan the
+in-range sale into a false phantom (which the operator would then delete). So
+`runMatch` aligns per machine in two passes: **Pass 1** aligns the Nayax rows
+against the *in-range* DB rows only — these matches are authoritative and the
+Pass-1 leftovers are the true in-range phantoms; **Pass 2** aligns only the
+*residual* unmatched Nayax rows against the buffer-only DB rows (genuine
+cross-boundary drift), with residual Nayax rows becoming `missingInDb` and
+unmatched buffer rows dropped. This keeps the buffer's benefit (no false missing
+at the edges → no duplicate imports) without letting a buffer row displace a real
+in-range sale.
+
 The buffer is a **local computation inside `loadDbSales`** applied only to the
 Supabase `.gte` / `.lte` query bounds. It must **not** mutate `settings.fromUtc` /
 `settings.toUtc` — those remain the strict range used by `runMatch`'s ghost filter
