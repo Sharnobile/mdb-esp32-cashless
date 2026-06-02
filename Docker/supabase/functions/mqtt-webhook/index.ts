@@ -430,7 +430,6 @@ Deno.serve(async (req) => {
       // surface as phantoms in the Nayax reconciliation tool.
       if (timeUncertain) {
         const incomingMs = Date.parse(saleTime);
-        const sinceIso = new Date(incomingMs - SUPPRESS_WINDOW_MS - 60_000).toISOString();
         const { data: candRows } = await adminClient
           .from('sales')
           .select('id, created_at')
@@ -438,15 +437,16 @@ Deno.serve(async (req) => {
           .eq('item_number', itemNumber)
           .eq('item_price', salePrice)
           .eq('channel', channel)
-          .gte('created_at', sinceIso)
+          .gte('created_at', new Date(incomingMs - SUPPRESS_WINDOW_MS).toISOString())
+          .lte('created_at', new Date(incomingMs + SUPPRESS_WINDOW_MS).toISOString())
           .order('created_at', { ascending: false })
-          .limit(20);
+          .limit(20);  // bounded: same-key sales within ±30s are at most a handful
         const candidates: SuppressCandidate[] = (candRows ?? []).map(
           (r: { id: string; created_at: string }) => ({ id: r.id, createdAtMs: Date.parse(r.created_at) }),
         );
         const matchedId = decideSuppress({ timeUncertain, createdAtMs: incomingMs }, candidates, SUPPRESS_WINDOW_MS);
         if (matchedId) {
-          await adminClient.from('suppressed_sales').insert([{
+          const { error: suppressErr } = await adminClient.from('suppressed_sales').insert([{
             embedded_id: embedded.id,
             item_number: itemNumber,
             item_price: salePrice,
@@ -458,7 +458,11 @@ Deno.serve(async (req) => {
             matched_sale_id: matchedId,
             reason: 'time_uncertain_duplicate',
           }]);
-          return new Response(JSON.stringify({ ok: true, suppressed: true }), { status: 200 });
+          if (!suppressErr) {
+            return new Response(JSON.stringify({ ok: true, suppressed: true }), { status: 200 });
+          }
+          console.error('suppressed_sales insert failed; falling through to normal sales insert:', suppressErr);
+          // fall through to the existing sales insert below — never drop a real sale silently
         }
       }
 

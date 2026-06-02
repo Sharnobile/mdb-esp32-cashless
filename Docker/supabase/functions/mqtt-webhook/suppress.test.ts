@@ -35,3 +35,10 @@ Deno.test("window is symmetric (candidate slightly before also matches)", () => 
     "b",
   );
 });
+
+Deno.test("suppressed at exactly the window boundary (<= is inclusive)", () => {
+  assertEquals(
+    decideSuppress({ timeUncertain: true, createdAtMs: T }, [{ id: "c", createdAtMs: T + SUPPRESS_WINDOW_MS }]),
+    "c",
+  );
+});
