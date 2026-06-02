@@ -9,6 +9,7 @@ final class MachineDetailViewModel: ObservableObject {
     @Published var trays: [Tray] = []
     @Published var recentSales: [Sale] = []
     @Published var products: [Product] = []
+    @Published var suppressedSales: [SuppressedSale] = []
     @Published var isLoading = false
     @Published var error: String?
 
@@ -36,6 +37,9 @@ final class MachineDetailViewModel: ObservableObject {
         } catch {
             self.error = error.localizedDescription
         }
+
+        // Best-effort supplemental load — never blocks or fails the main detail load.
+        try? await loadSuppressedSales()
 
         isLoading = false
     }
@@ -73,6 +77,23 @@ final class MachineDetailViewModel: ObservableObject {
             .select("id, name, image_path, discontinued, sellprice")
             .eq("discontinued", value: false)
             .order("name", ascending: true)
+            .execute()
+            .value
+    }
+
+    // MARK: - Suppressed sales (auto-removed brownout duplicates)
+
+    private func loadSuppressedSales() async throws {
+        guard let embeddedId = machine.embedded?.uuidString else {
+            suppressedSales = []   // no embedded device → no suppressed sales possible
+            return
+        }
+        suppressedSales = try await client
+            .from("suppressed_sales")
+            .select("id, embedded_id, item_number, item_price, channel, sale_seq, device_created_at, received_at, matched_sale_id, reason")
+            .eq("embedded_id", value: embeddedId)
+            .order("received_at", ascending: false)
+            .limit(100)
             .execute()
             .value
     }

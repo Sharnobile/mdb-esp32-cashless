@@ -44,6 +44,7 @@ struct MachineDetailView: View {
             Picker("Section", selection: $selectedTab) {
                 Text("Overview").tag(0)
                 Text("Sales").tag(1)
+                Text("Duplicates").tag(2)
             }
             .pickerStyle(.segmented)
             .padding(.horizontal)
@@ -53,6 +54,7 @@ struct MachineDetailView: View {
             TabView(selection: $selectedTab) {
                 overviewTab.tag(0)
                 salesTab.tag(1)
+                suppressedTab.tag(2)
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
         }
@@ -332,6 +334,60 @@ struct MachineDetailView: View {
         }
     }
 
+    // MARK: - Suppressed (Duplicates) Tab
+
+    private var suppressedTab: some View {
+        ScrollView {
+            if viewModel.isLoading {
+                ProgressView()
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 60)
+            } else {
+                VStack(alignment: .leading, spacing: 12) {
+                    // Header
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Image(systemName: "doc.badge.minus")
+                                .foregroundStyle(.orange)
+                            Text("\(viewModel.suppressedSales.count) auto-removed")
+                                .font(.subheadline.weight(.semibold))
+                            Spacer()
+                        }
+                        Text("Sales auto-dropped as suspected brownout re-reports.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(16)
+                    .background(RoundedRectangle(cornerRadius: 14).fill(.regularMaterial))
+
+                    if viewModel.suppressedSales.isEmpty {
+                        VStack(spacing: 12) {
+                            Image(systemName: "checkmark.circle")
+                                .font(.system(size: 40))
+                                .foregroundStyle(.green)
+                            Text("None — no duplicates auto-removed.")
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 40)
+                    } else {
+                        LazyVStack(spacing: 8) {
+                            ForEach(viewModel.suppressedSales) { sale in
+                                SuppressedSaleRow(sale: sale)
+                            }
+                        }
+                    }
+                }
+                .padding(.horizontal)
+                .padding(.bottom, 20)
+            }
+        }
+        .refreshable {
+            await viewModel.loadDetail()
+        }
+    }
+
     private func formatEUR(_ amount: Double) -> String {
         String(format: "%.2f\u{00A0}\u{20AC}", amount)
     }
@@ -456,6 +512,73 @@ struct SaleRow: View {
         }
         .contentShape(RoundedRectangle(cornerRadius: 12))
         .onTapGesture { onTap() }
+    }
+
+    private func formatTime(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm:ss"
+        return formatter.string(from: date)
+    }
+}
+
+// MARK: - Suppressed Sale Row (read-only)
+
+struct SuppressedSaleRow: View {
+    let sale: SuppressedSale
+
+    private var channelColor: Color {
+        switch sale.channel?.lowercased() {
+        case "card": return .blue
+        case "cashless", "nfc": return .purple
+        case "cash": return .green
+        default: return .secondary
+        }
+    }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "doc.badge.minus")
+                .foregroundStyle(.orange)
+                .frame(width: 44, height: 44)
+                .background(Color.orange.opacity(0.10), in: RoundedRectangle(cornerRadius: 10))
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    if let channel = sale.channel {
+                        Text(channel.capitalized)
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(channelColor)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(channelColor.opacity(0.12), in: Capsule())
+                    }
+                    if let slot = sale.itemNumber {
+                        Text("Slot \(slot)")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Text("likely brownout re-report")
+                    .font(.caption2)
+                    .foregroundStyle(.orange)
+            }
+
+            Spacer()
+
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(sale.formattedPrice)
+                    .font(.subheadline.weight(.semibold))
+                    .monospacedDigit()
+                Text(formatTime(sale.receivedAt))
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(12)
+        .background {
+            RoundedRectangle(cornerRadius: 12)
+                .fill(.regularMaterial)
+        }
     }
 
     private func formatTime(_ date: Date) -> String {
