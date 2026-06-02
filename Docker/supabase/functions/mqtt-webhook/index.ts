@@ -3,6 +3,7 @@ import { decodeBase64 } from 'https://deno.land/std@0.224.0/encoding/base64.ts'
 import { sendPushToUsers } from '../_shared/web-push.ts'
 import { stockUrgency } from './stock-urgency.ts'
 import { t, formatPrice, type Locale } from '../_shared/notification-i18n.ts'
+import { decideSuppress, SUPPRESS_WINDOW_MS, type SuppressCandidate } from "./suppress.ts";
 
 // Sale payload format version carried in byte 1 of the 19-byte XOR-encrypted
 // payload. v2 adds per-device monotonic sale_seq (bytes 14-17) + time_uncertain
@@ -420,6 +421,46 @@ Deno.serve(async (req) => {
       const saleTime = timeUncertain || timestampUnsigned === 0
         ? new Date().toISOString()
         : new Date(timestampUnsigned * 1000).toISOString();
+
+      // Brownout duplicate guard: a re-reported cash sale after a reboot arrives
+      // time_uncertain and re-enqueued with a NEW seq (so the seq idempotency
+      // below can't catch it). Only time_uncertain sales are checked, so normal
+      // rapid repeat sales are never affected. Window ±SUPPRESS_WINDOW_MS;
+      // misses (very slow reconnect) are safe — they fall through to insert and
+      // surface as phantoms in the Nayax reconciliation tool.
+      if (timeUncertain) {
+        const incomingMs = Date.parse(saleTime);
+        const sinceIso = new Date(incomingMs - SUPPRESS_WINDOW_MS - 60_000).toISOString();
+        const { data: candRows } = await adminClient
+          .from('sales')
+          .select('id, created_at')
+          .eq('embedded_id', embedded.id)
+          .eq('item_number', itemNumber)
+          .eq('item_price', salePrice)
+          .eq('channel', channel)
+          .gte('created_at', sinceIso)
+          .order('created_at', { ascending: false })
+          .limit(20);
+        const candidates: SuppressCandidate[] = (candRows ?? []).map(
+          (r: { id: string; created_at: string }) => ({ id: r.id, createdAtMs: Date.parse(r.created_at) }),
+        );
+        const matchedId = decideSuppress({ timeUncertain, createdAtMs: incomingMs }, candidates, SUPPRESS_WINDOW_MS);
+        if (matchedId) {
+          await adminClient.from('suppressed_sales').insert([{
+            embedded_id: embedded.id,
+            item_number: itemNumber,
+            item_price: salePrice,
+            channel,
+            sale_seq: saleSeq,
+            // raw device timestamp, NOT saleTime (which is server time here)
+            device_created_at: timestampUnsigned > 0 ? new Date(timestampUnsigned * 1000).toISOString() : null,
+            received_at: new Date().toISOString(),
+            matched_sale_id: matchedId,
+            reason: 'time_uncertain_duplicate',
+          }]);
+          return new Response(JSON.stringify({ ok: true, suppressed: true }), { status: 200 });
+        }
+      }
 
       // Idempotency: replays from the device queue / broker retention /
       // forwarder DLQ hit the UNIQUE(embedded_id, sale_seq) index and raise
