@@ -21,6 +21,7 @@ const recon = useNayaxReconciliation()
 // Bulk-import selection (only Missing rows are selectable).
 const selected = ref<Set<string>>(new Set())
 const showConfirm = ref(false)
+const adjustStock = ref(false)
 const lastResult = ref<{ imported: number; errors: string[] } | null>(null)
 const pendingDelete = ref<DbSale | null>(null)
 
@@ -52,7 +53,7 @@ async function runImport() {
   const rowsToImport = props.missing.filter(r => selected.value.has(r.txId))
   if (rowsToImport.length === 0) return
   showConfirm.value = false
-  lastResult.value = await recon.bulkImportMissing(rowsToImport)
+  lastResult.value = await recon.bulkImportMissing(rowsToImport, adjustStock.value)
   selected.value = new Set()
 }
 
@@ -87,7 +88,7 @@ function shortId(id: string): string {
         <span>{{ t('nayax.reconcile.results.selectedN', { n: selected.size }) }}</span>
         <button
           class="inline-flex h-8 items-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90"
-          @click="showConfirm = true"
+          @click="adjustStock = false; showConfirm = true"
         >
           {{ t('nayax.reconcile.results.importCta') }}
         </button>
@@ -236,6 +237,13 @@ function shortId(id: string): string {
       <p class="text-sm text-muted-foreground mb-4">
         {{ t('nayax.reconcile.results.importConfirmBody', { n: selected.size }) }}
       </p>
+      <label class="mb-4 flex items-start gap-2 text-sm">
+        <input v-model="adjustStock" type="checkbox" class="mt-0.5" />
+        <span>
+          {{ t('nayax.reconcile.results.adjustStockLabel') }}
+          <span class="mt-0.5 block text-xs text-muted-foreground">{{ t('nayax.reconcile.results.adjustStockHint') }}</span>
+        </span>
+      </label>
       <div class="flex justify-end gap-2">
         <button class="inline-flex h-9 items-center rounded-md border px-4 text-sm hover:bg-muted" @click="showConfirm = false">
           {{ t('common.cancel') }}
