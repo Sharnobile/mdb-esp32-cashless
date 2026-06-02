@@ -237,13 +237,15 @@ function shortId(id: string): string {
       <p class="text-sm text-muted-foreground mb-4">
         {{ t('nayax.reconcile.results.importConfirmBody', { n: selected.size }) }}
       </p>
-      <label class="mb-4 flex items-start gap-2 text-sm">
-        <input v-model="adjustStock" type="checkbox" class="mt-0.5" />
-        <span>
-          {{ t('nayax.reconcile.results.adjustStockLabel') }}
-          <span class="mt-0.5 block text-xs text-muted-foreground">{{ t('nayax.reconcile.results.adjustStockHint') }}</span>
-        </span>
-      </label>
+      <div class="mb-4">
+        <label class="flex items-start gap-2 text-sm">
+          <input v-model="adjustStock" type="checkbox" class="mt-0.5" aria-describedby="nayax-adjust-stock-hint" />
+          <span>{{ t('nayax.reconcile.results.adjustStockLabel') }}</span>
+        </label>
+        <p id="nayax-adjust-stock-hint" class="mt-1 pl-6 text-xs text-muted-foreground">
+          {{ t('nayax.reconcile.results.adjustStockHint') }}
+        </p>
+      </div>
       <div class="flex justify-end gap-2">
         <button class="inline-flex h-9 items-center rounded-md border px-4 text-sm hover:bg-muted" @click="showConfirm = false">
           {{ t('common.cancel') }}
