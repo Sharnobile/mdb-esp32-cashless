@@ -44,16 +44,19 @@ export function useSuppressedSales() {
     if (loading.value || !hasMore.value) return
     loading.value = true
     try {
-      const from = rows.value.length
+      const oldest = rows.value[rows.value.length - 1]?.received_at
+      if (!oldest) return
+
       const { data, error } = await (supabase as any)
         .from('suppressed_sales')
         .select('*')
         .eq('embedded_id', embeddedId)
+        .lt('received_at', oldest)
         .order('received_at', { ascending: false })
-        .range(from, from + PAGE - 1)
+        .limit(PAGE)
       if (error) throw error
       const next = (data ?? []) as SuppressedSale[]
-      rows.value = [...rows.value, ...next]
+      rows.value.push(...next)
       hasMore.value = next.length === PAGE
     } finally {
       loading.value = false
