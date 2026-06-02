@@ -39,6 +39,7 @@ const { fetchUnassignedEmbeddeds, swapDevice } = useMachines()
 const { logs: mdbLogs, loading: mdbLogsLoading, hasMore: mdbHasMore, fetchLogs: fetchMdbLogs, fetchMore: fetchMoreMdbLogs, subscribe: subscribeMdbLog, stateLabel, stateVariant } = useMdbLog()
 const { entries: stockHistoryEntries, loading: stockHistoryLoading, fetchHistory: fetchStockHistory, reset: resetStockHistory } = useStockHistory()
 const { restarts, loading: restartsLoading, hasMore: restartsHasMore, fetchRestarts, fetchMore: fetchMoreRestarts, subscribe: subscribeRestarts } = useDeviceRestarts()
+const { rows: suppressedRows, loading: suppressedLoading, hasMore: suppressedHasMore, fetchRows: fetchSuppressed, fetchMore: fetchMoreSuppressed } = useSuppressedSales()
 const { onResume } = useAppResume()
 
 const isAdmin = computed(() => role.value === 'admin')
@@ -315,6 +316,9 @@ onMounted(async () => {
       fetchMdbLogs(machine.value?.embeddeds.id)
       const unsubMdbLog = subscribeMdbLog(machine.value?.embeddeds.id)
       onUnmounted(unsubMdbLog)
+
+      // Fetch suppressed (brownout dedup) sales audit rows
+      fetchSuppressed(machine.value?.embeddeds.id)
 
       // Fetch device restart history + subscribe to live updates
       fetchRestarts(machine.value?.embeddeds.id)
@@ -2143,6 +2147,52 @@ async function handleAddSale() {
                     @click="fetchMoreRestarts(machine!.embeddeds!.id)"
                   >
                     {{ restartsLoading ? t('common.loading') : t('history.loadMore') }}
+                  </button>
+                </div>
+              </div>
+
+              <!-- Auto-removed duplicates card -->
+              <div class="rounded-xl border bg-card p-4 sm:p-6">
+                <div class="mb-3 flex items-center justify-between">
+                  <h2 class="text-sm font-medium">{{ t('machineDetail.suppressedTitle') }}</h2>
+                  <span v-if="suppressedRows.length > 0" class="rounded-full bg-muted px-2.5 py-0.5 text-xs text-muted-foreground tabular-nums">
+                    {{ t('machineDetail.suppressedCount', { n: suppressedRows.length }) }}
+                  </span>
+                </div>
+                <p class="mb-3 text-xs text-muted-foreground">{{ t('machineDetail.suppressedHint') }}</p>
+
+                <div v-if="suppressedLoading && suppressedRows.length === 0" class="text-sm text-muted-foreground">{{ t('common.loading') }}</div>
+                <div v-else-if="suppressedRows.length === 0" class="text-sm text-muted-foreground">{{ t('machineDetail.suppressedEmpty') }}</div>
+                <div v-else class="overflow-x-auto">
+                  <table class="w-full text-sm">
+                    <thead>
+                      <tr class="border-b text-left text-xs text-muted-foreground">
+                        <th class="pb-2 pr-4 font-medium">{{ t('machineDetail.time') }}</th>
+                        <th class="pb-2 pr-4 font-medium">{{ t('machineDetail.slot') }}</th>
+                        <th class="pb-2 pr-4 font-medium">{{ t('machineDetail.price') }}</th>
+                        <th class="pb-2 pr-4 font-medium">{{ t('machineDetail.channel') }}</th>
+                        <th class="pb-2 font-medium">{{ t('machineDetail.restartReason') }}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="row in suppressedRows" :key="row.id" class="border-b last:border-0">
+                        <td class="py-2 pr-4 text-xs text-muted-foreground whitespace-nowrap">{{ formatDateTime(row.received_at, locale) }}</td>
+                        <td class="py-2 pr-4 tabular-nums">{{ row.item_number ?? '—' }}</td>
+                        <td class="py-2 pr-4 tabular-nums">{{ row.item_price != null ? formatCurrency(row.item_price, locale) : '—' }}</td>
+                        <td class="py-2 pr-4">{{ row.channel ?? '—' }}</td>
+                        <td class="py-2 text-xs text-muted-foreground">{{ t('machineDetail.suppressedReason') }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <div v-if="suppressedHasMore" class="mt-3 flex justify-center">
+                  <button
+                    class="rounded-md border px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted transition-colors"
+                    :disabled="suppressedLoading"
+                    @click="machine?.embeddeds?.id && fetchMoreSuppressed(machine.embeddeds.id)"
+                  >
+                    {{ suppressedLoading ? t('common.loading') : t('history.loadMore') }}
                   </button>
                 </div>
               </div>
