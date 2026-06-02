@@ -652,6 +652,7 @@ export function useNayaxReconciliation() {
 
   async function bulkImportMissing(
     rows: NayaxRow[],
+    adjustStock = false,
   ): Promise<{ imported: number; errors: string[] }> {
     importing.value = true
     const errors: string[] = []
@@ -671,6 +672,7 @@ export function useNayaxReconciliation() {
           p_item_price: n.priceGross,
           p_channel: channel,
           p_created_at: n.utcDt,
+          p_adjust_stock: adjustStock,
         })
         if (err) {
           errors.push(`row ${n.rowIndex} (${n.txId}): ${err.message ?? err}`)
@@ -688,6 +690,7 @@ export function useNayaxReconciliation() {
           channel,
           sale_created_at: n.utcDt,
           nayax_tx_id: n.txId,
+          adjust_stock: adjustStock,
         })
       }
       // Re-load DB sales so subsequent `runMatch` reflects new rows.
