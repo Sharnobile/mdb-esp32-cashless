@@ -69,6 +69,7 @@
 		BE954A375ED01316E322C570 /* BarcodeScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 822CB83FD364F5DCF05D6213 /* BarcodeScannerView.swift */; };
 		BEE87BCF91FBF732036F5D34 /* ProductsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B17A2CD3A0F549B76FAFF29 /* ProductsView.swift */; };
 		C2A2406A5D534A262F1CB0BA /* Sale.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79D8F4403556EBD0620DEECF /* Sale.swift */; };
+		FE01AA02BB03CC04DD05EE06 /* SuppressedSale.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE11AA12BB13CC14DD15EE16 /* SuppressedSale.swift */; };
 		C6C3F5A9A4DD93B937E70446 /* FlowVisualisationCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F7A80FB302C6380E0788244 /* FlowVisualisationCard.swift */; };
 		C8CFA483AB0C273F0B8009B0 /* AppNavigation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BEBD09944FEF671809C2788 /* AppNavigation.swift */; };
 		CF28029DE37E256E1554DA8D /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79D0846AC36BBA1BBDC87E68 /* NotificationService.swift */; };
@@ -157,6 +158,7 @@
 		70E364431AFD63E8DE1238E3 /* SupabaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseService.swift; sourceTree = "<group>"; };
 		79D0846AC36BBA1BBDC87E68 /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
 		79D8F4403556EBD0620DEECF /* Sale.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sale.swift; sourceTree = "<group>"; };
+		FE11AA12BB13CC14DD15EE16 /* SuppressedSale.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuppressedSale.swift; sourceTree = "<group>"; };
 		7D17C7D7E21DDD2FDA3F7F48 /* MultiBarkasseCashBlock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MultiBarkasseCashBlock.swift; sourceTree = "<group>"; };
 		7E9A5023EED5804698A679E6 /* TrayViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrayViewModel.swift; sourceTree = "<group>"; };
 		813681CDE6C321A49F84A20B /* RegisterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegisterView.swift; sourceTree = "<group>"; };
@@ -225,6 +227,7 @@
 				CA94DE3092E2B07986626697 /* Product.swift */,
 				79D8F4403556EBD0620DEECF /* Sale.swift */,
 				DADFA44860969534CCE30E67 /* ServerEntry.swift */,
+				FE11AA12BB13CC14DD15EE16 /* SuppressedSale.swift */,
 				2D260DBBBEC69D0AD7B73C46 /* Tray.swift */,
 				4E7EC46F36DD12575C056A1A /* VendingMachine.swift */,
 				A6908142D65605FE1D58C1AE /* Warehouse.swift */,
@@ -702,6 +705,7 @@
 				009EBF498DA30943CF9B822D /* ReviewStepView.swift in Sources */,
 				C2A2406A5D534A262F1CB0BA /* Sale.swift in Sources */,
 				72C90C4ACF2607C4D2195724 /* ServerEntry.swift in Sources */,
+				FE01AA02BB03CC04DD05EE06 /* SuppressedSale.swift in Sources */,
 				5F1B8611AD429EF19A710A9A /* ServerSelectionSheet.swift in Sources */,
 				BB47F1A487862AA410FF9E58 /* ServerStore.swift in Sources */,
 				14E8E7A13B8FB4BBA2CE3AA1 /* SettingsView.swift in Sources */,
