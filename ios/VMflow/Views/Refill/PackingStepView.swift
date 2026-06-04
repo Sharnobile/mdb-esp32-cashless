@@ -819,7 +819,7 @@ private struct MachinePackingList: View {
     /// truncates at the tail when space runs out instead of wrapping the
     /// "Partial" / "No stock" badge below the row.
     private func metaLine(need: MachineNeed, price: String?, isDisabled: Bool, isPartial: Bool) -> Text {
-        var line = Text("needs \(need.quantity)").foregroundStyle(.secondary)
+        var line = Text("needs \(need.quantity) / \(need.capacity)").foregroundStyle(.secondary)
         if let price {
             line = line
                 + Text(" · ").foregroundStyle(.tertiary)
