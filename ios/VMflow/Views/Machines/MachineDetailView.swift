@@ -373,7 +373,8 @@ struct MachineDetailView: View {
                         .padding(.top, 40)
                     } else {
                         LazyVStack(spacing: 8, pinnedViews: [.sectionHeaders]) {
-                            ForEach(groupSuppressedByDay(viewModel.suppressedSales), id: \.date) { group in
+                            let groups = groupSuppressedByDay(viewModel.suppressedSales)
+                            ForEach(groups, id: \.date) { group in
                                 Section {
                                     ForEach(group.rows) { sale in
                                         SuppressedSaleRow(sale: sale, trays: viewModel.trays)
