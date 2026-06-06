@@ -11,6 +11,8 @@ export interface SuppressedSale {
   received_at: string
   matched_sale_id: string | null
   reason: string
+  product_id: string | null
+  products?: { name: string; image_path: string | null } | null
 }
 
 const PAGE = 50
@@ -28,7 +30,7 @@ export function useSuppressedSales() {
     try {
       const { data, error } = await (supabase as any)
         .from('suppressed_sales')
-        .select('*')
+        .select('*, products(name, image_path)')
         .eq('embedded_id', embeddedId)
         .order('received_at', { ascending: false })
         .range(0, PAGE - 1)
@@ -49,7 +51,7 @@ export function useSuppressedSales() {
 
       const { data, error } = await (supabase as any)
         .from('suppressed_sales')
-        .select('*')
+        .select('*, products(name, image_path)')
         .eq('embedded_id', embeddedId)
         .lt('received_at', oldest)
         .order('received_at', { ascending: false })
