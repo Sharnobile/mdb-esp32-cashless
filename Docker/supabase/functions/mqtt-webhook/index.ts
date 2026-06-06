@@ -432,7 +432,7 @@ Deno.serve(async (req) => {
         const incomingMs = Date.parse(saleTime);
         const { data: candRows } = await adminClient
           .from('sales')
-          .select('id, created_at')
+          .select('id, created_at, product_id')
           .eq('embedded_id', embedded.id)
           .eq('item_number', itemNumber)
           .eq('item_price', salePrice)
@@ -442,10 +442,11 @@ Deno.serve(async (req) => {
           .order('created_at', { ascending: false })
           .limit(20);  // bounded: same-key sales within ±30s are at most a handful
         const candidates: SuppressCandidate[] = (candRows ?? []).map(
-          (r: { id: string; created_at: string }) => ({ id: r.id, createdAtMs: Date.parse(r.created_at) }),
+          (r: { id: string; created_at: string; product_id: string | null }) => ({ id: r.id, createdAtMs: Date.parse(r.created_at) }),
         );
         const matchedId = decideSuppress({ timeUncertain, createdAtMs: incomingMs }, candidates, SUPPRESS_WINDOW_MS);
         if (matchedId) {
+          const matchedRow = (candRows ?? []).find((r) => r.id === matchedId);
           const { error: suppressErr } = await adminClient.from('suppressed_sales').insert([{
             embedded_id: embedded.id,
             item_number: itemNumber,
@@ -457,6 +458,7 @@ Deno.serve(async (req) => {
             received_at: new Date().toISOString(),
             matched_sale_id: matchedId,
             reason: 'time_uncertain_duplicate',
+            product_id: matchedRow?.product_id ?? null,
           }]);
           if (!suppressErr) {
             return new Response(JSON.stringify({ ok: true, suppressed: true }), { status: 200 });
