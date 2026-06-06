@@ -372,9 +372,15 @@ struct MachineDetailView: View {
                         .frame(maxWidth: .infinity)
                         .padding(.top, 40)
                     } else {
-                        LazyVStack(spacing: 8) {
-                            ForEach(viewModel.suppressedSales) { sale in
-                                SuppressedSaleRow(sale: sale, trays: viewModel.trays)
+                        LazyVStack(spacing: 8, pinnedViews: [.sectionHeaders]) {
+                            ForEach(groupSuppressedByDay(viewModel.suppressedSales), id: \.date) { group in
+                                Section {
+                                    ForEach(group.rows) { sale in
+                                        SuppressedSaleRow(sale: sale, trays: viewModel.trays)
+                                    }
+                                } header: {
+                                    DaySectionHeader(label: dayLabel(for: group.date), count: group.rows.count, unit: "removed")
+                                }
                             }
                         }
                     }
@@ -417,6 +423,11 @@ struct MachineDetailView: View {
         let sales: [Sale]
     }
 
+    private struct SuppressedDayGroup {
+        let date: Date
+        let rows: [SuppressedSale]
+    }
+
     private func groupSalesByDay(_ sales: [Sale]) -> [DayGroup] {
         let calendar = Calendar.current
         let grouped = Dictionary(grouping: sales) { sale in
@@ -424,6 +435,16 @@ struct MachineDetailView: View {
         }
         return grouped.keys.sorted(by: >).map { date in
             DayGroup(date: date, sales: grouped[date]!.sorted { $0.createdAt > $1.createdAt })
+        }
+    }
+
+    private func groupSuppressedByDay(_ rows: [SuppressedSale]) -> [SuppressedDayGroup] {
+        let calendar = Calendar.current
+        let grouped = Dictionary(grouping: rows) { row in
+            calendar.startOfDay(for: row.receivedAt)
+        }
+        return grouped.keys.sorted(by: >).map { date in
+            SuppressedDayGroup(date: date, rows: grouped[date]!.sorted { $0.receivedAt > $1.receivedAt })
         }
     }
 
@@ -607,12 +628,13 @@ struct SuppressedSaleRow: View {
 struct DaySectionHeader: View {
     let label: String
     let count: Int
+    var unit: String = "sales"
 
     var body: some View {
         HStack {
             Text(label)
                 .font(.subheadline.weight(.semibold))
-            Text("· \(count) sales")
+            Text("· \(count) \(unit)")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
             Spacer()
