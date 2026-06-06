@@ -35,12 +35,14 @@ iOS only (`ios/VMflow/Views/Machines/MachineDetailView.swift`). No model, ViewMo
        Section {
          ForEach(group.rows) { sale in SuppressedSaleRow(sale: sale, trays: viewModel.trays) }
        } header: {
-         DaySectionHeader(label: dayLabel(for: group.date), count: group.rows.count)
+         DaySectionHeader(label: dayLabel(for: group.date), count: group.rows.count, unit: "removed")
        }
      }
    }
    ```
-   Keep the existing header card ("N auto-removed" + hint) above the list, the loading `ProgressView`, and the empty state all unchanged. `SuppressedSaleRow` is unchanged. Reuse `dayLabel` + `DaySectionHeader`.
+   Keep the existing header card ("N auto-removed" + hint) above the list, the loading `ProgressView`, and the empty state all unchanged. `SuppressedSaleRow` is unchanged. Reuse `dayLabel`.
+
+3. **Parameterize `DaySectionHeader`'s count noun (additive).** It currently hard-codes `Text("· \(count) sales")`, which reads oddly ("· 3 sales") for *removed* duplicates. Add an optional `var unit: String = "sales"` and render `Text("· \(count) \(unit)")`. The Sales-tab call sites are unchanged (default `"sales"`); the Duplicates tab passes `unit: "removed"` → "· 3 removed". (No pluralization is added — matches the existing un-pluralized "sales".)
 
 ## Backward compatibility / risk
 - Purely presentational, additive; no data/model change. Read-only surface preserved.
@@ -52,4 +54,4 @@ iOS only (`ios/VMflow/Views/Machines/MachineDetailView.swift`). No model, ViewMo
 ## Files touched
 | File | Change |
 |------|--------|
-| `ios/VMflow/Views/Machines/MachineDetailView.swift` | `SuppressedDayGroup` + `groupSuppressedByDay`; day-sectioned `suppressedTab` reusing `dayLabel`/`DaySectionHeader` |
+| `ios/VMflow/Views/Machines/MachineDetailView.swift` | `SuppressedDayGroup` + `groupSuppressedByDay`; day-sectioned `suppressedTab` reusing `dayLabel`; `DaySectionHeader` gains optional `unit` param (default "sales"; Duplicates passes "removed") |
