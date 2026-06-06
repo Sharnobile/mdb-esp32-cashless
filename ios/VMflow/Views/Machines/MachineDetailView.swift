@@ -374,7 +374,7 @@ struct MachineDetailView: View {
                     } else {
                         LazyVStack(spacing: 8) {
                             ForEach(viewModel.suppressedSales) { sale in
-                                SuppressedSaleRow(sale: sale)
+                                SuppressedSaleRow(sale: sale, trays: viewModel.trays)
                             }
                         }
                     }
@@ -525,6 +525,19 @@ struct SaleRow: View {
 
 struct SuppressedSaleRow: View {
     let sale: SuppressedSale
+    let trays: [Tray]
+
+    /// Prefer snapshot product name; fall back to current tray by item number; last resort "Slot N".
+    private var productName: String {
+        sale.products?.name
+            ?? trays.first { $0.itemNumber == sale.itemNumber }?.productName
+            ?? "Slot \(sale.itemNumber ?? 0)"
+    }
+
+    private var productImagePath: String? {
+        sale.products?.imagePath
+            ?? trays.first { $0.itemNumber == sale.itemNumber }?.products?.imagePath
+    }
 
     private var channelColor: Color {
         switch sale.channel?.lowercased() {
@@ -537,12 +550,13 @@ struct SuppressedSaleRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: "doc.badge.minus")
-                .foregroundStyle(.orange)
-                .frame(width: 44, height: 44)
-                .background(Color.orange.opacity(0.10), in: RoundedRectangle(cornerRadius: 10))
+            ProductImage(imagePath: productImagePath, size: 44)
 
             VStack(alignment: .leading, spacing: 4) {
+                Text(productName)
+                    .font(.subheadline.weight(.medium))
+                    .lineLimit(1)
+
                 HStack(spacing: 6) {
                     if let channel = sale.channel {
                         Text(channel.capitalized)

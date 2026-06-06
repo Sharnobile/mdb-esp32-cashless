@@ -90,7 +90,7 @@ final class MachineDetailViewModel: ObservableObject {
         }
         suppressedSales = try await client
             .from("suppressed_sales")
-            .select("id, embedded_id, item_number, item_price, channel, sale_seq, device_created_at, received_at, matched_sale_id, reason")
+            .select("id, embedded_id, item_number, item_price, channel, sale_seq, device_created_at, received_at, matched_sale_id, reason, product_id, products(name, image_path)")
             .eq("embedded_id", value: embeddedId)
             .order("received_at", ascending: false)
             .limit(100)
