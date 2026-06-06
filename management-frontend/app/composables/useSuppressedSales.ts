@@ -44,11 +44,10 @@ export function useSuppressedSales() {
 
   async function fetchMore(embeddedId: string) {
     if (loading.value || !hasMore.value) return
+    const oldest = rows.value[rows.value.length - 1]?.received_at
+    if (!oldest) return
     loading.value = true
     try {
-      const oldest = rows.value[rows.value.length - 1]?.received_at
-      if (!oldest) return
-
       const { data, error } = await (supabase as any)
         .from('suppressed_sales')
         .select('*, products(name, image_path)')
