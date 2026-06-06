@@ -51,6 +51,7 @@ In `mqtt-webhook/index.ts`, the existing suppression guard already runs a candid
   const matchedRow = (candRows ?? []).find((r) => r.id === matchedId);
   // … insert: product_id: matchedRow?.product_id ?? null
   ```
+  Also update the candidate-row TS type used in the `.find`/map (currently `{ id: string; created_at: string }`) to include `product_id: string | null`, so the snapshot value isn't dropped by the cast.
 Everything else (the time_uncertain gate, ±30s window, fail-safe fall-through on insert error) is unchanged.
 
 ### 3. PWA — image + name on the suppressed card
