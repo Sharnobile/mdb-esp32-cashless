@@ -386,6 +386,18 @@ function saleProduct(sale: any): { name: string; image_url: string | null } | nu
   return null
 }
 
+// Resolve product info for a suppressed sale: prefer snapshotted product FK join (immutable),
+// fallback to tray lookup for legacy null-snapshot rows.
+function suppressedProduct(row: any): { name: string; image_url: string | null } | null {
+  if (row.products?.name) {
+    const imagePath = row.products.image_path
+    return { name: row.products.name, image_url: imagePath ? getProductImageUrl(imagePath) : null }
+  }
+  const tray = trayProductMap.value.get(row.item_number)
+  if (tray) return { name: tray.name, image_url: tray.image_url }
+  return null
+}
+
 // Resolve product_id for a sale: prefer snapshotted product_id, fallback to tray.
 function saleProductId(sale: any): string | null {
   if (sale.product_id) return sale.product_id
@@ -2163,27 +2175,38 @@ async function handleAddSale() {
 
                 <div v-if="suppressedLoading && suppressedRows.length === 0" class="text-sm text-muted-foreground">{{ t('common.loading') }}</div>
                 <div v-else-if="suppressedRows.length === 0" class="text-sm text-muted-foreground">{{ t('machineDetail.suppressedEmpty') }}</div>
-                <div v-else class="overflow-x-auto">
-                  <table class="w-full text-sm">
-                    <thead>
-                      <tr class="border-b text-left text-xs text-muted-foreground">
-                        <th class="pb-2 pr-4 font-medium">{{ t('machineDetail.time') }}</th>
-                        <th class="pb-2 pr-4 font-medium">{{ t('machineDetail.slot') }}</th>
-                        <th class="pb-2 pr-4 font-medium">{{ t('machineDetail.price') }}</th>
-                        <th class="pb-2 pr-4 font-medium">{{ t('machineDetail.channel') }}</th>
-                        <th class="pb-2 font-medium">{{ t('machineDetail.restartReason') }}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr v-for="row in suppressedRows" :key="row.id" class="border-b last:border-0">
-                        <td class="py-2 pr-4 text-xs text-muted-foreground whitespace-nowrap">{{ formatDateTime(row.received_at, locale) }}</td>
-                        <td class="py-2 pr-4 tabular-nums">{{ row.item_number ?? '—' }}</td>
-                        <td class="py-2 pr-4 tabular-nums">{{ row.item_price != null ? formatCurrency(row.item_price, locale) : '—' }}</td>
-                        <td class="py-2 pr-4">{{ row.channel ?? '—' }}</td>
-                        <td class="py-2 text-xs text-muted-foreground">{{ t('machineDetail.suppressedReason') }}</td>
-                      </tr>
-                    </tbody>
-                  </table>
+                <div v-else class="rounded-xl border bg-card divide-y">
+                  <div v-for="row in suppressedRows" :key="row.id" class="flex items-start gap-3 px-4 py-3">
+                    <!-- Product image or amount badge -->
+                    <img
+                      v-if="suppressedProduct(row)?.image_url"
+                      :src="suppressedProduct(row)!.image_url!"
+                      :alt="suppressedProduct(row)!.name"
+                      class="h-9 w-9 shrink-0 rounded-full object-cover mt-0.5"
+                    />
+                    <div v-else class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary mt-0.5">
+                      {{ row.item_price != null ? formatCurrency(row.item_price, locale) : '—' }}
+                    </div>
+                    <!-- Main info -->
+                    <div class="flex-1 min-w-0">
+                      <div class="flex items-start justify-between gap-2">
+                        <p class="text-sm font-medium break-words">
+                          {{ suppressedProduct(row)?.name ?? `${t('machineDetail.slot')} ${row.item_number ?? '—'}` }}
+                        </p>
+                        <span class="shrink-0 text-sm font-semibold tabular-nums">{{ row.item_price != null ? formatCurrency(row.item_price, locale) : '—' }}</span>
+                      </div>
+                      <div class="mt-0.5 flex items-center justify-between">
+                        <div class="flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <span class="whitespace-nowrap">{{ t('machineDetail.slot') }} {{ row.item_number ?? '—' }}</span>
+                          <span v-if="row.channel" class="text-muted-foreground/40">·</span>
+                          <span v-if="row.channel">{{ row.channel }}</span>
+                          <span class="text-muted-foreground/40">·</span>
+                          <span>{{ t('machineDetail.suppressedReason') }}</span>
+                        </div>
+                        <span class="shrink-0 text-[11px] text-muted-foreground tabular-nums">{{ formatDateTime(row.received_at, locale) }}</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 <div v-if="suppressedHasMore" class="mt-3 flex justify-center">
