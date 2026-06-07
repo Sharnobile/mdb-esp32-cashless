@@ -36,6 +36,7 @@ DECLARE
   v_sup1      uuid;   -- happy-path suppressed row
   v_sup2      uuid;   -- viewer-negative suppressed row
   v_sup3      uuid;   -- cross-company suppressed row
+  v_sup4      uuid;   -- duplicate-seq suppressed row
   v_stock     integer;
   v_count     integer;
   v_sale      RECORD;
@@ -112,12 +113,22 @@ BEGIN
   SELECT current_stock INTO v_stock FROM public.machine_trays WHERE machine_id = v_machine AND item_number = 1;
   ASSERT v_stock = 4, format('tray stock should be 4 after restore, got %s', v_stock);
 
-  -- Audit row written with metadata.source (NOT a source column)
+  -- Returned jsonb must agree with the DB (the RPC keeps v_new.product_id in
+  -- sync with the post-insert override; a regression dropping that would break
+  -- the value the frontend consumes).
+  ASSERT (r->>'product_id')::uuid = v_p_snap,
+    format('returned jsonb product_id should be the snapshot %s, got %s', v_p_snap, r->>'product_id');
+
+  -- Audit row written with metadata.source (NOT a source column) + attributed
+  -- to the acting admin via the activity_log user_id DEFAULT auth.uid().
   SELECT count(*) INTO v_count FROM public.activity_log
    WHERE action = 'sale_restored'
      AND entity_id = v_sale.id::text
      AND metadata->>'source' = 'suppressed_restore';
   ASSERT v_count = 1, format('expected 1 sale_restored audit row, got %s', v_count);
+  ASSERT (SELECT user_id FROM public.activity_log
+            WHERE action = 'sale_restored' AND entity_id = v_sale.id::text) = v_admin,
+    'audit user_id should be the acting admin';
 
   RAISE NOTICE 'Happy path passed';
 
@@ -150,6 +161,27 @@ BEGIN
     ASSERT false, 'expected exception for cross-company row';
   EXCEPTION WHEN OTHERS THEN
     RAISE NOTICE 'Neg 3 passed: cross-company rejected (%)', SQLERRM;
+  END;
+
+  -- ═══ Neg 4: duplicate (embedded_id, sale_seq) → friendly error ═══════════
+  -- A real sale already occupies seq 77 for device A; a suppressed row with
+  -- the same seq must fail to restore (not silently duplicate).
+  PERFORM set_config('request.jwt.claims',
+    json_build_object('sub', v_admin::text, 'role', 'authenticated')::text, true);
+  INSERT INTO public.sales (embedded_id, item_number, item_price, channel, created_at, sale_seq)
+    VALUES (v_embedded, 1, 1.50, 'cash', '2026-06-05 12:00+00', 77);
+  INSERT INTO public.suppressed_sales
+    (embedded_id, item_number, item_price, channel, sale_seq, device_created_at, received_at, reason, product_id)
+    VALUES (v_embedded, 1, 1.50, 'cash', 77, '2026-06-05 12:00+00', '2026-06-05 12:00:03+00',
+            'time_uncertain_duplicate', v_p_snap)
+    RETURNING id INTO v_sup4;
+  BEGIN
+    PERFORM public.restore_suppressed_sale(v_sup4);
+    ASSERT false, 'expected exception for duplicate sale_seq';
+  EXCEPTION WHEN OTHERS THEN
+    ASSERT SQLERRM LIKE '%already recorded%',
+      format('expected friendly seq-collision error, got: %s', SQLERRM);
+    RAISE NOTICE 'Neg 4 passed: duplicate seq rejected with friendly error (%)', SQLERRM;
   END;
 
   RAISE NOTICE 'All restore_suppressed_sale tests passed';

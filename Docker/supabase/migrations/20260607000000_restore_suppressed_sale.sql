@@ -47,7 +47,8 @@ BEGIN
     RAISE EXCEPTION 'suppressed sale not found';
   END IF;
 
-  -- Company ownership via the originating device.
+  -- Company ownership via the originating device. owner_id may be NULL on
+  -- legacy devices; sales.owner_id is nullable, so a NULL owner is acceptable.
   SELECT e.company, e.owner_id INTO v_company, v_owner
   FROM public.embeddeds e
   WHERE e.id = v_sup.embedded_id;
@@ -98,6 +99,12 @@ BEGIN
     'channel', v_new.channel,
     'product_id', v_new.product_id
   );
+EXCEPTION
+  -- The suppressed seq was never inserted into sales, so a collision means a
+  -- sale with this (embedded_id, sale_seq) was already recorded by another
+  -- path. Surface a clear message instead of a raw 23505 to the caller.
+  WHEN unique_violation THEN
+    RAISE EXCEPTION 'a sale with this sequence number was already recorded for this device';
 END;
 $$;
 
