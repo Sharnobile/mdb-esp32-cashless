@@ -135,6 +135,14 @@ struct MachineDetailView: View {
         } message: {
             Text(trayVM.error ?? "")
         }
+        .alert("Error", isPresented: .init(
+            get: { viewModel.error != nil },
+            set: { if !$0 { viewModel.error = nil } }
+        )) {
+            Button("OK") { viewModel.error = nil }
+        } message: {
+            Text(viewModel.error ?? "")
+        }
     }
 
     // MARK: - Overview Tab
@@ -424,8 +432,9 @@ struct MachineDetailView: View {
                 if let sale = rowToRestore {
                     Task { await viewModel.restoreSuppressed(sale.id) }
                 }
+                rowToRestore = nil
             }
-            Button("Cancel", role: .cancel) { }
+            Button("Cancel", role: .cancel) { rowToRestore = nil }
         } message: {
             Text("Adds a real sale and reduces stock by 1.")
         }
@@ -705,5 +714,7 @@ struct DaySectionHeader: View {
 
     NavigationStack {
         MachineDetailView(machine: machine, initialStats: stats)
+            .environmentObject(AuthService())
+            .environmentObject(RealtimeService.shared)
     }
 }
