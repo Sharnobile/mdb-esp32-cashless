@@ -396,7 +396,12 @@
     "suppressedHint": "Verkäufe, die als vermutliche Brownout-Doppelmeldungen automatisch verworfen wurden.",
     "suppressedEmpty": "Keine — es wurden keine Duplikate automatisch entfernt.",
     "suppressedCount": "{n} automatisch entfernt",
-    "suppressedReason": "vermutlich Brownout-Doppelmeldung"
+    "suppressedReason": "vermutlich Brownout-Doppelmeldung",
+    "suppressedRestore": "Als Verkauf übernehmen",
+    "suppressedRestoreConfirmTitle": "Als echten Verkauf übernehmen?",
+    "suppressedRestoreConfirmBody": "Fügt einen echten Verkauf hinzu und reduziert den Bestand um 1.",
+    "suppressedRestoreConfirmAction": "Übernehmen",
+    "suppressedRestoring": "Wird übernommen…"
   },
   "machineSettings": {
     "title": "Automat-Einstellungen",

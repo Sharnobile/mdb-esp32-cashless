@@ -39,7 +39,7 @@ const { fetchUnassignedEmbeddeds, swapDevice } = useMachines()
 const { logs: mdbLogs, loading: mdbLogsLoading, hasMore: mdbHasMore, fetchLogs: fetchMdbLogs, fetchMore: fetchMoreMdbLogs, subscribe: subscribeMdbLog, stateLabel, stateVariant } = useMdbLog()
 const { entries: stockHistoryEntries, loading: stockHistoryLoading, fetchHistory: fetchStockHistory, reset: resetStockHistory } = useStockHistory()
 const { restarts, loading: restartsLoading, hasMore: restartsHasMore, fetchRestarts, fetchMore: fetchMoreRestarts, subscribe: subscribeRestarts } = useDeviceRestarts()
-const { rows: suppressedRows, loading: suppressedLoading, hasMore: suppressedHasMore, fetchRows: fetchSuppressed, fetchMore: fetchMoreSuppressed } = useSuppressedSales()
+const { rows: suppressedRows, loading: suppressedLoading, hasMore: suppressedHasMore, fetchRows: fetchSuppressed, fetchMore: fetchMoreSuppressed, restore: restoreSuppressed } = useSuppressedSales()
 const { onResume } = useAppResume()
 
 const isAdmin = computed(() => role.value === 'admin')
@@ -222,20 +222,10 @@ onMounted(async () => {
     if (!machine.value) return
 
     // Fetch trays, products, and sales in parallel — sales query uses machine_id (not embedded_id)
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
     const promises: PromiseLike<any>[] = [
       fetchTrays(id),
       fetchProducts(),
-      supabase
-        .from('sales')
-        .select('id, created_at, item_price, item_number, channel, product_id, products(name, image_path)')
-        .eq('machine_id', id)
-        .gte('created_at', thirtyDaysAgo)
-        .order('created_at', { ascending: false })
-        .then(({ data: salesData, error: salesError }: any) => {
-          if (salesError) throw salesError
-          sales.value = salesData ?? []
-        }),
+      reloadSales(id),
     ]
 
     await Promise.all(promises)
@@ -335,6 +325,18 @@ onMounted(async () => {
     loading.value = false
   }
 })
+
+async function reloadSales(machineId: string) {
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+  const { data, error } = await (supabase as any)
+    .from('sales')
+    .select('id, created_at, item_price, item_number, channel, product_id, products(name, image_path)')
+    .eq('machine_id', machineId)
+    .gte('created_at', thirtyDaysAgo)
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  sales.value = data ?? []
+}
 
 // Aggregate sales per day for the chart
 const salesChartData = computed(() => {
@@ -1052,6 +1054,10 @@ const showDeleteSaleConfirm = ref(false)
 const deletingSale = ref<any>(null)
 const deletingSaleLoading = ref(false)
 
+const showRestoreConfirm = ref(false)
+const restoringRow = ref<any>(null)
+const restoringLoading = ref(false)
+
 const showAddSaleModal = ref(false)
 const addSaleLoading = ref(false)
 const addSaleForm = reactive({
@@ -1083,6 +1089,28 @@ watch(() => addSaleForm.item_number, (num) => {
 function confirmDeleteSale(sale: any) {
   deletingSale.value = sale
   showDeleteSaleConfirm.value = true
+}
+
+function confirmRestoreSuppressed(row: any) {
+  restoringRow.value = row
+  showRestoreConfirm.value = true
+}
+
+async function handleRestoreSuppressed() {
+  if (!restoringRow.value?.id || !machine.value) return
+  restoringLoading.value = true
+  try {
+    await restoreSuppressed(restoringRow.value.id)   // rpc + optimistic removal from suppressedRows
+    // Audit is written inside the RPC — do NOT call logSaleActivity here (avoids a double entry).
+    await reloadSales(machine.value.id)              // restored sale appears in Sales tab
+    await fetchTrays(machine.value.id, { silent: true })  // stock -1 reflected
+  } catch (err: any) {
+    console.error('Failed to restore suppressed sale:', err)
+  } finally {
+    restoringLoading.value = false
+    showRestoreConfirm.value = false
+    restoringRow.value = null
+  }
 }
 
 async function logSaleActivity(action: string, entityId: string | null, metadata: Record<string, unknown>) {
@@ -2206,6 +2234,14 @@ async function handleAddSale() {
                         <span class="shrink-0 text-[11px] text-muted-foreground tabular-nums">{{ formatDateTime(row.received_at, locale) }}</span>
                       </div>
                     </div>
+                    <button
+                      v-if="isAdmin"
+                      class="shrink-0 self-center rounded-md border px-2.5 py-1 text-xs font-medium text-foreground hover:bg-muted transition-colors disabled:opacity-50"
+                      :title="t('machineDetail.suppressedRestore')"
+                      @click="confirmRestoreSuppressed(row)"
+                    >
+                      {{ t('machineDetail.suppressedRestore') }}
+                    </button>
                   </div>
                 </div>
 
@@ -2243,6 +2279,28 @@ async function handleAddSale() {
             @click="handleDeleteSale"
           >
             {{ deletingSaleLoading ? t('common.deleting') : t('common.delete') }}
+          </button>
+        </div>
+      </AppModal>
+
+      <!-- Restore suppressed sale confirmation modal -->
+      <AppModal v-model:open="showRestoreConfirm" :title="t('machineDetail.suppressedRestoreConfirmTitle')" size="sm">
+        <p class="text-sm text-muted-foreground">{{ t('machineDetail.suppressedRestoreConfirmBody') }}</p>
+        <div v-if="restoringRow" class="mt-3 rounded-md border bg-muted/30 p-3 text-sm">
+          <div class="flex items-center justify-between">
+            <span class="font-medium">{{ suppressedProduct(restoringRow)?.name ?? `${t('machineDetail.slot')} ${restoringRow.item_number ?? '—'}` }}</span>
+            <span class="font-medium">{{ restoringRow.item_price != null ? formatCurrency(restoringRow.item_price, locale) : '—' }}</span>
+          </div>
+          <p class="mt-1 text-xs text-muted-foreground">{{ formatDateTime(restoringRow.received_at, locale) }}</p>
+        </div>
+        <div class="mt-4 flex justify-end gap-2">
+          <button class="h-9 rounded-md border px-4 text-sm hover:bg-muted" @click="showRestoreConfirm = false">{{ t('common.cancel') }}</button>
+          <button
+            class="h-9 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+            :disabled="restoringLoading"
+            @click="handleRestoreSuppressed"
+          >
+            {{ restoringLoading ? t('machineDetail.suppressedRestoring') : t('machineDetail.suppressedRestoreConfirmAction') }}
           </button>
         </div>
       </AppModal>

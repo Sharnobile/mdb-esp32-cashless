@@ -396,7 +396,12 @@
     "suppressedHint": "Sales auto-dropped as suspected brownout re-reports.",
     "suppressedEmpty": "None — no duplicates auto-removed.",
     "suppressedCount": "{n} auto-removed",
-    "suppressedReason": "likely brownout re-report"
+    "suppressedReason": "likely brownout re-report",
+    "suppressedRestore": "Take up as sale",
+    "suppressedRestoreConfirmTitle": "Take up as real sale?",
+    "suppressedRestoreConfirmBody": "This adds a real sale and reduces stock by 1.",
+    "suppressedRestoreConfirmAction": "Take up as sale",
+    "suppressedRestoring": "Taking up…"
   },
   "machineSettings": {
     "title": "Machine settings",
