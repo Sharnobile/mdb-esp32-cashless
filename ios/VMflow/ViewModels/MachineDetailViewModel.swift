@@ -98,6 +98,25 @@ final class MachineDetailViewModel: ObservableObject {
             .value
     }
 
+    // MARK: - Restore suppressed sale
+
+    /// Promote an auto-removed (suppressed) sale back into a real sale via the
+    /// restore_suppressed_sale RPC, then reload so it leaves Duplicates and
+    /// appears under Sales (stock −1). Admin-only; the RPC enforces it too.
+    func restoreSuppressed(_ id: UUID) async {
+        struct Params: Encodable { let p_suppressed_id: UUID }
+        do {
+            try await client
+                .rpc("restore_suppressed_sale", params: Params(p_suppressed_id: id))
+                .execute()
+            await loadDetail()   // refreshes trays, sales, AND suppressedSales
+        } catch is CancellationError {
+            // Ignore — SwiftUI cancels routinely
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
     // MARK: - Stock Actions
 
     /// Adjust stock for a tray by a delta amount.

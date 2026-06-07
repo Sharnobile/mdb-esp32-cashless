@@ -13,7 +13,10 @@ struct MachineDetailView: View {
     @State private var showBatchSheet = false
     @State private var editingTray: Tray?
     @State private var selectedProduct: ProductSelection?
+    @State private var showRestoreConfirm = false
+    @State private var rowToRestore: SuppressedSale?
     @EnvironmentObject private var realtime: RealtimeService
+    @EnvironmentObject private var auth: AuthService
 
     struct ProductSelection: Identifiable {
         let id: UUID
@@ -337,14 +340,16 @@ struct MachineDetailView: View {
     // MARK: - Suppressed (Duplicates) Tab
 
     private var suppressedTab: some View {
-        ScrollView {
+        Group {
             if viewModel.isLoading {
-                ProgressView()
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, 60)
+                ScrollView {
+                    ProgressView()
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 60)
+                }
             } else {
-                VStack(alignment: .leading, spacing: 12) {
-                    // Header
+                List {
+                    // Header card
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
                             Image(systemName: "doc.badge.minus")
@@ -359,6 +364,9 @@ struct MachineDetailView: View {
                     }
                     .padding(16)
                     .background(RoundedRectangle(cornerRadius: 14).fill(.regularMaterial))
+                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 4, trailing: 16))
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
 
                     if viewModel.suppressedSales.isEmpty {
                         VStack(spacing: 12) {
@@ -371,27 +379,55 @@ struct MachineDetailView: View {
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.top, 40)
+                        .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
                     } else {
-                        LazyVStack(spacing: 8, pinnedViews: [.sectionHeaders]) {
-                            let groups = groupSuppressedByDay(viewModel.suppressedSales)
-                            ForEach(groups, id: \.date) { group in
-                                Section {
-                                    ForEach(group.rows) { sale in
-                                        SuppressedSaleRow(sale: sale, trays: viewModel.trays)
-                                    }
-                                } header: {
-                                    DaySectionHeader(label: dayLabel(for: group.date), count: group.rows.count, unit: "removed")
+                        let groups = groupSuppressedByDay(viewModel.suppressedSales)
+                        ForEach(groups, id: \.date) { group in
+                            Section {
+                                ForEach(group.rows) { sale in
+                                    SuppressedSaleRow(sale: sale, trays: viewModel.trays)
+                                        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                                        .listRowBackground(Color.clear)
+                                        .listRowSeparator(.hidden)
+                                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                            if isAdmin {
+                                                Button {
+                                                    rowToRestore = sale
+                                                    showRestoreConfirm = true
+                                                } label: {
+                                                    Label("Take up as sale", systemImage: "checkmark.circle")
+                                                }
+                                                .tint(.green)
+                                            }
+                                        }
                                 }
+                            } header: {
+                                DaySectionHeader(label: dayLabel(for: group.date), count: group.rows.count, unit: "removed")
                             }
                         }
                     }
                 }
-                .padding(.horizontal)
-                .padding(.bottom, 20)
+                .listStyle(.plain)
             }
         }
         .refreshable {
             await viewModel.loadDetail()
+        }
+        .confirmationDialog(
+            "Take up as real sale?",
+            isPresented: $showRestoreConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Take up as sale") {
+                if let sale = rowToRestore {
+                    Task { await viewModel.restoreSuppressed(sale.id) }
+                }
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Adds a real sale and reduces stock by 1.")
         }
     }
 
@@ -438,6 +474,8 @@ struct MachineDetailView: View {
             DayGroup(date: date, sales: grouped[date]!.sorted { $0.createdAt > $1.createdAt })
         }
     }
+
+    private var isAdmin: Bool { auth.role == .admin }
 
     private func groupSuppressedByDay(_ rows: [SuppressedSale]) -> [SuppressedDayGroup] {
         let calendar = Calendar.current
