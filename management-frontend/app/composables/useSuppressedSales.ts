@@ -64,5 +64,12 @@ export function useSuppressedSales() {
     }
   }
 
-  return { rows, loading, hasMore, fetchRows, fetchMore }
+  async function restore(id: string) {
+    const { error } = await (supabase as any).rpc('restore_suppressed_sale', { p_suppressed_id: id })
+    if (error) throw error
+    // Optimistically drop it from the local list (mirrors the delete-sale flow).
+    rows.value = rows.value.filter(r => r.id !== id)
+  }
+
+  return { rows, loading, hasMore, fetchRows, fetchMore, restore }
 }
