@@ -5,6 +5,14 @@ struct WithdrawalSheet: View {
     /// Currently used only for analytics/future-proofing; description text is
     /// the same regardless of origin (matches web default exactly).
     let fromTour: Bool
+    /// When opened from a refill tour, the machine IDs the operator actually
+    /// visited. Scopes the expected-cash figure and the per-machine breakdown
+    /// to just those machines, so a partial tour doesn't imply every machine
+    /// on the Barkasse was emptied. `nil` (the default, used by the manual
+    /// cash-book withdrawal) keeps the whole-Barkasse figure. Only IDs that
+    /// belong to this Barkasse have any effect — the rest are filtered out by
+    /// the theoretical breakdown, which already contains only its machines.
+    var tourMachineIds: Set<UUID>? = nil
 
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var cashBookVM: CashBookViewModel
@@ -27,9 +35,20 @@ struct WithdrawalSheet: View {
         evaluateExpression(countedText) ?? 0
     }
 
+    /// Expected cash, scoped to the visited machines when opened from a tour
+    /// (see `tourMachineIds`). Falls back to the whole-Barkasse figure for a
+    /// manual withdrawal.
+    private var expected: Double {
+        theoretical?.expectedCash(forMachines: tourMachineIds) ?? 0
+    }
+
+    /// Per-machine breakdown rows, scoped to match `expected`.
+    private var breakdownMachines: [TheoreticalCash.PerMachineCashSales] {
+        theoretical?.machineBreakdown(forMachines: tourMachineIds) ?? []
+    }
+
     private var difference: Double {
-        let expected = theoretical?.cashSalesSince ?? 0
-        return counted - expected
+        counted - expected
     }
 
     /// Whether the input contains an operator — drives the "= 25,50 €" preview.
@@ -105,14 +124,14 @@ struct WithdrawalSheet: View {
     private var expectedSection: some View {
         Section {
             LabeledContent {
-                Text(theoretical?.cashSalesSince ?? 0, format: .currency(code: "EUR"))
+                Text(expected, format: .currency(code: "EUR"))
                     .font(.title3.weight(.semibold))
                     .monospacedDigit()
             } label: {
                 Text("cash_book_expected_max")
             }
-            if let machines = theoretical?.machines, !machines.isEmpty {
-                ForEach(machines) { m in
+            if !breakdownMachines.isEmpty {
+                ForEach(breakdownMachines) { m in
                     HStack {
                         Text(m.machineName ?? "—").font(.caption).foregroundStyle(.secondary)
                         Spacer()
@@ -263,6 +282,18 @@ struct WithdrawalSheet: View {
         } else {
             theoretical = await cashBookVM.fetchTheoreticalCash(for: cashBook.id)
         }
+
+        // When this sheet was opened from a tour that visited exactly one
+        // machine of this Barkasse, pre-select it so the entry is attributed
+        // correctly and the operator saves a tap. Gated on `trackPerMachine`
+        // (the picker is hidden otherwise) and only for tour-opened sheets, so
+        // the manual withdrawal flow keeps its "—" default.
+        if let tourMachineIds, cashBook.trackPerMachine, selectedMachineId == nil {
+            let visited = theoretical?.machineBreakdown(forMachines: tourMachineIds) ?? []
+            if visited.count == 1 {
+                selectedMachineId = visited.first?.machineId
+            }
+        }
     }
 
     private func submit() async {
@@ -275,7 +306,6 @@ struct WithdrawalSheet: View {
         errorMessage = nil
         defer { isSubmitting = false }
         do {
-            let expected = theoretical?.cashSalesSince ?? 0
             try await cashBookVM.recordWithdrawal(
                 cashBookId: cashBook.id,
                 counted: evaluated,

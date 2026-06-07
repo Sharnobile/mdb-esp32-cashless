@@ -2022,14 +2022,20 @@ final class RefillWizardViewModel: ObservableObject {
     /// VM's `theoreticalCash` — uses `fetchTheoreticalCash(for:)` for an
     /// isolated read.
     func resolveTourCash(using cashBookVM: CashBookViewModel) async -> TourCashResolution {
-        let candidates = cashBookVM.barkassenForVisitedMachines(visitedMachineIds)
+        let visited = visitedMachineIds
+        let candidates = cashBookVM.barkassenForVisitedMachines(visited)
         var withCash: [CashBook] = []
         var cashMap: [UUID: Double] = [:]
         for cb in candidates {
-            if let tc = await cashBookVM.fetchTheoreticalCash(for: cb.id),
-               tc.cashSalesSince > 0.001 {
+            guard let tc = await cashBookVM.fetchTheoreticalCash(for: cb.id) else { continue }
+            // Scope the expected cash to the machines actually visited on this
+            // tour. `cashSalesSince` would count machines on the same Barkasse
+            // that were never touched, so a partial tour would imply the
+            // operator emptied all of them.
+            let scoped = tc.expectedCash(forMachines: visited)
+            if scoped > 0.001 {
                 withCash.append(cb)
-                cashMap[cb.id] = tc.cashSalesSince
+                cashMap[cb.id] = scoped
             }
         }
         return TourCashResolution(barkassen: withCash, cashByCashBookId: cashMap)
