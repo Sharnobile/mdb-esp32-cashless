@@ -43,6 +43,7 @@ Add the matched sale's `created_at` to the suppressed-rows query via the existin
   - Clock fragment: `device_created_at == null` → *"device had no clock"*; else → *"clock not synced"*.
   - Gap fragment: `matchedCreatedAt` present → *"identical sale {round(|received − matched| / 1000)}s earlier"*; else (matched sale deleted, or null) → *"near-duplicate of a recent sale"*.
   - Compose: **`"{clock} · {gap}"`** → e.g. `"Clock not synced · identical sale 3s earlier"`.
+  - **Semantic note (add as a code comment):** the gap measures *server-arrival* separation (the re-report arrives after a reboot/reconnect), not necessarily the real inter-vend time. It's a plausibility signal for the operator, not an exact vend gap. Acceptable — it's the same number the suppression window judged.
   - PWA: a helper (e.g. `suppressedReasonText(row, locale)`) using i18n keys; exported/unit-tested. iOS: a `reasonText` computed on `SuppressedSale` (hardcoded English, consistent with the tab).
 - **Apply everywhere a suppressed sale is shown:** the new in-list marked rows, the PWA Device Health card (replaces the static `t('machineDetail.suppressedReason')`), and the iOS `SuppressedSaleRow` (replaces the hardcoded `Text("likely brownout re-report")`).
 
@@ -57,12 +58,14 @@ Reuse the **already-loaded** suppressed rows (PWA `suppressedRows`; iOS `viewMod
 **PWA** (`app/pages/machines/[id].vue`, Sales tab):
 - Evolve the `salesByDay` computed into a merged day-grouped feed: each group becomes `{ date, label, items: FeedItem[], saleCount }` where `FeedItem = { kind:'sale', sale } | { kind:'suppressed', row }`, items sorted by timestamp desc within the day. `saleCount` counts **real sales only** (the day-header "N sales" count excludes suppressed; optionally append "· M auto-removed").
 - Only merge suppressed rows within the same ~30-day window as the sales query (avoid an old suppressed-only day group).
+- **Day-key alignment (avoids a midnight-boundary bug):** the merged feed MUST bucket suppressed rows using the **same locale-based day key** `salesByDay` uses (`Date#toLocaleDateString(locale, …)`), **not** `toISOString().slice(0,10)` (which `salesChartData` uses and can land in a different calendar day near midnight). Reuse the `salesByDay` key path so a suppressed row sits in the same day bucket as its sibling real sale.
 - Render: `v-for` over `group.items`, branch on `kind` — `sale` → the existing `SwipeToDelete` + row markup unchanged; `suppressed` → the marked variant (dimmed, badge, strikethrough price, reason caption).
 - `salesChartData` and any revenue total: **unchanged** (read `sales.value`), so suppressed never affect money.
 - The realtime sales INSERT/DELETE handlers and `reloadSales()` keep mutating `sales.value` only; suppressed come from `suppressedRows` (already realtime-independent, fetched on load). The merged computed re-derives reactively from both refs.
 
 **iOS** (`ios/VMflow/Views/Machines/MachineDetailView.swift`, Sales tab):
-- Introduce a unified feed item `enum SalesFeedItem: Identifiable { case sale(Sale); case suppressed(SuppressedSale) }` exposing `id` and `date` (`sale.createdAt` / `suppressed.receivedAt`). Add `groupFeedByDay([SalesFeedItem]) -> [FeedDayGroup]` paralleling `groupSalesByDay` (reuse `dayLabel`). Build the feed from `recentSales` + `suppressedSales` (filtered to recent), sorted desc.
+- Introduce a unified feed item `enum SalesFeedItem: Identifiable { case sale(Sale); case suppressed(SuppressedSale) }` exposing `date` (`sale.createdAt` / `suppressed.receivedAt`) and a **namespaced `id`** (`"sale-\(sale.id)"` / `"sup-\(suppressed.id)"`) so a (theoretical) shared UUID can't collide in `ForEach`. Add `groupFeedByDay([SalesFeedItem]) -> [FeedDayGroup]` paralleling `groupSalesByDay` (reuse `dayLabel`). Build the feed from `recentSales` + `suppressedSales`, sorted desc.
+- **Define "recent" for iOS concretely** (iOS `loadSales` is `.limit(50)` with no date bound, unlike the PWA's 30-day query): include only suppressed rows whose `receivedAt >= ` the oldest visible real sale's `createdAt`, so a suppressed-only day group can't dangle below the last loaded sale.
 - Render the Sales tab over the unified groups: `case .sale` → existing `SaleRow`; `case .suppressed` → a marked row (reuse `SuppressedSaleRow`’s content with `.opacity(...)`, an "Auto-removed" capsule, and a strikethrough price — or a dedicated `SuppressedSaleListRow`). `DaySectionHeader` count = real sales only.
 - `todayRevenue` (VM) reads `recentSales` only — unchanged.
 - The dedicated **Duplicates tab is unchanged** except `SuppressedSaleRow`’s reason line now uses `reasonText`.
@@ -106,7 +109,7 @@ reason text ← pure builder(deviceCreatedAt, receivedAt, matched?.created_at)
 |------|--------|
 | `management-frontend/app/composables/useSuppressedSales.ts` | Add `matched:sales!matched_sale_id(created_at)` to the select; `SuppressedSale` interface gains `matched`; export a pure `suppressedReasonText(row, locale)` (+ maybe a merge helper) |
 | `management-frontend/app/pages/machines/[id].vue` | Merge suppressed into the Sales-tab day feed (`FeedItem`); marked non-counting row variant; reason caption; Device Health card reason → builder. Chart/revenue untouched |
-| `management-frontend/app/composables/__tests__/useSuppressedSales.test.ts` | Tests for the reason builder + merge/grouping helper |
+| `management-frontend/app/composables/__tests__/useSuppressedSales.test.ts` (**extend** — already exists with `restore` tests) | Add tests for the reason builder + merge/grouping helper; keep the existing `restore` tests |
 | `management-frontend/i18n/locales/en.json`, `de.json` | Keys: badge "Auto-removed", reason fragments (clock not synced / device had no clock / identical sale {n}s earlier / near-duplicate) |
 | `ios/VMflow/Models/SuppressedSale.swift` | Add decodable `matched` (`{ created_at }`) + `reasonText` computed |
 | `ios/VMflow/ViewModels/MachineDetailViewModel.swift` | Add `matched:sales!matched_sale_id(created_at)` to the suppressed select |
