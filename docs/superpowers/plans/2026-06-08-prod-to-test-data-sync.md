@@ -423,6 +423,7 @@ Expected: PASS — `passed: 25, failed: 0`.
 
 Run: `shellcheck scripts/sync-prod-to-test.sh`
 Expected: clean (no errors). The `source "$ENV_FILE"` in Chunk 2 will need an inline `# shellcheck disable=SC1090`; not present yet.
+(If `shellcheck` is not installed, skip it and rely on `bash -n`; do not fail the task.)
 
 - [ ] **Step 6: Commit**
 
@@ -490,7 +491,12 @@ preflight() {
     exit 1; }
 
   # --- Guard B: source != target (read prod's public URL over SSH) ---
-  PROD_PUBLIC_URL="$(ssh "$PROD_SSH" "grep -E '^[[:space:]]*SUPABASE_PUBLIC_URL=' '$PROD_DIR/.env' | head -n1 | cut -d= -f2-" 2>/dev/null | tr -d '\r' | sed -e 's/^"//' -e 's/"$//')"
+  # `|| true` so an SSH/read failure falls through to the diagnostic below instead
+  # of aborting mid-substitution under `set -e`/`pipefail`. Strip CR + surrounding
+  # quotes the same way read_env_value does, so prod and test are compared symmetrically.
+  PROD_PUBLIC_URL="$(ssh "$PROD_SSH" "grep -E '^[[:space:]]*SUPABASE_PUBLIC_URL=' '$PROD_DIR/.env' | head -n1 | cut -d= -f2-" 2>/dev/null | tr -d '\r' || true)"
+  PROD_PUBLIC_URL="${PROD_PUBLIC_URL#\"}"; PROD_PUBLIC_URL="${PROD_PUBLIC_URL%\"}"
+  PROD_PUBLIC_URL="${PROD_PUBLIC_URL#\'}"; PROD_PUBLIC_URL="${PROD_PUBLIC_URL%\'}"
   [[ -n "$PROD_PUBLIC_URL" ]] || {
     echo "ERROR: could not read prod SUPABASE_PUBLIC_URL over SSH ($PROD_SSH : $PROD_DIR/.env)" >&2
     echo "       Check PROD_SSH / PROD_DIR and that this box can SSH to prod." >&2
@@ -502,11 +508,20 @@ preflight() {
     exit 1; }
 
   # --- Guard C: migration parity (max(name) + count from public._migrations) ---
+  # `|| true` on each capture so a read failure falls through to the explicit
+  # checks below rather than aborting mid-substitution under `set -e`/`pipefail`.
   local prod_max prod_cnt test_max test_cnt
-  prod_max="$(ssh "$PROD_SSH" "cd '$PROD_DIR' && docker compose exec -T db psql -tA -U postgres -d postgres -c \"SELECT COALESCE(max(name),'') FROM public._migrations\"" 2>/dev/null | tr -d '\r')"
-  prod_cnt="$(ssh "$PROD_SSH" "cd '$PROD_DIR' && docker compose exec -T db psql -tA -U postgres -d postgres -c 'SELECT count(*) FROM public._migrations'" 2>/dev/null | tr -d '\r')"
-  test_max="$( ( cd "$TEST_DIR" && docker compose exec -T db psql -tA -U postgres -d postgres -c "SELECT COALESCE(max(name),'') FROM public._migrations" ) 2>/dev/null | tr -d '\r')"
-  test_cnt="$( ( cd "$TEST_DIR" && docker compose exec -T db psql -tA -U postgres -d postgres -c 'SELECT count(*) FROM public._migrations' ) 2>/dev/null | tr -d '\r')"
+  prod_max="$(ssh "$PROD_SSH" "cd '$PROD_DIR' && docker compose exec -T db psql -tA -U postgres -d postgres -c \"SELECT COALESCE(max(name),'') FROM public._migrations\"" 2>/dev/null | tr -d '\r' || true)"
+  prod_cnt="$(ssh "$PROD_SSH" "cd '$PROD_DIR' && docker compose exec -T db psql -tA -U postgres -d postgres -c 'SELECT count(*) FROM public._migrations'" 2>/dev/null | tr -d '\r' || true)"
+  test_max="$( ( cd "$TEST_DIR" && docker compose exec -T db psql -tA -U postgres -d postgres -c "SELECT COALESCE(max(name),'') FROM public._migrations" ) 2>/dev/null | tr -d '\r' || true)"
+  test_cnt="$( ( cd "$TEST_DIR" && docker compose exec -T db psql -tA -U postgres -d postgres -c 'SELECT count(*) FROM public._migrations' ) 2>/dev/null | tr -d '\r' || true)"
+  # count(*) is "0" for an empty table and "" only when the probe itself failed,
+  # so empty counts mean a failed read — abort rather than let an all-empty
+  # "match" pass Guard C spuriously.
+  [[ -n "$prod_cnt" && -n "$test_cnt" ]] || {
+    echo "ERROR: could not read public._migrations from prod and/or test (SSH/compose error?)." >&2
+    echo "  prod: max=[$prod_max] count=[$prod_cnt]   test: max=[$test_max] count=[$test_cnt]" >&2
+    exit 1; }
   migrations_match "$prod_max" "$prod_cnt" "$test_max" "$test_cnt" || {
     echo "ERROR: safety guard C failed — migration state differs between prod and test:" >&2
     echo "  prod: max=[$prod_max] count=[$prod_cnt]" >&2
@@ -617,8 +632,8 @@ git commit -m "feat(scripts): dump_prod + fetch_images (read-only pull from prod
 restore_db() {
   local public_tables truncate_stmt
   public_tables="$( ( cd "$TEST_DIR" && docker compose exec -T db psql -tA -U postgres -d postgres -c \
-    "SELECT string_agg(format('%I.%I', schemaname, tablename), ', ') FROM pg_tables WHERE schemaname='public'" ) | tr -d '\r' )"
-  [[ -n "$public_tables" ]] || { echo "ERROR: could not list public tables in the test DB" >&2; exit 1; }
+    "SELECT string_agg(format('%I.%I', schemaname, tablename), ', ') FROM pg_tables WHERE schemaname='public'" ) 2>/dev/null | tr -d '\r' || true )"
+  [[ -n "$public_tables" ]] || { echo "ERROR: could not list public tables in the test DB (is the test stack up?)" >&2; exit 1; }
   truncate_stmt="$(build_truncate_stmt "$public_tables")"
 
   if $DRY_RUN; then
@@ -744,8 +759,9 @@ verify_and_cleanup() {
 
 - [ ] **Step 2: Full static verification**
 
-Run: `bash -n scripts/sync-prod-to-test.sh && shellcheck scripts/sync-prod-to-test.sh && bash scripts/test/test-sync-test-helpers.sh && bash scripts/sync-prod-to-test.sh --help`
-Expected: no syntax errors; shellcheck clean; `passed: 25, failed: 0`; help prints. Confirm no `TODO` stubs remain: `grep -n 'TODO' scripts/sync-prod-to-test.sh` returns nothing.
+Run: `bash -n scripts/sync-prod-to-test.sh && bash scripts/test/test-sync-test-helpers.sh && bash scripts/sync-prod-to-test.sh --help`
+Then, if installed: `shellcheck scripts/sync-prod-to-test.sh` (skip if not installed — do not fail the task).
+Expected: no syntax errors; `passed: 25, failed: 0`; help prints; shellcheck clean. Confirm no `TODO` stubs remain: `grep -n 'TODO' scripts/sync-prod-to-test.sh` returns nothing.
 
 - [ ] **Step 3: Commit**
 
@@ -830,6 +846,7 @@ git commit -m "docs(scripts): document sync-prod-to-test.sh (prereqs, run, safet
 - [ ] **Step 5: Login** — log into the test frontend with a **production** email + password → succeeds, shows that user's real company data.
 - [ ] **Step 6: Image** — a product with an image in prod shows its image on test (URL 200, not 404).
 - [ ] **Step 7: Idempotency** — re-run `./scripts/sync-prod-to-test.sh --yes`; no duplicate rows; images upsert.
+- [ ] **Step 8: Rollback property (spec Verification #7)** — confirm atomicity: run with `--keep-dumps`, then append a deliberately invalid statement (e.g. `INSERT INTO public.does_not_exist VALUES (1);`) to `tmp/sync-test/public.sql` and re-run the restore. Expected: psql stops at `ON_ERROR_STOP=1`, the transaction rolls back, and the prior test row counts are unchanged. Delete the corrupted dump afterward.
 
 ---
 
