@@ -401,7 +401,12 @@
     "suppressedRestoreConfirmTitle": "Als echten Verkauf übernehmen?",
     "suppressedRestoreConfirmBody": "Fügt einen echten Verkauf hinzu und reduziert den Bestand um 1.",
     "suppressedRestoreConfirmAction": "Übernehmen",
-    "suppressedRestoring": "Wird übernommen…"
+    "suppressedRestoring": "Wird übernommen…",
+    "suppressedBadge": "Automatisch entfernt",
+    "reasonClockUnsynced": "Uhr nicht synchronisiert",
+    "reasonNoClock": "Gerät hatte keine Uhr",
+    "reasonGapEarlier": "identischer Verkauf {n}s früher",
+    "reasonNearDup": "Beinahe-Duplikat eines kürzlichen Verkaufs"
   },
   "machineSettings": {
     "title": "Automat-Einstellungen",
