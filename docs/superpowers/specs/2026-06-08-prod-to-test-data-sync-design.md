@@ -34,7 +34,7 @@ Two facts drive the design:
 2. **Login model — clone prod auth.** Copy `auth.users` + `auth.identities` + the entire `public` graph so an operator logs into test with real prod credentials and RLS is internally consistent. Test keeps its **own** `JWT_SECRET`/keys (we touch DB rows only, never `Docker/.env`); prod's bcrypt `encrypted_password` hashes are portable, so password login works regardless of the differing JWT secret.
 3. **Source — SSH + `pg_dump` on prod.** SSH to the prod host, run `pg_dump` inside the prod `db` container, stream the dump down to the test box. Prod is **read-only** throughout.
 4. **Storage — Storage API re-ingest.** `product-images` files are pulled from prod with `rsync`, then re-uploaded through **test's own Storage REST API** with `x-upsert: true`. This mirrors the proven dev path and sidesteps the xattr/`ENODATA`-on-public-URL pitfall of a raw volume copy (see `project_server_migration` history). `storage.objects`/`storage.buckets` rows are **not** copied — the API recreates them. **Firmware binaries are not copied.**
-5. **Migration skew → abort.** If prod and test are at different migration versions, preflight hard-stops with instructions to deploy test to prod's version first. This pre-empts the only realistic failure mode of a data-only restore (column/table skew) before any write.
+5. **Migration skew → abort.** If prod and test are at different migration versions (by `max(name)` or `count(*)` of `public._migrations`), preflight hard-stops with instructions to deploy test to prod's version first. This catches the common version-drift case before any write; a residual true schema skew is still caught by the atomic-transaction rollback (Phase 3), so the operation is never destructive on mismatch.
 6. **Stale test images → leave them (upsert-only).** Only prod's images are added/overwritten. Any test image not in prod survives as an invisible orphan (after the DB is replaced from prod, no `products.image_path` references it; the frontend only renders referenced objects). Matches the dev script exactly.
 
 ## Goals
@@ -63,7 +63,7 @@ Two facts drive the design:
 | `.gitignore` | add `tmp/sync-test/` and `scripts/sync-prod-to-test.env` | edited |
 | `scripts/README.md` | add a `sync-prod-to-test.sh` section (prerequisites, run, safety, scheduling) | edited |
 
-Pure helpers (`mime_for`, `dump_looks_like_sql`, `build_truncate_stmt`, plus a new `url_for_env`/domain-extraction helper) are unit-tested in `scripts/test/`, matching the dev script's split between unit-tested pure functions and `--dry-run`-verified integration phases.
+Pure helpers (`mime_for`, `dump_looks_like_sql`, `build_truncate_stmt`, plus new `read_env_value` and `domain_in_url` helpers) are unit-tested in a **new, separate** file `scripts/test/test-sync-test-helpers.sh` that sources only `sync-prod-to-test.sh` — it must not collide with the existing `scripts/test/test-sync-helpers.sh` (which sources `sync-prod-to-dev.sh`). The three shared-name helpers (`mime_for`, `dump_looks_like_sql`, `build_truncate_stmt`) are **intentionally copied** into the standalone sibling script rather than factored into a shared lib, keeping each `sync-*.sh` self-contained (the dev script's stated design); no single test file sources both scripts, avoiding a silent redefinition. This matches the dev script's split between unit-tested pure functions and `--dry-run`-verified integration phases.
 
 ### Configuration keys (`sync-prod-to-test.env`)
 
@@ -79,6 +79,8 @@ TEST_EXPECTED_DOMAIN="test.vmflow.example"         # MUST appear in THIS box's D
 - `SERVICE_ROLE_KEY`, `SUPABASE_PUBLIC_URL`, `KONG_HTTP_PORT` — read at runtime from `<repo-root>/Docker/.env`.
 - `TEST_SUPABASE_URL = http://localhost:${KONG_HTTP_PORT:-8000}` — local Storage API base (avoids TLS/domain).
 
+**`.env` parsing contract (mandatory).** Read each key with a per-key `grep` + `cut`, **never** `source $TEST_DIR/.env`. Unlike the dev script's hand-written, shell-quoted `sync-prod-to-dev.env`, `$TEST_DIR/.env` is the **full upstream Supabase env file**: it ships unquoted values containing spaces (e.g. `STUDIO_DEFAULT_ORGANIZATION=Default Organization`) and may hold multi-line PEM blocks (e.g. `APNS_PRIVATE_KEY`) — `source` mis-parses both. Use the same approach `Docker/update.sh` already uses, e.g. `grep -E '^SERVICE_ROLE_KEY=' "$TEST_DIR/.env" | head -1 | cut -d= -f2-`, then strip any surrounding quotes and a trailing `\r`. This is parsed identically on the prod side (`$PROD_DIR/.env` over SSH) for the guard's URL comparison. A `read_env_value` helper encapsulates this and is unit-tested.
+
 CLI flags: `--yes` (skip confirmation, for unattended/cron), `--dry-run` (preview; no writes), `--skip-images` (DB only), `--keep-dumps` (don't delete SQL dumps), `--clean` (also delete the image cache afterwards), `-h/--help`.
 
 ## Flow (6 phases)
@@ -88,9 +90,9 @@ CLI flags: `--yes` (skip confirmation, for unattended/cron), `--dry-run` (previe
 1. **Tool check:** verify `docker`, `ssh`, `rsync`, `curl` are on PATH; abort naming any missing one. (No `supabase` CLI dependency — this is a plain Docker stack.)
 2. Load `sync-prod-to-test.env`; abort if missing. Require `PROD_SSH`, `PROD_DIR`, `PROD_STORAGE_DIR`, `TEST_EXPECTED_DOMAIN`.
 3. **Resolve the local stack:** `TEST_DIR = <repo-root>/Docker`; assert `$TEST_DIR/.env` and `$TEST_DIR/docker-compose.yml` exist. Read `SUPABASE_PUBLIC_URL`, `SERVICE_ROLE_KEY`, `KONG_HTTP_PORT` from `$TEST_DIR/.env`.
-4. **Guard step A — this box self-identifies as test:** the local `SUPABASE_PUBLIC_URL` **must contain** `TEST_EXPECTED_DOMAIN`. If the script is ever run on the prod box (whose `.env` carries the prod domain), this fails → abort. *This is the primary guard.*
+4. **Guard step A — this box self-identifies as test:** the local `SUPABASE_PUBLIC_URL` **must contain** `TEST_EXPECTED_DOMAIN` (substring containment by design — the operator sets the value precisely enough for their domain). If the script is ever run on the prod box (whose `.env` carries the prod domain), this fails → abort. *This is the primary guard;* Guard B (source ≠ target) is the backstop should a box be genuinely mis-provisioned with the wrong domain.
 5. **Guard step B — source ≠ target:** SSH to prod, read prod's `SUPABASE_PUBLIC_URL` from `$PROD_DIR/.env`; assert it **differs** from the local one. Prevents dump-and-restore-into-self if `PROD_*` is misconfigured to point back at this box.
-6. **Guard step C — migration parity:** read `SELECT max(name) FROM public._migrations` from **both** prod (over SSH, inside its `db` container) and test (local `db` container). If they differ → **abort** with: "test is at migration X, prod at Y — deploy/pull test to prod's version first, then re-run." Pre-empts data-only column/table skew.
+6. **Guard step C — migration parity:** read both `max(name)` **and** `count(*)` from `public._migrations` on **both** prod (over SSH, inside its `db` container) and test (local `db` container). If either differs → **abort** with: "test is at migration X (n applied), prod at Y (m applied) — deploy/pull test to prod's version first, then re-run." `_migrations.name` is the migration filename (`text primary key`); filename-timestamp order equals lexical order, so `max(name)` is a sound "latest applied" signal, and the `count(*)` pairing also catches a divergent set below an equal max (one side skipped/failed a migration `update.sh` recorded as not-applied). This **detects the common version-drift case**; it is not a full schema diff — a true column/table skew that slips past it is still caught by Phase 3's atomic transaction (rollback, test untouched). A `max(name)` mismatch where **test is *ahead*** of prod also aborts (conservative false-positive: an older-prod→newer-test data load would often succeed, but we refuse rather than guess).
 7. **Connectivity:** `docker compose -f $TEST_DIR/... exec -T db pg_isready -U postgres` (local) must succeed.
 8. **Confirmation prompt** (skipped with `--yes`): print **source → target** explicitly —
    ```
@@ -159,6 +161,7 @@ Why this is correct and safe (identical reasoning to the dev script):
 - `-v ON_ERROR_STOP=1` + the wrapping `BEGIN/COMMIT` ⇒ **any error aborts before COMMIT ⇒ full ROLLBACK ⇒ test data untouched.**
 - **TRUNCATE … CASCADE blast radius (intended):** `TRUNCATE auth.users … CASCADE` cascades to every table FK-referencing `auth.users` — all `auth.*` internals (`identities`, `sessions`, `refresh_tokens`, `mfa_*`, `one_time_tokens`, `sso_*`, `saml_*`) and the `public.*` tables with an owner/user FK. Clearing stale auth-internal state and sessions is desired. It does **not** reach `storage.objects` (no FK to `auth.users`), which is why Phase 4 rebuilds storage separately. `session_replication_role=replica` does not alter CASCADE traversal; the explicit full `public` list guarantees business tables not FK-linked to `users` (products, sales, …) are also cleared.
 - The public list is computed from test's catalog, so future tables are included automatically. (Phase 0's migration-parity check guarantees test's catalog matches prod's dump.)
+- **No `RESTART IDENTITY`** in the TRUNCATE (reuse the dev script's `build_truncate_stmt` verbatim): `CASCADE` would otherwise try to reset auth-owned sequences the non-superuser `postgres` role cannot, and public sequence values are already restored by the dump's `setval()`. Follow the **dev *script***, not the dev *spec* (the 2026-05-29 spec text shows `RESTART IDENTITY`, but the proven script deliberately omits it — the script is authoritative).
 - The restore runs as superuser `postgres` inside the container, so RLS never blocks the load.
 
 ### Phase 4 — Re-ingest product images through test's Storage API (local)
@@ -181,7 +184,7 @@ done
 
 - The Storage API creates the `storage.objects` row **and** the on-disk file with correct metadata/xattrs ⇒ the "500 `ENODATA` on public URL" failure mode is impossible by construction; copying prod's `storage.objects` is unnecessary.
 - Object name = `products.image_path` (`{product_id}.{ext}`), loaded in Phase 3, so frontend `getProductImageUrl()` URLs resolve.
-- The `product-images` bucket already exists on test (created by migration `20260301100000_product_images.sql`, applied by test's own deploy); no bucket creation needed.
+- The `product-images` bucket already exists on test (created by migration `20260301100000_product_images.sql`, applied by test's own deploy — *guaranteed present by Guard C's parity check*); no bucket creation needed.
 - **Upsert-only:** prod images are added/overwritten; test images not in prod are left as invisible orphans (decision 6).
 - Upload failures are **logged, not fatal** (one oversized/odd-MIME image must not abort the sync). Phase 5's count check surfaces any gap.
 
@@ -204,6 +207,7 @@ done
 - **Test keeps its own secrets.** The script never touches `$TEST_DIR/.env`; test's `JWT_SECRET`/`ANON_KEY`/`SERVICE_ROLE_KEY` are unchanged. Sessions are dropped (TRUNCATE auth.users CASCADE) — operators re-login; prod password hashes are portable so prod credentials work.
 - **Stale test images** not present in prod survive as invisible orphans (decision 6).
 - **Storage bucket limits:** the `product-images` bucket enforces `png/jpeg/webp` + 2 MiB. Prod objects already satisfy these (identical limits on prod), so all prod images upload; an out-of-policy object would log-and-skip (non-fatal).
+- **`public._migrations` is replaced with prod's rows.** `--schema=public` dumps every public table including `_migrations`; Phase 3 truncates it (it's in the dynamic list) and reloads prod's history. After a sync, test's `_migrations` shows prod's applied-migration list — harmless, because Guard C just confirmed they were identical and the table is only read by `update.sh` on the next deploy. (The dev script has the same behaviour.)
 - **Realtime:** TRUNCATE/COPY during the load may emit logical-replication events to any connected test client. Harmless mid-refresh.
 - **Frontend connections during a refresh** briefly see a partially-empty DB only within the transaction window; the atomic COMMIT flips it. Acceptable for a test environment; run during a quiet window if desired.
 
