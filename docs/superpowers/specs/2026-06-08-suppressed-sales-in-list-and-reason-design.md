@@ -15,11 +15,11 @@ The dedicated "Auto-removed duplicates" surfaces (PWA Device Health card + iOS D
 
 ## Scope / non-goals
 
-**In scope:** PWA + iOS. Frontend-only. Interleave suppressed rows into the Sales list; richer reason text on all suppressed surfaces.
+**In scope:** PWA + iOS. Frontend-only. Interleave suppressed rows into the Sales list; richer reason text on all suppressed surfaces; **the marked in-list rows also offer the restore action** (take up as a real sale), reusing the already-shipped `restore_suppressed_sale` RPC + each client's existing confirm flow.
 
 **Non-goals:**
 - No DB migration, no `mqtt-webhook` change, no `suppressed_sales` schema change (Approach A — derive the gap from the already-stored `matched_sale_id`).
-- No new restore entry point in the Sales list — restore stays on the dedicated surfaces. The in-list marked rows are **informational only**.
+- No new restore **backend** — the in-list restore reuses the shipped `restore_suppressed_sale(uuid)` RPC and the existing confirm flow/handler from the prior milestone; the only additions are the in-list affordance (PWA button; iOS swipe) and, on iOS, hoisting the shared confirmation dialog so both tabs can use it.
 - No change to the suppression heuristic, the revenue/chart math (they keep reading real sales only), or the Nayax reconciliation view.
 
 ## Background — circumstances available at suppression time
@@ -53,22 +53,23 @@ Reuse the **already-loaded** suppressed rows (PWA `suppressedRows`; iOS `viewMod
 
 **Timestamp for placement:** a suppressed row sorts/groups by its `received_at` (≈ the matched original's time, within 30 s, so it lands next to its sibling). Real sales use `created_at`.
 
-**Marking (both clients):** dimmed/muted row, an orange **"Auto-removed"** badge, the price rendered with **strikethrough**, and the reason as a caption line. No delete/swipe, no product link, no restore on these rows (informational; restore lives on the dedicated surface).
+**Marking (both clients):** dimmed/muted row, an orange **"Auto-removed"** badge, the price rendered with **strikethrough**, and the reason as a caption line. No delete, no product link. **The marked rows DO offer restore** (admin-only): PWA via a "Take up as sale" button; iOS via a swipe action (the Sales tab is converted to a `List` for this — see below). Restore reuses each client's existing confirm flow + the shipped `restore_suppressed_sale` RPC; on success the row leaves the suppressed set and the restored real sale appears, so the merged feed re-derives.
 
 **PWA** (`app/pages/machines/[id].vue`, Sales tab):
 - Evolve the `salesByDay` computed into a merged day-grouped feed: each group becomes `{ date, label, items: FeedItem[], saleCount }` where `FeedItem = { kind:'sale', sale } | { kind:'suppressed', row }`, items sorted by timestamp desc within the day. `saleCount` counts **real sales only** (the day-header "N sales" count excludes suppressed; optionally append "· M auto-removed").
 - Only merge suppressed rows within the same ~30-day window as the sales query (avoid an old suppressed-only day group).
 - **Day-key alignment (avoids a midnight-boundary bug):** the merged feed MUST bucket suppressed rows using the **same locale-based day key** `salesByDay` uses (`Date#toLocaleDateString(locale, …)`), **not** `toISOString().slice(0,10)` (which `salesChartData` uses and can land in a different calendar day near midnight). Reuse the `salesByDay` key path so a suppressed row sits in the same day bucket as its sibling real sale.
-- Render: `v-for` over `group.items`, branch on `kind` — `sale` → the existing `SwipeToDelete` + row markup unchanged; `suppressed` → the marked variant (dimmed, badge, strikethrough price, reason caption).
+- Render: `v-for` over `group.items`, branch on `kind` — `sale` → the existing `SwipeToDelete` + row markup unchanged; `suppressed` → the marked variant (dimmed, badge, strikethrough price, reason caption) **plus an admin-only "Take up as sale" button** calling the page's existing `confirmRestoreSuppressed(row)`. (The confirm modal, `handleRestoreSuppressed`, and `useSuppressedSales.restore` all already exist from the prior milestone; on success the suppressed row is dropped from `suppressedRows` and `reloadSales()` brings in the restored real sale, so the merged feed updates.)
 - `salesChartData` and any revenue total: **unchanged** (read `sales.value`), so suppressed never affect money.
 - The realtime sales INSERT/DELETE handlers and `reloadSales()` keep mutating `sales.value` only; suppressed come from `suppressedRows` (already realtime-independent, fetched on load). The merged computed re-derives reactively from both refs.
 
 **iOS** (`ios/VMflow/Views/Machines/MachineDetailView.swift`, Sales tab):
 - Introduce a unified feed item `enum SalesFeedItem: Identifiable { case sale(Sale); case suppressed(SuppressedSale) }` exposing `date` (`sale.createdAt` / `suppressed.receivedAt`) and a **namespaced `id`** (`"sale-\(sale.id)"` / `"sup-\(suppressed.id)"`) so a (theoretical) shared UUID can't collide in `ForEach`. Add `groupFeedByDay([SalesFeedItem]) -> [FeedDayGroup]` paralleling `groupSalesByDay` (reuse `dayLabel`). Build the feed from `recentSales` + `suppressedSales`, sorted desc.
 - **Define "recent" for iOS concretely** (iOS `loadSales` is `.limit(50)` with no date bound, unlike the PWA's 30-day query): include only suppressed rows whose `receivedAt >= ` the oldest visible real sale's `createdAt`, so a suppressed-only day group can't dangle below the last loaded sale.
-- Render the Sales tab over the unified groups: `case .sale` → existing `SaleRow`; `case .suppressed` → a marked row (reuse `SuppressedSaleRow`’s content with `.opacity(...)`, an "Auto-removed" capsule, and a strikethrough price — or a dedicated `SuppressedSaleListRow`). `DaySectionHeader` count = real sales only.
+- **Convert the Sales tab from `ScrollView { LazyVStack }` to a `List(.plain)`** (mirroring the Duplicates-tab conversion from the prior milestone) so suppressed rows can carry a native swipe. Render the unified groups as `Section`s with `DaySectionHeader` (count = real sales only): `case .sale` → the existing `SaleRow` as a List row (`.listRowBackground(.clear)`, `.listRowSeparator(.hidden)`, keep the product-sheet tap); `case .suppressed` → a marked `SuppressedSaleListRow` with an **admin-only `.swipeActions(edge: .trailing, allowsFullSwipe: false)`** green "Take up as sale" that sets `rowToRestore` + `showRestoreConfirm`.
+- **Hoist the shared `.confirmationDialog`** (currently attached to `suppressedTab` from the prior milestone) up to the `TabView` in the view body, so BOTH tabs' swipes trigger the same confirm → `viewModel.restoreSuppressed(id)` → `loadDetail()`. `restoreSuppressed`, `showRestoreConfirm`, and `rowToRestore` already exist on `MachineDetailView`.
 - `todayRevenue` (VM) reads `recentSales` only — unchanged.
-- The dedicated **Duplicates tab is unchanged** except `SuppressedSaleRow`’s reason line now uses `reasonText`.
+- The dedicated **Duplicates tab is unchanged** except: `SuppressedSaleRow`’s reason line now uses `reasonText`, and its local `.confirmationDialog` moves up to the parent `TabView` (now shared with the Sales tab — its swipe still sets the same state).
 
 ### Visual marking (concrete)
 
@@ -84,7 +85,8 @@ load → real sales (sales.value / recentSales)        ─┐
      → suppressed rows (+ matched.created_at join)    ─┤→ merged day-grouped feed (computed)
                                                         │     • real → normal row (counts, swipe/delete)
                                                         │     • suppressed → marked row (dimmed, badge,
-                                                        │       strikethrough, reason caption) — NOT counted
+                                                        │       strikethrough, reason caption) — NOT counted;
+                                                        │       admin restore (button/swipe) → re-derives feed
 revenue/chart ← real sales only (unchanged) ───────────┘
 reason text ← pure builder(deviceCreatedAt, receivedAt, matched?.created_at)
 ```
@@ -108,9 +110,9 @@ reason text ← pure builder(deviceCreatedAt, receivedAt, matched?.created_at)
 | File | Change |
 |------|--------|
 | `management-frontend/app/composables/useSuppressedSales.ts` | Add `matched:sales!matched_sale_id(created_at)` to the select; `SuppressedSale` interface gains `matched`; export a pure `suppressedReasonText(row, locale)` (+ maybe a merge helper) |
-| `management-frontend/app/pages/machines/[id].vue` | Merge suppressed into the Sales-tab day feed (`FeedItem`); marked non-counting row variant; reason caption; Device Health card reason → builder. Chart/revenue untouched |
+| `management-frontend/app/pages/machines/[id].vue` | Merge suppressed into the Sales-tab day feed (`FeedItem`); marked non-counting row variant + admin-only restore button (reuses the prior milestone's `confirmRestoreSuppressed`/modal/`handleRestoreSuppressed`); reason caption; Device Health card reason → builder. Chart/revenue untouched |
 | `management-frontend/app/composables/__tests__/useSuppressedSales.test.ts` (**extend** — already exists with `restore` tests) | Add tests for the reason builder + merge/grouping helper; keep the existing `restore` tests |
 | `management-frontend/i18n/locales/en.json`, `de.json` | Keys: badge "Auto-removed", reason fragments (clock not synced / device had no clock / identical sale {n}s earlier / near-duplicate) |
 | `ios/VMflow/Models/SuppressedSale.swift` | Add decodable `matched` (`{ created_at }`) + `reasonText` computed |
 | `ios/VMflow/ViewModels/MachineDetailViewModel.swift` | Add `matched:sales!matched_sale_id(created_at)` to the suppressed select |
-| `ios/VMflow/Views/Machines/MachineDetailView.swift` | `SalesFeedItem` enum + `groupFeedByDay`; Sales tab renders unified feed with a marked suppressed row variant; `SuppressedSaleRow` reason → `reasonText` |
+| `ios/VMflow/Views/Machines/MachineDetailView.swift` | `SalesFeedItem` enum + `groupFeedByDay`; **convert Sales tab to `List(.plain)`** with the unified feed + marked `SuppressedSaleListRow` carrying an admin-only swipe restore; **hoist the shared `.confirmationDialog` from `suppressedTab` to the `TabView`** (both tabs); `SuppressedSaleRow` reason → `reasonText` |
