@@ -4,11 +4,12 @@ definePageMeta({ middleware: 'auth' })
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { VisAxis, VisStackedBar, VisXYContainer } from '@unovis/vue'
-import { IconCreditCard, IconCoins, IconSend, IconSparkles, IconLoader2, IconRefresh, IconTrash, IconPlus, IconHistory, IconArrowUp, IconArrowDown, IconExternalLink } from '@tabler/icons-vue'
+import { IconCreditCard, IconCoins, IconDeviceMobile, IconSend, IconSparkles, IconLoader2, IconRefresh, IconTrash, IconPlus, IconHistory, IconArrowUp, IconArrowDown, IconExternalLink } from '@tabler/icons-vue'
 import { NuxtLink } from '#components'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Badge } from '@/components/ui/badge'
 import { useInsights, sortedRecommendations, priorityVariant, recommendationTypeLabel } from '@/composables/useInsights'
+import { suppressedReasonParts, buildSalesFeedDays } from '~/composables/useSuppressedSales'
 import { useDeviceRestarts, reasonLabel, reasonVariant, formatUptime } from '@/composables/useDeviceRestarts'
 import { timeAgo, formatCurrency, formatDate, formatTime, formatDateTime } from '@/lib/utils'
 import MachineSettingsModal from '~/components/MachineSettingsModal.vue'
@@ -87,39 +88,38 @@ const sortedTrays = computed(() => {
   })
 })
 
-// Group sales by day for the sales history list
-const salesByDay = computed(() => {
-  const groups: { date: string; label: string; sales: typeof sales.value }[] = []
-  let currentKey = ''
-  let currentGroup: typeof groups[0] | null = null
-
+// Merged Sales feed: real sales + auto-removed (suppressed) rows, day-grouped.
+// Suppressed are shown but excluded from revenue/chart (which read sales.value).
+const salesFeed = computed(() => {
+  const dayKey = (ts: number) =>
+    new Date(ts).toLocaleDateString(locale.value, { year: 'numeric', month: '2-digit', day: '2-digit' })
+  const days = buildSalesFeedDays(sales.value, suppressedRows.value, {
+    nowMs: Date.now(),
+    windowMs: 30 * 24 * 60 * 60 * 1000,
+    dayKey,
+  })
   const today = new Date()
-  const yesterday = new Date(today)
-  yesterday.setDate(yesterday.getDate() - 1)
-  const todayKey = today.toLocaleDateString(locale.value, { year: 'numeric', month: '2-digit', day: '2-digit' })
-  const yesterdayKey = yesterday.toLocaleDateString(locale.value, { year: 'numeric', month: '2-digit', day: '2-digit' })
-
-  for (const sale of sales.value) {
-    const d = new Date(sale.created_at)
-    const key = d.toLocaleDateString(locale.value, { year: 'numeric', month: '2-digit', day: '2-digit' })
-
-    if (key !== currentKey) {
-      let label: string
-      if (key === todayKey) {
-        label = t('machineDetail.today')
-      } else if (key === yesterdayKey) {
-        label = t('machineDetail.yesterday')
-      } else {
-        label = d.toLocaleDateString(locale.value, { weekday: 'long', day: 'numeric', month: 'long' })
-      }
-      currentKey = key
-      currentGroup = { date: key, label, sales: [] }
-      groups.push(currentGroup)
-    }
-    currentGroup!.sales.push(sale)
-  }
-  return groups
+  const yesterday = new Date(today); yesterday.setDate(yesterday.getDate() - 1)
+  const todayKey = dayKey(today.getTime())
+  const yesterdayKey = dayKey(yesterday.getTime())
+  return days.map((g) => {
+    let label: string
+    if (g.key === todayKey) label = t('machineDetail.today')
+    else if (g.key === yesterdayKey) label = t('machineDetail.yesterday')
+    else label = new Date(g.items[0].ts).toLocaleDateString(locale.value, { weekday: 'long', day: 'numeric', month: 'long' })
+    return { ...g, label }
+  })
 })
+
+// Build the reason caption for a suppressed row (i18n).
+function suppressedReasonText(row: any): string {
+  const { clock, gapSeconds } = suppressedReasonParts(row)
+  const clockStr = clock === 'noclock' ? t('machineDetail.reasonNoClock') : t('machineDetail.reasonClockUnsynced')
+  const gapStr = gapSeconds != null
+    ? t('machineDetail.reasonGapEarlier', { n: gapSeconds })
+    : t('machineDetail.reasonNearDup')
+  return `${clockStr} · ${gapStr}`
+}
 
 // AI Insights
 const { data: insights, loading: insightsLoading, error: insightsError, fetchInsights, history: insightsHistory, historyLoading: insightsHistoryLoading, fetchHistory } = useInsights()
@@ -1363,74 +1363,109 @@ async function handleAddSale() {
                 </div>
                 <div v-if="sales.length === 0" class="text-sm text-muted-foreground">{{ t('machineDetail.noSalesLast30') }}</div>
                 <div v-else class="space-y-4">
-                  <div v-for="group in salesByDay" :key="group.date">
+                  <div v-for="group in salesFeed" :key="group.key">
                     <div class="sticky top-0 z-10 mb-2 flex items-center gap-3">
                       <span class="text-xs font-medium text-muted-foreground">{{ group.label }}</span>
-                      <span class="text-[10px] tabular-nums text-muted-foreground/60">{{ t('machineDetail.saleCount', { count: group.sales.length }, group.sales.length) }}</span>
+                      <span class="text-[10px] tabular-nums text-muted-foreground/60">{{ t('machineDetail.saleCount', { count: group.saleCount }, group.saleCount) }}</span>
                       <div class="h-px flex-1 bg-border" />
                     </div>
                     <div class="rounded-xl border bg-card divide-y">
-                      <SwipeToDelete
-                        v-for="sale in group.sales"
-                        :key="sale.id"
-                        :disabled="!isAdmin"
-                        @delete="confirmDeleteSale(sale)"
-                      >
-                        <component
-                          :is="saleRoutes.get(sale.id) ? NuxtLink : 'div'"
-                          :to="saleRoutes.get(sale.id) ? `/products/${saleRoutes.get(sale.id)}` : undefined"
-                          class="group/sale flex items-start gap-3 px-4 py-3"
-                          :class="{ 'cursor-pointer hover:bg-muted/50 transition-colors': saleRoutes.get(sale.id) }"
+                      <template v-for="item in group.items" :key="item.key">
+                        <!-- Real sale (unchanged behaviour) -->
+                        <SwipeToDelete
+                          v-if="item.kind === 'sale'"
+                          :disabled="!isAdmin"
+                          @delete="confirmDeleteSale(item.sale)"
                         >
-                          <!-- Product image or amount badge -->
+                          <component
+                            :is="saleRoutes.get(item.sale.id) ? NuxtLink : 'div'"
+                            :to="saleRoutes.get(item.sale.id) ? `/products/${saleRoutes.get(item.sale.id)}` : undefined"
+                            class="group/sale flex items-start gap-3 px-4 py-3"
+                            :class="{ 'cursor-pointer hover:bg-muted/50 transition-colors': saleRoutes.get(item.sale.id) }"
+                          >
+                            <img
+                              v-if="saleProduct(item.sale)?.image_url"
+                              :src="saleProduct(item.sale)!.image_url!"
+                              :alt="saleProduct(item.sale)!.name"
+                              class="h-9 w-9 shrink-0 rounded-full object-cover mt-0.5"
+                            />
+                            <div v-else class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary mt-0.5">
+                              {{ formatCurrency(item.sale.item_price, locale) }}
+                            </div>
+                            <div class="flex-1 min-w-0">
+                              <div class="flex items-start justify-between gap-2">
+                                <p class="text-sm font-medium break-words">
+                                  {{ saleProduct(item.sale)?.name ?? `${t('machineDetail.item')} #${item.sale.item_number}` }}
+                                  <button
+                                    v-if="isAdmin"
+                                    class="hidden sm:inline-flex ml-1 align-middle rounded-md p-0.5 text-muted-foreground/0 transition-colors group-hover/sale:text-muted-foreground hover:!text-destructive"
+                                    @click.stop.prevent="confirmDeleteSale(item.sale)"
+                                  >
+                                    <IconTrash class="size-3.5" />
+                                  </button>
+                                </p>
+                                <span class="shrink-0 text-sm font-semibold tabular-nums">{{ formatCurrency(item.sale.item_price, locale) }}</span>
+                              </div>
+                              <div class="mt-0.5 flex items-center justify-between">
+                                <div class="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                  <span class="whitespace-nowrap">{{ t('machineDetail.slot') }} {{ item.sale.item_number }}</span>
+                                  <span class="text-muted-foreground/40">·</span>
+                                  <span
+                                    class="inline-flex items-center gap-0.5 text-[10px] font-medium uppercase tracking-wide"
+                                    :class="item.sale.channel === 'card'
+                                      ? 'text-blue-600 dark:text-blue-400'
+                                      : item.sale.channel === 'cashless'
+                                        ? 'text-violet-600 dark:text-violet-400'
+                                        : 'text-emerald-600 dark:text-emerald-400'"
+                                  >
+                                    <IconCreditCard v-if="item.sale.channel === 'card'" class="size-3" />
+                                    <IconDeviceMobile v-else-if="item.sale.channel === 'cashless'" class="size-3" />
+                                    <IconCoins v-else class="size-3" />
+                                    {{ item.sale.channel }}
+                                  </span>
+                                </div>
+                                <span class="shrink-0 text-[11px] text-muted-foreground tabular-nums">{{ new Date(item.sale.created_at).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', second: '2-digit' }) }}</span>
+                              </div>
+                            </div>
+                          </component>
+                        </SwipeToDelete>
+                        <!-- Auto-removed (suppressed) sale: marked, non-counting; admin can restore -->
+                        <!-- Dim is conveyed by muted text + grayscale image + strikethrough price (NOT opacity-60,
+                             which would also dim the restore button — Tailwind opacity compounds onto children). -->
+                        <div v-else class="flex items-start gap-3 px-4 py-3">
                           <img
-                            v-if="saleProduct(sale)?.image_url"
-                            :src="saleProduct(sale)!.image_url!"
-                            :alt="saleProduct(sale)!.name"
-                            class="h-9 w-9 shrink-0 rounded-full object-cover mt-0.5"
+                            v-if="suppressedProduct(item.row)?.image_url"
+                            :src="suppressedProduct(item.row)!.image_url!"
+                            :alt="suppressedProduct(item.row)!.name"
+                            class="h-9 w-9 shrink-0 rounded-full object-cover mt-0.5 grayscale"
                           />
-                          <div v-else class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary mt-0.5">
-                            {{ formatCurrency(sale.item_price, locale) }}
+                          <div v-else class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground mt-0.5">
+                            {{ item.row.item_price != null ? formatCurrency(item.row.item_price, locale) : '—' }}
                           </div>
-                          <!-- Main info -->
                           <div class="flex-1 min-w-0">
                             <div class="flex items-start justify-between gap-2">
-                              <p class="text-sm font-medium break-words">
-                                {{ saleProduct(sale)?.name ?? `${t('machineDetail.item')} #${sale.item_number}` }}
-                                <!-- Desktop delete button (inline after title) -->
-                                <button
-                                  v-if="isAdmin"
-                                  class="hidden sm:inline-flex ml-1 align-middle rounded-md p-0.5 text-muted-foreground/0 transition-colors group-hover/sale:text-muted-foreground hover:!text-destructive"
-                                  @click.stop.prevent="confirmDeleteSale(sale)"
-                                >
-                                  <IconTrash class="size-3.5" />
-                                </button>
+                              <p class="text-sm font-medium break-words text-muted-foreground">
+                                {{ suppressedProduct(item.row)?.name ?? `${t('machineDetail.item')} #${item.row.item_number}` }}
+                                <span class="ml-1 inline-flex items-center rounded-full bg-orange-500/10 px-1.5 py-0.5 text-[10px] font-medium text-orange-600 align-middle dark:text-orange-400">{{ t('machineDetail.suppressedBadge') }}</span>
                               </p>
-                              <span class="shrink-0 text-sm font-semibold tabular-nums">{{ formatCurrency(sale.item_price, locale) }}</span>
+                              <span class="shrink-0 text-sm font-semibold tabular-nums text-muted-foreground line-through">{{ item.row.item_price != null ? formatCurrency(item.row.item_price, locale) : '—' }}</span>
                             </div>
-                            <div class="mt-0.5 flex items-center justify-between">
-                              <div class="flex items-center gap-1.5 text-xs text-muted-foreground">
-                                <span class="whitespace-nowrap">{{ t('machineDetail.slot') }} {{ sale.item_number }}</span>
-                                <span class="text-muted-foreground/40">·</span>
-                                <span
-                                  class="inline-flex items-center gap-0.5 text-[10px] font-medium uppercase tracking-wide"
-                                  :class="sale.channel === 'card'
-                                    ? 'text-blue-600 dark:text-blue-400'
-                                    : sale.channel === 'cashless'
-                                      ? 'text-violet-600 dark:text-violet-400'
-                                      : 'text-emerald-600 dark:text-emerald-400'"
-                                >
-                                  <IconCreditCard v-if="sale.channel === 'card'" class="size-3" />
-                                  <IconDeviceMobile v-else-if="sale.channel === 'cashless'" class="size-3" />
-                                  <IconCoins v-else class="size-3" />
-                                  {{ sale.channel }}
-                                </span>
-                              </div>
-                              <span class="shrink-0 text-[11px] text-muted-foreground tabular-nums">{{ new Date(sale.created_at).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', second: '2-digit' }) }}</span>
+                            <div class="mt-0.5 flex items-center justify-between gap-2">
+                              <span class="min-w-0 break-words text-xs text-muted-foreground">{{ suppressedReasonText(item.row) }}</span>
+                              <span class="shrink-0 text-[11px] text-muted-foreground tabular-nums">{{ new Date(item.row.received_at).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', second: '2-digit' }) }}</span>
                             </div>
                           </div>
-                        </component>
-                      </SwipeToDelete>
+                          <!-- Admin restore: reuses the page's existing confirmRestoreSuppressed + confirm modal + handleRestoreSuppressed (from the prior milestone). On success the row leaves suppressedRows and reloadSales() brings in the real sale, so salesFeed re-derives. -->
+                          <button
+                            v-if="isAdmin"
+                            class="shrink-0 self-center rounded-md border px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:bg-muted"
+                            :title="t('machineDetail.suppressedRestore')"
+                            @click.stop.prevent="confirmRestoreSuppressed(item.row)"
+                          >
+                            {{ t('machineDetail.suppressedRestore') }}
+                          </button>
+                        </div>
+                      </template>
                     </div>
                   </div>
                 </div>
@@ -2229,7 +2264,7 @@ async function handleAddSale() {
                           <span v-if="row.channel" class="text-muted-foreground/40">·</span>
                           <span v-if="row.channel">{{ row.channel }}</span>
                           <span class="text-muted-foreground/40">·</span>
-                          <span>{{ t('machineDetail.suppressedReason') }}</span>
+                          <span>{{ suppressedReasonText(row) }}</span>
                         </div>
                         <span class="shrink-0 text-[11px] text-muted-foreground tabular-nums">{{ formatDateTime(row.received_at, locale) }}</span>
                       </div>

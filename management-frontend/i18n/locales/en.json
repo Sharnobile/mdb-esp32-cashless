@@ -401,7 +401,12 @@
     "suppressedRestoreConfirmTitle": "Take up as real sale?",
     "suppressedRestoreConfirmBody": "This adds a real sale and reduces stock by 1.",
     "suppressedRestoreConfirmAction": "Take up as sale",
-    "suppressedRestoring": "Taking up…"
+    "suppressedRestoring": "Taking up…",
+    "suppressedBadge": "Auto-removed",
+    "reasonClockUnsynced": "Clock not synced",
+    "reasonNoClock": "Device had no clock",
+    "reasonGapEarlier": "identical sale {n}s earlier",
+    "reasonNearDup": "near-duplicate of a recent sale"
   },
   "machineSettings": {
     "title": "Machine settings",
