@@ -50,3 +50,46 @@ schema is a superset of prod, then re-run. If you cannot upgrade, replace the
 `--table=auth.users`/`--table=auth.identities` dumps with explicit-column
 `\copy (SELECT <cols>) TO STDOUT` / `\copy <t>(<cols>) FROM STDIN` using the
 stable column lists in the design spec (§ Assumptions & accepted risks).
+
+## sync-prod-to-test.sh
+
+Refreshes the **test server's** database + product images with **production data**.
+Run it **on the test box** (from the repo checkout there). It pulls prod read-only
+over SSH and does all destructive work locally against this box's own `Docker/`
+stack, so you log into test with your **production credentials**.
+Design: `docs/superpowers/specs/2026-06-08-prod-to-test-data-sync-design.md`.
+
+### Prerequisites
+- Run on the test server, where the full stack is up: `(cd Docker && docker compose up -d)`
+- Tools on PATH: `docker`, `ssh`, `rsync`, `curl`
+- This box has an (ideally read-only) SSH key authorised on the prod host
+- Test is deployed at the **same migration version** as prod (the script aborts otherwise)
+
+### Setup
+```bash
+cp scripts/sync-prod-to-test.env.example scripts/sync-prod-to-test.env
+# edit: PROD_SSH, PROD_DIR, PROD_STORAGE_DIR, TEST_EXPECTED_DOMAIN
+```
+
+### Run
+```bash
+./scripts/sync-prod-to-test.sh            # prompts before replacing the test DB
+./scripts/sync-prod-to-test.sh --dry-run  # runs the read-only guards + prints planned actions
+./scripts/sync-prod-to-test.sh --skip-images
+./scripts/sync-prod-to-test.sh --yes      # unattended (cron)
+```
+
+### Safety
+- Prod is **read-only** (`pg_dump` + `rsync` + reading `$PROD_DIR/.env`).
+- Layered guard before any write: (A) this box's `SUPABASE_PUBLIC_URL` must contain
+  `TEST_EXPECTED_DOMAIN`; (B) prod's and test's `SUPABASE_PUBLIC_URL` must differ;
+  (C) prod and test must be at the same `public._migrations` state, else it aborts.
+- The restore is one transaction; any error rolls back and leaves the test DB untouched.
+- The restore target is always this box's own compose `db` service — never a remote DB.
+- It does **not** use `supabase db reset` and does **not** run migrations.
+
+### Scheduling (optional — a refresh overwrites the test DB, so opt in deliberately)
+cron on the test box (weekly, Mon 04:00):
+```cron
+# 0 4 * * 1 cd /path/to/mdb-esp32-cashless && ./scripts/sync-prod-to-test.sh --yes >> tmp/sync-test/cron.log 2>&1
+```
