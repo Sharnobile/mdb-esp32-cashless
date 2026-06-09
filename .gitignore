@@ -41,3 +41,7 @@ Docker/supabase/migrations.db
 # Prod→dev data sync (scripts/sync-prod-to-dev.sh)
 tmp/sync/
 scripts/sync-prod-to-dev.env
+
+# Prod→test data sync (scripts/sync-prod-to-test.sh)
+tmp/sync-test/
+scripts/sync-prod-to-test.env
