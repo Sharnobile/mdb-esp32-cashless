@@ -1,6 +1,22 @@
 /** Match window for brownout-duplicate suppression. Tunable. See spec. */
 export const SUPPRESS_WINDOW_MS = 30_000;
 
+/**
+ * How far before a `time_uncertain` sale a device restart must have been
+ * recorded for the sale to be treated as a brownout re-report.
+ *
+ * A brownout re-report only ever happens *after* the device reboots,
+ * reconnects, and drains its NVS queue — so a corroborating row exists in
+ * `device_restarts` near the re-report's receive time. A genuine repeat
+ * purchase on a stable device has no such restart in this window and is
+ * therefore never auto-removed. The reboot precedes the re-report, hence
+ * the window looks mostly backward (a small forward allowance absorbs the
+ * ordering skew between the restart event and the drained sale, which can
+ * arrive nearly simultaneously).
+ */
+export const REBOOT_CORRELATION_WINDOW_MS = 10 * 60_000;
+export const REBOOT_CORRELATION_FORWARD_MS = 60_000;
+
 export interface SuppressCandidate {
   id: string;
   createdAtMs: number;
@@ -29,4 +45,26 @@ export function decideSuppress(
     if (Math.abs(c.createdAtMs - incoming.createdAtMs) <= windowMs) return c.id;
   }
   return null;
+}
+
+/**
+ * True if any recorded device restart corroborates a brownout re-report for a
+ * sale received at `incomingMs`: a restart that occurred within `windowMs`
+ * before the sale (or marginally after, within `forwardMs`, to absorb event
+ * ordering skew).
+ *
+ * Used as a second gate after `decideSuppress` matches a same-key candidate:
+ * without a nearby reboot the time_uncertain sale is treated as a genuine
+ * repeat purchase and inserted normally rather than auto-removed.
+ */
+export function rebootCorroborates(
+  restartMs: number[],
+  incomingMs: number,
+  windowMs: number = REBOOT_CORRELATION_WINDOW_MS,
+  forwardMs: number = REBOOT_CORRELATION_FORWARD_MS,
+): boolean {
+  for (const r of restartMs) {
+    if (r >= incomingMs - windowMs && r <= incomingMs + forwardMs) return true;
+  }
+  return false;
 }

@@ -3,7 +3,7 @@ import { decodeBase64 } from 'https://deno.land/std@0.224.0/encoding/base64.ts'
 import { sendPushToUsers } from '../_shared/web-push.ts'
 import { stockUrgency } from './stock-urgency.ts'
 import { t, formatPrice, type Locale } from '../_shared/notification-i18n.ts'
-import { decideSuppress, SUPPRESS_WINDOW_MS, type SuppressCandidate } from "./suppress.ts";
+import { decideSuppress, rebootCorroborates, REBOOT_CORRELATION_WINDOW_MS, REBOOT_CORRELATION_FORWARD_MS, SUPPRESS_WINDOW_MS, type SuppressCandidate } from "./suppress.ts";
 
 // Sale payload format version carried in byte 1 of the 19-byte XOR-encrypted
 // payload. v2 adds per-device monotonic sale_seq (bytes 14-17) + time_uncertain
@@ -446,25 +446,44 @@ Deno.serve(async (req) => {
         );
         const matchedId = decideSuppress({ timeUncertain, createdAtMs: incomingMs }, candidates, SUPPRESS_WINDOW_MS);
         if (matchedId) {
-          const matchedRow = (candRows ?? []).find((r) => r.id === matchedId);
-          const { error: suppressErr } = await adminClient.from('suppressed_sales').insert([{
-            embedded_id: embedded.id,
-            item_number: itemNumber,
-            item_price: salePrice,
-            channel,
-            sale_seq: saleSeq,
-            // raw device timestamp, NOT saleTime (which is server time here)
-            device_created_at: timestampUnsigned > 0 ? new Date(timestampUnsigned * 1000).toISOString() : null,
-            received_at: new Date().toISOString(),
-            matched_sale_id: matchedId,
-            reason: 'time_uncertain_duplicate',
-            product_id: matchedRow?.product_id ?? null,
-          }]);
-          if (!suppressErr) {
-            return new Response(JSON.stringify({ ok: true, suppressed: true }), { status: 200 });
+          // Reboot-correlation gate: a brownout re-report only follows an
+          // actual device reset, so it has a row in device_restarts near the
+          // receive time. A genuine repeat purchase on a stable device has
+          // none — without a corroborating restart we fall through and insert
+          // the sale normally instead of auto-removing it.
+          const { data: restartRows } = await adminClient
+            .from('device_restarts')
+            .select('created_at')
+            .eq('embedded_id', embedded.id)
+            .gte('created_at', new Date(incomingMs - REBOOT_CORRELATION_WINDOW_MS).toISOString())
+            .lte('created_at', new Date(incomingMs + REBOOT_CORRELATION_FORWARD_MS).toISOString())
+            .order('created_at', { ascending: false })
+            .limit(5);
+          const restartMs = (restartRows ?? []).map((r: { created_at: string }) => Date.parse(r.created_at));
+
+          // No nearby reboot → genuine repeat purchase; fall through to the
+          // normal sales insert below instead of auto-removing it.
+          if (rebootCorroborates(restartMs, incomingMs)) {
+            const matchedRow = (candRows ?? []).find((r) => r.id === matchedId);
+            const { error: suppressErr } = await adminClient.from('suppressed_sales').insert([{
+              embedded_id: embedded.id,
+              item_number: itemNumber,
+              item_price: salePrice,
+              channel,
+              sale_seq: saleSeq,
+              // raw device timestamp, NOT saleTime (which is server time here)
+              device_created_at: timestampUnsigned > 0 ? new Date(timestampUnsigned * 1000).toISOString() : null,
+              received_at: new Date().toISOString(),
+              matched_sale_id: matchedId,
+              reason: 'time_uncertain_duplicate',
+              product_id: matchedRow?.product_id ?? null,
+            }]);
+            if (!suppressErr) {
+              return new Response(JSON.stringify({ ok: true, suppressed: true }), { status: 200 });
+            }
+            console.error('suppressed_sales insert failed; falling through to normal sales insert:', suppressErr);
+            // fall through to the existing sales insert below — never drop a real sale silently
           }
-          console.error('suppressed_sales insert failed; falling through to normal sales insert:', suppressErr);
-          // fall through to the existing sales insert below — never drop a real sale silently
         }
       }
 
