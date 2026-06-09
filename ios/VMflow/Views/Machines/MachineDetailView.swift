@@ -60,6 +60,21 @@ struct MachineDetailView: View {
                 suppressedTab.tag(2)
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
+            .confirmationDialog(
+                "Take up as real sale?",
+                isPresented: $showRestoreConfirm,
+                titleVisibility: .visible
+            ) {
+                Button("Take up as sale") {
+                    if let sale = rowToRestore {
+                        Task { await viewModel.restoreSuppressed(sale.id) }
+                    }
+                    rowToRestore = nil
+                }
+                Button("Cancel", role: .cancel) { rowToRestore = nil }
+            } message: {
+                Text("Adds a real sale and reduces stock by 1.")
+            }
         }
         .navigationTitle(machine.displayName)
         .navigationBarTitleDisplayMode(.inline)
@@ -311,37 +326,61 @@ struct MachineDetailView: View {
     // MARK: - Sales Tab
 
     private var salesTab: some View {
-        ScrollView {
+        Group {
             if viewModel.recentSales.isEmpty && !viewModel.isLoading {
-                VStack(spacing: 12) {
-                    Image(systemName: "cart")
-                        .font(.system(size: 40))
-                        .foregroundStyle(.secondary)
-                    Text("No sales yet")
-                        .foregroundStyle(.secondary)
+                ScrollView {
+                    VStack(spacing: 12) {
+                        Image(systemName: "cart")
+                            .font(.system(size: 40))
+                            .foregroundStyle(.secondary)
+                        Text("No sales yet")
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.top, 60)
                 }
-                .padding(.top, 60)
             } else {
-                LazyVStack(spacing: 8, pinnedViews: [.sectionHeaders]) {
-                    let grouped = groupSalesByDay(viewModel.recentSales)
+                List {
+                    let grouped = groupFeedByDay(salesFeedItems)
                     ForEach(grouped, id: \.date) { group in
                         Section {
-                            ForEach(group.sales) { sale in
-                                SaleRow(sale: sale, trays: viewModel.trays) {
-                                    presentProductSheet(for: sale)
+                            ForEach(group.items) { item in
+                                switch item {
+                                case .sale(let sale):
+                                    SaleRow(sale: sale, trays: viewModel.trays) {
+                                        presentProductSheet(for: sale)
+                                    }
+                                    .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                                    .listRowBackground(Color.clear)
+                                    .listRowSeparator(.hidden)
+                                case .suppressed(let s):
+                                    SuppressedSaleListRow(sale: s, trays: viewModel.trays)
+                                        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                                        .listRowBackground(Color.clear)
+                                        .listRowSeparator(.hidden)
+                                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                            if isAdmin {
+                                                Button {
+                                                    rowToRestore = s
+                                                    showRestoreConfirm = true
+                                                } label: {
+                                                    Label("Take up as sale", systemImage: "checkmark.circle")
+                                                }
+                                                .tint(.green)
+                                            }
+                                        }
                                 }
                             }
                         } header: {
-                            DaySectionHeader(label: dayLabel(for: group.date), count: group.sales.count)
+                            DaySectionHeader(label: dayLabel(for: group.date), count: group.saleCount)
                         }
                     }
                 }
-                .padding(.horizontal)
-                .padding(.bottom, 20)
+                .listStyle(.plain)
             }
         }
         .refreshable {
             await viewModel.loadDetail()
+            await trayVM.loadTrays()
         }
     }
 
@@ -423,21 +462,6 @@ struct MachineDetailView: View {
         .refreshable {
             await viewModel.loadDetail()
         }
-        .confirmationDialog(
-            "Take up as real sale?",
-            isPresented: $showRestoreConfirm,
-            titleVisibility: .visible
-        ) {
-            Button("Take up as sale") {
-                if let sale = rowToRestore {
-                    Task { await viewModel.restoreSuppressed(sale.id) }
-                }
-                rowToRestore = nil
-            }
-            Button("Cancel", role: .cancel) { rowToRestore = nil }
-        } message: {
-            Text("Adds a real sale and reduces stock by 1.")
-        }
     }
 
     private func formatEUR(_ amount: Double) -> String {
@@ -482,6 +506,49 @@ struct MachineDetailView: View {
         return grouped.keys.sorted(by: >).map { date in
             DayGroup(date: date, sales: grouped[date]!.sorted { $0.createdAt > $1.createdAt })
         }
+    }
+
+    private enum SalesFeedItem: Identifiable {
+        case sale(Sale)
+        case suppressed(SuppressedSale)
+        var id: String {
+            switch self {
+            case .sale(let s): return "sale-\(s.id)"
+            case .suppressed(let s): return "sup-\(s.id)"
+            }
+        }
+        var date: Date {
+            switch self {
+            case .sale(let s): return s.createdAt
+            case .suppressed(let s): return s.receivedAt
+            }
+        }
+    }
+
+    private struct FeedDayGroup { let date: Date; let items: [SalesFeedItem]; let saleCount: Int }
+
+    private func groupFeedByDay(_ items: [SalesFeedItem]) -> [FeedDayGroup] {
+        let calendar = Calendar.current
+        let grouped = Dictionary(grouping: items) { calendar.startOfDay(for: $0.date) }
+        return grouped.keys.sorted(by: >).map { date in
+            let dayItems = grouped[date]!.sorted { $0.date > $1.date }
+            let saleCount = dayItems.reduce(0) { acc, it in
+                if case .sale = it { return acc + 1 } else { return acc }
+            }
+            return FeedDayGroup(date: date, items: dayItems, saleCount: saleCount)
+        }
+    }
+
+    /// Real sales + suppressed rows (only those at/after the oldest visible sale,
+    /// so a suppressed-only day can't dangle below the last loaded sale).
+    private var salesFeedItems: [SalesFeedItem] {
+        var items = viewModel.recentSales.map { SalesFeedItem.sale($0) }
+        if let cutoff = viewModel.recentSales.map({ $0.createdAt }).min() {
+            items += viewModel.suppressedSales
+                .filter { $0.receivedAt >= cutoff }
+                .map { SalesFeedItem.suppressed($0) }
+        }
+        return items
     }
 
     private var isAdmin: Bool { auth.role == .admin }
@@ -641,7 +708,7 @@ struct SuppressedSaleRow: View {
                             .foregroundStyle(.secondary)
                     }
                 }
-                Text("likely brownout re-report")
+                Text(sale.reasonText)
                     .font(.caption2)
                     .foregroundStyle(.orange)
             }
@@ -662,6 +729,70 @@ struct SuppressedSaleRow: View {
             RoundedRectangle(cornerRadius: 12)
                 .fill(.regularMaterial)
         }
+    }
+
+    private func formatTime(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm:ss"
+        return formatter.string(from: date)
+    }
+}
+
+// MARK: - Suppressed Sale Row (Sales-list variant: marked, non-counting)
+
+struct SuppressedSaleListRow: View {
+    let sale: SuppressedSale
+    let trays: [Tray]
+
+    private var productName: String {
+        sale.products?.name
+            ?? trays.first { $0.itemNumber == sale.itemNumber }?.productName
+            ?? "Slot \(sale.itemNumber ?? 0)"
+    }
+    private var productImagePath: String? {
+        sale.products?.imagePath
+            ?? trays.first { $0.itemNumber == sale.itemNumber }?.products?.imagePath
+    }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            ProductImage(imagePath: productImagePath, size: 44)
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Text(productName)
+                        .font(.subheadline.weight(.medium))
+                        .lineLimit(1)
+                        .foregroundStyle(.secondary)
+                    Text("Auto-removed")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.orange)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.orange.opacity(0.12), in: Capsule())
+                }
+                Text(sale.reasonText)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+
+            Spacer()
+
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(sale.formattedPrice)
+                    .font(.subheadline.weight(.semibold))
+                    .monospacedDigit()
+                    .strikethrough(true, color: .secondary)
+                    .foregroundStyle(.secondary)
+                Text(formatTime(sale.receivedAt))
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(12)
+        .background { RoundedRectangle(cornerRadius: 12).fill(.regularMaterial) }
+        .opacity(0.7)
     }
 
     private func formatTime(_ date: Date) -> String {
