@@ -1674,6 +1674,21 @@ final class RefillWizardViewModel: ObservableObject {
             await deductWarehouseStock(warehouseId: warehouseId)
         }
 
+        // Tour-started feed event — written after the warehouse deductions so an
+        // aborted start never leaves an orphaned feed entry (spec §3.1). On iOS
+        // deduction failures don't block the tour, so this runs on every start.
+        // Field-compatible with the PWA's buildTourStartedEntry payload.
+        let tourMachines = packedMachines
+        var tourMeta: [String: AnyJSON] = [
+            "machine_count": .integer(tourMachines.count),
+            "machine_ids": .array(tourMachines.map { .string($0.id.uuidString) }),
+            "machine_names": .array(tourMachines.map { .string($0.machine.displayName) }),
+        ]
+        if let warehouseName = warehouses.first(where: { $0.id == selectedWarehouseId })?.name {
+            tourMeta["warehouse_name"] = .string(warehouseName)
+        }
+        await writeActivityLog(machineId: nil, machineName: nil, action: "tour_started", extraMetadata: tourMeta)
+
         currentMachineIndex = 0
         isSaving = false
         currentStep = .refill
@@ -1721,7 +1736,10 @@ final class RefillWizardViewModel: ObservableObject {
                         "p_user_id": userId.map { AnyJSON.string($0) } ?? AnyJSON.null,
                         "p_reference_id": AnyJSON.string(d.machineId.uuidString),
                         "p_notes": AnyJSON.string("Refill tour"),
-                        "p_metadata": AnyJSON.object(["_user_email": userEmail.map { AnyJSON.string($0) } ?? AnyJSON.null])
+                        "p_metadata": AnyJSON.object([
+                            "_user_email": userEmail.map { AnyJSON.string($0) } ?? AnyJSON.null,
+                            "tour_id": AnyJSON.string(tourId)
+                        ])
                     ]
                 ).execute()
             } catch {
@@ -1959,7 +1977,7 @@ final class RefillWizardViewModel: ObservableObject {
     // MARK: - Activity Log
 
     /// Write an activity log entry for a refill/skip action. Non-critical — failures are silently logged.
-    private func writeActivityLog(machineId: UUID, machineName: String, action: String, extraMetadata: [String: AnyJSON]) async {
+    private func writeActivityLog(machineId: UUID?, machineName: String?, action: String, extraMetadata: [String: AnyJSON]) async {
         do {
             let session = try await client.auth.session
             let user = session.user
@@ -1981,11 +1999,11 @@ final class RefillWizardViewModel: ObservableObject {
 
             var metadata: [String: AnyJSON] = [
                 "tour_id": .string(tourId),
-                "machine_id": .string(machineId.uuidString),
-                "machine_name": .string(machineName),
                 "_user_email": user.email.map { .string($0) } ?? .null,
                 "_user_display": userDisplay.map { .string($0) } ?? .null,
             ]
+            if let machineId { metadata["machine_id"] = .string(machineId.uuidString) }
+            if let machineName { metadata["machine_name"] = .string(machineName) }
             if let warehouseId = selectedWarehouseId {
                 metadata["warehouse_id"] = .string(warehouseId.uuidString)
             }
@@ -1999,7 +2017,7 @@ final class RefillWizardViewModel: ObservableObject {
                     "company_id": AnyJSON.string(companyId.uuidString),
                     "user_id": AnyJSON.string(user.id.uuidString),
                     "entity_type": AnyJSON.string("stock"),
-                    "entity_id": AnyJSON.string(machineId.uuidString),
+                    "entity_id": AnyJSON.string(machineId?.uuidString ?? tourId),
                     "action": AnyJSON.string(action),
                     "metadata": AnyJSON.object(metadata)
                 ])
