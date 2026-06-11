@@ -9,7 +9,7 @@
 Die Sektion „Recent Sales" auf dem iOS-Dashboard wird zu „Letzte Aktivität" (en: "Recent Activity"). Sales erscheinen unverändert (gleiche Zeile, gleicher Tap → ProductDetailSheet, gleiche Tagesgruppierung). Zusätzlich erscheinen drei neue Ereignistypen in derselben Timeline:
 
 1. **Automat gefüllt** — vorhandene `activity_log`-Einträge `stock_refill_tour` (rückwirkend sichtbar)
-2. **Ware eingebucht** — vorhandene `warehouse_transactions` mit `transaction_type = 'incoming'` (rückwirkend sichtbar)
+2. **Ware eingebucht** — vorhandene `warehouse_transactions` mit `transaction_type IN ('incoming', 'intake')` (PWA schreibt `incoming`, iOS `intake`; rückwirkend sichtbar)
 3. **Tour gestartet** — neues `activity_log`-Event `tour_started`, das beide Refill-Wizards (iOS + PWA) ab jetzt beim Tour-Start schreiben
 
 Außerdem ersetzt eine Endlos-Liste (Infinite Scroll) den „Load more"-Button.
@@ -52,7 +52,7 @@ Metadaten-Decodierung des `activity_log` erfolgt tolerant (fehlende Felder → F
 
 - **Query A (unverändert):** Sales + Maschinen-/Produktanreicherung wie heute.
 - **Query B:** `activity_log` mit `action in ('stock_refill_tour', 'tour_started')`, `created_at >= windowStart`, sortiert desc. RLS scoped auf die Company.
-- **Query C:** `warehouse_transactions` mit `transaction_type = 'incoming'`, `created_at >= windowStart`, Select inkl. `products(name)` und `warehouses(name)`.
+- **Query C:** `warehouse_transactions` mit `transaction_type IN ('incoming', 'intake')`, `created_at >= windowStart`, Select inkl. `products(name)` und `warehouses(name)`. (Cross-Client-Inkonsistenz: die PWA schreibt `'incoming'`, die iOS-App `'intake'` für denselben Vorgang — der Feed muss beide lesen.)
 
 **Intake-Gruppierung:** Transaktionen aufsteigend nach Zeit sortieren, dann konsekutiv gruppieren, solange (gleicher `user_id` UND gleiche `warehouse_id` UND Lücke zur vorherigen Transaktion ≤ 15 min). Gruppen, die Mitternacht überschreiten, dürfen splitten (Tagesgruppierung des Feeds; selten, akzeptiert).
 

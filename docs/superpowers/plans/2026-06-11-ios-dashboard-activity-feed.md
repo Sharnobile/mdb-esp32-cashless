@@ -837,11 +837,13 @@ Replace the entire `// MARK: - Recent Sales` section (the `loadRecentSales()` fu
     }
 
     /// Incoming warehouse transactions with product/warehouse names joined.
+    /// Both type strings are read: the PWA books intakes as 'incoming', the
+    /// iOS app as 'intake' (pre-existing cross-client divergence).
     private func fetchIntakeRows(windowStartString: String) async throws -> [IntakeTransactionRow] {
         try await client
             .from("warehouse_transactions")
             .select("id, created_at, warehouse_id, user_id, quantity_change, products(name), warehouses(name)")
-            .eq("transaction_type", value: "incoming")
+            .in("transaction_type", values: ["incoming", "intake"])
             .gte("created_at", value: windowStartString)
             .order("created_at", ascending: true)
             .execute()
@@ -933,9 +935,11 @@ Replace the `// MARK: - Load More` section (lines 340–370 — careful: line 37
 
 Known accepted limitation: after a real network error the sentinel doesn't auto-retry until it re-mounts (scroll away/back, pull-to-refresh, or a realtime reload) — in the spirit of the old button, which also required a manual tap to retry.
 
-- [ ] **Step 5: ViewModel — fix the loading overlay guard in the View**
+- [ ] **Step 5: ViewModel — fix the loading overlay guard in the View + models doc comment**
 
 (Noted here because it compiles against the ViewModel.) In `DashboardView.swift` line 80, `viewModel.dailySales.isEmpty` stays as-is — no change needed. (The overlay never referenced `recentSales`.)
+
+Also update the doc comment on `IntakeTransactionRow` in `ios/VMflow/Models/ActivityFeed.swift` (~line 53) from `/// Row from `warehouse_transactions` (transaction_type = 'incoming') with` to `/// Row from `warehouse_transactions` (transaction_type 'incoming'/'intake') with` — the feed reads both type strings (PWA writes 'incoming', iOS writes 'intake').
 
 - [ ] **Step 6: View — realtime trigger + section replacement**
 
