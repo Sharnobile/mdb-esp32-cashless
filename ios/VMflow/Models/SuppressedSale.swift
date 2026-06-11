@@ -42,17 +42,19 @@ struct SuppressedSale: Codable, Identifiable, Equatable {
         return String(format: "%.2f \u{20AC}", p)
     }
 
-    /// Human-readable removal circumstances (hardcoded English, matching the tab).
+    /// Human-readable removal circumstances (localized via Localizable.xcstrings).
     /// Clock fragment: the device clock was unsynced (always true for a suppressed
     /// row); null device_created_at means the device had no clock at all. Gap: how
     /// long after the matched sale this re-report arrived (server-arrival separation,
     /// not exact inter-vend time) — a plausibility signal.
     var reasonText: String {
-        let clock = deviceCreatedAt == nil ? "Device had no clock" : "Clock not synced"
+        let clock = deviceCreatedAt == nil
+            ? String(localized: "Device had no clock")
+            : String(localized: "Clock not synced")
         if let m = matched?.createdAt {
             let gap = Int(abs(receivedAt.timeIntervalSince(m)).rounded())
-            return "\(clock) · identical sale \(gap)s earlier"
+            return clock + " · " + String(localized: "identical sale \(gap)s earlier")
         }
-        return "\(clock) · near-duplicate of a recent sale"
+        return clock + " · " + String(localized: "near-duplicate of a recent sale")
     }
 }

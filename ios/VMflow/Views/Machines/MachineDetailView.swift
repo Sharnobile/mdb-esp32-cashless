@@ -441,7 +441,7 @@ struct MachineDetailView: View {
                                         }
                                 }
                             } header: {
-                                DaySectionHeader(label: dayLabel(for: group.date), count: group.rows.count, unit: "removed")
+                                DaySectionHeader(label: dayLabel(for: group.date), count: group.rows.count, unit: String(localized: "removed"))
                             }
                         }
                     }
@@ -797,7 +797,7 @@ struct SuppressedSaleListRow: View {
 struct DaySectionHeader: View {
     let label: String
     let count: Int
-    var unit: String = "sales"
+    var unit: String = String(localized: "sales")
 
     var body: some View {
         HStack {
