@@ -151,6 +151,7 @@ export function useActivityLog() {
             credit_sent: 'Credit sent',
             stock_updated: 'Stock updated',
             stock_refill_all: 'All trays refilled',
+            tour_started: 'Tour started',
         }
         return labels[action] ?? action.replace(/_/g, ' ')
     }

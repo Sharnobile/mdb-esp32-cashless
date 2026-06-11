@@ -621,7 +621,7 @@ export function useRefillWizard() {
             p_user_id: session?.user?.id ?? null,
             p_reference_id: d.machine_id,
             p_notes: 'Refill tour',
-            p_metadata: { _user_email: session?.user?.email ?? null },
+            p_metadata: { _user_email: session?.user?.email ?? null, tour_id: tourId.value },
           })
         )
       )
@@ -634,6 +634,37 @@ export function useRefillWizard() {
         return qty && qty.size > 0
       })
       machines.value = tourMachines
+
+      // Tour-started activity entry (non-critical — failures only logged).
+      // Written only after all deductions succeeded so an aborted tour start
+      // never leaves an orphaned feed entry (spec §3.1).
+      try {
+        // Name lookup failure must not suppress the entry itself — a
+        // name-less tour_started beats no entry.
+        let warehouseName: string | null = null
+        try {
+          if (selectedWarehouseId.value) {
+            const { data: wh } = await (supabase as any)
+              .from('warehouses')
+              .select('name')
+              .eq('id', selectedWarehouseId.value)
+              .maybeSingle()
+            warehouseName = wh?.name ?? null
+          }
+        } catch { /* non-critical */ }
+        await (supabase as any).from('activity_log').insert(
+          buildTourStartedEntry({
+            companyId: organization.value?.id,
+            user: session?.user ?? null,
+            tourId: tourId.value,
+            machines: tourMachines.map(m => ({ id: m.id, name: m.name })),
+            warehouseId: selectedWarehouseId.value,
+            warehouseName,
+          }),
+        )
+      } catch (logErr) {
+        console.warn('[refillWizard] tour_started activity_log write failed:', logErr)
+      }
 
       currentMachineIndex.value = 0
       tourLog.value = []
