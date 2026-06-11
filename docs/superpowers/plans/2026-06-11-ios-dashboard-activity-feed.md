@@ -1350,7 +1350,7 @@ The file is a JSON string catalog (`"version" : "1.1"`, source language `en`, ke
     },
 ```
 
-Keys to ADD — 8 new entries (en key → de value):
+Keys to ADD — 9 new entries (en key → de value):
 
 | Key | German |
 |-----|--------|
@@ -1362,6 +1362,9 @@ Keys to ADD — 8 new entries (en key → de value):
 | `Filled by %@` | `Gefüllt von %@` |
 | `%lld items` | `%lld Artikel` |
 | `%lld machines` | `%lld Automaten` |
+| `Retry` | `Erneut versuchen` |
+
+(`Retry` came in with the post-review fix 2746c5a: the sentinel renders a manual Retry row after a real load-more failure.)
 
 **Do NOT add `%lld products`** — it already exists in the catalog (with the correct de value `%lld Produkte`); adding it again would create a duplicate JSON key that `json.load` silently swallows. Verify it instead (the Step 2 script covers it).
 
@@ -1370,11 +1373,11 @@ Keys to ADD — 8 new entries (en key → de value):
 - [ ] **Step 2: Validate JSON + build**
 
 ```bash
-python3 -c "import json; d=json.load(open('ios/VMflow/Resources/Localizable.xcstrings')); print('keys:', len(d['strings'])); [print('OK', k) for k in ['Recent Activity','No recent activity','Tour started','Stock intake','entries','Filled by %@','%lld items','%lld machines','%lld products'] if k in d['strings']]"
+python3 -c "import json; d=json.load(open('ios/VMflow/Resources/Localizable.xcstrings')); print('keys:', len(d['strings'])); [print('OK', k) for k in ['Recent Activity','No recent activity','Tour started','Stock intake','entries','Filled by %@','%lld items','%lld machines','%lld products','Retry'] if k in d['strings']]"
 xcodebuild -project ios/VMflow.xcodeproj -scheme VMflow -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO -quiet build
 ```
 
-Expected: 9 × `OK …`, then `BUILD SUCCEEDED`.
+Expected: 10 × `OK …`, then `BUILD SUCCEEDED`.
 
 - [ ] **Step 3: Commit**
 
