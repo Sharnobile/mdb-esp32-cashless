@@ -114,7 +114,14 @@ final class RealtimeService: ObservableObject {
     }
 
     private func consumeActivity(_ stream: AsyncStream<InsertAction>) async {
-        for await _ in stream {
+        for await insert in stream {
+            // Only feed-rendered actions trigger a dashboard reload. Every sale
+            // also writes a sale_recorded activity row (mqtt-webhook) — without
+            // this filter each sale would reload the dashboard twice (sales
+            // stream + activity stream), and unrelated actions (stock_updated,
+            // credit_sent, …) would reload it too.
+            let action = insert.record["action"]?.stringValue
+            guard action == "stock_refill_tour" || action == "tour_started" else { continue }
             activityVersion += 1
             print("[Realtime] New activity_log entry detected")
         }
