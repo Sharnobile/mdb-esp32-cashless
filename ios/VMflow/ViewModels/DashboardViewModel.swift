@@ -49,6 +49,10 @@ final class DashboardViewModel: ObservableObject {
     /// to re-arm after every completed load.
     @Published private(set) var rawSourceRowCount = 0
 
+    /// True after a real (non-cancellation) load-more failure — the sentinel
+    /// renders a manual Retry row instead of a spinner until the next attempt.
+    @Published var loadMoreFailed = false
+
     /// user_id → display name cache for intake attribution (users table lookups).
     private var userNameCache: [UUID: String] = [:]
 
@@ -291,6 +295,9 @@ final class DashboardViewModel: ObservableObject {
 
         var groups = ActivityFeedBuilder.groupIntakes(intakeRows)
         let names = await resolveUserNames(for: groups.compactMap { $0.userId })
+        // resolveUserNames degrades failures (incl. cancellation) to empty results —
+        // re-check so a cancelled load dies cleanly instead of committing.
+        try Task.checkCancellation()
         for i in groups.indices {
             if let uid = groups[i].userId { groups[i].userDisplay = names[uid] }
         }
@@ -300,6 +307,7 @@ final class DashboardViewModel: ObservableObject {
         recentActivity = ActivityFeedBuilder.mergeFeed(
             sales: sales, activityRows: activityRows, intakeGroups: groups
         )
+        loadMoreFailed = false
 
         // Recovery: if a reload brought in more raw rows than before (e.g. realtime
         // delivery into the current window), un-exhaust the infinite scroll.
@@ -448,6 +456,7 @@ final class DashboardViewModel: ObservableObject {
         let nextDaysBack = previousDaysBack == 0 ? 6 : previousDaysBack + 7
 
         isLoadingMoreActivity = true
+        loadMoreFailed = false
         defer { isLoadingMoreActivity = false }
 
         let rawBefore = rawSourceRowCount
@@ -470,8 +479,11 @@ final class DashboardViewModel: ObservableObject {
             // lands here instead of the CancellationError case — same no-revert
             // treatment.
             if Task.isCancelled { return }
-            // Real server/network error: revert window so the sentinel retries.
+            // Real server/network error: revert the window so the retry re-fetches
+            // the same step; the sentinel switches to a manual Retry row (a plain
+            // spinner would sit idle — nothing re-fires its .task after a failure).
             activityDaysBack = previousDaysBack
+            loadMoreFailed = true
             self.error = error.localizedDescription
         }
     }

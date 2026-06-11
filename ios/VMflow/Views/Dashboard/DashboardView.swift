@@ -563,15 +563,28 @@ extension DashboardView {
                     // it while it is still on screen, even if all new rows merged
                     // into an existing boundary intake group.
                     if viewModel.hasMoreActivity && !viewModel.isLoading {
-                        HStack {
-                            Spacer()
-                            ProgressView()
-                                .controlSize(.small)
-                            Spacer()
-                        }
-                        .padding(.vertical, 12)
-                        .task(id: viewModel.rawSourceRowCount) {
-                            await viewModel.loadMoreRecentActivity()
+                        if viewModel.loadMoreFailed {
+                            // After a real load-more error nothing would re-fire the
+                            // sentinel's task — offer a manual retry like the old button.
+                            Button {
+                                Task { await viewModel.loadMoreRecentActivity() }
+                            } label: {
+                                Label(String(localized: "Retry"), systemImage: "arrow.clockwise")
+                                    .font(.subheadline)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                        } else {
+                            HStack {
+                                Spacer()
+                                ProgressView()
+                                    .controlSize(.small)
+                                Spacer()
+                            }
+                            .padding(.vertical, 12)
+                            .task(id: viewModel.rawSourceRowCount) {
+                                await viewModel.loadMoreRecentActivity()
+                            }
                         }
                     }
                 }
