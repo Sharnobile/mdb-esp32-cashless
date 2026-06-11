@@ -42,7 +42,7 @@ enum ActivityFeedItem: Identifiable {
 
 - `RefillActivity`: `id`, `createdAt`, `machineName`, `traysRefilled`, `totalAdded`, `userDisplay`, `tourId`, `products[] (name, quantity)`
 - `TourActivity`: `id`, `createdAt`, `userDisplay`, `machineCount`, `machineNames[]`, `warehouseName?`, `tourId`
-- `IntakeGroup`: synthetische `id`, `date` (= jüngste Transaktion der Gruppe), `userDisplay`, `warehouseName?`, `productCount` (distinct Produkte), `totalUnits` (Σ `quantity_change`), `products[] (name, quantity)`
+- `IntakeGroup`: deterministische `id` (= ID der ältesten Transaktion der Gruppe — stabil über Reloads, damit Aufklapp-Zustand und LazyVStack-Identität nicht springen), `date` (= jüngste Transaktion der Gruppe), `userDisplay`, `warehouseName?`, `productCount` (distinct Produkte), `totalUnits` (Σ `quantity_change`), `products[] (name, quantity)`
 
 Metadaten-Decodierung des `activity_log` erfolgt tolerant (fehlende Felder → Fallbacks), da alte Einträge weniger Felder haben können.
 
@@ -60,16 +60,18 @@ Metadaten-Decodierung des `activity_log` erfolgt tolerant (fehlende Felder → F
 
 **Merge:** Alle Quellen → `[ActivityFeedItem]`, absteigend nach `date`, publiziert als `recentActivity` (ersetzt `recentSales` als View-Quelle; `recentSales` kann intern bestehen bleiben).
 
-**Erschöpfung (`hasMoreSales` → `hasMoreActivity`):** Wie heute, aber über die **gesamte** Merge-Anzahl: liefert ein um 7 Tage erweitertes Fenster dieselbe Item-Anzahl, ist die Historie erschöpft. Recovery bei Realtime-Zuwachs bleibt erhalten.
+**Erschöpfung (`hasMoreSales` → `hasMoreActivity`):** Wie heute per Anzahl-Vergleich, aber über die Summe der **rohen Quell-Zeilen** (Sales + activity_log-Zeilen + Transaktions-Zeilen), nicht über die gemergte Item-Anzahl — neue Transaktionen, die in eine bestehende Rand-`IntakeGroup` einfließen, würden die Merge-Anzahl sonst unverändert lassen und fälschlich „erschöpft" signalisieren. Recovery bei Realtime-Zuwachs bleibt erhalten.
+
+**Fehlerverhalten:** Wie heute — schlägt eine der drei Quellen fehl, schlägt der gesamte Load fehl (Fenster-Revert + `error`, bestehendes Muster). Kein Degradieren auf Sales-only.
 
 ## 3. Neue Schreibpfade
 
 ### 3.1 `tour_started`-Event (iOS + PWA)
 
-Geschrieben unmittelbar nachdem die `tour_id` erzeugt wurde — genau einmal pro Tour (Resume einer gespeicherten Tour schreibt nicht erneut):
+Geschrieben in `startTour()`, aber erst **nachdem die Lager-Ausbuchungen erfolgreich waren** (also wenn die Tour tatsächlich in den Refill-Schritt übergeht) — sonst stünde bei einem Ausbuchungs-Fehler ein verwaister „Tour gestartet"-Eintrag im Feed. Genau einmal pro Tour: der Resume-Pfad einer gespeicherten Tour ruft `startTour()` nicht erneut auf.
 
-- **iOS:** in `RefillWizardViewModel.startTour()` nach `tourId = UUID().uuidString`. Die bestehende `writeActivityLog`-Hilfsfunktion wird generalisiert (machineId optional), Schreiben non-blocking wie bisher.
-- **PWA:** in `useRefillWizard.startTour()` nach der `tourId`-Generierung, Insert in `activity_log` nach dem Muster der bestehenden Refill-Inserts.
+- **iOS:** in `RefillWizardViewModel.startTour()` nach erfolgreichem `deductWarehouseStock`. Die bestehende `writeActivityLog`-Hilfsfunktion wird generalisiert (machineId optional), Schreiben non-blocking wie bisher.
+- **PWA:** in `useRefillWizard.startTour()` nach erfolgreichen Deductions, Insert in `activity_log` nach dem Muster der bestehenden Refill-Inserts.
 
 Eintragsformat:
 
@@ -136,5 +138,5 @@ Neue Keys in `Localizable.xcstrings` (en + de), u. a.: "Recent Activity"/„Letz
 
 ## 9. Tests / Verifikation
 
-- **PWA:** Vitest-Abdeckung für das `tour_started`-Payload-Format (sofern als reine Helper-Funktion extrahierbar) — ansonsten manuelle Verifikation; bestehende `useDeals`/Composable-Test-Muster wiederverwenden.
+- **PWA:** Der `tour_started`-Payload-Builder wird als reine Helper-Funktion extrahiert und per Vitest getestet (bestehende Composable-Test-Muster wiederverwenden).
 - **iOS:** Es existiert kein Unit-Test-Target; Merge- und Gruppierungslogik (Intake-Sessions, Erschöpfungslogik) als reine, von SwiftUI unabhängige Funktionen im ViewModel strukturieren. Verifikation manuell: Build + Simulator (Feed mit Bestandsdaten rückwirkend prüfen, Tour starten → Live-Eintrag, Einbuchung → nach Refresh sichtbar, Scrollen lädt Fenster nach, Erschöpfung beendet das Nachladen).
