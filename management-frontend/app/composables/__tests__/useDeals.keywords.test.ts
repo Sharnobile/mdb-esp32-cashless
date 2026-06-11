@@ -92,3 +92,33 @@ describe('useDeals — keywords', () => {
     expect(linkCalls.length).toBeGreaterThanOrEqual(2) // one delete + one insert
   })
 })
+
+describe('useDeals — enable toggle', () => {
+  it('seeds the daily refresh hour to 06:00 when deals are first enabled', () => {
+    const { dealsEnabled, dealsRefreshHour, setDealsEnabled } = useDeals()
+    expect(dealsRefreshHour.value).toBeNull()
+
+    setDealsEnabled(true)
+
+    expect(dealsEnabled.value).toBe(true)
+    expect(dealsRefreshHour.value).toBe(6)
+  })
+
+  it('never overwrites an auto-refresh hour the user already chose', () => {
+    const { dealsRefreshHour, setDealsEnabled } = useDeals()
+    dealsRefreshHour.value = 14 // user picked 14:00
+
+    setDealsEnabled(true)
+
+    expect(dealsRefreshHour.value).toBe(14)
+  })
+
+  it('leaves the hour untouched when disabling deals', () => {
+    const { dealsRefreshHour, setDealsEnabled } = useDeals()
+    dealsRefreshHour.value = 9
+
+    setDealsEnabled(false)
+
+    expect(dealsRefreshHour.value).toBe(9)
+  })
+})

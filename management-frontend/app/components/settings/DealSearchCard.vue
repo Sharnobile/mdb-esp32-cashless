@@ -9,6 +9,7 @@ const { organization, role } = useOrganization()
 // ── Deal Search (admin only) ────────────────────────────────────────────────
 const {
   dealsEnabled,
+  setDealsEnabled,
   dealsZipCode,
   dealsRefreshHour,
   dealsConfig,
@@ -84,7 +85,7 @@ watch(() => organization.value?.id, (id) => {
         </div>
         <Switch
           :checked="dealsEnabled"
-          @update:checked="dealsEnabled = $event"
+          @update:checked="setDealsEnabled"
         />
       </div>
 

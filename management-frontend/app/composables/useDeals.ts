@@ -264,6 +264,24 @@ export function useDeals() {
     }
   }
 
+  // Hour the daily auto-refresh defaults to the first time deals are switched
+  // on. 06:00 (company timezone) refreshes the cache before business hours.
+  const DEFAULT_DEALS_REFRESH_HOUR = 6
+
+  /**
+   * Toggle the deals feature. When switching ON, seed the daily auto-refresh
+   * hour if it isn't set yet — so enabling deals "just works" with automatic
+   * refresh, mirroring the Marktguru provider auto-seed in saveSettings().
+   * Only fills an unset hour, so a deliberate "Off" on an already-enabled
+   * account is never overwritten.
+   */
+  function setDealsEnabled(enabled: boolean) {
+    dealsEnabled.value = enabled
+    if (enabled && dealsRefreshHour.value == null) {
+      dealsRefreshHour.value = DEFAULT_DEALS_REFRESH_HOUR
+    }
+  }
+
   async function saveSettings() {
     settingsError.value = ''
     settingsSuccess.value = ''
@@ -707,6 +725,7 @@ export function useDeals() {
     lastFetchedAt,
     noProviders,
     dealsEnabled,
+    setDealsEnabled,
     dealsZipCode,
     dealsRefreshHour,
     dealsConfig,
