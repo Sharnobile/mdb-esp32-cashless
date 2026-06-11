@@ -13,7 +13,6 @@ struct MachineDetailView: View {
     @State private var showBatchSheet = false
     @State private var editingTray: Tray?
     @State private var selectedProduct: ProductSelection?
-    @State private var showRestoreConfirm = false
     @State private var rowToRestore: SuppressedSale?
     @EnvironmentObject private var realtime: RealtimeService
     @EnvironmentObject private var auth: AuthService
@@ -60,21 +59,6 @@ struct MachineDetailView: View {
                 suppressedTab.tag(2)
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
-            .confirmationDialog(
-                "Take up as real sale?",
-                isPresented: $showRestoreConfirm,
-                titleVisibility: .visible
-            ) {
-                Button("Take up as sale") {
-                    if let sale = rowToRestore {
-                        Task { await viewModel.restoreSuppressed(sale.id) }
-                    }
-                    rowToRestore = nil
-                }
-                Button("Cancel", role: .cancel) { rowToRestore = nil }
-            } message: {
-                Text("Adds a real sale and reduces stock by 1.")
-            }
         }
         .navigationTitle(machine.displayName)
         .navigationBarTitleDisplayMode(.inline)
@@ -357,16 +341,19 @@ struct MachineDetailView: View {
                                         .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
                                         .listRowBackground(Color.clear)
                                         .listRowSeparator(.hidden)
-                                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                        // Long press instead of swipe: the paging TabView's
+                                        // horizontal pan swallows trailing swipe actions.
+                                        .contextMenu {
                                             if isAdmin {
                                                 Button {
                                                     rowToRestore = s
-                                                    showRestoreConfirm = true
                                                 } label: {
                                                     Label("Take up as sale", systemImage: "checkmark.circle")
                                                 }
-                                                .tint(.green)
                                             }
+                                        }
+                                        .restoreSaleDialog(for: s, selection: $rowToRestore) { sale in
+                                            Task { await viewModel.restoreSuppressed(sale.id) }
                                         }
                                 }
                             }
@@ -438,16 +425,19 @@ struct MachineDetailView: View {
                                         .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
                                         .listRowBackground(Color.clear)
                                         .listRowSeparator(.hidden)
-                                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                        // Long press instead of swipe — same interaction as the
+                                        // suppressed rows in the Sales tab.
+                                        .contextMenu {
                                             if isAdmin {
                                                 Button {
                                                     rowToRestore = sale
-                                                    showRestoreConfirm = true
                                                 } label: {
                                                     Label("Take up as sale", systemImage: "checkmark.circle")
                                                 }
-                                                .tint(.green)
                                             }
+                                        }
+                                        .restoreSaleDialog(for: sale, selection: $rowToRestore) { sale in
+                                            Task { await viewModel.restoreSuppressed(sale.id) }
                                         }
                                 }
                             } header: {
@@ -821,6 +811,37 @@ struct DaySectionHeader: View {
         .padding(.vertical, 8)
         .padding(.horizontal, 4)
         .background(.bar)
+    }
+}
+
+// MARK: - Restore Confirmation Dialog
+
+private extension View {
+    /// Per-row "take up as sale" confirmation. Attached to the pressed row (not a
+    /// shared ancestor) so the iPad popover anchors at the item instead of the
+    /// top edge of the list.
+    func restoreSaleDialog(
+        for sale: SuppressedSale,
+        selection: Binding<SuppressedSale?>,
+        onConfirm: @escaping (SuppressedSale) -> Void
+    ) -> some View {
+        confirmationDialog(
+            "Take up as real sale?",
+            isPresented: Binding(
+                get: { selection.wrappedValue?.id == sale.id },
+                set: { presented in
+                    if !presented && selection.wrappedValue?.id == sale.id {
+                        selection.wrappedValue = nil
+                    }
+                }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Take up as sale") { onConfirm(sale) }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Adds a real sale and reduces stock by 1.")
+        }
     }
 }
 
