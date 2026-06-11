@@ -1,7 +1,7 @@
 import Foundation
 import Supabase
 
-/// Drives the Dashboard view with KPIs, 30-day chart data, and recent sales.
+/// Drives the Dashboard view with KPIs, 30-day chart data, and the recent-activity feed.
 @MainActor
 final class DashboardViewModel: ObservableObject {
     // MARK: - Published State
@@ -26,19 +26,31 @@ final class DashboardViewModel: ObservableObject {
     @Published var newDealsCount: Int = 0
 
     @Published var dailySales: [DailySales] = []
-    @Published var recentSales: [SaleWithMachine] = []
+    /// Merged dashboard timeline: sales + refills + tour starts + intake sessions.
+    @Published var recentActivity: [ActivityFeedItem] = []
 
-    /// Number of days back from start_of_today the recent-sales window covers.
-    /// 0 = today only; 6 = last 7 days; 13 = last 14 days; 7N−1 after N "load more" taps.
-    @Published var recentSalesDaysBack: Int = 0
+    /// Number of days back from start_of_today the activity window covers.
+    /// 0 = today only; 6 = last 7 days; 13 = last 14 days; 7N−1 after N expansions.
+    @Published var activityDaysBack: Int = 0
 
-    /// Becomes false when a "load more" tap returns no additional sales (history exhausted).
-    /// Resets to true whenever a window-respecting reload brings in more sales than before
+    /// Becomes false when widening the window brings no additional source rows
+    /// (history exhausted). Resets to true when a reload brings in more rows
     /// (e.g. realtime delivery into the current window).
-    @Published var hasMoreSales: Bool = true
+    @Published var hasMoreActivity: Bool = true
 
-    /// True while a `loadMoreRecentSales` fetch is in flight — drives the button spinner.
-    @Published var isLoadingMoreSales: Bool = false
+    /// True while an infinite-scroll fetch is in flight — drives the sentinel spinner.
+    @Published var isLoadingMoreActivity: Bool = false
+
+    /// Raw source-row count (sales + activity rows + intake transactions) of the
+    /// last load. Exhaustion compares RAW rows, not merged items — new transactions
+    /// merging into an existing boundary IntakeGroup would otherwise leave the
+    /// merged count unchanged and falsely signal "exhausted" (spec §2). Published
+    /// (read-only) because the infinite-scroll sentinel keys its `.task(id:)` on it
+    /// to re-arm after every completed load.
+    @Published private(set) var rawSourceRowCount = 0
+
+    /// user_id → display name cache for intake attribution (users table lookups).
+    private var userNameCache: [UUID: String] = [:]
 
     @Published var isLoading = false
     @Published var error: String?
@@ -71,7 +83,7 @@ final class DashboardViewModel: ObservableObject {
             async let salesTask: () = loadSalesKPIs()
             async let machinesTask: () = loadMachineStats()
             async let chartTask: () = loadDailyChart()
-            async let recentTask: () = loadRecentSales()
+            async let recentTask: () = loadRecentActivity()
             async let newDealsTask: () = loadNewDealsCount()
 
             _ = try await (salesTask, machinesTask, chartTask, recentTask, newDealsTask)
@@ -256,23 +268,54 @@ final class DashboardViewModel: ObservableObject {
             .sorted { $0.date < $1.date }
     }
 
-    // MARK: - Recent Sales
+    // MARK: - Recent Activity (sales + refills + tour starts + intakes)
 
-    private func loadRecentSales() async throws {
-        // Compute window start: start_of_today − recentSalesDaysBack days.
-        // daysBack=0 → start_of_today (only today's sales since midnight, NOT last 24h).
+    private func loadRecentActivity() async throws {
+        // Window start: start_of_today − activityDaysBack days.
+        // daysBack=0 → start_of_today (only today's events since midnight, NOT last 24h).
         let calendar = Calendar.current
         let startOfToday = calendar.startOfDay(for: Date())
-        let windowStart = calendar.date(byAdding: .day, value: -recentSalesDaysBack, to: startOfToday)!
+        let windowStart = calendar.date(byAdding: .day, value: -activityDaysBack, to: startOfToday)!
 
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let windowStartString = formatter.string(from: windowStart)
 
+        // All three sources fail-or-succeed together (spec §2: no sales-only degrade).
+        async let salesTask = fetchRecentSaleItems(windowStartString: windowStartString)
+        async let activityTask = fetchActivityRows(windowStartString: windowStartString)
+        async let intakeTask = fetchIntakeRows(windowStartString: windowStartString)
+        let (sales, rawSalesCount) = try await salesTask
+        let activityRows = try await activityTask
+        let intakeRows = try await intakeTask
+
+        var groups = ActivityFeedBuilder.groupIntakes(intakeRows)
+        let names = await resolveUserNames(for: groups.compactMap { $0.userId })
+        for i in groups.indices {
+            if let uid = groups[i].userId { groups[i].userDisplay = names[uid] }
+        }
+
+        let rawBefore = rawSourceRowCount
+        rawSourceRowCount = rawSalesCount + activityRows.count + intakeRows.count
+        recentActivity = ActivityFeedBuilder.mergeFeed(
+            sales: sales, activityRows: activityRows, intakeGroups: groups
+        )
+
+        // Recovery: if a reload brought in more raw rows than before (e.g. realtime
+        // delivery into the current window), un-exhaust the infinite scroll.
+        if rawSourceRowCount > rawBefore {
+            hasMoreActivity = true
+        }
+    }
+
+    /// Existing recent-sales pipeline, unchanged: sales + machine names + product
+    /// fallback via trays. Returns the display items plus the raw row count.
+    private func fetchRecentSaleItems(windowStartString: String) async throws -> ([SaleWithMachine], Int) {
         // Fetch sales with snapshotted product via FK join.
         let sales: [Sale] = try await client
             .from("sales")
             .select("id, created_at, item_price, item_number, machine_id, embedded_id, channel, product_id, products(name, image_path)")
-            .gte("created_at", value: formatter.string(from: windowStart))
+            .gte("created_at", value: windowStartString)
             .order("created_at", ascending: false)
             .execute()
             .value
@@ -313,8 +356,7 @@ final class DashboardViewModel: ObservableObject {
             }
         }
 
-        let countBefore = recentSales.count
-        recentSales = sales.map { sale in
+        let items = sales.map { sale in
             let machineName = sale.machineId.flatMap { machineNames[$0] }
 
             // Prefer snapshotted product from FK join, fallback to tray lookup
@@ -329,42 +371,107 @@ final class DashboardViewModel: ObservableObject {
 
             return SaleWithMachine(sale: sale, machineName: machineName, productName: productName, productImagePath: productImagePath)
         }
-
-        // Recovery: if a reload brought in more sales than before (e.g. realtime delivery
-        // into the current window), un-exhaust the load-more button.
-        if recentSales.count > countBefore {
-            hasMoreSales = true
-        }
+        return (items, sales.count)
     }
 
-    // MARK: - Load More
+    /// Refill + tour-start rows. RLS scopes to the user's company.
+    private func fetchActivityRows(windowStartString: String) async throws -> [ActivityLogRow] {
+        try await client
+            .from("activity_log")
+            .select("id, created_at, action, metadata")
+            .in("action", values: ["stock_refill_tour", "tour_started"])
+            .gte("created_at", value: windowStartString)
+            .order("created_at", ascending: false)
+            .execute()
+            .value
+    }
 
-    /// Expand the recent-sales window: today (1 day) → 7 days → 14 days → 21 days → …
-    /// Each tap adds 7 more days; first tap jumps from 1 to 7 (i.e. +6 days).
-    func loadMoreRecentSales() async {
-        guard !isLoadingMoreSales, hasMoreSales else { return }
+    /// Incoming warehouse transactions with product/warehouse names joined.
+    /// Both type strings are read: the PWA books intakes as 'incoming', the
+    /// iOS app as 'intake' (pre-existing cross-client divergence).
+    private func fetchIntakeRows(windowStartString: String) async throws -> [IntakeTransactionRow] {
+        try await client
+            .from("warehouse_transactions")
+            .select("id, created_at, warehouse_id, user_id, quantity_change, products(name), warehouses(name)")
+            .in("transaction_type", values: ["incoming", "intake"])
+            .gte("created_at", value: windowStartString)
+            .order("created_at", ascending: true)
+            .execute()
+            .value
+    }
 
-        let previousDaysBack = recentSalesDaysBack
+    /// Resolve display names for intake attribution. The users-table FK points
+    /// to auth.users, so PostgREST can't embed it — same lookup pattern as
+    /// ProductDetailSheet. Failures degrade to no name (non-critical).
+    private func resolveUserNames(for ids: [UUID]) async -> [UUID: String] {
+        struct UserRow: Decodable {
+            let id: UUID
+            let firstName: String?
+            let lastName: String?
+            let email: String?
+            enum CodingKeys: String, CodingKey {
+                case id, email
+                case firstName = "first_name"
+                case lastName = "last_name"
+            }
+        }
+
+        let missing = Array(Set(ids.filter { userNameCache[$0] == nil }))
+        if !missing.isEmpty {
+            let rows: [UserRow] = (try? await client
+                .from("users")
+                .select("id, first_name, last_name, email")
+                .in("id", values: missing.map { $0.uuidString })
+                .execute()
+                .value) ?? []
+            for u in rows {
+                let full = [u.firstName, u.lastName].compactMap { $0 }
+                    .filter { !$0.isEmpty }.joined(separator: " ")
+                userNameCache[u.id] = full.isEmpty ? (u.email ?? String(u.id.uuidString.prefix(8))) : full
+            }
+        }
+
+        var out: [UUID: String] = [:]
+        for id in ids { out[id] = userNameCache[id] }
+        return out
+    }
+
+    // MARK: - Load More (infinite scroll)
+
+    /// Expand the activity window: today (1 day) → 7 days → 14 days → 21 days → …
+    /// Triggered by the feed's bottom sentinel. Each call adds 7 more days;
+    /// the first jumps from 1 to 7 (i.e. +6 days).
+    func loadMoreRecentActivity() async {
+        guard !isLoadingMoreActivity, !isLoading, hasMoreActivity else { return }
+
+        let previousDaysBack = activityDaysBack
         let nextDaysBack = previousDaysBack == 0 ? 6 : previousDaysBack + 7
 
-        isLoadingMoreSales = true
-        defer { isLoadingMoreSales = false }
+        isLoadingMoreActivity = true
+        defer { isLoadingMoreActivity = false }
 
-        let countBefore = recentSales.count
-        recentSalesDaysBack = nextDaysBack
+        let rawBefore = rawSourceRowCount
+        activityDaysBack = nextDaysBack
 
         do {
-            try await loadRecentSales()
-            // If the wider window returned the exact same number of sales, history is exhausted.
-            if recentSales.count == countBefore {
-                hasMoreSales = false
+            try await loadRecentActivity()
+            // Same raw row count in a wider window → history exhausted.
+            if rawSourceRowCount == rawBefore {
+                hasMoreActivity = false
             }
         } catch is CancellationError {
-            // Refresh cancellation: revert window so a follow-up tap retries cleanly.
-            recentSalesDaysBack = previousDaysBack
+            // Cancelled (sentinel unmounted by a concurrent dashboard reload, or
+            // scrolled far away). Do NOT revert the window: a concurrent
+            // loadDashboard already read the widened value — reverting would make
+            // the sentinel re-fetch the same window and falsely flag "exhausted".
+            // A scroll-away cancel merely skips one 7-day step on the next fire.
         } catch {
-            // Server/network error: revert window so a follow-up tap retries.
-            recentSalesDaysBack = previousDaysBack
+            // URLSession can surface cancellation as URLError(.cancelled), which
+            // lands here instead of the CancellationError case — same no-revert
+            // treatment.
+            if Task.isCancelled { return }
+            // Real server/network error: revert window so the sentinel retries.
+            activityDaysBack = previousDaysBack
             self.error = error.localizedDescription
         }
     }

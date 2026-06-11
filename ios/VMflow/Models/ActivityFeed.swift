@@ -51,7 +51,7 @@ struct ActivityProductLine: Decodable, Equatable {
     }
 }
 
-/// Row from `warehouse_transactions` (transaction_type = 'incoming') with
+/// Row from `warehouse_transactions` (transaction_type 'incoming'/'intake') with
 /// FK-joined product and warehouse names.
 struct IntakeTransactionRow: Decodable, Equatable {
     let id: UUID

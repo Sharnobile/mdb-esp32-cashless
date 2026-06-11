@@ -1,7 +1,7 @@
 import SwiftUI
 import Charts
 
-/// Main dashboard with KPIs, 30-day chart, recent sales, and quick actions.
+/// Main dashboard with KPIs, 30-day chart, recent activity, and quick actions.
 struct DashboardView: View {
     var onNavigate: (SidebarItem) -> Void = { _ in }
     @EnvironmentObject var auth: AuthService
@@ -18,6 +18,9 @@ struct DashboardView: View {
     /// Push CashBookView when the cash-book tile is tapped.
     @State private var showCashBook = false
 
+    /// Feed rows (refill/tour/intake) whose detail list is expanded.
+    @State private var expandedActivityIds: Set<String> = []
+
     struct ProductSelection: Identifiable {
         let id: UUID
         let name: String
@@ -26,7 +29,7 @@ struct DashboardView: View {
     }
 
     private var realtimeVersion: Int {
-        realtime.salesVersion + realtime.machinesVersion + realtime.embeddedVersion
+        realtime.salesVersion + realtime.machinesVersion + realtime.embeddedVersion + realtime.activityVersion
     }
 
     var body: some View {
@@ -43,8 +46,8 @@ struct DashboardView: View {
                 // 30-Day Chart
                 chartSection
 
-                // Recent Sales
-                recentSalesSection
+                // Recent Activity
+                recentActivitySection
             }
             .padding(.horizontal)
             .padding(.bottom, 20)
@@ -515,44 +518,63 @@ extension DashboardView {
         }
     }
 
-    // MARK: - Recent Sales
+    // MARK: - Recent Activity
 
-    private var recentSalesSection: some View {
+    private var recentActivitySection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Recent Sales")
+            Text("Recent Activity")
                 .font(.headline)
 
-            if viewModel.recentSales.isEmpty && !viewModel.isLoading {
-                Text("No recent sales")
+            // Terminal empty state ONLY when history is exhausted — an empty
+            // window with hasMoreActivity still true must render the sentinel
+            // below, otherwise older history would be permanently unreachable
+            // (the old "Load more" button rendered even when today was empty).
+            if viewModel.recentActivity.isEmpty && !viewModel.isLoading && !viewModel.hasMoreActivity {
+                Text("No recent activity")
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.vertical, 20)
             } else {
-                let grouped = groupDashboardSalesByDay(viewModel.recentSales)
+                let grouped = groupFeedItemsByDay(viewModel.recentActivity)
                 // LazyVStack: only the rows visible in the ScrollView's viewport are
                 // instantiated. Without it, large windows (e.g. 21+ days) render
-                // hundreds of RecentSaleRows eagerly, each spawning an AsyncImage
+                // hundreds of rows eagerly, each spawning an AsyncImage
                 // HTTP request — iOS kills the app under memory pressure.
                 LazyVStack(alignment: .leading, spacing: 12) {
                     ForEach(grouped, id: \.date) { group in
-                        DaySectionHeader(label: dayLabel(for: group.date), count: group.sales.count)
-                        ForEach(group.sales) { item in
-                            RecentSaleRow(item: item) {
-                                guard let pid = item.sale.productId else { return }
-                                selectedProduct = ProductSelection(
-                                    id: pid,
-                                    name: item.productName ?? "Item #\(item.sale.itemNumber ?? 0)",
-                                    imagePath: item.productImagePath,
-                                    sellprice: item.sale.itemPrice
-                                )
-                            }
+                        DaySectionHeader(
+                            label: dayLabel(for: group.date),
+                            count: group.items.count,
+                            unit: String(localized: "entries")
+                        )
+                        ForEach(group.items) { item in
+                            feedRow(for: item)
+                        }
+                    }
+
+                    // Infinite-scroll sentinel: when it becomes visible the next
+                    // window loads. Hidden during full dashboard loads so the
+                    // initial load and a window expansion never run concurrently
+                    // (loadDashboard doesn't set isLoadingMoreActivity, so the
+                    // loadMore guard alone wouldn't cover that race) — and each
+                    // completed dashboard load re-inserts the sentinel, whose
+                    // fresh .task fires on appearance (auto-fill on short feeds).
+                    // Keyed on the RAW row count so a completed expansion re-arms
+                    // it while it is still on screen, even if all new rows merged
+                    // into an existing boundary intake group.
+                    if viewModel.hasMoreActivity && !viewModel.isLoading {
+                        HStack {
+                            Spacer()
+                            ProgressView()
+                                .controlSize(.small)
+                            Spacer()
+                        }
+                        .padding(.vertical, 12)
+                        .task(id: viewModel.rawSourceRowCount) {
+                            await viewModel.loadMoreRecentActivity()
                         }
                     }
                 }
-            }
-
-            if viewModel.hasMoreSales {
-                loadMoreButton
             }
         }
         .padding(16)
@@ -563,37 +585,89 @@ extension DashboardView {
         }
     }
 
-    private var loadMoreButton: some View {
-        // Days the *next* tap would show. Current visible window = recentSalesDaysBack + 1 days
-        // (since daysBack counts back from today inclusive). Each tap adds +7 days, except the
-        // very first which goes 1 → 7 (i.e. +6 days).
-        let nextDaysTotal: Int = {
-            if viewModel.recentSalesDaysBack == 0 { return 7 }
-            return (viewModel.recentSalesDaysBack + 1) + 7
-        }()
-
-        return VStack(spacing: 4) {
-            Button {
-                Task { await viewModel.loadMoreRecentSales() }
-            } label: {
-                HStack(spacing: 6) {
-                    if viewModel.isLoadingMoreSales {
-                        ProgressView().controlSize(.small)
-                    } else {
-                        Image(systemName: "arrow.down.circle")
-                    }
-                    Text("Load more")
-                }
+    @ViewBuilder
+    private func feedRow(for item: ActivityFeedItem) -> some View {
+        switch item {
+        case .sale(let saleItem):
+            RecentSaleRow(item: saleItem) {
+                guard let pid = saleItem.sale.productId else { return }
+                selectedProduct = ProductSelection(
+                    id: pid,
+                    name: saleItem.productName ?? "Item #\(saleItem.sale.itemNumber ?? 0)",
+                    imagePath: saleItem.productImagePath,
+                    sellprice: saleItem.sale.itemPrice
+                )
             }
-            .buttonStyle(.bordered)
-            .disabled(viewModel.isLoadingMoreSales)
 
-            Text("Show last \(nextDaysTotal) days")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+        case .machineRefilled(let refill):
+            ActivityEventRow(
+                icon: "shippingbox.fill",
+                tint: .green,
+                title: refill.machineName,
+                subtitle: refillSubtitle(refill),
+                date: refill.createdAt,
+                detailLines: refill.products.map { "\($0.quantity)× \($0.name)" },
+                isExpanded: expandedActivityIds.contains(item.id),
+                onToggle: { toggleExpanded(item.id) }
+            )
+
+        case .tourStarted(let tour):
+            ActivityEventRow(
+                icon: "figure.walk",
+                tint: .indigo,
+                title: String(localized: "Tour started"),
+                subtitle: tourSubtitle(tour),
+                date: tour.createdAt,
+                detailLines: tour.machineNames,
+                isExpanded: expandedActivityIds.contains(item.id),
+                onToggle: { toggleExpanded(item.id) }
+            )
+
+        case .stockIntake(let intake):
+            ActivityEventRow(
+                icon: "tray.and.arrow.down.fill",
+                tint: .orange,
+                title: String(localized: "Stock intake"),
+                subtitle: intakeSubtitle(intake),
+                date: intake.date,
+                detailLines: intake.products.map { "\($0.quantity)× \($0.name)" },
+                isExpanded: expandedActivityIds.contains(item.id),
+                onToggle: { toggleExpanded(item.id) }
+            )
         }
-        .frame(maxWidth: .infinity)
-        .padding(.top, 8)
+    }
+
+    private func toggleExpanded(_ id: String) {
+        if expandedActivityIds.contains(id) {
+            expandedActivityIds.remove(id)
+        } else {
+            expandedActivityIds.insert(id)
+        }
+    }
+
+    private func refillSubtitle(_ refill: RefillActivity) -> String {
+        var parts: [String] = []
+        if let user = refill.userDisplay {
+            parts.append(String(localized: "Filled by \(user)"))
+        }
+        parts.append(String(localized: "\(refill.totalAdded) items"))
+        return parts.joined(separator: " · ")
+    }
+
+    private func tourSubtitle(_ tour: TourActivity) -> String {
+        var parts: [String] = []
+        if let user = tour.userDisplay { parts.append(user) }
+        parts.append(String(localized: "\(tour.machineCount) machines"))
+        if let wh = tour.warehouseName { parts.append(wh) }
+        return parts.joined(separator: " · ")
+    }
+
+    private func intakeSubtitle(_ intake: IntakeGroup) -> String {
+        var parts: [String] = []
+        if let user = intake.userDisplay { parts.append(user) }
+        parts.append(String(localized: "\(intake.productCount) products"))
+        if let wh = intake.warehouseName { parts.append(wh) }
+        return parts.joined(separator: " · ")
     }
 
     // MARK: - Helpers
@@ -661,18 +735,18 @@ extension DashboardView {
 
     // MARK: - Day Grouping Helpers
 
-    private struct DashboardDayGroup {
+    private struct FeedDayGroup {
         let date: Date
-        let sales: [SaleWithMachine]
+        let items: [ActivityFeedItem]
     }
 
-    private func groupDashboardSalesByDay(_ sales: [SaleWithMachine]) -> [DashboardDayGroup] {
+    private func groupFeedItemsByDay(_ items: [ActivityFeedItem]) -> [FeedDayGroup] {
         let calendar = Calendar.current
-        let grouped = Dictionary(grouping: sales) { item in
-            calendar.startOfDay(for: item.sale.createdAt)
+        let grouped = Dictionary(grouping: items) { item in
+            calendar.startOfDay(for: item.date)
         }
         return grouped.keys.sorted(by: >).map { date in
-            DashboardDayGroup(date: date, sales: grouped[date]!.sorted { $0.sale.createdAt > $1.sale.createdAt })
+            FeedDayGroup(date: date, items: grouped[date]!.sorted { $0.date > $1.date })
         }
     }
 
@@ -724,6 +798,83 @@ struct RecentSaleRow: View {
         }
         .contentShape(Rectangle())
         .onTapGesture { onTap() }
+    }
+
+    private func formatTime(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm:ss"
+        return formatter.string(from: date)
+    }
+}
+
+// MARK: - Activity Event Row
+
+/// Non-sale feed row: tinted icon circle, title, subtitle, time — visually in
+/// rhythm with RecentSaleRow. Tapping toggles an inline detail list (products
+/// or machine names); rows without details don't react.
+struct ActivityEventRow: View {
+    let icon: String
+    let tint: Color
+    let title: String
+    let subtitle: String
+    let date: Date
+    let detailLines: [String]
+    let isExpanded: Bool
+    var onToggle: () -> Void = {}
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(tint.opacity(0.15))
+                        .frame(width: 36, height: 36)
+                    Image(systemName: icon)
+                        .font(.subheadline)
+                        .foregroundStyle(tint)
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title)
+                        .font(.subheadline.weight(.medium))
+                        .lineLimit(1)
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+
+                Spacer()
+
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(formatTime(date))
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                    if !detailLines.isEmpty {
+                        Image(systemName: "chevron.down")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                            .rotationEffect(.degrees(isExpanded ? 180 : 0))
+                    }
+                }
+            }
+
+            if isExpanded && !detailLines.isEmpty {
+                VStack(alignment: .leading, spacing: 3) {
+                    ForEach(detailLines, id: \.self) { line in
+                        Text(line)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(.leading, 48)
+            }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            guard !detailLines.isEmpty else { return }
+            withAnimation(.snappy(duration: 0.2)) { onToggle() }
+        }
     }
 
     private func formatTime(_ date: Date) -> String {
