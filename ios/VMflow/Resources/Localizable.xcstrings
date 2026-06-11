@@ -270,6 +270,16 @@
         }
       }
     },
+    "%lld items" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld Artikel"
+          }
+        }
+      }
+    },
     "%lld items still in machine" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -299,6 +309,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld Niedrig"
+          }
+        }
+      }
+    },
+    "%lld machines" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld Automaten"
           }
         }
       }
@@ -2030,6 +2050,16 @@
         }
       }
     },
+    "entries" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einträge"
+          }
+        }
+      }
+    },
     "Error" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2091,6 +2121,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Auffüllen unter: %lld"
+          }
+        }
+      }
+    },
+    "Filled by %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gefüllt von %@"
           }
         }
       }
@@ -2734,6 +2774,16 @@
         }
       }
     },
+    "No recent activity" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine Aktivität"
+          }
+        }
+      }
+    },
     "No recent sales" : {
       "localizations" : {
         "de" : {
@@ -3139,6 +3189,16 @@
         }
       }
     },
+    "Recent Activity" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Letzte Aktivität"
+          }
+        }
+      }
+    },
     "Recent Intakes" : {
       "localizations" : {
         "de" : {
@@ -3276,6 +3336,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Prüfen"
+          }
+        }
+      }
+    },
+    "Retry" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erneut versuchen"
           }
         }
       }
@@ -3714,6 +3784,16 @@
         }
       }
     },
+    "Stock intake" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ware eingebucht"
+          }
+        }
+      }
+    },
     "Suggested images" : {
       "localizations" : {
         "de" : {
@@ -3882,6 +3962,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tour abgeschlossen!"
+          }
+        }
+      }
+    },
+    "Tour started" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tour gestartet"
           }
         }
       }
