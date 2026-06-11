@@ -104,6 +104,47 @@ export function clearSavedTourState(): void {
   try { localStorage.removeItem(STORAGE_KEY) } catch { /* ignore */ }
 }
 
+// ── tour_started activity payload ──────────────────────────────────────────
+
+export interface TourStartedEntryInput {
+  companyId: string | null | undefined
+  user: { id?: string; email?: string | null; user_metadata?: Record<string, unknown> } | null
+  tourId: string
+  machines: { id: string; name: string }[]
+  warehouseId: string | null
+  warehouseName: string | null
+}
+
+/**
+ * Build the `activity_log` insert payload for a tour start (spec:
+ * docs/superpowers/specs/2026-06-11-ios-dashboard-activity-feed-design.md §3.1).
+ * Pure function — unit-tested in __tests__/useRefillWizard.tourStarted.test.ts.
+ * The iOS app writes a field-compatible payload; keep the two in sync.
+ */
+export function buildTourStartedEntry(input: TourStartedEntryInput) {
+  const meta = (input.user?.user_metadata ?? {}) as Record<string, unknown>
+  const fullName = [meta.first_name, meta.last_name]
+    .filter(Boolean).join(' ').trim()
+  const userDisplay = fullName || input.user?.email || null
+  return {
+    company_id: input.companyId ?? null,
+    user_id: input.user?.id ?? null,
+    entity_type: 'stock',
+    entity_id: input.tourId,
+    action: 'tour_started',
+    metadata: {
+      tour_id: input.tourId,
+      machine_count: input.machines.length,
+      machine_ids: input.machines.map(m => m.id),
+      machine_names: input.machines.map(m => m.name),
+      warehouse_id: input.warehouseId,
+      warehouse_name: input.warehouseName,
+      _user_email: input.user?.email ?? null,
+      _user_display: userDisplay,
+    },
+  }
+}
+
 // ── Composable ───────────────────────────────────────────────────────────────
 
 export function useRefillWizard() {
