@@ -14,6 +14,7 @@ final class RealtimeService: ObservableObject {
     @Published var machinesVersion: Int = 0
     @Published var embeddedVersion: Int = 0
     @Published var warehouseVersion: Int = 0
+    @Published var activityVersion: Int = 0
 
     private var client: SupabaseClient { SupabaseService.shared.client }
     private var channel: RealtimeChannelV2?
@@ -45,10 +46,11 @@ final class RealtimeService: ObservableObject {
         let machinesStream = ch.postgresChange(AnyAction.self, schema: "public", table: "vendingMachine")
         let embeddedsStream = ch.postgresChange(UpdateAction.self, schema: "public", table: "embeddeds")
         let warehouseStream = ch.postgresChange(AnyAction.self, schema: "public", table: "warehouse_stock_batches")
+        let activityStream = ch.postgresChange(InsertAction.self, schema: "public", table: "activity_log")
 
         listenTask = Task {
             // Subscribe the channel (connects the websocket).
-            // The join payload now includes all five postgres_changes filters
+            // The join payload now includes all six postgres_changes filters
             // that were registered above.
             await ch.subscribe()
 
@@ -59,7 +61,8 @@ final class RealtimeService: ObservableObject {
             async let m: () = consumeMachines(machinesStream)
             async let e: () = consumeEmbeddeds(embeddedsStream)
             async let w: () = consumeWarehouse(warehouseStream)
-            _ = await (s, t, m, e, w)
+            async let a: () = consumeActivity(activityStream)
+            _ = await (s, t, m, e, w, a)
         }
     }
 
@@ -107,6 +110,13 @@ final class RealtimeService: ObservableObject {
         for await _ in stream {
             warehouseVersion += 1
             print("[Realtime] Warehouse stock change detected")
+        }
+    }
+
+    private func consumeActivity(_ stream: AsyncStream<InsertAction>) async {
+        for await _ in stream {
+            activityVersion += 1
+            print("[Realtime] New activity_log entry detected")
         }
     }
 }
