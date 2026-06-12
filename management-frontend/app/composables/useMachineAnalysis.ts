@@ -188,6 +188,38 @@ export function buildSuggestionPool(params: SuggestionPoolParams): {
   return { bestsellers, newcomers }
 }
 
+/** A catalogue product as offered in the replace-sheet full-catalogue search. */
+export interface SearchableProduct {
+  product_id: string
+  name: string
+  image_url: string | null
+  /** Fleet-wide avg daily units; 0 if the product has never sold anywhere. */
+  velocity: number
+  /** item_numbers where this product currently sits in THIS machine (empty if absent). */
+  inMachineSlots: number[]
+}
+
+/**
+ * Filter the searchable catalogue for the replace sheet. An empty/whitespace
+ * query returns no results (type-to-search). Matching is a case-insensitive
+ * substring on the product name. `excludeProductId` drops that product (you
+ * can't replace a slot with the product already in it). Results are capped at
+ * `limit` (default 30); `truncated` signals that more matches exist.
+ */
+export function filterSearchableProducts(
+  products: SearchableProduct[],
+  query: string,
+  opts: { excludeProductId?: string | null; limit?: number } = {},
+): { results: SearchableProduct[]; truncated: boolean } {
+  const q = query.trim().toLowerCase()
+  if (!q) return { results: [], truncated: false }
+  const limit = opts.limit ?? 30
+  const matched = products.filter(
+    p => p.product_id !== opts.excludeProductId && p.name.toLowerCase().includes(q),
+  )
+  return { results: matched.slice(0, limit), truncated: matched.length > limit }
+}
+
 /** Build the layout grid cells, colouring each slot by its product's tier. */
 export function buildGridSlots(
   trays: { id: string; item_number: number; product_id: string | null; product_name: string | null; image_url: string | null }[],
@@ -223,6 +255,7 @@ export function useMachineAnalysis() {
   const products = ref<ProductAnalysis[]>([])
   const slots = ref<GridSlot[]>([])
   const fillSuggestions = ref<Suggestion[]>([])
+  const searchableProducts = ref<SearchableProduct[]>([])
   const rowCount = ref(0)
   const loading = ref(false)
   const error = ref('')
@@ -323,11 +356,27 @@ export function useMachineAnalysis() {
       fillSuggestions.value = sharedSuggestions
 
       const trayIdsByProduct = new Map<string, string[]>()
+      const itemNumbersByProduct = new Map<string, number[]>()
       for (const t of trays) {
         if (!t.product_id) continue
         if (!trayIdsByProduct.has(t.product_id)) trayIdsByProduct.set(t.product_id, [])
         trayIdsByProduct.get(t.product_id)!.push(t.id)
+        if (!itemNumbersByProduct.has(t.product_id)) itemNumbersByProduct.set(t.product_id, [])
+        itemNumbersByProduct.get(t.product_id)!.push(t.item_number)
       }
+
+      // Full catalogue for the replace-sheet search (discontinued excluded),
+      // enriched with fleet velocity + which slots of THIS machine hold it.
+      searchableProducts.value = catalogue
+        .filter(p => !p.discontinued)
+        .map(p => ({
+          product_id: p.id,
+          name: p.name,
+          image_url: p.image_url,
+          velocity: velocity.get(p.id) ?? 0,
+          inMachineSlots: (itemNumbersByProduct.get(p.id) ?? []).slice().sort((a, b) => a - b),
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name))
 
       const now = Date.now()
       const analyses: ProductAnalysis[] = ((kpiRes.data?.products ?? []) as any[]).map((row) => {
@@ -430,6 +479,7 @@ export function useMachineAnalysis() {
     products,
     slots,
     fillSuggestions,
+    searchableProducts,
     rowCount,
     loading,
     error,

@@ -4,7 +4,7 @@ import { describe, it, expect, vi } from 'vitest'
 // runtime), so stub it to keep the import graph clean in the test environment.
 vi.mock('../useProducts', () => ({ getProductImageUrl: (p: string) => `https://example.test/${p}` }))
 
-import { slotRowCol, computeSlotWidths, scoreProduct, buildSuggestionPool, buildGridSlots } from '../useMachineAnalysis'
+import { slotRowCol, computeSlotWidths, scoreProduct, buildSuggestionPool, buildGridSlots, filterSearchableProducts } from '../useMachineAnalysis'
 
 describe('slotRowCol — iOS layout parity', () => {
   it('maps item_number to (row, column)', () => {
@@ -113,5 +113,41 @@ describe('buildGridSlots — colours each slot by its product tier', () => {
     const slots = buildGridSlots(trays, tierByProduct)
     const s10 = slots.find(s => s.trayId === 't10')!
     expect(s10).toMatchObject({ row: 0, column: 0 })
+  })
+})
+
+describe('filterSearchableProducts — replace-sheet catalogue search', () => {
+  const products = [
+    { product_id: 'a', name: 'Coca-Cola 0,5L', image_url: null, velocity: 2.1, inMachineSlots: [] },
+    { product_id: 'b', name: 'Vio Wasser still', image_url: null, velocity: 0.8, inMachineSlots: [] },
+    { product_id: 'c', name: 'Vittel 0,5L', image_url: null, velocity: 0, inMachineSlots: [12] },
+    { product_id: 'd', name: 'Water Sparkling', image_url: null, velocity: 0, inMachineSlots: [] },
+  ]
+
+  it('returns nothing for an empty or whitespace query (type-to-search)', () => {
+    expect(filterSearchableProducts(products, '')).toEqual({ results: [], truncated: false })
+    expect(filterSearchableProducts(products, '   ')).toEqual({ results: [], truncated: false })
+  })
+
+  it('matches name case-insensitively as a substring', () => {
+    const { results } = filterSearchableProducts(products, 'wa') // Wasser, Water
+    expect(results.map(p => p.product_id).sort()).toEqual(['b', 'd'])
+    const upper = filterSearchableProducts(products, 'VITTEL')
+    expect(upper.results.map(p => p.product_id)).toEqual(['c'])
+  })
+
+  it('excludes the product being replaced', () => {
+    const { results } = filterSearchableProducts(products, 'cola', { excludeProductId: 'a' })
+    expect(results).toEqual([])
+  })
+
+  it('caps results at the limit and flags truncation', () => {
+    const capped = filterSearchableProducts(products, 'l', { limit: 2 }) // all four names contain "l"
+    expect(capped.results).toHaveLength(2)
+    expect(capped.truncated).toBe(true)
+
+    const full = filterSearchableProducts(products, 'l', { limit: 10 })
+    expect(full.results).toHaveLength(4)
+    expect(full.truncated).toBe(false)
   })
 })

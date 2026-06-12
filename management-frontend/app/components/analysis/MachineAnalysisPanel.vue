@@ -4,7 +4,8 @@ import { Badge } from '@/components/ui/badge'
 import { IconSparkles, IconLoader2, IconArrowRight, IconFlask } from '@tabler/icons-vue'
 import { formatCurrency } from '@/lib/utils'
 import MachineLayoutGrid from './MachineLayoutGrid.vue'
-import { useMachineAnalysis, type GridSlot, type ProductAnalysis, type SlotTier, type Suggestion } from '@/composables/useMachineAnalysis'
+import SearchInput from '@/components/SearchInput.vue'
+import { useMachineAnalysis, filterSearchableProducts, type GridSlot, type ProductAnalysis, type SlotTier, type Suggestion } from '@/composables/useMachineAnalysis'
 import { useInsights, priorityVariant, recommendationTypeLabel } from '@/composables/useInsights'
 
 const props = defineProps<{ machineId: string; isAdmin: boolean }>()
@@ -12,7 +13,7 @@ const props = defineProps<{ machineId: string; isAdmin: boolean }>()
 const { t, locale } = useI18n()
 
 const {
-  products, slots, fillSuggestions, rowCount, loading, error, days,
+  products, slots, fillSuggestions, searchableProducts, rowCount, loading, error, days,
   tierCounts, slotTierCounts, weakProducts, lostRevenuePotential, analyze, applySwap,
 } = useMachineAnalysis()
 
@@ -53,6 +54,17 @@ const targetSlotNumber = computed(() =>
   slots.value.find(s => s.trayId === targetTrayId.value)?.item_number ?? null,
 )
 
+// Full-catalogue search within the replace sheet. Reset the query each time the
+// sheet toggles; exclude the product currently in the slot (can't replace itself).
+const productQuery = ref('')
+watch(sheetOpen, () => { productQuery.value = '' })
+const searchResults = computed(() =>
+  filterSearchableProducts(searchableProducts.value, productQuery.value, {
+    excludeProductId: selectedProductId.value,
+    limit: 30,
+  }),
+)
+
 function openSlot(slot: GridSlot) {
   targetTrayId.value = slot.trayId
   selectedProductId.value = slot.product_id
@@ -65,16 +77,17 @@ function openProduct(p: ProductAnalysis) {
   sheetOpen.value = true
 }
 
-async function handleApply(suggestion: Suggestion) {
+async function applyProduct(productId: string) {
   if (!targetTrayId.value) return
-  applyingProductId.value = suggestion.product_id
+  applyingProductId.value = productId
   try {
-    await applySwap(targetTrayId.value, suggestion.product_id)
+    await applySwap(targetTrayId.value, productId)
     sheetOpen.value = false
   } catch { /* error surfaced via composable */ } finally {
     applyingProductId.value = null
   }
 }
+const handleApply = (suggestion: Suggestion) => applyProduct(suggestion.product_id)
 
 // ── AI recommendations ─────────────────────────────────────────────────────
 const { data: insights, loading: aiLoading, error: aiError, fetchInsights } = useInsights()
@@ -334,6 +347,53 @@ const aiSwaps = computed(() =>
             </div>
             <p v-if="props.isAdmin && targetSlotNumber != null" class="mt-2 text-xs text-muted-foreground">
               {{ t('analysis.swapHint', { slot: targetSlotNumber }) }}
+            </p>
+          </div>
+
+          <!-- Full-catalogue search (admin). Decoupled from the suggestions block
+               so it also appears on an empty slot that has no curated picks. -->
+          <div v-if="props.isAdmin && targetTrayId">
+            <h4 class="mb-2 text-sm font-medium">{{ t('analysis.searchHeading') }}</h4>
+            <SearchInput v-model="productQuery" :placeholder="t('analysis.searchPlaceholder')" />
+
+            <div v-if="searchResults.results.length > 0" class="mt-2 space-y-2">
+              <div
+                v-for="p in searchResults.results"
+                :key="p.product_id"
+                class="flex items-center gap-3 rounded-lg border p-2.5"
+              >
+                <img
+                  v-if="p.image_url"
+                  :src="p.image_url"
+                  :alt="p.name"
+                  class="h-9 w-9 shrink-0 rounded object-cover"
+                />
+                <div v-else class="h-9 w-9 shrink-0 rounded bg-muted" />
+                <div class="min-w-0 flex-1">
+                  <p class="truncate text-sm font-medium">{{ p.name }}</p>
+                  <p class="text-xs text-muted-foreground">
+                    <span v-if="p.inMachineSlots.length > 0" class="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium">
+                      {{ t('analysis.alreadyInMachine', { slots: p.inMachineSlots.join(', ') }) }}
+                    </span>
+                    <span v-else-if="p.velocity > 0">{{ t('analysis.perDay', { n: p.velocity.toFixed(1) }) }}</span>
+                    <span v-else class="text-blue-600 dark:text-blue-400">{{ t('analysis.neverSold') }}</span>
+                  </p>
+                </div>
+                <button
+                  class="inline-flex h-8 items-center gap-1 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+                  :disabled="applyingProductId !== null"
+                  @click="applyProduct(p.product_id)"
+                >
+                  <IconLoader2 v-if="applyingProductId === p.product_id" class="size-3.5 animate-spin" />
+                  {{ applyingProductId === p.product_id ? t('analysis.applying') : t('analysis.apply') }}
+                </button>
+              </div>
+              <p v-if="searchResults.truncated" class="text-xs text-muted-foreground">
+                {{ t('analysis.moreResults') }}
+              </p>
+            </div>
+            <p v-else-if="productQuery.trim()" class="mt-2 text-sm text-muted-foreground">
+              {{ t('analysis.noProductsFound') }}
             </p>
           </div>
         </div>
