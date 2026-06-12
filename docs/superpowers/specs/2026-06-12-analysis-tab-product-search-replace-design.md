@@ -89,6 +89,7 @@ Rationale for the flags:
     }),
   )
   ```
+  Note: because the product being replaced is excluded entirely, the "In machine · slot N" badge (sub-line rule (a) below) only ever fires for products occupying *other* slots in this machine — it flags an intentional duplicate, not the slot you're editing.
 - Generalize the apply handler so search rows and suggestion rows share one path:
   ```ts
   async function applyProduct(productId: string) {
@@ -99,9 +100,9 @@ Rationale for the flags:
   }
   ```
   `handleApply(sug)` becomes `applyProduct(sug.product_id)`.
-- **Template**, inserted inside the existing `sheetSuggestions` block area, *after* the suggestions list (so suggestions remain the top "quick pick"). Gated like the rest of the swap UI on `props.isAdmin && targetTrayId` for the button; the search field itself shows for admins (non-admins have no apply affordance, matching today, so the field is admin-only too):
+- **Template** — a **standalone block**, a sibling rendered *after* the `v-if="sheetSuggestions.length > 0"` suggestions block (so suggestions stay the top "quick pick" when present). It is gated on `props.isAdmin && targetTrayId` only — deliberately **decoupled from `sheetSuggestions.length`**, so the search is also available on an empty slot that happens to have zero curated suggestions (exactly when free search is most useful). Non-admins have no apply affordance (matching today), so the whole block is admin-only.
   - A sub-heading `analysis.searchHeading` ("Or any product").
-  - A search `<input v-model="productQuery">` with a leading `IconSearch`, `:placeholder="t('analysis.searchPlaceholder')"`, `aria-label`.
+  - The existing **`SearchInput` component** (`@/components/SearchInput.vue`): `<SearchInput v-model="productQuery" :placeholder="t('analysis.searchPlaceholder')" />` — it already provides the leading `IconSearch`, themed focus ring, and a clear (`IconX`) button, matching house style. (No bespoke `<input>`.)
   - `v-for` over `searchResults.results`, each row identical in structure to a suggestion row:
     - image, or a neutral placeholder box (no sparkles/flask icon — those denote suggestion kind).
     - name (truncate).
@@ -145,6 +146,6 @@ Add (reuse existing `perDay`, `neverSold`, `apply`, `applying`, `slot`):
 | File | Change |
 |------|--------|
 | `app/composables/useMachineAnalysis.ts` | Add `SearchableProduct` type + `filterSearchableProducts` pure helper; build & store `searchableProducts` ref in `analyze()` (enrich catalogue with `velocity` + `inMachineSlots`, exclude discontinued); return it |
-| `app/components/analysis/MachineAnalysisPanel.vue` | Consume `searchableProducts`; add `productQuery` state (reset on sheet open/close) + `searchResults` computed via the helper; generalize apply into `applyProduct(productId)`; render search field + results list after the suggestions, admin-gated, with already-in-machine / velocity / never-sold sub-lines and empty/truncated states |
+| `app/components/analysis/MachineAnalysisPanel.vue` | Consume `searchableProducts`; add `productQuery` state (reset on sheet open/close) + `searchResults` computed via the helper; generalize apply into `applyProduct(productId)`; render a standalone search block (reusing `SearchInput.vue`) + results list as a sibling after the suggestions block, gated on `isAdmin && targetTrayId` (decoupled from `sheetSuggestions.length` so it works on empty slots), with already-in-machine / velocity / never-sold sub-lines and empty/truncated states |
 | `app/composables/__tests__/useMachineAnalysis.test.ts` | Unit tests for `filterSearchableProducts` |
 | `i18n/locales/en.json`, `i18n/locales/de.json` | 5 new `analysis.*` keys (search heading, placeholder, already-in-machine, no-results, more-results) |
