@@ -26,9 +26,17 @@ const {
 const isAdmin = computed(() => role.value === 'admin')
 
 import { fuzzyFilter } from '@/lib/fuzzySearch'
+import { marginNet, type PurchaseSummary } from '~/lib/purchaseComparison'
+const { fetchSummaries } = usePurchasePrices()
+const ekSummaries = ref<Record<string, PurchaseSummary>>({})
+
+async function loadEkSummaries() {
+  const ids = products.value.map(p => p.id)
+  ekSummaries.value = await fetchSummaries(ids)
+}
 
 const productSearch = ref('')
-const { sortKey: prodSortKey, sortDir: prodSortDir, toggleSort: toggleProdSort, sortIcon: prodSortIcon } = useTableSort<'name' | 'category' | 'price'>('name')
+const { sortKey: prodSortKey, sortDir: prodSortDir, toggleSort: toggleProdSort, sortIcon: prodSortIcon } = useTableSort<'name' | 'category' | 'price' | 'ek'>('name')
 
 const sortedProducts = computed(() => {
   const filtered = fuzzyFilter(products.value, productSearch.value, [
@@ -39,6 +47,11 @@ const sortedProducts = computed(() => {
   return [...filtered].sort((a, b) => {
     if (prodSortKey.value === 'name') return dir * (a.name ?? '').localeCompare(b.name ?? '')
     if (prodSortKey.value === 'category') return dir * (a.category_name ?? '').localeCompare(b.category_name ?? '')
+    if (prodSortKey.value === 'ek') {
+      const ag = ekSummaries.value[a.id]?.newest_gross ?? -1
+      const bg = ekSummaries.value[b.id]?.newest_gross ?? -1
+      return dir * (ag - bg)
+    }
     return dir * ((a.sellprice ?? 0) - (b.sellprice ?? 0))
   })
 })
@@ -46,7 +59,7 @@ const sortedProducts = computed(() => {
 usePullToRefresh(() => Promise.all([fetchProducts(), fetchBarcodes()]).then(() => {}))
 
 onMounted(async () => {
-  await Promise.all([fetchProducts(), fetchBarcodes(), fetchTaxClasses()])
+  await Promise.all([fetchProducts(), fetchBarcodes(), fetchTaxClasses()]).then(loadEkSummaries)
 })
 
 // Product modal state
@@ -64,7 +77,7 @@ function openEditProduct(product: any) {
 }
 
 function onProductSaved(_id: string) {
-  fetchProducts()
+  fetchProducts().then(loadEkSummaries)
 }
 
 async function handleDeleteProduct(id: string) {
@@ -252,6 +265,9 @@ async function runImport() {
                     <th class="px-4 py-3 font-medium cursor-pointer select-none hover:text-foreground" @click="toggleProdSort('price')">
                       <SortHeader :icon="prodSortIcon('price')" align="right">{{ t('products.price') }}</SortHeader>
                     </th>
+                    <th class="hidden md:table-cell px-4 py-3 font-medium cursor-pointer select-none hover:text-foreground" @click="toggleProdSort('ek')">
+                      <SortHeader :icon="prodSortIcon('ek')" align="right">{{ t('purchasePrices.ekColumn') }}</SortHeader>
+                    </th>
                     <th v-if="isAdmin" class="hidden sm:table-cell px-4 py-3 font-medium">{{ t('common.actions') }}</th>
                   </tr>
                 </thead>
@@ -294,6 +310,15 @@ async function runImport() {
                     </td>
                     <td class="hidden sm:table-cell px-4 py-3 text-muted-foreground">{{ product.category_name ?? '—' }}</td>
                     <td class="px-4 py-3">{{ formatCurrency(product.sellprice, locale) }}</td>
+                    <td class="hidden md:table-cell px-4 py-3 text-right text-xs">
+                      <template v-if="ekSummaries[product.id]?.newest_gross != null">
+                        {{ formatCurrency(ekSummaries[product.id]!.newest_gross!, locale) }}
+                        <span v-if="marginNet(product.sellprice, ekSummaries[product.id]!.newest_net, ekSummaries[product.id]!.effective_tax_rate)" class="block text-muted-foreground">
+                          {{ marginNet(product.sellprice, ekSummaries[product.id]!.newest_net, ekSummaries[product.id]!.effective_tax_rate)!.spannePct.toFixed(0) }}%
+                        </span>
+                      </template>
+                      <span v-else class="text-muted-foreground">—</span>
+                    </td>
                     <td v-if="isAdmin" class="hidden sm:table-cell px-4 py-3">
                       <div class="flex items-center gap-2">
                         <button
