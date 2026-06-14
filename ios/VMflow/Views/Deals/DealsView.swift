@@ -114,7 +114,7 @@ struct DealsView: View {
                 ForEach(viewModel.groupedDeals) { group in
                     Section {
                         ForEach(group.deals) { deal in
-                            DealCard(deal: deal, isNew: viewModel.isNew(deal))
+                            DealCard(deal: deal, isNew: viewModel.isNew(deal), pill: ekPill(for: deal))
                                 .contentShape(Rectangle())
                                 .onTapGesture {
                                     selectedDeal = deal
@@ -141,6 +141,21 @@ struct DealsView: View {
                                 .font(.caption.weight(.medium))
                                 .foregroundStyle(.secondary)
                         }
+                    }
+                }
+
+                if viewModel.listMode == .active && !viewModel.suppressedActiveDeals.isEmpty {
+                    Section {
+                        ForEach(viewModel.suppressedActiveDeals) { deal in
+                            DealCard(deal: deal, isNew: false,
+                                     pill: .init(text: String(localized: "likely mismatch"), color: .red))
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    selectedDeal = deal
+                                }
+                        }
+                    } header: {
+                        Text("\(viewModel.suppressedActiveDeals.count) " + String(localized: "hidden — above your highest cost"))
                     }
                 }
             }
@@ -176,6 +191,26 @@ struct DealsView: View {
                 }
                 .disabled(viewModel.isLoading)
             }
+        }
+    }
+
+    // MARK: - EK pill
+
+    private func ekPill(for deal: DedupedDeal) -> DealCard.Pill? {
+        let ek = viewModel.dealEk(deal)
+        guard let v = ek.bestVerdict else { return nil }
+        let pct = ek.bestDeltaPct.map { abs(Int($0.rounded())) }
+        switch v {
+        case .goodBest, .good:
+            let suffix = String(localized: "below your cost")
+            return .init(text: pct.map { "\($0)% \(suffix)" } ?? suffix, color: .green)
+        case .similar:
+            return .init(text: String(localized: "≈ your cost"), color: .orange)
+        case .worse:
+            let suffix = String(localized: "above your cost")
+            return .init(text: pct.map { "\($0)% \(suffix)" } ?? suffix, color: .red)
+        default:
+            return nil
         }
     }
 
