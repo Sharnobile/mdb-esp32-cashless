@@ -7,6 +7,9 @@ struct DealCard: View {
     let deal: DedupedDeal
     var isNew: Bool = false
 
+    struct Pill { let text: String; let color: Color }
+    var pill: Pill? = nil
+
     var body: some View {
         HStack(spacing: 12) {
             dealImage
@@ -62,6 +65,12 @@ struct DealCard: View {
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
                             .background(Capsule().fill(.green))
+                    }
+
+                    if let pill {
+                        Text(pill.text)
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(pill.color)
                     }
                 }
 
