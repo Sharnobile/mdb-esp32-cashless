@@ -444,6 +444,9 @@ struct DealDetailSheet: View {
                                         .foregroundStyle(.secondary)
                                 }
                                 stockBadges(for: p.id, compact: false)
+                                if let ekLine = ekComparisonLine(for: p) {
+                                    Text(ekLine).font(.caption2).foregroundStyle(.secondary)
+                                }
                             }
 
                             Spacer()
@@ -549,6 +552,17 @@ struct DealDetailSheet: View {
     }
 
     // MARK: - Helpers
+
+    private func ekComparisonLine(for p: DedupedDeal.MatchedProduct) -> String? {
+        guard let summary = viewModel.ekSummaries[p.id], summary.ekCount > 0,
+              let usual = summary.newestGross else { return nil }
+        let dealGross = deal.primary.dealPrice ?? 0
+        var line = String(format: String(localized: "Offer %.2f \u{20AC} vs usual cost %.2f \u{20AC}"), dealGross, usual)
+        if let md = PurchaseComparison.marginDelta(sellpriceGross: p.sellprice, dealGross: dealGross, summary: summary) {
+            line += " · " + String(format: String(localized: "Margin %.0f%% → %.0f%%"), md.currentPct, md.dealPct)
+        }
+        return line
+    }
 
     private var confidenceColor: Color {
         confidenceColor(for: primary.confidence)
