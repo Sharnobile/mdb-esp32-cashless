@@ -128,6 +128,8 @@ BEGIN
 END $$;
 ```
 
+> **Konvention:** Alle Tabellen werden im Funktionskörper **voll qualifiziert** (`public.*`), damit die `search_path`-Wahl nicht tragend ist. Da keine dieser Funktionen pgcrypto (`digest()`/`gen_random_bytes()` aus `extensions`) nutzt, genügt `SET search_path = public` — die Namensqualifizierung bleibt aber erhalten.
+
 Umrechnung (in den RPCs):
 - `price_basis='net'` → `price_gross = round(price_net * (1 + rate), 4)`
 - `price_basis='gross'` → `price_net = round(price_gross / (1 + rate), 4)`
@@ -163,7 +165,7 @@ max_gross,                                                -- für Plausibilität
 effective_tax_rate                                        -- resolve_product_tax_rate(id) für Margen-/deal_net-Berechnung
 ```
 
-Filtert intern auf `company_id = my_company_id()`. Produkte ohne EK liefern `ek_count = 0` (übrige Felder NULL).
+Filtert intern auf `company_id = my_company_id()`. Produkte ohne EK liefern `ek_count = 0` (übrige Felder NULL). **„Neuester“ deterministisch:** `observed_on` ist ein `date` ohne Uhrzeit → Sortierung `ORDER BY observed_on DESC, created_at DESC`, damit zwei Preise vom selben Tag stabil geordnet sind.
 
 ## 7. Frontend — Pflege & Marge
 
@@ -232,6 +234,7 @@ Neue Keys in `management-frontend/i18n/locales/de.json` **und** `en.json` (beide
 - **Bearbeiten einer EK-Zeile:** netto/brutto wird aus dem (ggf. geänderten) getippten Wert und dem aufgelösten Satz **neu** berechnet.
 - **Marktguru-Packungsgrößen:** roher Vergleich, sichtbarer Mengen-Hinweis; keine Auto-Normalisierung (Nicht-Ziel).
 - **Float vs numeric:** `products.sellprice` ist `float8` → in Margen-Berechnungen explizit nach `numeric` casten (Lehre aus dem Tax-Trigger-Bug `round(double precision,…)`).
+- **Rundungspräzision:** `deal_cache.deal_price` ist `numeric(10,2)`, EK-Preise sind `numeric(10,4)`. Vergleiche (`dealGross > max_gross`) bleiben korrekt; `max_gross`/`min_gross` **nicht** auf 2 Nachkommastellen runden — sonst verschiebt sich die strikte `>`-Plausibilitätsschwelle an Cent-Grenzen.
 
 ## 11. Rückwärtskompatibilität
 
