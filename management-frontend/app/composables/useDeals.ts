@@ -1,3 +1,5 @@
+import { classifyDeal, isCardSuppressed, type DealVerdict, type PurchaseSummary } from '~/lib/purchaseComparison'
+
 export interface DealKeyword {
   id: string
   label: string | null
@@ -170,6 +172,49 @@ export function useDeals() {
   const supabase = useSupabaseClient()
   const user = useSupabaseUser()
   const { organization } = useOrganization()
+
+  // ── EK (purchase-price) comparison ───────────────────────────────────────
+  const { fetchSummaries } = usePurchasePrices()
+  const ekSummaries = ref<Record<string, PurchaseSummary>>({})
+
+  /** All catalog product ids an offer matched (name matches + keyword-group products). */
+  function dealProductIds(d: DedupedDeal): string[] {
+    const ids = new Set<string>()
+    for (const p of d.matchedProducts) ids.add(p.id)
+    for (const k of d.matchedKeywords) for (const p of k.products) ids.add(p.id)
+    return [...ids]
+  }
+
+  /** Fetch EK summaries for every product referenced by the current deal set. */
+  async function fetchEkSummaries() {
+    const ids = new Set<string>()
+    for (const d of deals.value) {
+      if (d.products?.id) ids.add(d.products.id)
+      for (const kp of d.deal_keywords?.deal_keyword_products ?? []) {
+        if (kp.products?.id) ids.add(kp.products.id)
+      }
+    }
+    ekSummaries.value = await fetchSummaries([...ids])
+  }
+
+  const VERDICT_RANK: Record<DealVerdict, number> = {
+    good_best: 5, good: 4, similar: 3, worse: 2, no_ek: 1, implausible: 0,
+  }
+
+  /** Per-deal EK comparison: per-product verdicts, card-suppression flag, best verdict for the pill. */
+  function dealEk(d: DedupedDeal) {
+    const dealGross = d.primary.deal_price
+    const perProduct = dealProductIds(d).map((id) => ({
+      productId: id,
+      summary: ekSummaries.value[id] ?? null,
+      ...classifyDeal(dealGross, ekSummaries.value[id]),
+    }))
+    const verdicts = perProduct.map((p) => p.verdict)
+    const suppressed = isCardSuppressed(verdicts)
+    const ranked = verdicts.filter((v) => v !== 'no_ek').sort((a, b) => VERDICT_RANK[b] - VERDICT_RANK[a])
+    const bestVerdict = ranked[0] ?? null
+    return { perProduct, suppressed, bestVerdict }
+  }
 
   const deals = ref<Deal[]>([])
   const loading = ref(false)
@@ -565,6 +610,15 @@ export function useDeals() {
     return list
   })
 
+  const suppressedKeys = computed(() => {
+    const s = new Set<string>()
+    for (const d of activeDeals.value) if (dealEk(d).suppressed) s.add(d.key)
+    return s
+  })
+  // Grid shows these; suppressed (deal > highest recorded EK → likely mismatch) are hidden.
+  const visibleActiveDeals = computed(() => activeDeals.value.filter((d) => !suppressedKeys.value.has(d.key)))
+  const suppressedActiveDeals = computed(() => activeDeals.value.filter((d) => suppressedKeys.value.has(d.key)))
+
   const archivedDeals = computed(() => dedupedDeals.value.filter((d) => d.archived))
 
   // Group deals by retailer
@@ -592,10 +646,10 @@ export function useDeals() {
 
   // Stats — based on deduped active (non-archived) deals so the user sees
   // numbers that match what's on screen.
-  const totalDeals = computed(() => activeDeals.value.length)
-  const uniqueRetailers = computed(() => new Set(activeDeals.value.map((d) => d.retailer)).size)
+  const totalDeals = computed(() => visibleActiveDeals.value.length)
+  const uniqueRetailers = computed(() => new Set(visibleActiveDeals.value.map((d) => d.retailer)).size)
   const avgDiscount = computed(() => {
-    const withDiscount = activeDeals.value.filter(
+    const withDiscount = visibleActiveDeals.value.filter(
       (d) => d.primary.discount_pct != null && d.primary.discount_pct > 0,
     )
     if (withDiscount.length === 0) return 0
@@ -606,7 +660,7 @@ export function useDeals() {
   const archivedCount = computed(() => archivedDeals.value.length)
 
   // Count of new/unhandled deals (reacts to optimistic pin/archive via isNew).
-  const newDealsCount = computed(() => activeDeals.value.filter(isNew).length)
+  const newDealsCount = computed(() => visibleActiveDeals.value.filter(isNew).length)
 
   // ── Keyword groups ─────────────────────────────────────────────────────────
 
@@ -750,6 +804,11 @@ export function useDeals() {
     dedupedDeals,
     activeDeals,
     archivedDeals,
+    ekSummaries,
+    fetchEkSummaries,
+    dealEk,
+    visibleActiveDeals,
+    suppressedActiveDeals,
     fetchUserStates,
     archiveDeal,
     unarchiveDeal,
