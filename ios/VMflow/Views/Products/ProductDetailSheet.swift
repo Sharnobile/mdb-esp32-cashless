@@ -14,6 +14,9 @@ struct ProductDetailSheet: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var viewModel = ProductDetailViewModel()
     @StateObject private var productsVM = ProductsViewModel()
+    @StateObject private var purchaseVM = PurchasePricesViewModel()
+    @State private var ekSummary: ProductPurchaseSummary?
+    @State private var showPurchasePrices = false
     @State private var expandedWarehouseId: UUID?
     @State private var showEditSheet = false
 
@@ -34,6 +37,7 @@ struct ProductDetailSheet: View {
                     chartSection
                     warehouseSection
                     machineSection
+                    ekSection
                     if let kpis = viewModel.kpis, !kpis.topMachines.isEmpty {
                         topMachinesSection(kpis.topMachines)
                     }
@@ -64,6 +68,7 @@ struct ProductDetailSheet: View {
                 async let detailTask: () = viewModel.load(productId: productId)
                 async let categoriesTask: () = productsVM.loadCategories()
                 _ = await (detailTask, categoriesTask)
+                await loadEkSummary()
             }
             .refreshable {
                 await viewModel.load(productId: productId)
@@ -99,6 +104,9 @@ struct ProductDetailSheet: View {
                         }
                     )
                 }
+            }
+            .sheet(isPresented: $showPurchasePrices, onDismiss: { Task { await loadEkSummary() } }) {
+                PurchasePricesSheet(productId: productId, sellprice: viewModel.product?.sellprice)
             }
         }
     }
@@ -581,6 +589,36 @@ struct ProductDetailSheet: View {
                     }
                 }
             }
+        }
+    }
+
+    // MARK: - Purchasing (EK)
+
+    private func loadEkSummary() async {
+        ekSummary = await purchaseVM.fetchSummaries(productIds: [productId])[productId]
+    }
+
+    private var ekSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(String(localized: "Purchasing")).font(.headline)
+            if let s = ekSummary, s.ekCount > 0, let g = s.newestGross {
+                HStack {
+                    Text(String(localized: "usual cost")); Spacer()
+                    Text(String(format: "%.2f \u{20AC}", g)).foregroundStyle(.secondary)
+                }
+                if let m = PurchaseComparison.marginNet(sellpriceGross: viewModel.product?.sellprice,
+                                                        ekNet: s.newestNet, rate: s.effectiveTaxRate) {
+                    HStack {
+                        Text(String(localized: "Margin")); Spacer()
+                        Text(String(format: "%.0f%%", m.spannePct)).foregroundStyle(.secondary)
+                    }
+                }
+            } else {
+                Text(String(localized: "No purchase prices recorded yet."))
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
+            Button(String(localized: "Manage purchase prices")) { showPurchasePrices = true }
+                .font(.subheadline)
         }
     }
 
