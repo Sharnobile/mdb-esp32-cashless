@@ -28,6 +28,10 @@ final class DealsViewModel: ObservableObject {
     /// archived. Computed server-side by the get_new_deal_keys RPC.
     @Published var newDealKeys: Set<String> = []
 
+    /// EK summaries for products referenced by the current deal set (product id → summary).
+    @Published var ekSummaries: [UUID: ProductPurchaseSummary] = [:]
+    private let purchaseVM = PurchasePricesViewModel()
+
     enum GroupMode: String, CaseIterable {
         case retailer = "Retailer"
         case product = "Product"
@@ -148,6 +152,48 @@ final class DealsViewModel: ObservableObject {
 
     var archivedCount: Int { archivedDeals.count }
 
+    // MARK: - EK comparison + suppression
+
+    /// All catalog product ids an offer references (name matches + keyword-group products).
+    private func dealProductIds(_ d: DedupedDeal) -> [UUID] {
+        var ids = Set<UUID>()
+        for p in d.matchedProducts { ids.insert(p.id) }
+        for kw in d.matchedKeywords { for lp in kw.linkedProducts { if let id = lp.id { ids.insert(id) } } }
+        return Array(ids)
+    }
+
+    // Walks the raw `deals` rows (covers the same products as `dealProductIds`,
+    // just from the other shape) — intentional, don't "unify" the two.
+    func fetchEkSummaries() async {
+        var ids = Set<UUID>()
+        for d in deals {
+            if let pid = d.productId { ids.insert(pid) }
+            for lp in d.dealKeywords?.linkedProducts ?? [] { if let id = lp.id { ids.insert(id) } }
+        }
+        ekSummaries = await purchaseVM.fetchSummaries(productIds: Array(ids))
+    }
+
+    private static let verdictRank: [DealVerdict: Int] = [
+        .goodBest: 5, .good: 4, .similar: 3, .worse: 2, .noEk: 1, .implausible: 0,
+    ]
+
+    /// Per-deal EK result: card-suppression flag + best verdict (with its delta) for the pill.
+    func dealEk(_ d: DedupedDeal) -> (suppressed: Bool, bestVerdict: DealVerdict?, bestDeltaPct: Double?) {
+        let dealGross = d.primary.dealPrice
+        let comparisons = dealProductIds(d).map {
+            PurchaseComparison.classifyDeal(dealGross: dealGross, summary: ekSummaries[$0])
+        }
+        let verdicts = comparisons.map { $0.verdict }
+        let suppressed = PurchaseComparison.isCardSuppressed(verdicts)
+        let ranked = comparisons
+            .filter { $0.verdict != .noEk }
+            .sorted { (Self.verdictRank[$0.verdict] ?? 0) > (Self.verdictRank[$1.verdict] ?? 0) }
+        return (suppressed, ranked.first?.verdict, ranked.first?.deltaPct)
+    }
+
+    var visibleActiveDeals: [DedupedDeal] { activeDeals.filter { !dealEk($0).suppressed } }
+    var suppressedActiveDeals: [DedupedDeal] { activeDeals.filter { dealEk($0).suppressed } }
+
     /// A deal is "new" if the RPC flagged it AND the user hasn't pinned or
     /// archived it yet, so the NEU badge clears optimistically on pin/archive.
     func isNew(_ deal: DedupedDeal) -> Bool {
@@ -155,7 +201,7 @@ final class DealsViewModel: ObservableObject {
     }
 
     var filteredDeals: [DedupedDeal] {
-        let source = listMode == .archived ? archivedDeals : activeDeals
+        let source = listMode == .archived ? archivedDeals : visibleActiveDeals
         guard !searchText.isEmpty else { return source }
         let query = searchText.lowercased()
         return source.filter { d in
@@ -237,6 +283,7 @@ final class DealsViewModel: ObservableObject {
             await fetchUserStates()
             await fetchDeals()
             await fetchNewDealKeys()
+            await fetchEkSummaries()
         }
     }
 
