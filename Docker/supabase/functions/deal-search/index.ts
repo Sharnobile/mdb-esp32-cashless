@@ -768,6 +768,25 @@ Deno.serve(async (req) => {
       } else {
         newOfferCount = inserted?.length ?? 0
         newRetailers = [...new Set((inserted ?? []).map((r: any) => r.retailer))]
+        // Exclude implausible offers (deal price above the highest recorded EK
+        // for ALL matched products) from the new-deal count + push, so junk/
+        // mismatched matches never nudge users. No EK data → empty set → no-op.
+        try {
+          const { data: suppressed } = await adminClient
+            .rpc('get_suppressed_offer_keys', { p_company_id: companyId })
+          const suppressedSet = new Set(
+            (suppressed ?? []).map((s: any) => `${s.retailer}::${s.offer_id}`),
+          )
+          if (suppressedSet.size > 0) {
+            const survivors = (inserted ?? []).filter(
+              (r: any) => !suppressedSet.has(`${r.retailer}::${r.offer_id}`),
+            )
+            newOfferCount = survivors.length
+            newRetailers = [...new Set(survivors.map((r: any) => r.retailer))]
+          }
+        } catch (suppErr) {
+          console.error('[deal-search] suppression filter failed (counting all):', suppErr)
+        }
       }
     }
     console.log(`[deal-search] ${newOfferCount} newly-first-seen offers this run`)
