@@ -86,7 +86,7 @@ RLS: CRUD für `authenticated` mit `company_id = public.my_company_id()`. Beide 
 
 ## 5. Steuersatz-Auflösung & Netto↔Brutto
 
-Die Auflösung existiert heute nur **inline** im Sales-Trigger (`stamp_machine_and_decrement_stock`). Wir extrahieren sie in eine **wiederverwendbare** Funktion (der Trigger bleibt unangetastet):
+Die Tarif-Auflösung existiert heute nur **inline** im Sales-Trigger (`stamp_machine_and_decrement_stock`). Wir übernehmen daraus die **Steuerklassen- + Satz-Logik** (`COALESCE(product.tax_class_id, category.tax_class_id)` → `tax_rates` nach Firma/Land/Gültigkeit), **adaptieren** sie aber **produkt-zentrisch**: Firma/Land kommen aus `products.company` + `companies.country_code` (**nicht** aus `vendingMachine` wie im Trigger — ein EK ist nicht maschinen-gebunden). Der Trigger bleibt unangetastet; die neue Funktion ist eine eigenständige, wiederverwendbare Variante:
 
 ```sql
 CREATE OR REPLACE FUNCTION public.resolve_product_tax_rate(
@@ -168,7 +168,7 @@ AND NOT EXISTS (
   WHERE s.retailer = dc.retailer AND s.offer_id = dc.offer_id
 )
 ```
-`get_new_deals_count()` (Dashboard-Banner) wrappt diese Funktion → erbt den Ausschluss automatisch.
+**Wichtig:** Das `CREATE OR REPLACE` muss den **kompletten** bestehenden Funktionskörper aus `20260530120000` wortgleich übernehmen (Baseline-Lazy-Insert + Read, `deal_offer_first_seen`-Join, das `NOT EXISTS … deal_user_state … (pinned_at OR archived_at)`) und **nur** die obige Sperr-Klausel ergänzen — nichts still weglassen. `get_new_deals_count()` (Dashboard-Banner) wrappt diese Funktion → erbt den Ausschluss automatisch.
 
 ### 6.6 `deal-search` Edge Function — Push-Zähler (geänderte Datei)
 In `Docker/supabase/functions/deal-search/index.ts` werden nach dem Ermitteln der erstmals gesehenen Angebote (`inserted`) die **unterdrückten** entfernt, bevor `newOfferCount`/`newRetailers` für den `new_deals`-Push berechnet werden:
@@ -209,7 +209,7 @@ Unter Preis/Kategorie, **nur im Bearbeiten-Modus** (braucht `product.id`; im Anl
 Sortierbare Spalte; lädt `get_product_purchase_summary` für alle gelisteten Produkte (ein Batch-Call). Ohne EK: „—“.
 
 ### 8.4 `useDeals.ts` + `deals/index.vue`
-- `useDeals`: `product_id`s der Matches sammeln → ein `get_product_purchase_summary(ids)` → Map; pro Match `classifyDeal`. Karte **suppressed**, wenn sie Matches hat und **alle** `implausible` (Produkte ohne EK halten sie sichtbar). Neue computed `suppressedDeals`/`suppressedCount`. Der **„neue Deals“-Status kommt aus `get_new_deal_keys`** (jetzt server-seitig ohne unterdrückte) — der Client muss „neu“ nicht selbst nachfiltern.
+- `useDeals`: `product_id`s der Matches sammeln → ein `get_product_purchase_summary(ids)` → Map; pro Match `classifyDeal`. Karte **suppressed**, wenn sie Matches hat und **alle** `implausible` (Produkte ohne EK halten sie sichtbar). Neue computed `suppressedDeals`/`suppressedCount`. Der **„neue Deals“-Status kommt aus `get_new_deal_keys`** (jetzt server-seitig ohne unterdrückte). `newDealsCount` bleibt wie heute `activeDeals.filter(isNew).length` — da `activeDeals` bereits sperrfrei ist **und** `isNew` auf die server-bereinigten Keys gatet, sind unterdrückte doppelt ausgeschlossen; kein zusätzlicher Sonderfilter nötig.
 - `deals/index.vue`: Karten-Pill (bestes sichtbares Verdikt), Detail-Vergleichszeile je Produkt + Marge-Effekt (grün, falls `sellprice`), „⚪ Kein EK“ → „+ EK erfassen“ (öffnet `ProductFormModal`), Ausgeblendet-Bereich „▸ N ausgeblendet … anzeigen“ mit Markierung „weit über EK – evtl. Fehl-Match“; Aktionen: bestehendes **Archivieren**, bei Keyword-Matches Link zum **Keyword-Editor**.
 
 ## 9. Native iOS (`ios/VMflow`) — Parität
@@ -257,7 +257,7 @@ Neue Keys in `management-frontend/i18n/locales/de.json` **und** `en.json` (EK/Li
 - Firmware/MQTT/Android unberührt.
 
 ## 13. Tests
-- **Vitest (pure):** `app/lib/purchaseComparison.ts` — alle Verdikt-Pfade inkl. `implausible`, Toleranzgrenzen, `no_ek`, Gleichstand = nicht ausgeblendet; `counterpart`/`marginNet`.
+- **Vitest (pure):** `app/lib/purchaseComparison.ts` — alle Verdikt-Pfade inkl. `implausible`, Toleranzgrenzen, `no_ek`, Gleichstand = nicht ausgeblendet; **Einzel-EK-Fall** (`min == max == newest`: ein Angebot genau auf diesem Wert → `good_best`, knapp darüber → `implausible`); `counterpart`/`marginNet`.
 - **SQL-Tests** (`Docker/supabase/tests/*.test.sql`, `run-sql-tests.sh`): `resolve_product_tax_rate`; `add_purchase_price` (netto-/brutto-Eingabe, Lieferant find-or-create, `tax_rate_required`); `get_product_purchase_summary` (newest/min/max/count, Scoping); **`get_suppressed_offer_keys`** (Produkt- und Keyword-Zeilen; Gleichstand nicht unterdrückt; Produkt ohne EK hält Angebot sichtbar); **`get_new_deal_keys`** schließt unterdrückte aus, ist aber bei leerem EK identisch zur alten Ausgabe.
 - **iOS (pure):** Falls ein Test-Target existiert, Unit-Tests für `PurchaseComparison.swift` mit denselben Fällen wie Vitest (Parität). Sonst mindestens als reine, isoliert testbare Logik halten.
 
