@@ -1,4 +1,25 @@
 {
+  "purchasePrices": {
+    "title": "Purchase prices",
+    "supplier": "Supplier",
+    "supplierPlaceholder": "Search or add a supplier …",
+    "useSupplier": "Use \"{name}\"",
+    "pricePerUnit": "Price per unit",
+    "basis": "Basis",
+    "net": "net",
+    "gross": "gross",
+    "date": "Date",
+    "note": "Note",
+    "noPrices": "No purchase prices recorded yet.",
+    "taxRateField": "Tax rate % (no rate set on the product)",
+    "taxRateRequired": "Please provide a tax rate.",
+    "supplierAndPriceRequired": "Supplier and price are required.",
+    "margin": "Margin",
+    "marginHint": "net sell price − usual net purchase price",
+    "usual": "usual",
+    "saveFailed": "Save failed.",
+    "ekColumn": "usual cost"
+  },
   "common": {
     "save": "Save",
     "cancel": "Cancel",

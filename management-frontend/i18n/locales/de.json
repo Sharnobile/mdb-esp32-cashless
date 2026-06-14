@@ -1,4 +1,25 @@
 {
+  "purchasePrices": {
+    "title": "Einkaufspreise",
+    "supplier": "Lieferant",
+    "supplierPlaceholder": "Lieferant suchen oder anlegen …",
+    "useSupplier": "„{name}“ verwenden",
+    "pricePerUnit": "Preis je Stück",
+    "basis": "Basis",
+    "net": "netto",
+    "gross": "brutto",
+    "date": "Datum",
+    "note": "Notiz",
+    "noPrices": "Noch keine Einkaufspreise erfasst.",
+    "taxRateField": "Steuersatz % (kein Satz am Produkt hinterlegt)",
+    "taxRateRequired": "Bitte einen Steuersatz angeben.",
+    "supplierAndPriceRequired": "Lieferant und Preis sind erforderlich.",
+    "margin": "Marge",
+    "marginHint": "VK netto − üblicher EK netto",
+    "usual": "üblich",
+    "saveFailed": "Speichern fehlgeschlagen.",
+    "ekColumn": "üblicher EK"
+  },
   "common": {
     "save": "Speichern",
     "cancel": "Abbrechen",
