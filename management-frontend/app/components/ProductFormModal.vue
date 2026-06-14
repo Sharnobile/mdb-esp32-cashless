@@ -417,6 +417,12 @@ async function submitProduct() {
         </div>
         <p v-if="barcodeAddError" class="text-xs text-destructive">{{ barcodeAddError }}</p>
       </div>
+      <!-- Purchase prices (edit mode, admin only) -->
+      <PurchasePricesSection
+        v-if="isAdmin && editingProduct"
+        :product-id="editingProduct.id"
+        :sellprice="productForm.sellprice"
+      />
       <!-- Barcode Scanner overlay -->
       <BarcodeScanner
         v-if="showProductScanner"
