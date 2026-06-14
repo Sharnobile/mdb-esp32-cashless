@@ -27,11 +27,12 @@ import {
 import DealKeywordList from '@/components/DealKeywordList.vue'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { DedupedDeal } from '@/composables/useDeals'
-import { timeAgo } from '@/lib/utils'
+import { timeAgo, formatCurrency } from '@/lib/utils'
+import { classifyDeal, marginDelta, type DealVerdict, type PurchaseSummary } from '~/lib/purchaseComparison'
 
 definePageMeta({ middleware: 'auth' })
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const { role } = useOrganization()
 const {
   deals,
@@ -49,6 +50,11 @@ const {
   archivedCount,
   activeDeals,
   archivedDeals,
+  visibleActiveDeals,
+  suppressedActiveDeals,
+  ekSummaries,
+  dealEk,
+  fetchEkSummaries,
   fetchUserStates,
   archiveDeal,
   unarchiveDeal,
@@ -58,6 +64,45 @@ const {
   fetchNewDealKeys,
   isNew,
 } = useDeals()
+
+// "+ EK erfassen" modal
+const ekModalProductId = ref<string | null>(null)
+const ekModalOpen = ref(false)
+function openEkModal(productId: string) { ekModalProductId.value = productId; ekModalOpen.value = true }
+async function onEkSaved() { await fetchEkSummaries() }
+
+// Card pill: best verdict → { label, cls } or null
+function ekPill(deal: DedupedDeal): { label: string; cls: string } | null {
+  const ek = dealEk(deal)
+  if (!ek.bestVerdict) return null
+  const best = ek.perProduct.find((p) => p.verdict === ek.bestVerdict)
+  const pct = best?.deltaPct != null ? Math.abs(Math.round(best.deltaPct)) : null
+  switch (ek.bestVerdict) {
+    case 'good_best':
+    case 'good':    return { cls: 'text-green-600 dark:text-green-400', label: pct != null ? t('deals.ekCheaperPct', { pct }) : t('deals.ekCheaper') }
+    case 'similar': return { cls: 'text-amber-600 dark:text-amber-400', label: t('deals.ekSimilar') }
+    case 'worse':   return { cls: 'text-red-600 dark:text-red-400', label: pct != null ? t('deals.ekWorsePct', { pct }) : t('deals.ekWorse') }
+    default:        return null
+  }
+}
+
+// Detail: per-product comparison for the selected deal — computed ONCE per render,
+// keyed by product id (avoids re-running classifyDeal repeatedly in the template).
+const detailComparisons = computed<Record<string, { summary: PurchaseSummary | null; verdict: DealVerdict; marginDelta: { currentPct: number; dealPct: number } | null }>>(() => {
+  const out: Record<string, { summary: PurchaseSummary | null; verdict: DealVerdict; marginDelta: { currentPct: number; dealPct: number } | null }> = {}
+  const d = selectedDeal.value
+  if (!d) return out
+  const dealGross = d.primary.deal_price
+  for (const p of d.matchedProducts) {
+    const summary = ekSummaries.value[p.id] ?? null
+    const cmp = classifyDeal(dealGross, summary)
+    const md = (cmp.verdict === 'good' || cmp.verdict === 'good_best') && dealGross != null && summary
+      ? marginDelta(p.sellprice, dealGross, summary)
+      : null
+    out[p.id] = { summary, verdict: cmp.verdict, marginDelta: md }
+  }
+  return out
+})
 
 const lastFetchLabel = computed(() => {
   if (!lastFetchedAt.value) return null
@@ -144,7 +189,7 @@ function matchesSearch(d: DedupedDeal, q: string): boolean {
 }
 
 const filteredDeals = computed<DedupedDeal[]>(() => {
-  const source = listMode.value === 'archived' ? archivedDeals.value : activeDeals.value
+  const source = listMode.value === 'archived' ? archivedDeals.value : visibleActiveDeals.value
   const q = searchQuery.value.trim().toLowerCase()
   if (!q) return source
   return source.filter((d) => matchesSearch(d, q))
@@ -210,11 +255,13 @@ onMounted(async () => {
   await loadSettings()
   if (dealsEnabled.value) {
     await Promise.all([fetchUserStates(), fetchDeals(), fetchNewDealKeys()])
+    await fetchEkSummaries()
   }
 })
 
 async function refresh() {
   await Promise.all([fetchUserStates(), fetchDeals(true), fetchNewDealKeys()])
+  await fetchEkSummaries()
 }
 
 // ── Action handlers (keep detail sheet state in sync after mutation) ──────
@@ -660,6 +707,9 @@ function highlightTokens(text: string, tokens: string[] | null): { text: string;
                         <span v-if="deal.primary.deal_price != null" class="text-sm font-bold text-green-600 dark:text-green-400">
                           {{ deal.primary.deal_price.toFixed(2) }}&euro;
                         </span>
+                        <span v-if="ekPill(deal)" :class="ekPill(deal)!.cls" class="ml-2 text-xs font-medium">
+                          {{ ekPill(deal)!.label }}
+                        </span>
                         <span v-if="deal.primary.regular_price != null" class="text-xs text-muted-foreground line-through">
                           {{ deal.primary.regular_price.toFixed(2) }}&euro;
                         </span>
@@ -690,6 +740,19 @@ function highlightTokens(text: string, tokens: string[] | null): { text: string;
               </div>
             </div>
           </div>
+
+          <details v-if="listMode !== 'archived' && suppressedActiveDeals.length" class="mt-4 rounded-md border px-3 py-2 text-sm">
+            <summary class="cursor-pointer select-none text-muted-foreground">
+              {{ t('deals.ekHiddenCount', { n: suppressedActiveDeals.length }) }} · {{ t('deals.ekShow') }}
+            </summary>
+            <ul class="mt-2 space-y-1">
+              <li v-for="deal in suppressedActiveDeals" :key="deal.key" class="flex items-center gap-2">
+                <span class="flex-1 truncate">{{ deal.primary.deal_title }} · {{ deal.retailer }}</span>
+                <span class="text-red-600 dark:text-red-400">{{ t('deals.ekLikelyMismatch') }}</span>
+                <button type="button" class="text-primary hover:underline" @click="openDetail(deal)">{{ t('common.details') }}</button>
+              </li>
+            </ul>
+          </details>
         </TabsContent>
 
         <TabsContent value="keywords">
@@ -927,6 +990,25 @@ function highlightTokens(text: string, tokens: string[] | null): { text: string;
                     {{ Math.round(p.confidence * 100) }}%
                   </span>
                 </span>
+                <div class="mt-1 w-full text-xs">
+                  <template v-if="detailComparisons[p.id]?.summary?.ek_count">
+                    <span class="text-muted-foreground">
+                      {{ t('deals.ekVsUsual', {
+                        deal: formatCurrency(selectedDeal.primary.deal_price ?? 0, locale),
+                        ek: formatCurrency(detailComparisons[p.id]!.summary!.newest_gross ?? 0, locale),
+                      }) }}
+                    </span>
+                    <span v-if="detailComparisons[p.id]?.marginDelta" class="block text-muted-foreground">
+                      {{ t('deals.ekMarginEffect', {
+                        from: detailComparisons[p.id]!.marginDelta!.currentPct.toFixed(0),
+                        to: detailComparisons[p.id]!.marginDelta!.dealPct.toFixed(0),
+                      }) }}
+                    </span>
+                  </template>
+                  <button v-else type="button" class="text-primary hover:underline" @click.stop="openEkModal(p.id)">
+                    {{ t('deals.ekNone') }} · {{ t('deals.ekAdd') }}
+                  </button>
+                </div>
               </li>
             </ul>
 
@@ -945,5 +1027,7 @@ function highlightTokens(text: string, tokens: string[] | null): { text: string;
         </div>
       </SheetContent>
     </Sheet>
+
+    <ProductFormModal v-model:open="ekModalOpen" :product-id="ekModalProductId" @saved="onEkSaved" />
   </div>
 </template>
