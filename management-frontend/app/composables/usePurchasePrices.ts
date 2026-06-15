@@ -16,6 +16,17 @@ export interface PurchasePrice {
   note: string | null
 }
 
+/** A purchase-price entry buffered during NEW-product creation (no product id
+ *  yet). The parent flushes these via addPurchasePrice once the product exists;
+ *  net/gross + tax rate are resolved server-side at that point. */
+export interface PendingPurchasePrice {
+  supplierName: string
+  price: number
+  basis: 'net' | 'gross'
+  observedOn: string
+  note: string | null
+}
+
 interface PriceInput {
   productId: string
   supplierName: string

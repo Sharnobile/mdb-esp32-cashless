@@ -11,6 +11,7 @@
     "date": "Datum",
     "note": "Notiz",
     "noPrices": "Noch keine Einkaufspreise erfasst.",
+    "computedAfterSave": "Netto/Brutto wird nach dem Speichern berechnet.",
     "taxRateField": "Steuersatz % (kein Satz am Produkt hinterlegt)",
     "taxRateRequired": "Bitte einen Steuersatz angeben.",
     "supplierAndPriceRequired": "Lieferant und Preis sind erforderlich.",

@@ -11,6 +11,7 @@
     "date": "Date",
     "note": "Note",
     "noPrices": "No purchase prices recorded yet.",
+    "computedAfterSave": "Net/gross is calculated after saving.",
     "taxRateField": "Tax rate % (no rate set on the product)",
     "taxRateRequired": "Please provide a tax rate.",
     "supplierAndPriceRequired": "Supplier and price are required.",

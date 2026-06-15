@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { PendingPurchasePrice } from '~/composables/usePurchasePrices'
+
 const props = defineProps<{
   open: boolean
   productId?: string | null
@@ -14,6 +16,7 @@ const { organization, role } = useOrganization()
 const { products, categories, createProduct, updateProduct, uploadProductImage, deleteProductImage } = useProducts()
 const { barcodes: allBarcodes, addBarcode, removeBarcode } = useWarehouse()
 const { images: suggestedImages, searching: searchingImages, loadingMore: loadingMoreImages, hasMore: hasMoreImages, searchDebounced, loadMore: loadMoreImages, downloadImage: downloadSuggestedImage, clear: clearImageSearch } = useProductImageSearch()
+const { addPurchasePrice } = usePurchasePrices()
 
 const isAdmin = computed(() => role.value === 'admin')
 
@@ -25,6 +28,8 @@ const editingProduct = computed<any | null>(() => {
 
 // ── Product form state ────────────────────────────────────────────────────
 const productForm = ref({ name: '', sellprice: null as number | null, description: '', category: '', discontinued: false })
+// Purchase prices buffered during NEW-product creation (flushed after createProduct).
+const pendingPurchasePrices = ref<PendingPurchasePrice[]>([])
 const productLoading = ref(false)
 const productError = ref('')
 
@@ -126,6 +131,7 @@ function clearImage() {
 // Reset form state when modal opens or productId changes — initialise from editingProduct in edit mode
 watch([() => props.open, () => props.productId], ([open]) => {
   if (!open) return
+  pendingPurchasePrices.value = []
   const prod = editingProduct.value
   if (prod) {
     productForm.value = {
@@ -214,6 +220,27 @@ async function submitProduct() {
         }
       }
       pendingBarcodes.value = []
+    }
+
+    // Save pending purchase prices (new product creation). Net/gross + tax rate
+    // resolve server-side now that the product (and its category) exist.
+    if (!editingProduct.value && pendingPurchasePrices.value.length > 0) {
+      for (const e of pendingPurchasePrices.value) {
+        try {
+          await addPurchasePrice({
+            productId,
+            supplierName: e.supplierName,
+            price: e.price,
+            basis: e.basis,
+            observedOn: e.observedOn,
+            note: e.note,
+          })
+        } catch {
+          // Product is saved; an individual EK may fail (e.g. a category without a
+          // tax rate). The user can add it in edit mode where the % fallback exists.
+        }
+      }
+      pendingPurchasePrices.value = []
     }
 
     emit('saved', productId)
@@ -418,10 +445,13 @@ async function submitProduct() {
         <p v-if="barcodeAddError" class="text-xs text-destructive">{{ barcodeAddError }}</p>
       </div>
       <!-- Purchase prices (edit mode, admin only) -->
+      <!-- Purchase prices (admin). Edit mode persists immediately; create mode
+           buffers and the parent flushes after the product is created. -->
       <PurchasePricesSection
-        v-if="isAdmin && editingProduct"
-        :product-id="editingProduct.id"
+        v-if="isAdmin"
+        :product-id="editingProduct?.id ?? null"
         :sellprice="productForm.sellprice"
+        v-model:pending="pendingPurchasePrices"
       />
       <!-- Barcode Scanner overlay -->
       <BarcodeScanner
