@@ -412,7 +412,6 @@ private struct CurrencyCentsField: UIViewRepresentable {
         tf.keyboardType = .numberPad
         tf.textAlignment = .right
         tf.delegate = context.coordinator
-        tf.tintColor = .clear   // caret hidden — content is fully controlled
         tf.text = context.coordinator.format(cents)
         tf.textColor = cents == 0 ? .secondaryLabel : .label
         tf.setContentCompressionResistancePriority(.required, for: .horizontal)
@@ -421,7 +420,10 @@ private struct CurrencyCentsField: UIViewRepresentable {
 
     func updateUIView(_ tf: UITextField, context: Context) {
         let formatted = context.coordinator.format(cents)
-        if tf.text != formatted { tf.text = formatted }
+        if tf.text != formatted {
+            tf.text = formatted
+            if tf.isFirstResponder { context.coordinator.moveCaretToEnd(tf) }
+        }
         tf.textColor = cents == 0 ? .secondaryLabel : .label
     }
 
@@ -442,6 +444,16 @@ private struct CurrencyCentsField: UIViewRepresentable {
             fmt.string(from: NSNumber(value: Double(cents) / 100)) ?? "0,00"
         }
 
+        /// Keep the caret pinned to the end (digits always append there).
+        func moveCaretToEnd(_ tf: UITextField) {
+            let end = tf.endOfDocument
+            tf.selectedTextRange = tf.textRange(from: end, to: end)
+        }
+
+        func textFieldDidBeginEditing(_ tf: UITextField) {
+            DispatchQueue.main.async { self.moveCaretToEnd(tf) }
+        }
+
         func textField(_ tf: UITextField, shouldChangeCharactersIn range: NSRange,
                        replacementString string: String) -> Bool {
             var c = parent.cents
@@ -458,6 +470,7 @@ private struct CurrencyCentsField: UIViewRepresentable {
             parent.cents = c
             tf.text = format(c)
             tf.textColor = c == 0 ? .secondaryLabel : .label
+            DispatchQueue.main.async { self.moveCaretToEnd(tf) }  // caret stays at the end
             return false                                    // we set the text ourselves
         }
     }
