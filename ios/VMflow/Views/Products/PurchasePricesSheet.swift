@@ -16,8 +16,6 @@ fileprivate enum EKDate {
     }
 }
 
-fileprivate let ekCurrency: FloatingPointFormatStyle<Double>.Currency =
-    .currency(code: "EUR").precision(.fractionLength(2...4))
 fileprivate let ekCurrency2: FloatingPointFormatStyle<Double>.Currency =
     .currency(code: "EUR").precision(.fractionLength(2))
 
@@ -211,13 +209,35 @@ private struct PriceEditorView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var supplierName = ""
-    @State private var price: Double = 0
+    // Banking-style amount entry: the value is held in integer cents and digits
+    // fill in right→left, so the field always reads "X,YZ €" with fixed 2 decimals.
+    @State private var cents: Int = 0
     @State private var basis: PriceBasis = .net
     @State private var observedOn = Date()
     @State private var note = ""
     @State private var taxRatePctText = ""
     @State private var formError: String?
     @State private var saving = false
+
+    private var price: Double { Double(cents) / 100 }
+
+    // Locale-aware "0,00" (fixed 2 fraction digits, no currency symbol — the € is a
+    // separate trailing label so the last character stays a digit for backspacing).
+    private static let decimal2: NumberFormatter = {
+        let f = NumberFormatter()
+        f.numberStyle = .decimal
+        f.minimumFractionDigits = 2
+        f.maximumFractionDigits = 2
+        return f
+    }()
+    /// Two-way binding that reformats on every keystroke: the setter keeps only the
+    /// typed digits and reads them as cents, so input fills right→left.
+    private var amountText: Binding<String> {
+        Binding(
+            get: { Self.decimal2.string(from: NSNumber(value: Double(cents) / 100)) ?? "0,00" },
+            set: { raw in cents = Int(String(raw.filter(\.isNumber).prefix(9))) ?? 0 }
+        )
+    }
 
     private var isEditing: Bool { if case .edit = mode { return true } else { return false } }
     private var needRateOverride: Bool { !isCreate && vm.resolvedRate == nil }
@@ -251,9 +271,14 @@ private struct PriceEditorView: View {
             }
 
             Section(String(localized: "Price per unit")) {
-                TextField(String(localized: "Price per unit"), value: $price, format: ekCurrency)
-                    .keyboardType(.decimalPad)
-                    .multilineTextAlignment(.trailing)
+                HStack(spacing: 6) {
+                    Text(String(localized: "Price per unit")).foregroundStyle(.secondary)
+                    Spacer(minLength: 12)
+                    TextField("", text: amountText)
+                        .keyboardType(.numberPad)
+                        .multilineTextAlignment(.trailing)
+                    Text("€").foregroundStyle(.secondary)
+                }
                 Picker(String(localized: "Basis"), selection: $basis) {
                     Text(String(localized: "net")).tag(PriceBasis.net)
                     Text(String(localized: "gross")).tag(PriceBasis.gross)
@@ -294,7 +319,7 @@ private struct PriceEditorView: View {
     private func applySeed() {
         guard let s = seed else { return }
         supplierName = s.supplierName
-        price = s.price
+        cents = Int((s.price * 100).rounded())
         basis = s.basis
         observedOn = s.observedOn
         note = s.note
