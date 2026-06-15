@@ -949,7 +949,11 @@
     "usageInstruction": "Verwenden Sie Ihren API-Schlüssel mit dem {header}-Header zur Authentifizierung von Anfragen.",
     "copyWarning": "Kopieren Sie diesen Schlüssel jetzt. Er wird nicht erneut angezeigt.",
     "noKeysYet": "Noch keine API-Schlüssel erstellt.",
-    "revokeConfirm": "Widerrufen"
+    "revokeConfirm": "Widerrufen",
+    "mcpTitle": "MCP-Server (für KI-Agenten)",
+    "mcpDescription": "Dieselben API-Schlüssel funktionieren mit dem MCP-Server. Verbinden Sie einen MCP-Client (OpenClaw, Claude, Cursor …) mit der URL unten — die API-Endpunkte stehen dann automatisch als Tools zur Verfügung.",
+    "mcpUrlLabel": "MCP-Endpunkt",
+    "mcpAuth": "Authentifizierung über den {header}-Header (Transport: Streamable HTTP). Schreibende Geräteaktionen (OTA, Konfiguration) sind standardmäßig ausgeblendet."
   },
   "history": {
     "title": "Verlauf",

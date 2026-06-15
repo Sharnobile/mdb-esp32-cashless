@@ -69,6 +69,11 @@ onMounted(fetchKeys)
 const createdKey = ref('')
 const { copy, copied } = useClipboard({ copiedDuring: 2000 })
 
+// MCP server endpoint = same base as the API, with the /mcp Kong route.
+const config = useRuntimeConfig()
+const mcpUrl = computed(() => `${(config.public.supabase?.url as string) || 'https://your-supabase-url'}/mcp`)
+const { copy: copyMcp, copied: copiedMcp } = useClipboard({ copiedDuring: 2000 })
+
 const {
   open: showCreateModal,
   form: createForm,
@@ -204,6 +209,38 @@ async function revokeKey(id: string) {
   -H "X-API-Key: vmf_your_api_key_here" \
   -H "Content-Type: application/json" \
   -d '{"device_id": "your-device-uuid", "amount": 1.50}'</code></pre>
+        </div>
+      </div>
+
+      <!-- MCP server -->
+      <div class="rounded-xl border bg-card p-6">
+        <h2 class="mb-2 text-base font-medium">{{ t('apiKeys.mcpTitle') }}</h2>
+        <p class="mb-3 text-sm text-muted-foreground">
+          {{ t('apiKeys.mcpDescription') }}
+        </p>
+        <div class="mb-3 space-y-1">
+          <label class="text-xs font-medium text-muted-foreground">{{ t('apiKeys.mcpUrlLabel') }}</label>
+          <div class="flex items-stretch gap-2">
+            <div class="flex-1 overflow-hidden rounded-md border border-input bg-muted/50 px-3 py-2">
+              <p class="truncate font-mono text-xs">{{ mcpUrl }}</p>
+            </div>
+            <button
+              class="inline-flex shrink-0 items-center justify-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90"
+              @click="copyMcp(mcpUrl)"
+            >
+              {{ copiedMcp ? t('common.copied') : t('common.copy') }}
+            </button>
+          </div>
+        </div>
+        <p class="mb-3 text-sm text-muted-foreground">
+          {{ t('apiKeys.mcpAuth', { header: 'X-API-Key' }) }}
+        </p>
+        <div class="rounded-md bg-muted p-4">
+          <pre class="overflow-x-auto text-xs"><code># OpenClaw
+openclaw mcp add vmflow --url {{ mcpUrl }} --transport streamable-http --header "X-API-Key: vmf_your_api_key_here"
+
+# Claude Code
+claude mcp add --transport http vmflow {{ mcpUrl }} --header "X-API-Key: vmf_your_api_key_here"</code></pre>
         </div>
       </div>
     </template>

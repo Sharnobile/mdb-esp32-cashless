@@ -949,7 +949,11 @@
     "usageInstruction": "Use your API key with the {header} header to authenticate requests.",
     "copyWarning": "Copy this key now. It will not be shown again.",
     "noKeysYet": "No API keys created yet.",
-    "revokeConfirm": "Revoke"
+    "revokeConfirm": "Revoke",
+    "mcpTitle": "MCP server (for AI agents)",
+    "mcpDescription": "The same API keys work with the MCP server. Point an MCP client (OpenClaw, Claude, Cursor …) at the URL below and the API endpoints become available as tools automatically.",
+    "mcpUrlLabel": "MCP endpoint",
+    "mcpAuth": "Authenticate with the {header} header (transport: Streamable HTTP). Destructive device actions (OTA, config) are hidden by default."
   },
   "history": {
     "title": "History",
