@@ -439,6 +439,156 @@ paths:
                 items:
                   $ref: '#/components/schemas/FirmwareVersion'
 
+  /deals:
+    get:
+      summary: List matched deals (Marktguru offers cached per company)
+      tags: [Deals]
+      parameters: [{ $ref: '#/components/parameters/limit' }, { $ref: '#/components/parameters/offset' }, { $ref: '#/components/parameters/order' }, { $ref: '#/components/parameters/select' }]
+      responses:
+        '200': { description: Array of deals, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Row' } } } } }
+
+  /deal-keywords:
+    get:
+      summary: List deal keyword groups
+      tags: [Deals]
+      parameters: [{ $ref: '#/components/parameters/limit' }, { $ref: '#/components/parameters/offset' }]
+      responses:
+        '200': { description: Array of keyword groups, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Row' } } } } }
+
+  /deal-keyword-products:
+    get:
+      summary: List keyword-group ↔ product links
+      tags: [Deals]
+      parameters: [{ $ref: '#/components/parameters/limit' }, { $ref: '#/components/parameters/offset' }]
+      responses:
+        '200': { description: Array of links, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Row' } } } } }
+
+  /cash-books:
+    get:
+      summary: List cash books (per machine)
+      tags: [Cashbook]
+      parameters: [{ $ref: '#/components/parameters/limit' }, { $ref: '#/components/parameters/offset' }]
+      responses:
+        '200': { description: Array of cash books, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Row' } } } } }
+
+  /cash-book-entries:
+    get:
+      summary: List cash book entries
+      tags: [Cashbook]
+      parameters: [{ $ref: '#/components/parameters/limit' }, { $ref: '#/components/parameters/offset' }, { $ref: '#/components/parameters/order' }]
+      responses:
+        '200': { description: Array of entries, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Row' } } } } }
+
+  /payments:
+    get:
+      summary: List payments
+      tags: [Cashbook]
+      parameters: [{ $ref: '#/components/parameters/limit' }, { $ref: '#/components/parameters/offset' }, { $ref: '#/components/parameters/order' }]
+      responses:
+        '200': { description: Array of payments, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Row' } } } } }
+
+  /suppressed-sales:
+    get:
+      summary: List suppressed (deduplicated) sales (read-only)
+      tags: [Sales]
+      parameters: [{ $ref: '#/components/parameters/limit' }, { $ref: '#/components/parameters/offset' }, { $ref: '#/components/parameters/order' }]
+      responses:
+        '200': { description: Array of suppressed sales, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Row' } } } } }
+
+  /stock-decrement-log:
+    get:
+      summary: List stock-decrement audit log (read-only)
+      tags: [Analytics]
+      parameters: [{ $ref: '#/components/parameters/limit' }, { $ref: '#/components/parameters/offset' }, { $ref: '#/components/parameters/order' }]
+      responses:
+        '200': { description: Array of log entries, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Row' } } } } }
+
+  /mdb-log:
+    get:
+      summary: List MDB state-change diagnostics (read-only)
+      tags: [Diagnostics]
+      parameters: [{ $ref: '#/components/parameters/limit' }, { $ref: '#/components/parameters/offset' }, { $ref: '#/components/parameters/order' }]
+      responses:
+        '200': { description: Array of MDB log entries, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Row' } } } } }
+
+  /dex-snapshots:
+    get:
+      summary: List DEX telemetry snapshots (read-only)
+      tags: [Diagnostics]
+      parameters: [{ $ref: '#/components/parameters/limit' }, { $ref: '#/components/parameters/offset' }, { $ref: '#/components/parameters/order' }]
+      responses:
+        '200': { description: Array of DEX snapshots, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Row' } } } } }
+
+  /device-restarts:
+    get:
+      summary: List device restart events (read-only)
+      tags: [Diagnostics]
+      parameters: [{ $ref: '#/components/parameters/limit' }, { $ref: '#/components/parameters/offset' }, { $ref: '#/components/parameters/order' }]
+      responses:
+        '200': { description: Array of restart events, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Row' } } } } }
+
+  /ota-updates:
+    get:
+      summary: List OTA update events (read-only)
+      tags: [Diagnostics]
+      parameters: [{ $ref: '#/components/parameters/limit' }, { $ref: '#/components/parameters/offset' }, { $ref: '#/components/parameters/order' }]
+      responses:
+        '200': { description: Array of OTA update events, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Row' } } } } }
+
+  /product-offerings:
+    get:
+      summary: List per-machine product offering history
+      tags: [Analytics]
+      parameters: [{ $ref: '#/components/parameters/limit' }, { $ref: '#/components/parameters/offset' }]
+      responses:
+        '200': { description: Array of offerings, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Row' } } } } }
+
+  /machine-feedback:
+    get:
+      summary: List machine feedback
+      tags: [Analytics]
+      parameters: [{ $ref: '#/components/parameters/limit' }, { $ref: '#/components/parameters/offset' }]
+      responses:
+        '200': { description: Array of feedback, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Row' } } } } }
+
+  /product-wishes:
+    get:
+      summary: List product wishes
+      tags: [Analytics]
+      parameters: [{ $ref: '#/components/parameters/limit' }, { $ref: '#/components/parameters/offset' }]
+      responses:
+        '200': { description: Array of product wishes, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Row' } } } } }
+
+  /restock-subscriptions:
+    get:
+      summary: List restock subscriptions
+      tags: [Warehouse]
+      parameters: [{ $ref: '#/components/parameters/limit' }, { $ref: '#/components/parameters/offset' }]
+      responses:
+        '200': { description: Array of subscriptions, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Row' } } } } }
+
+  /refill-applications:
+    get:
+      summary: List refill-tour tray applications
+      tags: [Warehouse]
+      parameters: [{ $ref: '#/components/parameters/limit' }, { $ref: '#/components/parameters/offset' }, { $ref: '#/components/parameters/order' }]
+      responses:
+        '200': { description: Array of refill applications, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Row' } } } } }
+
+  /warehouse-position-groups:
+    get:
+      summary: List warehouse position groups
+      tags: [Warehouse]
+      responses:
+        '200': { description: Array of position groups, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Row' } } } } }
+
+  /system-tax-rates:
+    get:
+      summary: List system reference tax rates (global EU reference data)
+      tags: [Tax]
+      responses:
+        '200': { description: Array of reference rates, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Row' } } } } }
+
   /actions/send-credit:
     post:
       summary: Send credit to a device
@@ -691,6 +841,14 @@ components:
           type: string
         message:
           type: string
+
+    Row:
+      type: object
+      additionalProperties: true
+      description: >
+        A generic row from the underlying table (PostgREST columns passed through).
+        Use `?select=` to pick columns. Detailed per-resource schemas can be added
+        later if needed.
 
     Machine:
       type: object

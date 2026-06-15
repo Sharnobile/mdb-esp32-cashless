@@ -34,6 +34,29 @@ const CRUD_ROUTES: Record<string, { table: string; readOnly: boolean; extraMetho
   'tax-classes':            { table: 'tax_classes',                 readOnly: true },
   'tax-rates':              { table: 'tax_rates',                   readOnly: true },
   firmware:                 { table: 'firmware_versions',           readOnly: true },
+  // Broad read-only exposure. All RLS company-scoped — directly, or via joins on
+  // embeddeds/vendingMachine/deal_keywords; system_tax_rates is global reference
+  // data. NOTE: machine_insights_history/_cache are deliberately NOT exposed —
+  // their SELECT policy is USING(true), which would leak across companies.
+  deals:                       { table: 'deal_cache',                    readOnly: true },
+  'deal-keywords':             { table: 'deal_keywords',                 readOnly: true },
+  'deal-keyword-products':     { table: 'deal_keyword_products',         readOnly: true },
+  'cash-books':                { table: 'cash_books',                    readOnly: true },
+  'cash-book-entries':         { table: 'cash_book_entries',             readOnly: true },
+  payments:                    { table: 'payments',                      readOnly: true },
+  'suppressed-sales':          { table: 'suppressed_sales',              readOnly: true },
+  'stock-decrement-log':       { table: 'stock_decrement_log',           readOnly: true },
+  'mdb-log':                   { table: 'mdb_log',                       readOnly: true },
+  'dex-snapshots':             { table: 'dex_snapshots',                 readOnly: true },
+  'device-restarts':           { table: 'device_restarts',               readOnly: true },
+  'ota-updates':               { table: 'ota_updates',                   readOnly: true },
+  'product-offerings':         { table: 'machine_product_offerings',     readOnly: true },
+  'machine-feedback':          { table: 'machine_feedback',              readOnly: true },
+  'product-wishes':            { table: 'product_wishes',                readOnly: true },
+  'restock-subscriptions':     { table: 'restock_subscriptions',         readOnly: true },
+  'refill-applications':       { table: 'refill_tour_tray_applications', readOnly: true },
+  'warehouse-position-groups': { table: 'warehouse_position_groups',     readOnly: true },
+  'system-tax-rates':          { table: 'system_tax_rates',              readOnly: true },
 }
 
 /** Action endpoints → target edge function name. */
