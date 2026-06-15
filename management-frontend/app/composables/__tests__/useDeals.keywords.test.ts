@@ -15,6 +15,10 @@ const mockSupabase = {
 ;(globalThis as any).useSupabaseClient = () => mockSupabase
 ;(globalThis as any).useSupabaseUser = () => vueRef({ id: 'user-1' })
 ;(globalThis as any).useOrganization = () => ({ organization: vueRef({ id: 'company-1' }) })
+// Chunk-5 addition: useDeals() now pulls `fetchSummaries` from usePurchasePrices()
+// at construction time. The keyword tests never trigger EK fetching, so a no-op
+// stub is enough to let the module evaluate.
+;(globalThis as any).usePurchasePrices = () => ({ fetchSummaries: async () => ({}) })
 
 vi.mock('#imports', () => ({
   useSupabaseClient: () => mockSupabase,
