@@ -4,6 +4,7 @@ import SwiftUI
 struct WarehouseView: View {
     @StateObject private var viewModel = WarehouseViewModel()
     @EnvironmentObject private var realtime: RealtimeService
+    @Environment(\.locale) private var locale
     @State private var selectedTab = 0
     /// Raw text for the quantity field — supports expressions like "2*12", "100+50".
     @State private var quantityText = ""
@@ -11,6 +12,19 @@ struct WarehouseView: View {
     @State private var scanError: String?
     @State private var productDetailSelection: ProductDetailSelection?
     @FocusState private var quantityFieldFocused: Bool
+
+    /// Canonical `yyyy-MM-dd` for the typed best-before date, or nil when empty,
+    /// invalid, or already in the past (a best-before date can't be in the past).
+    private var intakeExpirationISO: String? {
+        viewModel.intakeExpirationText.isEmpty
+            ? nil
+            : LocaleDateMask(locale: locale).parseISO(viewModel.intakeExpirationText, notBefore: Date())
+    }
+
+    /// True when the user has typed something that is not yet a complete, valid date.
+    private var intakeExpirationInvalid: Bool {
+        !viewModel.intakeExpirationText.isEmpty && intakeExpirationISO == nil
+    }
 
     /// Identifies the product whose detail sheet is presented (image tap).
     private struct ProductDetailSelection: Identifiable {
@@ -423,19 +437,8 @@ struct WarehouseView: View {
                 .frame(maxWidth: 200)
         }
 
-        // Expiration date
-        Toggle("Has Expiration", isOn: $viewModel.intakeHasExpiration)
-
-        if viewModel.intakeHasExpiration {
-            DatePicker(
-                "Expiration",
-                selection: Binding(
-                    get: { viewModel.intakeExpirationDate ?? Date() },
-                    set: { viewModel.intakeExpirationDate = $0 }
-                ),
-                displayedComponents: .date
-            )
-        }
+        // Best-before date — typed, locale-formatted (de: TT.MM.JJ). Empty = no expiry.
+        ExpiryDateField(title: "Best before", text: $viewModel.intakeExpirationText)
 
         // Book button
         Button {
@@ -453,7 +456,7 @@ struct WarehouseView: View {
             }
         }
         .buttonStyle(.borderedProminent)
-        .disabled(viewModel.intakeProductId == nil || viewModel.isBookingIntake || evaluateExpression(quantityText) == nil)
+        .disabled(viewModel.intakeProductId == nil || viewModel.isBookingIntake || evaluateExpression(quantityText) == nil || intakeExpirationInvalid)
         .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
     }
 
@@ -544,12 +547,7 @@ struct WarehouseView: View {
 
         let batchNumber: String? = viewModel.intakeBatchNumber.isEmpty ? nil : viewModel.intakeBatchNumber
 
-        var expirationDate: String? = nil
-        if viewModel.intakeHasExpiration, let date = viewModel.intakeExpirationDate {
-            let formatter = DateFormatter()
-            formatter.dateFormat = "yyyy-MM-dd"
-            expirationDate = formatter.string(from: date)
-        }
+        let expirationDate: String? = intakeExpirationISO
 
         await viewModel.bookIntake(
             productId: productId,

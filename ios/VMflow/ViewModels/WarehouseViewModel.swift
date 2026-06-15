@@ -46,8 +46,9 @@ final class WarehouseViewModel: ObservableObject {
     @Published var intakeProductId: UUID?
     @Published var intakeQuantity: Int = 1
     @Published var intakeBatchNumber: String = ""
-    @Published var intakeExpirationDate: Date? = nil
-    @Published var intakeHasExpiration: Bool = false
+    /// Best-before date as the user-facing masked text (e.g. "15.06.26").
+    /// Empty means no expiry; parsed to `yyyy-MM-dd` at submit time.
+    @Published var intakeExpirationText: String = ""
     @Published var isBookingIntake = false
 
     private let client = SupabaseService.shared.client
@@ -390,8 +391,7 @@ final class WarehouseViewModel: ObservableObject {
             intakeProductId = nil
             intakeQuantity = 1
             intakeBatchNumber = ""
-            intakeExpirationDate = nil
-            intakeHasExpiration = false
+            intakeExpirationText = ""
 
             // 4. Reload data
             async let summariesTask: () = loadProductSummaries()
