@@ -219,7 +219,7 @@ struct DealsView: View {
     /// EK (see DealsViewModel.dealEk). Nil when no matched product has EK data.
     private func ekPriceLabel(for deal: DedupedDeal) -> String? {
         guard let gross = viewModel.dealEk(deal).usualEkGross else { return nil }
-        return String(format: String(localized: "EK %.2f \u{20AC}"), gross)
+        return String(format: String(localized: "Cost %.2f \u{20AC}"), gross)
     }
 
     // MARK: - Swipe actions
