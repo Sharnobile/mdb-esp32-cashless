@@ -252,6 +252,35 @@ services:
             - X-Total-Count
           max_age: 3600
 
+  ## OpenClaw MCP bridge (OpenAPI -> MCP, Streamable HTTP)
+  - name: mcp-bridge
+    _comment: 'MCP bridge: /mcp -> http://mcp-bridge:8080/mcp (auth via forwarded X-API-Key; no key-auth here)'
+    url: http://mcp-bridge:8080
+    routes:
+      - name: mcp-all
+        strip_path: false
+        paths:
+          - /mcp
+    plugins:
+      - name: cors
+        config:
+          origins:
+            - '*'
+          methods:
+            - GET
+            - POST
+            - DELETE
+            - OPTIONS
+          headers:
+            - Content-Type
+            - X-API-Key
+            - Accept
+            - Mcp-Session-Id
+            - Mcp-Protocol-Version
+          exposed_headers:
+            - Mcp-Session-Id
+          max_age: 3600
+
   ## Protected Dashboard - catch all remaining routes
   - name: dashboard
     _comment: 'Studio: /* -> http://studio:3000/*'

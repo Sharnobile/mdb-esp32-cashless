@@ -376,6 +376,19 @@ info "Rebuilding forwarder..."
 docker compose build forwarder
 success "Forwarder image built"
 
+# ── MCP bridge (OpenClaw OpenAPI→MCP) ────────────────────────────────────────
+# Only rebuild when its sources changed (or --rebuild-all). On the first rollout
+# the new Docker/mcp-bridge/ files appear in the diff, so it builds here; the
+# reconcile `up -d` below then starts it. Without this rebuild, later server.py
+# changes would silently never reach the running container.
+if [ "$REBUILD_ALL" = true ] || { [ "$BEFORE" != "$AFTER" ] && git -C "$SCRIPT_DIR/.." diff --name-only "$BEFORE" "$AFTER" | grep -q "^Docker/mcp-bridge/"; }; then
+    info "Rebuilding mcp-bridge..."
+    docker compose build mcp-bridge
+    success "mcp-bridge image built"
+else
+    info "mcp-bridge sources unchanged — skipping rebuild"
+fi
+
 # ── Pull all images from registry (opt-in) ──────────────────────────────────
 # Off by default because it adds 5-10s of registry round-trips per service
 # and most updates don't touch the Supabase stack. Use `--pull-all` when:
@@ -431,6 +444,16 @@ fi
 info "Reconciling other services with compose config..."
 docker compose up -d --remove-orphans
 success "Compose state reconciled"
+
+# Kong loads its declarative config (services/routes) only at container start.
+# If kong.yml changed in this update (e.g. a new route such as the /mcp bridge),
+# restart kong AFTER the reconcile above has created any new upstream service it
+# points at — otherwise kong caches a failed DNS lookup and 502s the new route.
+if [ "$BEFORE" != "$AFTER" ] && git -C "$SCRIPT_DIR/.." diff --name-only "$BEFORE" "$AFTER" | grep -q "^Docker/volumes/api/kong.yml"; then
+    info "Kong config changed — restarting kong to load new routes..."
+    docker compose restart kong
+    success "Kong reloaded"
+fi
 
 success "Services restarted"
 

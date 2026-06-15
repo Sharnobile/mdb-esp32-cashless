@@ -146,6 +146,42 @@ services:
     entrypoint: bash -c 'eval "echo \"$$(cat ~/temp.yml)\"" > ~/kong.yml && /docker-entrypoint.sh kong docker-start'
 
   # ==========================================================================
+  # MCP Bridge (OpenAPI -> MCP, for OpenClaw & other MCP clients)
+  # See docs/integrations/openclaw-mcp-bridge.md
+  # ==========================================================================
+
+  mcp-bridge:
+    build:
+      context: ./mcp-bridge
+    restart: unless-stopped
+    # No published host port: reached only via the Kong route
+    # /mcp -> http://mcp-bridge:8080/mcp, fronted by the same TLS vhost as the API.
+    environment:
+      # Upstream API, internal. Trailing slash is required (see server.py).
+      MCP_API_BASE_URL: http://kong:8000/api/v1/
+      MCP_OPENAPI_SPEC: /app/openapi.yaml
+      MCP_PATH: /mcp
+      MCP_PORT: "8080"
+      # Auth: NO key stored here — each MCP client sends its own X-API-Key, which
+      # we forward per request to the API. Revoke the key in the dashboard to cut access.
+      # Safety: the two destructive device actions are hidden ($$ = literal $ in compose).
+      MCP_EXCLUDE_PATTERNS: "^/actions/trigger-ota$$,^/actions/send-config$$"
+      # Set to "true" to expose ONLY read (GET) tools.
+      MCP_READONLY: ${MCP_READONLY:-false}
+    volumes:
+      # The OpenAPI spec is the single source of truth for the exposed tools.
+      - ./supabase/functions/api-v1/openapi.yaml:/app/openapi.yaml:ro
+    depends_on:
+      kong:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8080/healthz').status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  # ==========================================================================
   # Supabase Auth (GoTrue)
   # ==========================================================================
 
