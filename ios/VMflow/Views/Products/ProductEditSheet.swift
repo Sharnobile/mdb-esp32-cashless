@@ -112,16 +112,15 @@ struct ProductEditSheet: View {
                     Text("Barcodes")
                 }
 
-                // Purchase prices (new product: buffered locally, saved after create)
-                if isNew {
-                    Section(String(localized: "Purchase prices")) {
-                        Button { showPurchasePrices = true } label: {
-                            HStack {
-                                Label(String(localized: "Manage purchase prices"), systemImage: "eurosign.circle")
-                                Spacer()
-                                if !pendingPurchasePrices.isEmpty {
-                                    Text("\(pendingPurchasePrices.count)").foregroundStyle(.secondary)
-                                }
+                // Purchase prices. Edit mode manages the existing product's prices
+                // directly (RPC); a new product buffers locally and flushes after create.
+                Section(String(localized: "Purchase prices")) {
+                    Button { showPurchasePrices = true } label: {
+                        HStack {
+                            Label(String(localized: "Manage purchase prices"), systemImage: "eurosign.circle")
+                            Spacer()
+                            if isNew && !pendingPurchasePrices.isEmpty {
+                                Text("\(pendingPurchasePrices.count)").foregroundStyle(.secondary)
                             }
                         }
                     }
@@ -229,8 +228,8 @@ struct ProductEditSheet: View {
             }
             .sheet(isPresented: $showPurchasePrices) {
                 PurchasePricesSheet(
-                    productId: nil,
-                    sellprice: Double(priceText.replacingOccurrences(of: ",", with: ".")),
+                    productId: product?.id,
+                    sellprice: Double(priceText.replacingOccurrences(of: ",", with: ".")) ?? product?.sellprice,
                     pending: $pendingPurchasePrices
                 )
             }
