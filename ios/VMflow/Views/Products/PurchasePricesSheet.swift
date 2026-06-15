@@ -1,10 +1,16 @@
 import SwiftUI
 
-/// Manage a product's purchase prices: history (★ cheapest, "usual" = newest),
-/// add/edit with net/gross toggle + live counterpart, fallback tax %, and margin.
+/// Manage a product's purchase prices.
+/// - EDIT mode (`productId != nil`): history (★ cheapest, "usual" = newest),
+///   add/edit with net/gross toggle + live counterpart, fallback tax %, margin.
+///   Entries persist immediately via the RPCs.
+/// - CREATE/BUFFER mode (`productId == nil`): entries are collected into the
+///   `pending` binding (the product doesn't exist yet). The parent flushes them
+///   after creating the product; net/gross + tax rate resolve server-side then.
 struct PurchasePricesSheet: View {
-    let productId: UUID
+    let productId: UUID?
     let sellprice: Double?
+    @Binding var pending: [PendingPurchasePrice]
 
     @StateObject private var vm = PurchasePricesViewModel()
     @Environment(\.dismiss) private var dismiss
@@ -18,7 +24,16 @@ struct PurchasePricesSheet: View {
     @State private var editingId: UUID? = nil
     @State private var formError: String?
 
-    private var needRateOverride: Bool { vm.resolvedRate == nil }
+    init(productId: UUID?, sellprice: Double?, pending: Binding<[PendingPurchasePrice]> = .constant([])) {
+        self.productId = productId
+        self.sellprice = sellprice
+        self._pending = pending
+    }
+
+    private var isCreate: Bool { productId == nil }
+    // Edit mode only: a missing product tax rate forces a manual % to convert
+    // net<->gross. In create mode the rate resolves server-side at flush time.
+    private var needRateOverride: Bool { !isCreate && vm.resolvedRate == nil }
     private var effectiveRate: Double? {
         needRateOverride ? Double(taxRatePctText).map { $0 / 100 } : vm.resolvedRate
     }
@@ -44,31 +59,56 @@ struct PurchasePricesSheet: View {
         NavigationStack {
             Form {
                 Section(String(localized: "Recorded prices")) {
-                    if vm.prices.isEmpty {
-                        Text(String(localized: "No purchase prices recorded yet."))
-                            .font(.footnote).foregroundStyle(.secondary)
-                    }
-                    ForEach(vm.prices) { p in
-                        HStack {
-                            if p.id == cheapestId { Text("★") }
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(p.supplierName).font(.subheadline)
-                                Text(String(format: "%.2f \u{20AC} %@ · %.2f \u{20AC} %@ · %@",
-                                            p.priceNet, String(localized: "net"),
-                                            p.priceGross, String(localized: "gross"), p.observedOn))
-                                    .font(.caption2).foregroundStyle(.secondary)
+                    if isCreate {
+                        if pending.isEmpty {
+                            Text(String(localized: "No purchase prices recorded yet."))
+                                .font(.footnote).foregroundStyle(.secondary)
+                        }
+                        ForEach(pending) { e in
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(e.supplierName).font(.subheadline)
+                                    Text(String(format: "%.2f \u{20AC} %@ · %@",
+                                                e.price,
+                                                e.basis == "net" ? String(localized: "net") : String(localized: "gross"),
+                                                e.observedOn))
+                                        .font(.caption2).foregroundStyle(.secondary)
+                                }
+                                Spacer()
                             }
-                            Spacer()
-                            if p.id == newest?.id {
-                                Text(String(localized: "usual")).font(.caption2).foregroundStyle(.secondary)
+                            .swipeActions {
+                                Button(role: .destructive) {
+                                    pending.removeAll { $0.id == e.id }
+                                } label: { Text(String(localized: "Delete")) }
                             }
                         }
-                        .contentShape(Rectangle())
-                        .onTapGesture { startEdit(p) }
-                        .swipeActions {
-                            Button(role: .destructive) {
-                                Task { await vm.deletePrice(id: p.id, productId: productId) }
-                            } label: { Text(String(localized: "Delete")) }
+                    } else {
+                        if vm.prices.isEmpty {
+                            Text(String(localized: "No purchase prices recorded yet."))
+                                .font(.footnote).foregroundStyle(.secondary)
+                        }
+                        ForEach(vm.prices) { p in
+                            HStack {
+                                if p.id == cheapestId { Text("★") }
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(p.supplierName).font(.subheadline)
+                                    Text(String(format: "%.2f \u{20AC} %@ · %.2f \u{20AC} %@ · %@",
+                                                p.priceNet, String(localized: "net"),
+                                                p.priceGross, String(localized: "gross"), p.observedOn))
+                                        .font(.caption2).foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                if p.id == newest?.id {
+                                    Text(String(localized: "usual")).font(.caption2).foregroundStyle(.secondary)
+                                }
+                            }
+                            .contentShape(Rectangle())
+                            .onTapGesture { startEdit(p) }
+                            .swipeActions {
+                                Button(role: .destructive) {
+                                    Task { await vm.deletePrice(id: p.id, productId: p.productId) }
+                                } label: { Text(String(localized: "Delete")) }
+                            }
                         }
                     }
                 }
@@ -86,7 +126,12 @@ struct PurchasePricesSheet: View {
                         Text(String(localized: "net")).tag(PriceBasis.net)
                         Text(String(localized: "gross")).tag(PriceBasis.gross)
                     }.pickerStyle(.segmented)
-                    if let c = counterpartText { Text(c).font(.caption).foregroundStyle(.secondary) }
+                    if let c = counterpartText {
+                        Text(c).font(.caption).foregroundStyle(.secondary)
+                    } else if isCreate {
+                        Text(String(localized: "Net/gross is calculated after saving."))
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
                     if needRateOverride {
                         TextField(String(localized: "Tax rate % (no rate on product)"), text: $taxRatePctText)
                             .keyboardType(.decimalPad)
@@ -118,8 +163,10 @@ struct PurchasePricesSheet: View {
             }
             .task {
                 await vm.loadSuppliers()
-                await vm.loadPrices(productId: productId)
-                await vm.resolveTaxRate(productId: productId)
+                if let pid = productId {
+                    await vm.loadPrices(productId: pid)
+                    await vm.resolveTaxRate(productId: pid)
+                }
             }
         }
     }
@@ -140,23 +187,34 @@ struct PurchasePricesSheet: View {
     }
 
     private func submit() async {
-        guard !supplierName.trimmingCharacters(in: .whitespaces).isEmpty, let price = priceValue else {
+        let name = supplierName.trimmingCharacters(in: .whitespaces)
+        guard !name.isEmpty, let price = priceValue else {
             formError = String(localized: "Supplier and price are required."); return
         }
+        let dateStr = Self.isoDate.string(from: observedOn)
+
+        // CREATE/BUFFER mode: collect locally; parent persists after create.
+        if isCreate {
+            pending.append(PendingPurchasePrice(
+                supplierName: name, price: price, basis: basis.rawValue,
+                observedOn: dateStr, note: note.isEmpty ? nil : note))
+            resetForm()
+            return
+        }
+
         if needRateOverride && Double(taxRatePctText) == nil {
             formError = String(localized: "Please provide a tax rate."); return
         }
         formError = nil
-        let dateStr = Self.isoDate.string(from: observedOn)
+        guard let pid = productId else { return }
         let override = needRateOverride ? Double(taxRatePctText).map { $0 / 100 } : nil
-        let name = supplierName.trimmingCharacters(in: .whitespaces)
         let ok: Bool
         if let id = editingId {
-            ok = await vm.updatePrice(id: id, productId: productId, supplierName: name, price: price,
+            ok = await vm.updatePrice(id: id, productId: pid, supplierName: name, price: price,
                                       basis: basis.rawValue, observedOn: dateStr, note: note.isEmpty ? nil : note,
                                       taxRateOverride: override)
         } else {
-            ok = await vm.addPrice(productId: productId, supplierName: name, price: price,
+            ok = await vm.addPrice(productId: pid, supplierName: name, price: price,
                                    basis: basis.rawValue, observedOn: dateStr, note: note.isEmpty ? nil : note,
                                    taxRateOverride: override)
         }

@@ -43,6 +43,11 @@ struct ProductEditSheet: View {
     @State private var manualBarcodeText = ""
     @State private var isLoadingBarcodes = false
 
+    // Purchase prices buffered for a NEW product (flushed after create).
+    @State private var pendingPurchasePrices: [PendingPurchasePrice] = []
+    @State private var showPurchasePrices = false
+    @StateObject private var purchaseVM = PurchasePricesViewModel()
+
     init(
         product: Product?,
         categories: [ProductCategory],
@@ -105,6 +110,21 @@ struct ProductEditSheet: View {
                     barcodeSection
                 } header: {
                     Text("Barcodes")
+                }
+
+                // Purchase prices (new product: buffered locally, saved after create)
+                if isNew {
+                    Section(String(localized: "Purchase prices")) {
+                        Button { showPurchasePrices = true } label: {
+                            HStack {
+                                Label(String(localized: "Manage purchase prices"), systemImage: "eurosign.circle")
+                                Spacer()
+                                if !pendingPurchasePrices.isEmpty {
+                                    Text("\(pendingPurchasePrices.count)").foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                    }
                 }
 
                 // Status
@@ -206,6 +226,13 @@ struct ProductEditSheet: View {
                 Button("Cancel", role: .cancel) { manualBarcodeText = "" }
             } message: {
                 Text("Enter the barcode number manually.")
+            }
+            .sheet(isPresented: $showPurchasePrices) {
+                PurchasePricesSheet(
+                    productId: nil,
+                    sellprice: Double(priceText.replacingOccurrences(of: ",", with: ".")),
+                    pending: $pendingPurchasePrices
+                )
             }
         }
     }
@@ -500,6 +527,7 @@ struct ProductEditSheet: View {
         let price = Double(priceText.replacingOccurrences(of: ",", with: "."))
         let suggestedUrl = selectedSuggestedImageUrl
         let barcodesToSave = pendingBarcodes
+        let pricesToSave = pendingPurchasePrices
 
         Task {
             let returnedId = await onSave(trimmedName, price, selectedCategoryId, discontinued)
@@ -511,6 +539,16 @@ struct ProductEditSheet: View {
             if let productId {
                 for pending in barcodesToSave {
                     _ = await viewModel.addBarcode(productId: productId, barcode: pending.code, format: pending.format)
+                }
+            }
+
+            // Save pending purchase prices for newly created product (net/gross +
+            // tax rate resolve server-side now that the product + category exist).
+            if let productId {
+                for e in pricesToSave {
+                    _ = await purchaseVM.addPrice(
+                        productId: productId, supplierName: e.supplierName, price: e.price,
+                        basis: e.basis, observedOn: e.observedOn, note: e.note, taxRateOverride: nil)
                 }
             }
 

@@ -29,3 +29,15 @@ struct PurchasePrice: Codable, Identifiable {
         case observedOn = "observed_on"
     }
 }
+
+/// A purchase-price entry buffered while creating a NEW product (no id yet).
+/// The parent flushes these via PurchasePricesViewModel.addPrice once the product
+/// exists; net/gross + tax rate resolve server-side at that point.
+struct PendingPurchasePrice: Identifiable {
+    let id = UUID()
+    var supplierName: String
+    var price: Double
+    var basis: String   // "net" | "gross"
+    var observedOn: String
+    var note: String?
+}
