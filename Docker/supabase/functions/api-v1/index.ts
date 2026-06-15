@@ -7,7 +7,7 @@ import { validateApiKey } from '../_shared/api-key-auth.ts'
 const FUNCTION_PREFIX = '/api-v1'
 
 /** Allowlist: API path → PostgREST table/view name. Unlisted paths → 404. */
-const CRUD_ROUTES: Record<string, { table: string; readOnly: boolean }> = {
+const CRUD_ROUTES: Record<string, { table: string; readOnly: boolean; extraMethods?: string[] }> = {
   machines:        { table: 'vendingMachine', readOnly: false },
   sales:           { table: 'sales',          readOnly: true },
   products:        { table: 'products',       readOnly: false },
@@ -22,7 +22,18 @@ const CRUD_ROUTES: Record<string, { table: string; readOnly: boolean }> = {
   // through the RPC actions below so net/gross + supplier find-or-create + tax
   // resolution run server-side (a raw table insert would bypass all of that).
   suppliers:         { table: 'suppliers',                readOnly: true },
-  'purchase-prices': { table: 'product_purchase_prices',  readOnly: true },
+  // Read + DELETE; create/update go through the RPC actions (net/gross + supplier).
+  'purchase-prices': { table: 'product_purchase_prices',  readOnly: true, extraMethods: ['DELETE'] },
+  // Read-only resources for API/MCP visibility. All RLS company-scoped. Writes are
+  // omitted because their RLS WITH CHECK needs company_id, which an API client can't
+  // discover — expose dedicated write actions later if needed.
+  barcodes:                 { table: 'product_barcodes',            readOnly: true },
+  'warehouse-transactions': { table: 'warehouse_transactions',      readOnly: true },
+  'min-stock':              { table: 'product_min_stock',           readOnly: true },
+  'warehouse-positions':    { table: 'warehouse_product_positions', readOnly: true },
+  'tax-classes':            { table: 'tax_classes',                 readOnly: true },
+  'tax-rates':              { table: 'tax_rates',                   readOnly: true },
+  firmware:                 { table: 'firmware_versions',           readOnly: true },
 }
 
 /** Action endpoints → target edge function name. */
@@ -196,7 +207,7 @@ Deno.serve(async (req) => {
     return errorResponse('not_found', `Unknown resource: ${resource}. Available: ${Object.keys(CRUD_ROUTES).join(', ')}`, 404)
   }
 
-  if (route.readOnly && req.method !== 'GET') {
+  if (route.readOnly && req.method !== 'GET' && !(route.extraMethods ?? []).includes(req.method)) {
     return errorResponse(
       'forbidden',
       `Resource '${resource}' is read-only. Only GET requests are allowed.`,
