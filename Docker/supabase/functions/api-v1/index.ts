@@ -18,6 +18,11 @@ const CRUD_ROUTES: Record<string, { table: string; readOnly: boolean }> = {
   'stock-batches': { table: 'warehouse_stock_batches', readOnly: false },
   paxcounter:      { table: 'paxcounter',     readOnly: true },
   'activity-log':  { table: 'activity_log',   readOnly: true },
+  // Purchase prices (Einkaufspreise) + suppliers. Read via CRUD; writes go
+  // through the RPC actions below so net/gross + supplier find-or-create + tax
+  // resolution run server-side (a raw table insert would bypass all of that).
+  suppliers:         { table: 'suppliers',                readOnly: true },
+  'purchase-prices': { table: 'product_purchase_prices',  readOnly: true },
 }
 
 /** Action endpoints → target edge function name. */
@@ -25,6 +30,12 @@ const ACTION_ROUTES: Record<string, string> = {
   'send-credit':  'send-credit',
   'trigger-ota':  'trigger-ota',
   'send-config':  'send-device-config',
+}
+
+/** Action endpoints that proxy to a PostgREST RPC (clean body → p_-prefixed args). */
+const RPC_ACTIONS: Record<string, string> = {
+  'add-purchase-price':    'add_purchase_price',
+  'update-purchase-price': 'update_purchase_price',
 }
 
 const JWT_TTL_SECONDS = 60
@@ -168,6 +179,10 @@ Deno.serve(async (req) => {
 
   // ── Route: Actions ──
   if (resource === 'actions' && id) {
+    const rpcName = RPC_ACTIONS[id]
+    if (rpcName) {
+      return proxyRpc(req, rpcName, keyInfo)
+    }
     const fnName = ACTION_ROUTES[id]
     if (!fnName) {
       return errorResponse('not_found', `Unknown action: ${id}`, 404)
@@ -311,6 +326,55 @@ async function proxyAction(
     })
   } catch (err: any) {
     return errorResponse('internal_error', `Action proxy error: ${err.message}`, 502)
+  }
+}
+
+// ── RPC proxy (PostgREST /rpc/<name>) ───────────────────────────────────────
+
+async function proxyRpc(
+  req: Request,
+  rpcName: string,
+  keyInfo: { id: string; company_id: string },
+): Promise<Response> {
+  const jwtSecret = Deno.env.get('JWT_SECRET')
+  if (!jwtSecret) {
+    return errorResponse('internal_error', 'JWT_SECRET not configured', 500)
+  }
+  const jwt = await mintJwt(keyInfo.id, keyInfo.company_id, jwtSecret)
+  const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!
+
+  // Map the clean external body ({product_id, supplier_name, …}) onto the RPC's
+  // named args (p_product_id, …). Omitted args fall back to the SQL defaults.
+  let clientBody: Record<string, unknown> = {}
+  if (req.method !== 'GET' && req.method !== 'HEAD') {
+    const raw = await req.text()
+    if (raw) {
+      try {
+        clientBody = JSON.parse(raw)
+      } catch {
+        return errorResponse('bad_request', 'Invalid JSON body', 400)
+      }
+    }
+  }
+  const rpcBody: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(clientBody)) rpcBody[`p_${k}`] = v
+
+  try {
+    const response = await fetch(`http://rest:3000/rpc/${rpcName}`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${jwt}`,
+        apikey: anonKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(rpcBody),
+    })
+    return new Response(await response.text(), {
+      status: response.status,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  } catch (err: any) {
+    return errorResponse('internal_error', `RPC proxy error: ${err.message}`, 502)
   }
 }
 

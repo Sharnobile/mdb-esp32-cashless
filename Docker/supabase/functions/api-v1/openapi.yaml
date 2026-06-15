@@ -269,6 +269,53 @@ paths:
         '200':
           description: Array of activity log entries
 
+  /suppliers:
+    get:
+      summary: List suppliers
+      tags: [Purchase Prices]
+      parameters:
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/offset'
+        - $ref: '#/components/parameters/order'
+        - $ref: '#/components/parameters/select'
+      responses:
+        '200':
+          description: Array of suppliers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Supplier'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /purchase-prices:
+    get:
+      summary: List purchase prices (Einkaufspreise)
+      tags: [Purchase Prices]
+      description: |
+        Recorded supplier purchase prices per product (net + gross). Filter to one
+        product with `?product_id=eq.<uuid>`. Read-only here — use the
+        `add-purchase-price` / `update-purchase-price` actions to write, so net/gross
+        and the supplier are resolved correctly.
+      parameters:
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/offset'
+        - $ref: '#/components/parameters/order'
+        - $ref: '#/components/parameters/select'
+      responses:
+        '200':
+          description: Array of purchase prices
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PurchasePrice'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
   /actions/send-credit:
     post:
       summary: Send credit to a device
@@ -347,6 +394,102 @@ paths:
       responses:
         '200':
           description: Config sent
+
+  /actions/add-purchase-price:
+    post:
+      summary: Add a purchase price
+      tags: [Purchase Prices]
+      description: |
+        Record a supplier purchase price for a product. The supplier is matched by
+        name (case-insensitive) or created if new. Net and gross are computed from
+        the entered value and the product's tax rate; pass `tax_rate_override`
+        (decimal, e.g. 0.19) only when the product has no resolvable tax rate.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [product_id, supplier_name, price, basis]
+              properties:
+                product_id:
+                  type: string
+                  format: uuid
+                supplier_name:
+                  type: string
+                  example: Großhandel Müller
+                price:
+                  type: number
+                  description: Unit price in the chosen basis (EUR)
+                  example: 0.50
+                basis:
+                  type: string
+                  enum: [net, gross]
+                observed_on:
+                  type: string
+                  format: date
+                  description: Invoice/offer date (defaults to today)
+                note:
+                  type: string
+                tax_rate_override:
+                  type: number
+                  description: Decimal rate (e.g. 0.19) if the product has no tax class
+      responses:
+        '200':
+          description: The created purchase price
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchasePrice'
+        '400':
+          description: Validation error (e.g. unknown product or missing tax rate)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /actions/update-purchase-price:
+    post:
+      summary: Update a purchase price
+      tags: [Purchase Prices]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id, supplier_name, price, basis, observed_on]
+              properties:
+                id:
+                  type: string
+                  format: uuid
+                supplier_name:
+                  type: string
+                price:
+                  type: number
+                basis:
+                  type: string
+                  enum: [net, gross]
+                observed_on:
+                  type: string
+                  format: date
+                note:
+                  type: string
+                tax_rate_override:
+                  type: number
+      responses:
+        '200':
+          description: The updated purchase price
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchasePrice'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
 components:
   securitySchemes:
@@ -614,6 +757,58 @@ components:
           format: uuid
         count:
           type: integer
+        created_at:
+          type: string
+          format: date-time
+
+    Supplier:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        company_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    PurchasePrice:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        company_id:
+          type: string
+          format: uuid
+        product_id:
+          type: string
+          format: uuid
+        supplier_id:
+          type: string
+          format: uuid
+        price_net:
+          type: number
+          description: Net unit price (EUR)
+        price_gross:
+          type: number
+          description: Gross unit price (EUR)
+        price_basis:
+          type: string
+          enum: [net, gross]
+          description: Which value was entered; the other is derived
+        tax_rate:
+          type: number
+          description: Tax rate used (decimal, e.g. 0.07)
+        observed_on:
+          type: string
+          format: date
+        note:
+          type: string
         created_at:
           type: string
           format: date-time
