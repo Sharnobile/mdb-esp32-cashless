@@ -49,13 +49,40 @@ const emit = defineEmits<{
 const open = ref(false)
 const searchQuery = ref('')
 
+// IMPORTANT: this repo's <Command> is built on reka-ui ListboxRoot, which has NO
+// `searchTerm` v-model (the search lives in the Command's internal filterState,
+// fed by ListboxFilter inside CommandInput). So we capture the typed text from
+// CommandInput's `update:model-value` event instead of a (non-existent) model.
+function onSearch(value: string | number | null | undefined) {
+  searchQuery.value = value == null ? '' : String(value)
+}
+
 const selectedProduct = computed(() =>
   props.products.find((p) => p.id === props.modelValue),
 )
 
+// Offer "create" when enabled and the typed text isn't an exact (case-insensitive)
+// match of an existing product. Rendered as a plain button (NOT a CommandItem)
+// because CommandItem filters by its mount-time textContent, which would hide a
+// dynamic-label create row as the query grows.
+const showCreate = computed(() => {
+  if (!props.allowCreate) return false
+  const q = searchQuery.value.trim()
+  if (!q) return false
+  return !props.products.some((p) => p.name.trim().toLowerCase() === q.toLowerCase())
+})
+
 function selectProduct(id: string | null) {
   emit('update:modelValue', id)
   emit('select', id)
+  open.value = false
+}
+
+function requestCreate() {
+  const q = searchQuery.value.trim()
+  if (!q) return
+  emit('create', q)
+  searchQuery.value = ''
   open.value = false
 }
 </script>
@@ -84,10 +111,10 @@ function selectProduct(id: string | null) {
       </button>
     </PopoverTrigger>
     <PopoverContent class="w-[--reka-popover-trigger-width] p-0" align="start">
-      <Command v-model:search-term="searchQuery">
-        <CommandInput :placeholder="placeholder" />
+      <Command>
+        <CommandInput :placeholder="placeholder" @update:model-value="onSearch" />
         <CommandList>
-          <CommandEmpty>
+          <CommandEmpty v-if="!showCreate">
             <span class="text-muted-foreground text-sm">{{ t('common.noResults') }}</span>
           </CommandEmpty>
           <CommandGroup>
@@ -115,12 +142,18 @@ function selectProduct(id: string | null) {
               {{ product.name }}
             </CommandItem>
           </CommandGroup>
-          <CommandGroup v-if="allowCreate">
-            <CommandItem value="__create__" @select="emit('create', searchQuery)">
-              <Plus class="mr-2 size-4" />
-              {{ searchQuery.trim() ? t('warehouse.createNewProduct', { name: searchQuery.trim() }) : t('warehouse.createNewProductShort') }}
-            </CommandItem>
-          </CommandGroup>
+          <!-- Create action: a plain button (NOT a CommandItem) so reka's
+               textContent-based filter can't hide it as the query grows. -->
+          <button
+            v-if="showCreate"
+            type="button"
+            data-testid="create-product"
+            class="relative flex w-full cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm outline-none hover:bg-accent hover:text-accent-foreground"
+            @click="requestCreate"
+          >
+            <Plus class="size-4 shrink-0" />
+            {{ t('warehouse.createNewProduct', { name: searchQuery.trim() }) }}
+          </button>
         </CommandList>
       </Command>
     </PopoverContent>
