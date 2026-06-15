@@ -114,7 +114,7 @@ struct DealsView: View {
                 ForEach(viewModel.groupedDeals) { group in
                     Section {
                         ForEach(group.deals) { deal in
-                            DealCard(deal: deal, isNew: viewModel.isNew(deal), pill: ekPill(for: deal))
+                            DealCard(deal: deal, isNew: viewModel.isNew(deal), pill: ekPill(for: deal), ekPrice: ekPriceLabel(for: deal))
                                 .contentShape(Rectangle())
                                 .onTapGesture {
                                     selectedDeal = deal
@@ -148,7 +148,8 @@ struct DealsView: View {
                     Section {
                         ForEach(viewModel.suppressedActiveDeals) { deal in
                             DealCard(deal: deal, isNew: false,
-                                     pill: .init(text: String(localized: "likely mismatch"), color: .red))
+                                     pill: .init(text: String(localized: "likely mismatch"), color: .red),
+                                     ekPrice: ekPriceLabel(for: deal))
                                 .contentShape(Rectangle())
                                 .onTapGesture {
                                     selectedDeal = deal
@@ -212,6 +213,13 @@ struct DealsView: View {
         default:
             return nil
         }
+    }
+
+    /// The usual EK to show on the card — the cheapest matched product's üblicher
+    /// EK (see DealsViewModel.dealEk). Nil when no matched product has EK data.
+    private func ekPriceLabel(for deal: DedupedDeal) -> String? {
+        guard let gross = viewModel.dealEk(deal).usualEkGross else { return nil }
+        return String(format: String(localized: "EK %.2f \u{20AC}"), gross)
     }
 
     // MARK: - Swipe actions

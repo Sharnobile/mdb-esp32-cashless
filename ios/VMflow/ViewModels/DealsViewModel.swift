@@ -177,18 +177,26 @@ final class DealsViewModel: ObservableObject {
         .goodBest: 5, .good: 4, .similar: 3, .worse: 2, .noEk: 1, .implausible: 0,
     ]
 
-    /// Per-deal EK result: card-suppression flag + best verdict (with its delta) for the pill.
-    func dealEk(_ d: DedupedDeal) -> (suppressed: Bool, bestVerdict: DealVerdict?, bestDeltaPct: Double?) {
+    /// Per-deal EK result: card-suppression flag + best verdict (with its delta)
+    /// for the pill, plus `usualEkGross` — the usual EK to surface on the card.
+    /// When several products match one offer, that's the EK of the *cheapest*
+    /// matched product (lowest üblicher/newest gross across all matched products
+    /// with EK data), independent of the verdict ranking.
+    func dealEk(_ d: DedupedDeal) -> (suppressed: Bool, bestVerdict: DealVerdict?, bestDeltaPct: Double?, usualEkGross: Double?) {
         let dealGross = d.primary.dealPrice
-        let comparisons = dealProductIds(d).map {
-            PurchaseComparison.classifyDeal(dealGross: dealGross, summary: ekSummaries[$0])
+        let summaries = dealProductIds(d).map { ekSummaries[$0] }
+        let comparisons = summaries.map {
+            PurchaseComparison.classifyDeal(dealGross: dealGross, summary: $0)
         }
         let verdicts = comparisons.map { $0.verdict }
         let suppressed = PurchaseComparison.isCardSuppressed(verdicts)
         let ranked = comparisons
             .filter { $0.verdict != .noEk }
             .sorted { (Self.verdictRank[$0.verdict] ?? 0) > (Self.verdictRank[$1.verdict] ?? 0) }
-        return (suppressed, ranked.first?.verdict, ranked.first?.deltaPct)
+        let usualEkGross = summaries
+            .compactMap { ($0?.ekCount ?? 0) > 0 ? $0?.newestGross : nil }
+            .min()
+        return (suppressed, ranked.first?.verdict, ranked.first?.deltaPct, usualEkGross)
     }
 
     var visibleActiveDeals: [DedupedDeal] { activeDeals.filter { !dealEk($0).suppressed } }

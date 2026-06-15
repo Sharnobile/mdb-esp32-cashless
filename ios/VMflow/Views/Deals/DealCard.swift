@@ -9,6 +9,9 @@ struct DealCard: View {
 
     struct Pill { let text: String; let color: Color }
     var pill: Pill? = nil
+    /// Pre-formatted "usual EK" line (e.g. "EK 1.09 €"); shown on its own caption
+    /// line when the matched product(s) have purchase-price data.
+    var ekPrice: String? = nil
 
     var body: some View {
         HStack(spacing: 12) {
@@ -72,6 +75,12 @@ struct DealCard: View {
                             .font(.caption2.weight(.semibold))
                             .foregroundStyle(pill.color)
                     }
+                }
+
+                if let ekPrice {
+                    Text(ekPrice)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
                 }
 
                 HStack(spacing: 6) {
