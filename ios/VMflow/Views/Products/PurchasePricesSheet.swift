@@ -209,9 +209,12 @@ private struct PriceEditorView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var supplierName = ""
-    // Banking-style amount entry: the value is held in integer cents and digits
-    // fill in right→left, so the field always reads "X,YZ €" with fixed 2 decimals.
-    @State private var cents: Int = 0
+    // Banking-style amount entry. The visible value is a formatted label (always
+    // "X,YZ €", grey 0,00 € when empty); an INVISIBLE TextField captures the raw
+    // digits. This reformats live on every keystroke — a plain formatted TextField
+    // keeps the typed raw text until the field loses focus.
+    @State private var digits: String = ""
+    @FocusState private var amountFocused: Bool
     @State private var basis: PriceBasis = .net
     @State private var observedOn = Date()
     @State private var note = ""
@@ -219,10 +222,10 @@ private struct PriceEditorView: View {
     @State private var formError: String?
     @State private var saving = false
 
+    private var cents: Int { Int(digits) ?? 0 }
     private var price: Double { Double(cents) / 100 }
 
-    // Locale-aware "0,00" (fixed 2 fraction digits, no currency symbol — the € is a
-    // separate trailing label so the last character stays a digit for backspacing).
+    // Locale-aware "0,00" (fixed 2 fraction digits; € is a separate label).
     private static let decimal2: NumberFormatter = {
         let f = NumberFormatter()
         f.numberStyle = .decimal
@@ -230,13 +233,8 @@ private struct PriceEditorView: View {
         f.maximumFractionDigits = 2
         return f
     }()
-    /// Two-way binding that reformats on every keystroke: the setter keeps only the
-    /// typed digits and reads them as cents, so input fills right→left.
-    private var amountText: Binding<String> {
-        Binding(
-            get: { Self.decimal2.string(from: NSNumber(value: Double(cents) / 100)) ?? "0,00" },
-            set: { raw in cents = Int(String(raw.filter(\.isNumber).prefix(9))) ?? 0 }
-        )
+    private var amountDisplay: String {
+        Self.decimal2.string(from: NSNumber(value: price)) ?? "0,00"
     }
 
     private var isEditing: Bool { if case .edit = mode { return true } else { return false } }
@@ -274,11 +272,29 @@ private struct PriceEditorView: View {
                 HStack(spacing: 6) {
                     Text(String(localized: "Price per unit")).foregroundStyle(.secondary)
                     Spacer(minLength: 12)
-                    TextField("", text: amountText)
-                        .keyboardType(.numberPad)
-                        .multilineTextAlignment(.trailing)
+                    ZStack(alignment: .trailing) {
+                        // Visible, always-formatted value (grey when empty/zero).
+                        Text(amountDisplay)
+                            .monospacedDigit()
+                            .foregroundStyle(cents == 0 ? Color.secondary : Color.primary)
+                        // Invisible field capturing the raw digits.
+                        TextField("", text: $digits)
+                            .keyboardType(.numberPad)
+                            .multilineTextAlignment(.trailing)
+                            .foregroundColor(.clear)
+                            .tint(.clear)
+                            .focused($amountFocused)
+                            .accessibilityLabel(String(localized: "Price per unit"))
+                            .onChange(of: digits) { _, new in
+                                let clean = String(new.filter(\.isNumber).prefix(9))
+                                if clean != new { digits = clean }
+                            }
+                    }
+                    .frame(maxWidth: 140, alignment: .trailing)
                     Text("€").foregroundStyle(.secondary)
                 }
+                .contentShape(Rectangle())
+                .onTapGesture { amountFocused = true }
                 Picker(String(localized: "Basis"), selection: $basis) {
                     Text(String(localized: "net")).tag(PriceBasis.net)
                     Text(String(localized: "gross")).tag(PriceBasis.gross)
@@ -319,7 +335,8 @@ private struct PriceEditorView: View {
     private func applySeed() {
         guard let s = seed else { return }
         supplierName = s.supplierName
-        cents = Int((s.price * 100).rounded())
+        let c = Int((s.price * 100).rounded())
+        digits = c > 0 ? String(c) : ""
         basis = s.basis
         observedOn = s.observedOn
         note = s.note
