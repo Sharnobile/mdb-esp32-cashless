@@ -4,6 +4,7 @@ struct CashBookView: View {
     @EnvironmentObject var cashBookVM: CashBookViewModel
     @State private var showWithdrawal = false
     @State private var showDeposit = false
+    @State private var showExpense = false
 
     var body: some View {
         Group {
@@ -22,6 +23,16 @@ struct CashBookView: View {
             if cashBookVM.cashBooks.count > 1 {
                 ToolbarItem(placement: .topBarTrailing) {
                     cashBookSwitcher
+                }
+            }
+            if cashBookVM.selectedCashBook != nil {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showExpense = true
+                    } label: {
+                        Image(systemName: "tray.and.arrow.down")
+                    }
+                    .accessibilityLabel("cash_book_record_expense")
                 }
             }
         }
@@ -67,6 +78,10 @@ struct CashBookView: View {
         }
         .sheet(isPresented: $showDeposit) {
             BankDepositSheet(cashBook: book)
+                .environmentObject(cashBookVM)
+        }
+        .sheet(isPresented: $showExpense) {
+            ExpenseSheet(cashBook: book)
                 .environmentObject(cashBookVM)
         }
     }
