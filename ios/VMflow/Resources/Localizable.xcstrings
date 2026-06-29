@@ -1147,6 +1147,17 @@
         }
       }
     },
+    "cash_book_amount" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Betrag"
+          }
+        }
+      }
+    },
     "cash_book_book_entry" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1177,6 +1188,72 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Cancel"
+          }
+        }
+      }
+    },
+    "cash_book_category" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kategorie"
+          }
+        }
+      }
+    },
+    "cash_book_category_cleaning" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reinigung"
+          }
+        }
+      }
+    },
+    "cash_book_category_fees" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gebühren"
+          }
+        }
+      }
+    },
+    "cash_book_category_goods" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wareneinkauf"
+          }
+        }
+      }
+    },
+    "cash_book_category_other" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sonstiges"
+          }
+        }
+      }
+    },
+    "cash_book_category_rent" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Miete"
           }
         }
       }
@@ -1296,6 +1373,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Description"
+          }
+        }
+      }
+    },
+    "cash_book_description_required" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beschreibung (Pflicht)"
           }
         }
       }
@@ -1470,6 +1558,39 @@
         }
       }
     },
+    "cash_book_receipt_reference" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Belegnr."
+          }
+        }
+      }
+    },
+    "cash_book_receipt_reference_placeholder" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "z. B. RE-2026-001"
+          }
+        }
+      }
+    },
+    "cash_book_record_expense" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Barausgabe"
+          }
+        }
+      }
+    },
     "cash_book_record_payout" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1589,6 +1710,17 @@
         }
       }
     },
+    "cash_book_type_expense" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ausgabe"
+          }
+        }
+      }
+    },
     "cash_book_type_initial" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1636,6 +1768,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Reversal"
+          }
+        }
+      }
+    },
+    "cash_book_type_unknown" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sonstige"
           }
         }
       }
