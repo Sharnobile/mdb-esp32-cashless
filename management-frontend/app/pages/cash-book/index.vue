@@ -32,6 +32,7 @@ const {
   currentBalance,
   totalWithdrawals,
   totalCorrections,
+  totalExpenses,
   lastBankDeposit,
   updateBarkasseSettings,
 } = useCashBook()
@@ -43,6 +44,7 @@ const integrityResult = ref<{ verified: number; total: number; valid: boolean } 
 
 // Modal visibility
 const showCreateModal = ref(false)
+const showExpenseModal = ref(false)
 const showWithdrawalModal = ref(false)
 const showPayoutModal = ref(false)
 const showCorrectionModal = ref(false)
@@ -203,6 +205,23 @@ async function onCorrectionSubmit(payload: { amount: number; description: string
   }
 }
 
+async function onExpenseSubmit(payload: { amount: number; category: string; receiptReference: string; description: string }) {
+  if (!selectedCashBook.value) return
+  try {
+    await createEntry({
+      cash_book_id: selectedCashBook.value.id,
+      type: 'expense',
+      amount: -Math.abs(payload.amount),
+      description: payload.description || null,
+      category: payload.category,
+      receipt_reference: payload.receiptReference,
+    })
+    showExpenseModal.value = false
+  } catch (err: any) {
+    errorMessage.value = err.message
+  }
+}
+
 function openReversalConfirm(entry: CashBookEntry) {
   reversalTarget.value = entry
   showReversalConfirm.value = true
@@ -293,6 +312,7 @@ function typeLabel(type: string): string {
     withdrawal: t('cashBook.typeWithdrawal'),
     correction: t('cashBook.typeCorrection'),
     payout: t('cashBook.typePayout'),
+    expense: t('cashBook.typeExpense'),
     reversal: t('cashBook.typeReversal'),
   }
   return map[type] ?? type
@@ -357,7 +377,9 @@ async function exportPdf() {
       typeLabel(e.type) + (e.is_reversed ? ` (${t('cashBook.reversed')})` : ''),
       formatAmount(e.amount),
       formatCurrency(e.balance_after),
-      e.description || '—',
+      e.type === 'expense'
+        ? [t(`cashBook.category_${e.category}`), e.receipt_reference, e.description].filter(Boolean).join(' · ')
+        : (e.description || '—'),
     ]),
     styles: { fontSize: 8 },
     headStyles: { fillColor: [41, 128, 185] },
@@ -451,6 +473,7 @@ async function exportPdf() {
 
       <!-- Secondary toolbar -->
       <CashBookSecondaryToolbar
+        @expense="showExpenseModal = true"
         @correction="showCorrectionModal = true"
         @manage-machines="openAssignModal"
         @export-pdf="exportPdf"
@@ -466,6 +489,7 @@ async function exportPdf() {
         :integrity-result="integrityResult"
         :total-withdrawals="totalWithdrawals"
         :total-corrections="totalCorrections"
+        :total-expenses="totalExpenses"
         :get-member-name="getMemberName"
         @update:date-filter="dateFilter = $event"
         @reverse="openReversalConfirm"
@@ -513,6 +537,10 @@ async function exportPdf() {
     <CashBookCorrectionModal
       v-model:open="showCorrectionModal"
       @submit="onCorrectionSubmit"
+    />
+    <CashBookExpenseModal
+      v-model:open="showExpenseModal"
+      @submit="onExpenseSubmit"
     />
     <CashBookReversalModal
       v-model:open="showReversalConfirm"
