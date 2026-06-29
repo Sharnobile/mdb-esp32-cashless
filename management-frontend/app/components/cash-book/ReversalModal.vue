@@ -21,6 +21,7 @@ function typeLabel(type: string): string {
     withdrawal: t('cashBook.typeWithdrawal'),
     correction: t('cashBook.typeCorrection'),
     payout: t('cashBook.typePayout'),
+    expense: t('cashBook.typeExpense'),
     reversal: t('cashBook.typeReversal'),
   }
   return map[type] ?? type

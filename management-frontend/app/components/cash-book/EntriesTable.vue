@@ -11,6 +11,7 @@ defineProps<{
   integrityResult: { verified: number; total: number; valid: boolean } | null
   totalWithdrawals: { amount: number; count: number }
   totalCorrections: { amount: number; count: number }
+  totalExpenses: { amount: number; count: number }
   getMemberName: (userId: string) => string
 }>()
 
@@ -28,6 +29,7 @@ function typeBadgeClass(type: string): string {
     case 'correction': return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800'
     case 'payout': return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 border-blue-200 dark:border-blue-800'
     case 'reversal': return 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400 border-orange-200 dark:border-orange-800'
+    case 'expense': return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border-amber-200 dark:border-amber-800'
     default: return ''
   }
 }
@@ -38,6 +40,7 @@ function typeLabel(type: string): string {
     withdrawal: t('cashBook.typeWithdrawal'),
     correction: t('cashBook.typeCorrection'),
     payout: t('cashBook.typePayout'),
+    expense: t('cashBook.typeExpense'),
     reversal: t('cashBook.typeReversal'),
   }
   return map[type] ?? type
@@ -83,6 +86,8 @@ function formatAmount(amount: number): string {
       <span>{{ t('cashBook.totalWithdrawals') }}: {{ formatCurrency(totalWithdrawals.amount) }} ({{ totalWithdrawals.count }})</span>
       <span>·</span>
       <span>{{ t('cashBook.totalCorrections') }}: {{ totalCorrections.count }}</span>
+      <span>·</span>
+      <span>{{ t('cashBook.totalExpenses') }}: {{ formatCurrency(totalExpenses.amount) }} ({{ totalExpenses.count }})</span>
       <span>·</span>
       <span v-if="integrityResult">{{ integrityResult.verified }}/{{ integrityResult.total }} {{ t('cashBook.entriesVerified') }}</span>
     </div>
@@ -167,6 +172,13 @@ function formatAmount(amount: number): string {
                     diff: formatCurrency(Math.abs(entry.counted_amount - entry.expected_amount)),
                     counted: formatCurrency(entry.counted_amount)
                   }) }}
+                </td>
+              </tr>
+
+              <tr v-if="entry.type === 'expense' && (entry.category || entry.receipt_reference)">
+                <td colspan="7" class="px-4 py-1.5 text-xs text-muted-foreground">
+                  <span v-if="entry.category">{{ t(`cashBook.category_${entry.category}`) }}</span>
+                  <span v-if="entry.receipt_reference"> · {{ t('cashBook.receiptReference') }}: {{ entry.receipt_reference }}</span>
                 </td>
               </tr>
             </template>
