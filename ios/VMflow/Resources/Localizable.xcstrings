@@ -1155,6 +1155,12 @@
             "state" : "translated",
             "value" : "Betrag"
           }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Amount"
+          }
         }
       }
     },
@@ -1200,6 +1206,12 @@
             "state" : "translated",
             "value" : "Kategorie"
           }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Category"
+          }
         }
       }
     },
@@ -1210,6 +1222,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Reinigung"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cleaning"
           }
         }
       }
@@ -1222,6 +1240,12 @@
             "state" : "translated",
             "value" : "Gebühren"
           }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fees"
+          }
         }
       }
     },
@@ -1232,6 +1256,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Wareneinkauf"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Goods purchase"
           }
         }
       }
@@ -1244,6 +1274,12 @@
             "state" : "translated",
             "value" : "Sonstiges"
           }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Other"
+          }
         }
       }
     },
@@ -1254,6 +1290,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Miete"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rent"
           }
         }
       }
@@ -1384,6 +1426,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Beschreibung (Pflicht)"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Description (required)"
           }
         }
       }
@@ -1566,6 +1614,12 @@
             "state" : "translated",
             "value" : "Belegnr."
           }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Receipt no."
+          }
         }
       }
     },
@@ -1577,6 +1631,12 @@
             "state" : "translated",
             "value" : "z. B. RE-2026-001"
           }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "e.g. INV-2026-001"
+          }
         }
       }
     },
@@ -1587,6 +1647,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Barausgabe"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cash expense"
           }
         }
       }
@@ -1718,6 +1784,12 @@
             "state" : "translated",
             "value" : "Ausgabe"
           }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Expense"
+          }
         }
       }
     },
@@ -1779,6 +1851,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Sonstige"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Other"
           }
         }
       }
