@@ -61,6 +61,20 @@ struct EntriesListSection: View {
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
             }
+
+            // Optional subline: expense category + receipt
+            if entry.type == .expense {
+                HStack(spacing: 6) {
+                    if let cat = entry.category {
+                        Text(LocalizedStringKey("cash_book_category_\(cat)"))
+                    }
+                    if let ref = entry.receiptReference, !ref.isEmpty {
+                        Text(verbatim: "· \(ref)")
+                    }
+                }
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+            }
         }
         .padding(.vertical, 6)
         .opacity(entry.isReversed ? 0.5 : 1)
@@ -83,7 +97,9 @@ struct EntriesListSection: View {
         case .withdrawal: return ("cash_book_type_withdrawal", .red)
         case .correction: return ("cash_book_type_correction", .yellow)
         case .payout:     return ("cash_book_type_payout",     .blue)
+        case .expense:    return ("cash_book_type_expense",    .orange)
         case .reversal:   return ("cash_book_type_reversal",   .orange)
+        case .unknown:    return ("cash_book_type_unknown",    .gray)
         }
     }
 
