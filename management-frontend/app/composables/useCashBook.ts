@@ -24,13 +24,15 @@ export interface CashBookEntry {
   cash_book_id: string
   company_id: string
   entry_number: number
-  type: 'initial' | 'withdrawal' | 'correction' | 'payout' | 'reversal'
+  type: 'initial' | 'withdrawal' | 'correction' | 'payout' | 'expense' | 'reversal'
   amount: number
   balance_after: number
   description: string | null
   machine_id: string | null
   counted_amount: number | null
   expected_amount: number | null
+  category: string | null
+  receipt_reference: string | null
   corrects_entry_id: string | null
   is_reversed: boolean
   created_by: string
@@ -53,6 +55,11 @@ export interface VendingMachineBasic {
   name: string | null
   cash_book_id: string | null
 }
+
+// ── Expense categories (fixed list; labels via i18n) ─────────────────────────
+
+export const EXPENSE_CATEGORIES = ['rent', 'goods', 'cleaning', 'fees', 'other'] as const
+export type ExpenseCategory = typeof EXPENSE_CATEGORIES[number]
 
 // ── User name cache (shared across instances) ──────────────────────────────
 
@@ -246,12 +253,14 @@ export function useCashBook() {
 
   async function createEntry(entry: {
     cash_book_id: string
-    type: 'withdrawal' | 'correction' | 'payout' | 'reversal'
+    type: 'withdrawal' | 'correction' | 'payout' | 'expense' | 'reversal'
     amount: number
     description?: string
     machine_id?: string | null
     counted_amount?: number | null
     expected_amount?: number | null
+    category?: string | null
+    receipt_reference?: string | null
     corrects_entry_id?: string | null
   }) {
     const { data: { session } } = await supabase.auth.getSession()
@@ -274,6 +283,7 @@ export function useCashBook() {
       type: entry.type,
       amount: entry.amount,
       description: entry.description,
+      category: entry.category ?? null,
     })
 
     // Refresh entries and theoretical cash
@@ -422,6 +432,14 @@ export function useCashBook() {
     }
   })
 
+  const totalExpenses = computed(() => {
+    const expenses = entries.value.filter(e => e.type === 'expense' && !e.is_reversed)
+    return {
+      amount: expenses.reduce((sum, e) => sum + Math.abs(e.amount), 0),
+      count: expenses.length,
+    }
+  })
+
   // Most recent non-reversed bank deposit. Invariant: `entries.value` is sorted
   // DESC by `entry_number` (set by fetchEntries' .order('entry_number', desc)),
   // so the first match is the most recent payout.
@@ -468,6 +486,7 @@ export function useCashBook() {
     currentBalance,
     totalWithdrawals,
     totalCorrections,
+    totalExpenses,
     lastBankDeposit,
 
     // Settings
