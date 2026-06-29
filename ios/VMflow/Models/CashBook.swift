@@ -31,7 +31,16 @@ enum CashBookEntryType: String, Codable {
     case withdrawal
     case correction
     case payout
+    case expense
     case reversal
+    /// Forward-compat: unknown raw values (e.g. a future server type) decode
+    /// here instead of throwing and failing the whole entries list.
+    case unknown
+
+    init(from decoder: Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode(String.self)
+        self = CashBookEntryType(rawValue: raw) ?? .unknown
+    }
 }
 
 struct CashBookEntry: Codable, Identifiable, Hashable {
@@ -47,6 +56,8 @@ struct CashBookEntry: Codable, Identifiable, Hashable {
     let machineId: UUID?
     let countedAmount: Double?
     let expectedAmount: Double?
+    let category: String?
+    let receiptReference: String?
     let correctsEntryId: UUID?
     let isReversed: Bool
     let createdBy: UUID
@@ -65,6 +76,8 @@ struct CashBookEntry: Codable, Identifiable, Hashable {
         case machineId = "machine_id"
         case countedAmount = "counted_amount"
         case expectedAmount = "expected_amount"
+        case category
+        case receiptReference = "receipt_reference"
         case correctsEntryId = "corrects_entry_id"
         case isReversed = "is_reversed"
         case createdBy = "created_by"
