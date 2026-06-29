@@ -270,7 +270,7 @@ git commit -m "test(cash-book): expense sign + totalExpenses + category list" --
 <script setup lang="ts">
 import { EXPENSE_CATEGORIES } from '@/composables/useCashBook'
 
-defineProps<{
+const props = defineProps<{
   open: boolean
 }>()
 
@@ -305,8 +305,6 @@ watch(() => props.open, (now) => {
     form.value = { amount: 0, category: 'rent', receipt_reference: '', description: '' }
   }
 })
-
-const props = defineProps<{ open: boolean }>()
 
 async function onSubmit() {
   if (!canSubmit.value) return
@@ -389,8 +387,6 @@ async function onSubmit() {
   </AppModal>
 </template>
 ```
-
-> Achtung Reihenfolge: `props` muss vor dem `watch(() => props.open, …)` definiert sein. Stelle die `const props = defineProps<{ open: boolean }>()`-Zeile beim Implementieren NACH OBEN (direkt unter `<script setup>`), und entferne das doppelte `defineProps` oben im Snippet – im finalen File darf `defineProps` nur EINMAL vorkommen. (Das obige Snippet zeigt beide Stellen nur zur Verdeutlichung; nutze ein einziges `const props = defineProps<{ open: boolean }>()` ganz oben, analog `WithdrawalModal.vue` das `props` ebenfalls oben hält.)
 
 - [ ] **Step 2: Commit**
 
@@ -505,6 +501,14 @@ Beim `<CashBookSecondaryToolbar ...>` (ca. Zeile 453) Handler ergänzen:
       />
 ```
 
+Beim `<CashBookEntriesTable ...>` (ca. Zeile 462) die `totalExpenses`-Prop ergänzen (neben `:total-corrections`):
+
+```vue
+        :total-withdrawals="totalWithdrawals"
+        :total-corrections="totalCorrections"
+        :total-expenses="totalExpenses"
+```
+
 Bei den Modals (nach `<CashBookCorrectionModal ...>`, ca. Zeile 516) einfügen:
 
 ```vue
@@ -549,7 +553,7 @@ git commit -m "feat(cash-book): wire expense modal + PDF columns (PWA page)" -- 
 - Modify: `management-frontend/app/components/cash-book/EntriesTable.vue`
 - Modify: `management-frontend/app/components/cash-book/ReversalModal.vue`
 
-- [ ] **Step 1: EntriesTable Badge + Label um `expense`**
+- [ ] **Step 1: EntriesTable Badge + Label + Stats um `expense`**
 
 In `typeBadgeClass` (ca. Zeile 24) vor `default` einen `expense`-Fall ergänzen:
 
@@ -558,6 +562,21 @@ In `typeBadgeClass` (ca. Zeile 24) vor `default` einen `expense`-Fall ergänzen:
 ```
 
 In `typeLabel` (ca. Zeile 35) die Map um `expense: t('cashBook.typeExpense')` ergänzen.
+
+Im `defineProps` (ca. Zeile 7) `totalExpenses` ergänzen (neben `totalCorrections`):
+
+```ts
+  totalWithdrawals: { amount: number; count: number }
+  totalCorrections: { amount: number; count: number }
+  totalExpenses: { amount: number; count: number }
+```
+
+In der Inline-Stats-Zeile (ca. Zeile 82–88) nach dem Korrekturen-Span einen Ausgaben-Span ergänzen:
+
+```vue
+      <span>·</span>
+      <span>{{ t('cashBook.totalExpenses') }}: {{ formatCurrency(totalExpenses.amount) }} ({{ totalExpenses.count }})</span>
+```
 
 - [ ] **Step 2: EntriesTable — Kategorie/Beleg-Subzeile**
 
@@ -674,24 +693,20 @@ enum CashBookEntryType: String, Codable {
 
 - [ ] **Step 2: Optionale Felder auf `CashBookEntry`**
 
-In `struct CashBookEntry` (ca. Zeile 50, nach `expectedAmount`) ergänzen:
+In `struct CashBookEntry` NUR die zwei neuen Felder ergänzen. `countedAmount`, `expectedAmount`, `correctsEntryId` existieren bereits (Zeilen 48–50) — NICHT erneut deklarieren (sonst Duplicate-Declaration-Compile-Fehler). Füge die zwei neuen Properties z. B. direkt nach `expectedAmount` (Zeile 49) ein:
 
 ```swift
-    let countedAmount: Double?
-    let expectedAmount: Double?
+    // NEU — direkt nach der bestehenden `let expectedAmount: Double?`-Zeile:
     let category: String?
     let receiptReference: String?
-    let correctsEntryId: UUID?
 ```
 
-Und in `CodingKeys` (ca. Zeile 67) ergänzen:
+Und in `CodingKeys` (bestehender Block, Zeilen 66–68 haben bereits `countedAmount`/`expectedAmount`/`correctsEntryId`) NUR die zwei neuen Cases ergänzen, z. B. nach `case expectedAmount = "expected_amount"`:
 
 ```swift
-        case countedAmount = "counted_amount"
-        case expectedAmount = "expected_amount"
+    // NEU — zwei zusätzliche CodingKeys:
         case category
         case receiptReference = "receipt_reference"
-        case correctsEntryId = "corrects_entry_id"
 ```
 
 > Beide Felder MÜSSEN optional sein – Altzeilen liefern `null`; synthetisiertes `Codable` dekodiert `String?` via `decodeIfPresent` automatisch, sodass historische Buchungen weiter dekodieren.
@@ -1050,7 +1065,7 @@ Gemäß `reference_ios_xcstrings_editing` (Memory): Key = resolvierter `String(l
 - `cash_book_category_fees` → „Gebühren"
 - `cash_book_category_other` → „Sonstiges"
 
-> `cash_book_cancel`, `cash_book_book_entry`, `cash_book_description` existieren bereits (von WithdrawalSheet) — NICHT duplizieren, nur die neuen Keys hinzufügen.
+> Nur `cash_book_cancel`, `cash_book_book_entry`, `cash_book_description` existieren bereits (von WithdrawalSheet) — diese NICHT duplizieren. ALLE oben gelisteten Keys (inkl. `cash_book_amount`!) sind neu und müssen hinzugefügt werden — vorher pro Key mit `grep '"cash_book_amount"' ios/VMflow/Resources/Localizable.xcstrings` prüfen, ob er fehlt.
 
 - [ ] **Step 3: Build (verifiziert Enum-switch, neue Datei, xcstrings)**
 
