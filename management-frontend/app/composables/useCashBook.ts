@@ -255,7 +255,7 @@ export function useCashBook() {
     cash_book_id: string
     type: 'withdrawal' | 'correction' | 'payout' | 'expense' | 'reversal'
     amount: number
-    description?: string
+    description?: string | null
     machine_id?: string | null
     counted_amount?: number | null
     expected_amount?: number | null
