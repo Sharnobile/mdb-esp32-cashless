@@ -15,6 +15,10 @@ final class CashBookViewModel: ObservableObject {
     @Published private(set) var isLoadingEntries = false
     @Published var error: String?
 
+    /// Fixed expense categories (codes). Labels live in Localizable.xcstrings
+    /// as cash_book_category_<code>.
+    let expenseCategories = ["rent", "goods", "cleaning", "fees", "other"]
+
     private let client = SupabaseService.shared.client
 
     // MARK: - Computed
@@ -256,6 +260,50 @@ final class CashBookViewModel: ObservableObject {
             type: "payout",
             amount: -abs(amount),                 // NEGATIVE — money OUT of the box
             description: description,
+            created_by: userId
+        )
+
+        try await client.from("cash_book_entries").insert(row).execute()
+
+        await loadEntries(for: cashBookId)
+        await loadTheoreticalCash(for: cashBookId)
+    }
+
+    /// Records a cash expense (money OUT of the box for a business purpose).
+    /// Caller passes a non-negative `amount`; we negate internally so the
+    /// running balance decreases. category + receiptReference are required by
+    /// the DB CHECK (GoBD).
+    func recordExpense(
+        cashBookId: UUID,
+        amount: Double,
+        category: String,
+        receiptReference: String,
+        description: String
+    ) async throws {
+        guard let companyId = cashBooks.first(where: { $0.id == cashBookId })?.companyId,
+              let userId = client.auth.currentUser?.id else {
+            throw CashBookError.notAuthenticated
+        }
+
+        struct Insert: Encodable {
+            let cash_book_id: UUID
+            let company_id: UUID
+            let type: String
+            let amount: Double
+            let category: String
+            let receipt_reference: String
+            let description: String?
+            let created_by: UUID
+        }
+
+        let row = Insert(
+            cash_book_id: cashBookId,
+            company_id: companyId,
+            type: "expense",
+            amount: -abs(amount),                 // NEGATIVE — money OUT of the box
+            category: category,
+            receipt_reference: receiptReference,
+            description: description.isEmpty ? nil : description,
             created_by: userId
         )
 
