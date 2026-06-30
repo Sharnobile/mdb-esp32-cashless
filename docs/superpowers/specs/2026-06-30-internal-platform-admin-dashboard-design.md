@@ -167,13 +167,13 @@ manual step:
 ```sql
 insert into public.platform_admins (user_id)
 select id from auth.users
-where email in ('lucien@kerl-handel.de', 'steven@kerl-handel.de')
+where email = 'lucien@kerl-handel.de'
 on conflict (user_id) do nothing;
 ```
 
-*(Emails to be confirmed by the user before writing the migration. On installs
-where those emails don't exist, the insert is simply a no-op — additional
-platform admins can be added later with a one-line `insert`.)*
+*(Confirmed seed: `lucien@kerl-handel.de` only. On installs where that email
+doesn't exist, the insert is simply a no-op — additional platform admins are
+added later with a one-line `insert`.)*
 
 ## 5. Frontend Layer (additive)
 
