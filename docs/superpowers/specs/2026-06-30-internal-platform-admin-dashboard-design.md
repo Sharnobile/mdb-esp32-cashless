@@ -91,16 +91,22 @@ $$;
 ```
 
 `SECURITY DEFINER` + explicit `search_path` per the project rule for definer
-functions. Mirrors the `my_company_id()` / `i_am_admin()` helper style.
+functions. `set search_path = public` is sufficient here because the function
+calls no extension (pgcrypto) functions and qualifies its one table as
+`public.platform_admins`. *(The latest project helpers in `20260418000000` use
+`set search_path = ''` with fully-qualified names; either is safe. The
+aggregation RPCs in §4.3/§4.4 follow the same rule — explicit `search_path`,
+fully-qualified `public.` table references.)* Mirrors the `my_company_id()` /
+`i_am_admin()` helper style.
 
 ### 4.3 `get_platform_overview(p_days int default 30)`
 
 Self-guards (`if not public.is_platform_admin() then raise exception ... end if;`),
 then returns a single JSON object:
 
-- **`totals`**: `company_count`, `user_count`, `machine_count` (`vendingMachine`),
-  `device_count` (`embeddeds`), `devices_online`
-  (`embeddeds.status = 'online'`).
+- **`totals`**: `company_count`, `user_count` (`COUNT(DISTINCT user_id)` — see
+  definition below), `machine_count` (`vendingMachine`), `device_count`
+  (`embeddeds`), `devices_online`.
 - **`companies`**: array, one row per company:
   - `company_id`, `name`
   - `user_count`, `admin_count`, `viewer_count` (from `organization_members`)
@@ -114,12 +120,24 @@ then returns a single JSON object:
   - `last_device_seen_at` (max `embeddeds.status_at`)
 
 **Definitions:**
-- *Online* = `embeddeds.status = 'online'` (matches `pages/index.vue:373` and the
-  machine detail page).
+- *Online* = `embeddeds.status IS NOT NULL AND embeddeds.status <> 'offline'` —
+  **deliberately matching the existing dashboard** (`pages/index.vue:373` counts
+  `status && status !== 'offline'`, which also keeps transient states like
+  `ota_updating`/`ota_success` counted as online). Using the same predicate
+  ensures the platform "devices online" KPI never silently disagrees with the
+  per-company dashboard.
 - *Last device contact* = `embeddeds.status_at` (heartbeat, ~5 min cadence).
 - *Revenue* = `SUM(sales.item_price)` — **`item_price` is EUR, never divide by
   100** (project rule).
-- Sales are linked to a company via `sales.embedded_id → embeddeds.company`.
+- **Attribution paths** (both `vendingMachine.company` and `embeddeds.company`
+  exist and can diverge, so name the join explicitly):
+  - Machines → `vendingMachine.company`.
+  - Devices → `embeddeds.company`.
+  - Sales → `sales.embedded_id → embeddeds.company`.
+- **`user_count`**: globally `COUNT(DISTINCT organization_members.user_id)` (a
+  user belonging to two companies counts once globally). Per-company counts are
+  `COUNT(*)` within each company and **may overlap**, so the per-company
+  `user_count` values are not guaranteed to sum to the global total.
 
 Returning a single JSON object (rather than a `TABLE`) keeps the multi-level
 totals + per-company array in one round-trip and one typed payload, consistent
@@ -131,7 +149,9 @@ Self-guards, then returns a JSON object for the drill-down view of one company:
 
 - `company`: `id`, `name`, `created_at`
 - `members`: array of `{ user_id, email, role, joined_at }`
-  (email read from `auth.users` via the definer privilege)
+  (email primarily from `public.users.email` — backfilled + trigger-maintained
+  by migration `20260301700000_user_email.sql`; fall back to `auth.users.email`
+  only if a `public.users` row is missing)
 - `devices`: array of `{ embedded_id, subdomain, mac_address, status,
   status_at, online_since, firmware_version, machine_name }`
   (`machine_name` joined from `vendingMachine` where present)
