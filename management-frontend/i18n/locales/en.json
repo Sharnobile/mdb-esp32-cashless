@@ -1,4 +1,46 @@
 {
+  "platformAdmin": {
+    "title": "Platform Overview",
+    "subtitle": "Cross-company operator dashboard",
+    "totals": {
+      "companies": "Companies",
+      "users": "Users",
+      "machines": "Machines",
+      "devices": "Devices",
+      "devicesOnline": "Devices online"
+    },
+    "table": {
+      "company": "Company",
+      "users": "Users",
+      "machines": "Machines",
+      "devicesOnline": "Online / Total",
+      "salesWindow": "Sales ({days}d)",
+      "revenueWindow": "Revenue ({days}d)",
+      "lastActivity": "Last activity",
+      "activity": "Activity"
+    },
+    "activity": { "active": "Active", "idle": "Idle", "dead": "Inactive" },
+    "detail": {
+      "back": "Back to overview",
+      "members": "Members",
+      "devices": "Devices",
+      "recentSales": "Recent sales",
+      "role": "Role",
+      "email": "Email",
+      "joined": "Joined",
+      "status": "Status",
+      "lastSeen": "Last seen",
+      "firmware": "Firmware",
+      "machine": "Machine",
+      "price": "Price",
+      "channel": "Channel",
+      "time": "Time",
+      "noSales": "No sales yet",
+      "online": "Online",
+      "offline": "Offline"
+    },
+    "neverActive": "never"
+  },
   "purchasePrices": {
     "title": "Purchase prices",
     "supplier": "Supplier",
@@ -74,6 +116,7 @@
     "members": "Members",
     "history": "History",
     "devices": "Devices",
+    "platform": "Platform",
     "apiKeys": "API Keys",
     "firmware": "Firmware",
     "getHelp": "Get Help",

@@ -1,4 +1,46 @@
 {
+  "platformAdmin": {
+    "title": "Plattform-Übersicht",
+    "subtitle": "Firmenübergreifendes Betreiber-Dashboard",
+    "totals": {
+      "companies": "Firmen",
+      "users": "Nutzer",
+      "machines": "Automaten",
+      "devices": "Geräte",
+      "devicesOnline": "Geräte online"
+    },
+    "table": {
+      "company": "Firma",
+      "users": "Nutzer",
+      "machines": "Automaten",
+      "devicesOnline": "Online / Gesamt",
+      "salesWindow": "Verkäufe ({days}T)",
+      "revenueWindow": "Umsatz ({days}T)",
+      "lastActivity": "Letzte Aktivität",
+      "activity": "Aktivität"
+    },
+    "activity": { "active": "Aktiv", "idle": "Inaktiv", "dead": "Tot" },
+    "detail": {
+      "back": "Zurück zur Übersicht",
+      "members": "Mitglieder",
+      "devices": "Geräte",
+      "recentSales": "Letzte Verkäufe",
+      "role": "Rolle",
+      "email": "E-Mail",
+      "joined": "Beigetreten",
+      "status": "Status",
+      "lastSeen": "Zuletzt gesehen",
+      "firmware": "Firmware",
+      "machine": "Automat",
+      "price": "Preis",
+      "channel": "Kanal",
+      "time": "Zeit",
+      "noSales": "Noch keine Verkäufe",
+      "online": "Online",
+      "offline": "Offline"
+    },
+    "neverActive": "nie"
+  },
   "purchasePrices": {
     "title": "Einkaufspreise",
     "supplier": "Lieferant",
@@ -74,6 +116,7 @@
     "members": "Mitglieder",
     "history": "Verlauf",
     "devices": "Geräte",
+    "platform": "Plattform",
     "apiKeys": "API-Schlüssel",
     "firmware": "Firmware",
     "getHelp": "Hilfe",
