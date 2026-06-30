@@ -14,7 +14,7 @@ const { overview, loading, error, fetchOverview } = usePlatformAdmin()
 // it does NOT sort data. The generic is the union of sortable column keys.
 // Sorting is done in a local computed (same pattern as pages/devices/index.vue).
 type SortKey = 'name' | 'user_count' | 'machine_count' | 'sales_window_count' | 'sales_window_revenue' | 'last_sale_at'
-const { sortKey, sortDir, toggleSort } = useTableSort<SortKey>('sales_window_revenue', 'desc')
+const { sortKey, sortDir, toggleSort, sortIcon } = useTableSort<SortKey>('sales_window_revenue', 'desc')
 
 const sortedCompanies = computed(() => {
   const rows = overview.value?.companies ?? []
@@ -28,7 +28,7 @@ const sortedCompanies = computed(() => {
 })
 
 const days = 30
-onMounted(() => { fetchOverview(days).catch(() => {}) })
+onMounted(() => { fetchOverview(days).catch(() => {}) }) // error surfaced via the composable's error ref
 
 const activityClass: Record<string, string> = {
   active: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
@@ -64,17 +64,32 @@ const activityClass: Record<string, string> = {
       <table class="w-full text-sm">
         <thead class="bg-muted/50">
           <tr class="text-left">
-            <th class="p-2 cursor-pointer" @click="toggleSort('name')">{{ t('platformAdmin.table.company') }}</th>
-            <th class="p-2 cursor-pointer" @click="toggleSort('user_count')">{{ t('platformAdmin.table.users') }}</th>
-            <th class="p-2 cursor-pointer" @click="toggleSort('machine_count')">{{ t('platformAdmin.table.machines') }}</th>
+            <th class="p-2 cursor-pointer select-none hover:text-foreground" @click="toggleSort('name')">
+              <SortHeader :icon="sortIcon('name')">{{ t('platformAdmin.table.company') }}</SortHeader>
+            </th>
+            <th class="p-2 cursor-pointer select-none hover:text-foreground" @click="toggleSort('user_count')">
+              <SortHeader :icon="sortIcon('user_count')">{{ t('platformAdmin.table.users') }}</SortHeader>
+            </th>
+            <th class="p-2 cursor-pointer select-none hover:text-foreground" @click="toggleSort('machine_count')">
+              <SortHeader :icon="sortIcon('machine_count')">{{ t('platformAdmin.table.machines') }}</SortHeader>
+            </th>
             <th class="p-2">{{ t('platformAdmin.table.devicesOnline') }}</th>
-            <th class="p-2 cursor-pointer" @click="toggleSort('sales_window_count')">{{ t('platformAdmin.table.salesWindow', { days }) }}</th>
-            <th class="p-2 cursor-pointer" @click="toggleSort('sales_window_revenue')">{{ t('platformAdmin.table.revenueWindow', { days }) }}</th>
-            <th class="p-2 cursor-pointer" @click="toggleSort('last_sale_at')">{{ t('platformAdmin.table.lastActivity') }}</th>
+            <th class="p-2 cursor-pointer select-none hover:text-foreground" @click="toggleSort('sales_window_count')">
+              <SortHeader :icon="sortIcon('sales_window_count')">{{ t('platformAdmin.table.salesWindow', { days }) }}</SortHeader>
+            </th>
+            <th class="p-2 cursor-pointer select-none hover:text-foreground" @click="toggleSort('sales_window_revenue')">
+              <SortHeader :icon="sortIcon('sales_window_revenue')">{{ t('platformAdmin.table.revenueWindow', { days }) }}</SortHeader>
+            </th>
+            <th class="p-2 cursor-pointer select-none hover:text-foreground" @click="toggleSort('last_sale_at')">
+              <SortHeader :icon="sortIcon('last_sale_at')">{{ t('platformAdmin.table.lastActivity') }}</SortHeader>
+            </th>
             <th class="p-2">{{ t('platformAdmin.table.activity') }}</th>
           </tr>
         </thead>
         <tbody>
+          <tr v-if="overview.companies.length === 0">
+            <td class="p-2 text-muted-foreground" colspan="8">{{ t('platformAdmin.table.noCompanies') }}</td>
+          </tr>
           <tr
             v-for="c in sortedCompanies"
             :key="c.company_id"

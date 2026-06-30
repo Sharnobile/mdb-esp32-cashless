@@ -41,7 +41,10 @@ onMounted(async () => {
       <!-- Members -->
       <section class="space-y-2">
         <h2 class="font-semibold">{{ t('platformAdmin.detail.members') }}</h2>
-        <div class="rounded-lg border overflow-x-auto">
+        <p v-if="detail.members.length === 0" class="text-muted-foreground text-sm">
+          {{ t('platformAdmin.detail.noMembers') }}
+        </p>
+        <div v-else class="rounded-lg border overflow-x-auto">
           <table class="w-full text-sm">
             <thead class="bg-muted/50 text-left">
               <tr>
@@ -64,7 +67,10 @@ onMounted(async () => {
       <!-- Devices -->
       <section class="space-y-2">
         <h2 class="font-semibold">{{ t('platformAdmin.detail.devices') }}</h2>
-        <div class="rounded-lg border overflow-x-auto">
+        <p v-if="detail.devices.length === 0" class="text-muted-foreground text-sm">
+          {{ t('platformAdmin.detail.noDevices') }}
+        </p>
+        <div v-else class="rounded-lg border overflow-x-auto">
           <table class="w-full text-sm">
             <thead class="bg-muted/50 text-left">
               <tr>

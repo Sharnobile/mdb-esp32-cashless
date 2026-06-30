@@ -17,7 +17,8 @@
       "salesWindow": "Sales ({days}d)",
       "revenueWindow": "Revenue ({days}d)",
       "lastActivity": "Last activity",
-      "activity": "Activity"
+      "activity": "Activity",
+      "noCompanies": "No companies yet"
     },
     "activity": { "active": "Active", "idle": "Idle", "dead": "Inactive" },
     "detail": {
@@ -36,6 +37,8 @@
       "channel": "Channel",
       "time": "Time",
       "noSales": "No sales yet",
+      "noMembers": "No members",
+      "noDevices": "No devices",
       "online": "Online",
       "offline": "Offline"
     },

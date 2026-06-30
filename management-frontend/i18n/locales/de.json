@@ -17,7 +17,8 @@
       "salesWindow": "Verkäufe ({days}T)",
       "revenueWindow": "Umsatz ({days}T)",
       "lastActivity": "Letzte Aktivität",
-      "activity": "Aktivität"
+      "activity": "Aktivität",
+      "noCompanies": "Noch keine Firmen"
     },
     "activity": { "active": "Aktiv", "idle": "Inaktiv", "dead": "Tot" },
     "detail": {
@@ -36,6 +37,8 @@
       "channel": "Kanal",
       "time": "Zeit",
       "noSales": "Noch keine Verkäufe",
+      "noMembers": "Noch keine Mitglieder",
+      "noDevices": "Noch keine Geräte",
       "online": "Online",
       "offline": "Offline"
     },
