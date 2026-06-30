@@ -314,7 +314,7 @@ BEGIN
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_other)::text, true);
   BEGIN
     PERFORM public.get_platform_overview(30);
-  EXCEPTION WHEN insufficient_privilege OR others THEN
+  EXCEPTION WHEN insufficient_privilege THEN  -- the function's errcode 42501
     v_raised := true;
   END;
   ASSERT v_raised, 'non-platform-admin must be rejected by get_platform_overview';
@@ -728,19 +728,31 @@ Uses `definePageMeta({ middleware: ['auth', 'platform-admin'] })`, fetches the o
 <script setup lang="ts">
 definePageMeta({ middleware: ['auth', 'platform-admin'] })
 
-import { onMounted } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { usePlatformAdmin, companyActivityLevel, type PlatformCompanyRow } from '~/composables/usePlatformAdmin'
+import { usePlatformAdmin, companyActivityLevel } from '~/composables/usePlatformAdmin'
 import { useTableSort } from '~/composables/useTableSort'
 import { formatCurrency, timeAgo } from '~/lib/utils'
 
 const { t } = useI18n()
 const { overview, loading, error, fetchOverview } = usePlatformAdmin()
-const { sorted, sortKey, sortDir, toggleSort } = useTableSort<PlatformCompanyRow>(
-  () => overview.value?.companies ?? [],
-  'sales_window_revenue',
-  'desc',
-)
+
+// useTableSort only tracks sort STATE ({ sortKey, sortDir, toggleSort, sortIcon });
+// it does NOT sort data. The generic is the union of sortable column keys.
+// Sorting is done in a local computed (same pattern as pages/devices/index.vue).
+type SortKey = 'name' | 'user_count' | 'machine_count' | 'sales_window_count' | 'sales_window_revenue' | 'last_sale_at'
+const { sortKey, sortDir, toggleSort } = useTableSort<SortKey>('sales_window_revenue', 'desc')
+
+const sortedCompanies = computed(() => {
+  const rows = overview.value?.companies ?? []
+  const dir = sortDir.value === 'asc' ? 1 : -1
+  return [...rows].sort((a, b) => {
+    const k = sortKey.value
+    if (k === 'name') return dir * (a.name ?? '').localeCompare(b.name ?? '')
+    if (k === 'last_sale_at') return dir * (a.last_sale_at ?? '').localeCompare(b.last_sale_at ?? '')
+    return dir * (((a[k] as number) ?? 0) - ((b[k] as number) ?? 0))
+  })
+})
 
 const days = 30
 onMounted(() => { fetchOverview(days).catch(() => {}) })
@@ -791,7 +803,7 @@ const activityClass: Record<string, string> = {
         </thead>
         <tbody>
           <tr
-            v-for="c in sorted"
+            v-for="c in sortedCompanies"
             :key="c.company_id"
             class="border-t hover:bg-muted/40 cursor-pointer"
             @click="navigateTo(`/admin/platform/${c.company_id}`)"
@@ -802,7 +814,7 @@ const activityClass: Record<string, string> = {
             <td class="p-2 tabular-nums">{{ c.devices_online }} / {{ c.device_count }}</td>
             <td class="p-2 tabular-nums">{{ c.sales_window_count }}</td>
             <td class="p-2 tabular-nums">{{ formatCurrency(c.sales_window_revenue) }}</td>
-            <td class="p-2">{{ c.last_sale_at ? timeAgo(c.last_sale_at) : t('platformAdmin.neverActive') }}</td>
+            <td class="p-2">{{ c.last_sale_at ? timeAgo(c.last_sale_at, t) : t('platformAdmin.neverActive') }}</td>
             <td class="p-2">
               <span class="rounded px-2 py-0.5 text-xs" :class="activityClass[companyActivityLevel(c.last_sale_at)]">
                 {{ t(`platformAdmin.activity.${companyActivityLevel(c.last_sale_at)}`) }}
@@ -816,7 +828,7 @@ const activityClass: Record<string, string> = {
 </template>
 ```
 
-> **Verify `useTableSort`'s exact API before relying on it.** Open `management-frontend/app/composables/useTableSort.ts` and confirm the returned names/signature (e.g. `sorted`, `sortKey`, `sortDir`, `toggleSort(key)`). If they differ, adapt this page to the real API (this is the one interface assumption in the plan).
+> `useTableSort<K extends string>(defaultKey, defaultDir)` returns `{ sortKey, sortDir, toggleSort, sortIcon }` and tracks **state only** — it does not sort the array (verified `management-frontend/app/composables/useTableSort.ts`; same usage as `pages/devices/index.vue:19-37`). The local `sortedCompanies` computed above does the actual sorting.
 
 - [ ] **Step 2: Commit**
 
@@ -889,7 +901,7 @@ onMounted(async () => {
               <tr v-for="m in detail.members" :key="m.user_id" class="border-t">
                 <td class="p-2">{{ m.email }}</td>
                 <td class="p-2">{{ m.role }}</td>
-                <td class="p-2">{{ timeAgo(m.joined_at) }}</td>
+                <td class="p-2">{{ timeAgo(m.joined_at, t) }}</td>
               </tr>
             </tbody>
           </table>
@@ -917,7 +929,7 @@ onMounted(async () => {
                     {{ isDeviceOnline(d.status) ? t('platformAdmin.detail.online') : t('platformAdmin.detail.offline') }}
                   </span>
                 </td>
-                <td class="p-2">{{ d.status_at ? timeAgo(d.status_at) : '—' }}</td>
+                <td class="p-2">{{ d.status_at ? timeAgo(d.status_at, t) : '—' }}</td>
                 <td class="p-2">{{ d.firmware_version ?? '—' }}</td>
               </tr>
             </tbody>
