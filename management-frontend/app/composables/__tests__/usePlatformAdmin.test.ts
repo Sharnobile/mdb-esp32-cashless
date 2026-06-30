@@ -16,6 +16,18 @@ describe('companyActivityLevel', () => {
   it('returns dead when there was never a sale', () => {
     expect(companyActivityLevel(null, now)).toBe('dead')
   })
+  it('returns active at exactly 7 days (inclusive boundary)', () => {
+    expect(companyActivityLevel(new Date(now.getTime() - 7 * 86400000).toISOString(), now)).toBe('active')
+  })
+  it('returns idle one second past 7 days', () => {
+    expect(companyActivityLevel(new Date(now.getTime() - (7 * 86400000 + 1000)).toISOString(), now)).toBe('idle')
+  })
+  it('returns idle at exactly 30 days (inclusive boundary)', () => {
+    expect(companyActivityLevel(new Date(now.getTime() - 30 * 86400000).toISOString(), now)).toBe('idle')
+  })
+  it('returns dead one second past 30 days', () => {
+    expect(companyActivityLevel(new Date(now.getTime() - (30 * 86400000 + 1000)).toISOString(), now)).toBe('dead')
+  })
 })
 
 describe('isDeviceOnline', () => {

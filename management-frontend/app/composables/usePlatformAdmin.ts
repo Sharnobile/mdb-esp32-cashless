@@ -60,6 +60,8 @@ export function companyActivityLevel(lastSaleAt: string | null, now: Date = new 
   return 'dead'
 }
 
+// Intentionally treats null/empty status as offline (defensive divergence from the
+// backend predicate `status <> 'offline'`, which would treat empty/null as online).
 export function isDeviceOnline(status: string | null | undefined): boolean {
   return status != null && status !== '' && status !== 'offline'
 }
@@ -82,8 +84,9 @@ export function usePlatformAdmin() {
       overview.value = data as PlatformOverview
       isPlatformAdmin.value = true
     } catch (err: any) {
-      // A "not authorized" raise (errcode 42501) means the caller is not a platform admin.
-      isPlatformAdmin.value = false
+      // Only a "not authorized" raise (Postgres errcode 42501) means the caller is not a
+      // platform admin. Transient failures (network/timeout) must NOT hide the admin UI.
+      if (err?.code === '42501') isPlatformAdmin.value = false
       error.value = err?.message ?? 'failed to load platform overview'
       throw err
     } finally {
