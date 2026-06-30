@@ -16,6 +16,7 @@ import {
   IconUsers,
   IconDevices,
   IconCloudUpload,
+  IconBuildingSkyscraper,
 } from "@tabler/icons-vue"
 
 import NavMain from '@/components/NavMain.vue'
@@ -31,8 +32,12 @@ import {
   SidebarMenuItem,
 } from '@/components/ui/sidebar'
 
+import { onMounted } from 'vue'
+
 const { t } = useI18n()
 const { organization, role } = useOrganization()
+const { isPlatformAdmin, checkIsPlatformAdmin } = usePlatformAdmin()
+onMounted(() => { checkIsPlatformAdmin().catch(() => {}) })
 const config = useRuntimeConfig()
 
 const versionLine = computed(() => {
@@ -130,6 +135,19 @@ const navGroups = computed(() => {
           title: t('nav.apiKeys'),
           url: "/api-keys",
           icon: IconKey,
+        },
+      ],
+    })
+  }
+
+  if (isPlatformAdmin.value) {
+    groups.push({
+      label: t('nav.platform'),
+      items: [
+        {
+          title: t('nav.platform'),
+          url: "/admin/platform",
+          icon: IconBuildingSkyscraper,
         },
       ],
     })
