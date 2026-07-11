@@ -50,6 +50,8 @@ struct ReviewStepView: View {
                     selectedProductId: viewModel.replacements.first(where: { $0.trayId == trayId })?.replacementProductId,
                     existingSlotsByProduct: existingSlots(forTrayId: trayId),
                     machineLayout: machineLayout(forTrayId: trayId),
+                    targetSlotNumber: targetSlot(forTrayId: trayId)?.itemNumber,
+                    targetSlotCapacity: targetSlot(forTrayId: trayId)?.capacity,
                     remainingStock: { id in
                         // Only show stock counts when a warehouse with stock
                         // data is loaded — otherwise we'd render bogus zeros.
@@ -280,6 +282,21 @@ struct ReviewStepView: View {
             .padding(.vertical, 2)
             .background(Capsule().fill(color.opacity(0.15)))
             .foregroundStyle(color)
+    }
+
+    // MARK: - Target Slot
+
+    /// Look up the tray being replaced from the unfiltered tray set so the
+    /// picker can show its capacity (spiral size). Reads
+    /// `viewModel.allTraysByMachine` — the same source as `existingSlots` /
+    /// `machineLayout` — because `machines[*].trays` only holds trays that
+    /// need refill action. Returns `nil` if the machine or tray isn't found,
+    /// which suppresses the capacity callout.
+    private func targetSlot(forTrayId trayId: UUID) -> Tray? {
+        guard let suggestion = viewModel.replacements.first(where: { $0.trayId == trayId })
+        else { return nil }
+        return viewModel.allTraysByMachine[suggestion.machineId]?
+            .first(where: { $0.id == trayId })
     }
 
     // MARK: - Existing Slots

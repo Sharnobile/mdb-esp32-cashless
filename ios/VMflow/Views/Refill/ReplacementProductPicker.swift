@@ -29,6 +29,14 @@ struct ReplacementProductPicker: View {
     let selectedProductId: UUID?
     let existingSlotsByProduct: [UUID: [Int]]
     let machineLayout: MachineGridLayout
+    /// Item/slot number of the tray being replaced, shown in the capacity
+    /// callout. `nil` suppresses the slot number (capacity still shown).
+    var targetSlotNumber: Int? = nil
+    /// Capacity (number of units the spiral holds) of the tray being
+    /// replaced. When non-nil, a callout is shown above the list so the
+    /// user can judge whether a candidate product physically fits the
+    /// current spiral size. `nil` hides the callout entirely.
+    var targetSlotCapacity: Int? = nil
     /// Remaining warehouse stock for the given product, or `nil` when the
     /// caller has no warehouse context (e.g. previews, or no warehouse
     /// selected in the refill wizard). When non-nil the row shows a
@@ -328,9 +336,42 @@ struct ReplacementProductPicker: View {
             )
     }
 
+    /// Callout above the list showing the target slot's capacity, so the
+    /// user can gauge whether a candidate product fits the current spiral.
+    @ViewBuilder
+    private func capacityCallout(_ capacity: Int) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "shippingbox")
+                .font(.title3)
+                .foregroundStyle(.blue)
+            VStack(alignment: .leading, spacing: 2) {
+                if let slot = targetSlotNumber {
+                    Text("Slot \(slot) · holds \(capacity)")
+                        .font(.subheadline.weight(.semibold))
+                } else {
+                    Text("Slot capacity: \(capacity)")
+                        .font(.subheadline.weight(.semibold))
+                }
+                Text("Choose a product that fits this spiral size.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer()
+        }
+        .padding(.vertical, 4)
+        .accessibilityElement(children: .combine)
+    }
+
     var body: some View {
         ScrollViewReader { proxy in
             List {
+                if let capacity = targetSlotCapacity {
+                    Section {
+                        capacityCallout(capacity)
+                    }
+                }
+
                 if machineLayout.rowCount > 0 {
                     Section(header: Text("Machine Layout").textCase(nil)) {
                         MachineLayoutGrid(layout: machineLayout) { tappedSlot in
