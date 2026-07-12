@@ -387,7 +387,7 @@ final class DashboardViewModel: ObservableObject {
         try await client
             .from("activity_log")
             .select("id, created_at, action, metadata")
-            .in("action", values: ["stock_refill_tour", "tour_started"])
+            .in("action", values: ["stock_refill_tour", "tour_started", "cash_book_entry_created"])
             .gte("created_at", value: windowStartString)
             .order("created_at", ascending: false)
             .execute()

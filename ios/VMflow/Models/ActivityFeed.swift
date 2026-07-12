@@ -27,9 +27,16 @@ struct ActivityLogMetadata: Decodable, Equatable {
     let warehouseName: String?
     let userDisplay: String?
     let products: [ActivityProductLine]?
+    // Cash-book (Barkasse) entry metadata — only present on cash_book_entry_created rows.
+    let cashType: String?
+    let amount: Double?
+    let category: String?
+    let note: String?
 
     enum CodingKeys: String, CodingKey {
         case products
+        case amount
+        case category
         case tourId = "tour_id"
         case machineName = "machine_name"
         case traysRefilled = "trays_refilled"
@@ -38,6 +45,8 @@ struct ActivityLogMetadata: Decodable, Equatable {
         case machineNames = "machine_names"
         case warehouseName = "warehouse_name"
         case userDisplay = "_user_display"
+        case cashType = "type"
+        case note = "description"
     }
 }
 
@@ -100,6 +109,18 @@ struct TourActivity: Identifiable, Equatable {
     let tourId: String?
 }
 
+/// One cash-book (Barkasse) money movement — a `cash_book_entry_created` row.
+/// Deposits/withdrawals/expenses etc.; the `type` drives icon/tint/label.
+struct CashBookActivity: Identifiable, Equatable {
+    let id: UUID
+    let createdAt: Date
+    let type: CashBookEntryType
+    let amount: Double
+    let category: String?
+    let note: String?
+    let userDisplay: String?
+}
+
 /// One intake "session": consecutive incoming warehouse transactions by the
 /// same user into the same warehouse with ≤15 min between bookings.
 struct IntakeGroup: Identifiable, Equatable {
@@ -127,6 +148,7 @@ enum ActivityFeedItem: Identifiable, Equatable {
     case machineRefilled(RefillActivity)
     case tourStarted(TourActivity)
     case stockIntake(IntakeGroup)
+    case cashBookEntry(CashBookActivity)
 
     var id: String {
         switch self {
@@ -134,6 +156,7 @@ enum ActivityFeedItem: Identifiable, Equatable {
         case .machineRefilled(let r): return "refill-\(r.id.uuidString)"
         case .tourStarted(let t): return "tour-\(t.id.uuidString)"
         case .stockIntake(let g): return "intake-\(g.id.uuidString)"
+        case .cashBookEntry(let c): return "cashentry-\(c.id.uuidString)"
         }
     }
 
@@ -143,6 +166,7 @@ enum ActivityFeedItem: Identifiable, Equatable {
         case .machineRefilled(let r): return r.createdAt
         case .tourStarted(let t): return t.createdAt
         case .stockIntake(let g): return g.date
+        case .cashBookEntry(let c): return c.createdAt
         }
     }
 }
@@ -226,6 +250,16 @@ enum ActivityFeedBuilder {
                     machineNames: names,
                     warehouseName: row.metadata?.warehouseName,
                     tourId: row.metadata?.tourId
+                ))
+            case "cash_book_entry_created":
+                return .cashBookEntry(CashBookActivity(
+                    id: row.id,
+                    createdAt: row.createdAt,
+                    type: CashBookEntryType(rawValue: row.metadata?.cashType ?? "") ?? .unknown,
+                    amount: row.metadata?.amount ?? 0,
+                    category: row.metadata?.category,
+                    note: row.metadata?.note,
+                    userDisplay: row.metadata?.userDisplay
                 ))
             default:
                 return nil

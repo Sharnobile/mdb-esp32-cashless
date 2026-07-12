@@ -647,6 +647,18 @@ extension DashboardView {
                 isExpanded: expandedActivityIds.contains(item.id),
                 onToggle: { toggleExpanded(item.id) }
             )
+
+        case .cashBookEntry(let cash):
+            ActivityEventRow(
+                icon: cashBookIcon(cash.type),
+                tint: cashBookTint(cash.type),
+                title: cashBookTitle(cash.type),
+                subtitle: cashBookSubtitle(cash),
+                date: cash.createdAt,
+                detailLines: (cash.note?.isEmpty == false) ? [cash.note!] : [],
+                isExpanded: expandedActivityIds.contains(item.id),
+                onToggle: { toggleExpanded(item.id) }
+            )
         }
     }
 
@@ -681,6 +693,56 @@ extension DashboardView {
         parts.append(String(localized: "\(intake.productCount) products"))
         if let wh = intake.warehouseName { parts.append(wh) }
         return parts.joined(separator: " · ")
+    }
+
+    // MARK: - Cash book (Barkasse) feed row
+    // Reuse the entry-type labels + colours from the cash-book screen
+    // (EntriesListSection.badgeStyle) so the feed stays consistent with it.
+
+    private func cashBookSubtitle(_ cash: CashBookActivity) -> String {
+        var parts: [String] = []
+        if let user = cash.userDisplay { parts.append(user) }
+        parts.append(NumberFormatter.localizedString(from: cash.amount as NSNumber, number: .currency))
+        if let cat = cash.category, !cat.isEmpty {
+            parts.append(String(localized: String.LocalizationValue("cash_book_category_\(cat)")))
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    private func cashBookTitle(_ type: CashBookEntryType) -> String {
+        switch type {
+        case .initial:    return String(localized: "cash_book_type_initial")
+        case .withdrawal: return String(localized: "cash_book_type_withdrawal")
+        case .correction: return String(localized: "cash_book_type_correction")
+        case .payout:     return String(localized: "cash_book_type_payout")
+        case .expense:    return String(localized: "cash_book_type_expense")
+        case .reversal:   return String(localized: "cash_book_type_reversal")
+        case .unknown:    return String(localized: "cash_book_type_unknown")
+        }
+    }
+
+    private func cashBookTint(_ type: CashBookEntryType) -> Color {
+        switch type {
+        case .initial:    return .gray
+        case .withdrawal: return .red
+        case .correction: return .yellow
+        case .payout:     return .blue
+        case .expense:    return .orange
+        case .reversal:   return .orange
+        case .unknown:    return .gray
+        }
+    }
+
+    private func cashBookIcon(_ type: CashBookEntryType) -> String {
+        switch type {
+        case .initial:    return "flag.fill"
+        case .withdrawal: return "building.columns.fill"
+        case .correction: return "slider.horizontal.3"
+        case .payout:     return "arrow.up.circle.fill"
+        case .expense:    return "cart.fill"
+        case .reversal:   return "arrow.uturn.backward.circle.fill"
+        case .unknown:    return "eurosign.circle.fill"
+        }
     }
 
     // MARK: - Helpers
