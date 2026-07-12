@@ -567,8 +567,11 @@ export function useWarehouse() {
 
       if (filters?.product_id) query = query.eq('product_id', filters.product_id)
       if (filters?.type) query = query.eq('transaction_type', filters.type)
-      if (filters?.dateFrom) query = query.gte('created_at', filters.dateFrom)
-      if (filters?.dateTo) query = query.lte('created_at', filters.dateTo + 'T23:59:59')
+      // Interpret the picked dates in the viewer's local timezone (matching how
+      // created_at is rendered), then send explicit UTC instants — a bare date
+      // string is read as UTC by Postgres and shifts the window by the offset.
+      if (filters?.dateFrom) query = query.gte('created_at', new Date(filters.dateFrom + 'T00:00:00').toISOString())
+      if (filters?.dateTo) query = query.lte('created_at', new Date(filters.dateTo + 'T23:59:59.999').toISOString())
 
       const { data, error } = await query
       if (error) throw error
@@ -593,8 +596,11 @@ export function useWarehouse() {
 
       if (filters?.product_id) query = query.eq('product_id', filters.product_id)
       if (filters?.type) query = query.eq('transaction_type', filters.type)
-      if (filters?.dateFrom) query = query.gte('created_at', filters.dateFrom)
-      if (filters?.dateTo) query = query.lte('created_at', filters.dateTo + 'T23:59:59')
+      // Interpret the picked dates in the viewer's local timezone (matching how
+      // created_at is rendered), then send explicit UTC instants — a bare date
+      // string is read as UTC by Postgres and shifts the window by the offset.
+      if (filters?.dateFrom) query = query.gte('created_at', new Date(filters.dateFrom + 'T00:00:00').toISOString())
+      if (filters?.dateTo) query = query.lte('created_at', new Date(filters.dateTo + 'T23:59:59.999').toISOString())
 
       const { data, error } = await query
       if (error) throw error

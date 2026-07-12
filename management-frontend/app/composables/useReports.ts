@@ -87,8 +87,14 @@ export function useReports() {
           vendingMachine!inner(name),
           products(name, image_path, product_category(name))
         `)
-        .gte('created_at', `${dateFrom.value}T00:00:00`)
-        .lte('created_at', `${dateTo.value}T23:59:59`)
+        // Interpret the picked dates in the viewer's local timezone (matching
+        // how the table renders created_at via new Date().getHours()), then
+        // send explicit UTC instants. Passing a bare "YYYY-MM-DDT00:00:00"
+        // string let Postgres read the boundary as UTC, so the window was
+        // shifted by the local offset — a 31.05 22:58Z sale (01.06 00:58 in
+        // Berlin) leaked into a "May" report while early 01.05 sales dropped out.
+        .gte('created_at', new Date(`${dateFrom.value}T00:00:00`).toISOString())
+        .lte('created_at', new Date(`${dateTo.value}T23:59:59.999`).toISOString())
         .order('created_at', { ascending: false })
         .limit(10000)
 
