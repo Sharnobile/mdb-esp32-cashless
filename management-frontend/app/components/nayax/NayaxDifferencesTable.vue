@@ -24,6 +24,10 @@ const showConfirm = ref(false)
 const adjustStock = ref(false)
 const lastResult = ref<{ imported: number; errors: string[] } | null>(null)
 const pendingDelete = ref<DbSale | null>(null)
+// Whether deleting a ghost sale also restores (+1) the tray stock. On by
+// default to preserve the historical behaviour; can be turned off when the
+// physical stock already reflects reality and should not be over-counted.
+const restoreStockOnDelete = ref(true)
 
 const showDeleteConfirm = computed({
   get: () => pendingDelete.value !== null,
@@ -60,8 +64,9 @@ async function runImport() {
 async function confirmDelete() {
   if (!pendingDelete.value) return
   const id = pendingDelete.value.id
+  const restore = restoreStockOnDelete.value
   pendingDelete.value = null
-  await recon.deleteGhost(id)
+  await recon.deleteGhost(id, restore)
 }
 
 function ghostMachineName(g: DbSale): string {
@@ -218,7 +223,7 @@ function shortId(id: string): string {
                     <button
                       v-if="isAdmin"
                       class="inline-flex h-8 items-center gap-1 rounded-md border border-red-200 px-2 text-xs text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950"
-                      @click="pendingDelete = row.payload"
+                      @click="restoreStockOnDelete = true; pendingDelete = row.payload"
                     >
                       <IconTrash class="h-3 w-3" />
                       {{ t('common.delete') }}
@@ -261,6 +266,15 @@ function shortId(id: string): string {
       <p class="text-sm text-muted-foreground mb-4">
         {{ t('nayax.reconcile.results.deleteConfirmBody') }}
       </p>
+      <div class="mb-4">
+        <label class="flex items-start gap-2 text-sm">
+          <input v-model="restoreStockOnDelete" type="checkbox" class="mt-0.5" aria-describedby="nayax-restore-stock-hint" />
+          <span>{{ t('nayax.reconcile.results.restoreStockLabel') }}</span>
+        </label>
+        <p id="nayax-restore-stock-hint" class="mt-1 pl-6 text-xs text-muted-foreground">
+          {{ t('nayax.reconcile.results.restoreStockHint') }}
+        </p>
+      </div>
       <div class="flex justify-end gap-2">
         <button class="inline-flex h-9 items-center rounded-md border px-4 text-sm hover:bg-muted" @click="pendingDelete = null">
           {{ t('common.cancel') }}

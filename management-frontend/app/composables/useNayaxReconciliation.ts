@@ -708,7 +708,7 @@ export function useNayaxReconciliation() {
     return { imported, errors }
   }
 
-  async function deleteGhost(saleId: string): Promise<void> {
+  async function deleteGhost(saleId: string, restoreStock = true): Promise<void> {
     deleting.value = true
     try {
       const supabase = useSupabaseClient()
@@ -716,6 +716,7 @@ export function useNayaxReconciliation() {
       const ghost = dbSales.value.find(s => s.id === saleId)
       const { error: err } = await (supabase as any).rpc('delete_sale_and_restore_stock', {
         p_sale_id: saleId,
+        p_restore_stock: restoreStock,
       })
       if (err) throw err
       await logNayaxActivity('sale_deleted', saleId, {
@@ -724,6 +725,7 @@ export function useNayaxReconciliation() {
         item_price: ghost?.item_price ?? null,
         channel: ghost?.channel ?? null,
         sale_created_at: ghost?.created_at ?? null,
+        stock_restored: restoreStock,
       })
       // Refresh state
       await loadDbSales()
