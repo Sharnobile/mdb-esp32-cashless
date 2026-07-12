@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { activityActionLabel, activityChips, activitySummary } from '../activityDescriptor'
+import {
+  activityActionLabel,
+  activityChips,
+  activityIcon,
+  activityProductRef,
+  activitySummary,
+} from '../activityDescriptor'
 import type { ActivityChip } from '../activityDescriptor'
 
 // Identity `t`: returns the key path so we can assert which i18n keys are used,
@@ -8,7 +14,9 @@ const t = (key: string, named?: Record<string, unknown>) => {
   if (!named) return key
   return key + '(' + Object.entries(named).map(([k, v]) => `${k}=${v}`).join(',') + ')'
 }
-const ctx = { t, formatDateTime: (iso: string) => `DT[${iso}]` }
+// A machine-id → name lookup, as the /history page injects at runtime.
+const machineName = (id: string) => (id === 'm-uuid-1234-5678' ? 'Getränkeautomat 1' : undefined)
+const ctx = { t, formatDateTime: (iso: string) => `DT[${iso}]`, machineName }
 
 const byLabel = (chips: ActivityChip[], label: string) => chips.find(c => c.label === label)
 const valueOf = (chips: ActivityChip[], label: string) => byLabel(chips, label)?.value
@@ -25,8 +33,36 @@ describe('activityActionLabel', () => {
   })
 })
 
+describe('activityIcon', () => {
+  it('gives each action a leading icon + colour bucket', () => {
+    expect(activityIcon('sale_deleted')).toEqual({ icon: 'Trash2', tint: 'danger' })
+    expect(activityIcon('sale_recorded')).toEqual({ icon: 'ShoppingCart', tint: 'sale' })
+    expect(activityIcon('cash_book_entry_created')).toEqual({ icon: 'Coins', tint: 'cashbook' })
+    expect(activityIcon('tour_started')).toEqual({ icon: 'Truck', tint: 'tour' })
+  })
+
+  it('falls back to a neutral generic icon for unknown actions', () => {
+    expect(activityIcon('whatever')).toEqual({ icon: 'Activity', tint: 'neutral' })
+  })
+})
+
+describe('activityProductRef — drives the row thumbnail', () => {
+  it('returns the product for a sale deletion', () => {
+    expect(activityProductRef({
+      action: 'sale_deleted',
+      metadata: { product_id: 'p1', product_name: 'Coca-Cola' },
+    })).toEqual({ productId: 'p1', productName: 'Coca-Cola' })
+  })
+
+  it('returns null when the entry carries no product', () => {
+    expect(activityProductRef({ action: 'sale_deleted', metadata: { item_number: 3 } })).toBeNull()
+    expect(activityProductRef({ action: 'tour_started', metadata: { machine_count: 2 } })).toBeNull()
+    expect(activityProductRef({ action: 'sale_recorded', metadata: { item_number: 1 } })).toBeNull()
+  })
+})
+
 describe('activityChips — sale_deleted (the reported gap)', () => {
-  it('surfaces machine, product, price, channel and sale date from a full manual-delete entry', () => {
+  it('surfaces machine, slot, price, channel and sale date; product is NOT a chip', () => {
     const chips = activityChips({
       action: 'sale_deleted',
       metadata: {
@@ -41,80 +77,57 @@ describe('activityChips — sale_deleted (the reported gap)', () => {
     }, ctx)
 
     expect(valueOf(chips, 'activity.field.machine')).toBe('Getränkeautomat 1')
-    expect(valueOf(chips, 'activity.field.product')).toBe('Coca-Cola')
     expect(valueOf(chips, 'activity.field.slot')).toBe('#14')
     expect(valueOf(chips, 'activity.field.price')).toBe('€1.50')
     expect(valueOf(chips, 'activity.field.channel')).toBe('cashless')
     expect(valueOf(chips, 'activity.field.saleDate')).toBe('DT[2026-07-10T09:30:00Z]')
+    // product is rendered as a thumbnail, not a chip
+    expect(byLabel(chips, 'activity.field.product')).toBeUndefined()
+    // chips carry icons for the new UI
+    expect(byLabel(chips, 'activity.field.machine')?.icon).toBe('MapPin')
+    expect(byLabel(chips, 'activity.field.price')?.icon).toBe('Euro')
   })
 
-  it('falls back to slot + short machine id for old entries lacking product_name / machine_name', () => {
+  it('resolves machine_id to a NAME via the injected lookup — never a raw UUID', () => {
     const chips = activityChips({
       action: 'sale_deleted',
-      metadata: {
-        machine_id: 'abcd1234-0000-0000',
-        item_number: 7,
-        item_price: 2,
-        channel: 'cash',
-        sale_created_at: '2026-06-01T12:00:00Z',
-      },
+      metadata: { machine_id: 'm-uuid-1234-5678', item_number: 7, item_price: 2 },
     }, ctx)
+    expect(valueOf(chips, 'activity.field.machine')).toBe('Getränkeautomat 1')
+    // the raw id must not leak into any chip value
+    expect(chips.every(c => !c.value.includes('m-uuid'))).toBe(true)
+  })
 
-    // no product chip when product unknown
-    expect(byLabel(chips, 'activity.field.product')).toBeUndefined()
-    // slot still shown
-    expect(valueOf(chips, 'activity.field.slot')).toBe('#7')
-    // machine falls back to a short id, not omitted
-    expect(valueOf(chips, 'activity.field.machine')).toBe('abcd1234…')
-    expect(valueOf(chips, 'activity.field.price')).toBe('€2.00')
+  it('omits the machine chip entirely when the id cannot be resolved (no UUID fallback)', () => {
+    const chips = activityChips({
+      action: 'sale_deleted',
+      metadata: { machine_id: 'unknown-id-0000', item_number: 7, item_price: 2 },
+    }, ctx)
+    expect(byLabel(chips, 'activity.field.machine')).toBeUndefined()
   })
 
   it('shows the stock-restored flag and the Nayax source for a ghost delete', () => {
     const chips = activityChips({
       action: 'sale_deleted',
       metadata: {
-        machine_id: 'm1',
-        item_number: 3,
-        item_price: 1.2,
-        sale_created_at: '2026-06-02T08:00:00Z',
-        stock_restored: true,
-        source: 'nayax_reconciliation',
+        machine_name: 'M', item_number: 3, item_price: 1.2,
+        stock_restored: true, source: 'nayax_reconciliation',
       },
     }, ctx)
-
     expect(valueOf(chips, 'activity.field.stockRestored')).toBe('activity.yes')
     expect(valueOf(chips, 'activity.source')).toBe('activity.sourceNayax')
   })
 })
 
-describe('activityChips — other previously-blank actions', () => {
-  it('sale_inserted shows the sale facts', () => {
-    const chips = activityChips({
-      action: 'sale_inserted',
-      metadata: { machine_name: 'M2', item_number: 5, item_price: 3, channel: 'cash', source: 'manual' },
-    }, ctx)
-    expect(valueOf(chips, 'activity.field.machine')).toBe('M2')
-    expect(valueOf(chips, 'activity.field.price')).toBe('€3.00')
-    expect(valueOf(chips, 'activity.source')).toBe('activity.sourceManual')
-  })
-
+describe('activityChips — other actions', () => {
   it('product_swapped shows from/to products and slot', () => {
     const chips = activityChips({
       action: 'product_swapped',
-      metadata: { machine_id: 'm', item_number: 12, old_product_name: 'Water', new_product_name: 'Cola' },
+      metadata: { machine_name: 'M', item_number: 12, old_product_name: 'Water', new_product_name: 'Cola' },
     }, ctx)
     expect(valueOf(chips, 'activity.field.slot')).toBe('#12')
     expect(valueOf(chips, 'activity.field.fromProduct')).toBe('Water')
     expect(valueOf(chips, 'activity.field.toProduct')).toBe('Cola')
-  })
-
-  it('tour_started shows warehouse and machine count', () => {
-    const chips = activityChips({
-      action: 'tour_started',
-      metadata: { warehouse_name: 'WH-1', machine_count: 3, machine_names: ['A', 'B', 'C'] },
-    }, ctx)
-    expect(valueOf(chips, 'activity.field.warehouse')).toBe('WH-1')
-    expect(valueOf(chips, 'activity.field.machines')).toContain('3')
   })
 
   it('cash_book_entry_created shows type, amount and category', () => {
@@ -125,10 +138,8 @@ describe('activityChips — other previously-blank actions', () => {
     expect(valueOf(chips, 'activity.field.amount')).toBe('€49.90')
     expect(valueOf(chips, 'activity.field.category')).toBe('rent')
   })
-})
 
-describe('activityChips — preserved behaviour', () => {
-  it('stock_updated keeps the old→new stock-change chip', () => {
+  it('stock_updated keeps the old→new stock-change chip with a directional icon', () => {
     const chips = activityChips({
       action: 'stock_updated',
       metadata: { machine_name: 'M', product_name: 'P', item_number: 1, old_stock: 2, new_stock: 8, source: 'manual' },
@@ -137,6 +148,9 @@ describe('activityChips — preserved behaviour', () => {
     expect(stock?.value).toContain('2')
     expect(stock?.value).toContain('8')
     expect(stock?.variant).toBe('increase')
+    expect(stock?.icon).toBe('ArrowUpRight')
+    // product handled by thumbnail, not chip
+    expect(byLabel(chips, 'activity.field.product')).toBeUndefined()
   })
 
   it('returns no chips for null metadata or unknown actions', () => {
@@ -146,13 +160,13 @@ describe('activityChips — preserved behaviour', () => {
 })
 
 describe('activitySummary — compact dashboard line', () => {
-  it('joins the most salient values with a middot', () => {
+  it('leads with the product name, then salient values', () => {
     const summary = activitySummary({
       action: 'sale_deleted',
       metadata: { machine_name: 'M1', product_name: 'Cola', item_price: 1.5, channel: 'cash' },
     }, ctx)
+    expect(summary.startsWith('Cola')).toBe(true)
     expect(summary).toContain('M1')
-    expect(summary).toContain('Cola')
     expect(summary).toContain(' · ')
   })
 

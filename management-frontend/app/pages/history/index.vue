@@ -4,9 +4,16 @@ definePageMeta({ middleware: 'auth' })
 import { formatDate, formatTime, formatDateTime } from '@/lib/utils'
 import { useActivityLog } from '@/composables/useActivityLog'
 import { useActivityDescriptor } from '@/composables/useActivityDescriptor'
-import { Badge } from '@/components/ui/badge'
+import { useProducts } from '@/composables/useProducts'
+import {
+  ShoppingCart, Trash2, PlusCircle, RotateCcw, CircleDollarSign, Settings,
+  Package, PackagePlus, Truck, Repeat, Wallet, Coins, Link as LinkIcon, Unlink,
+  Activity, MapPin, Hash, Euro, CreditCard, Clock, Cpu, Warehouse, Boxes,
+  LayoutGrid, Plus, Tag, StickyNote, RefreshCw, ArrowUpRight, ArrowDownRight, ArrowRight,
+} from 'lucide-vue-next'
 
 const { t, locale } = useI18n()
+const supabase = useSupabaseClient()
 
 const {
   logs,
@@ -19,12 +26,66 @@ const {
   fetchLogs,
   fetchMore,
   subscribe,
-  entityTypeVariant,
 } = useActivityLog()
 
-// Human labels + detail chips are centralised in the descriptor so /history and
-// the dashboard feed render every action type identically.
-const { actionLabel, metadataChips } = useActivityDescriptor()
+// ── Machine-name + product lookups ──────────────────────────────────────────
+// Resolve machine_id → name (so chips show the name, never a raw UUID) and
+// product_id/name → thumbnail image.
+const machineNameMap = ref<Map<string, string>>(new Map())
+async function fetchMachineNames() {
+  const { data } = await (supabase as any).from('vendingMachine').select('id, name')
+  const map = new Map<string, string>()
+  for (const r of (data ?? []) as { id: string; name: string | null }[]) {
+    if (r.name) map.set(r.id, r.name)
+  }
+  machineNameMap.value = map
+}
+const resolveMachineName = (id: string) => machineNameMap.value.get(id)
+
+const { products, fetchProducts } = useProducts()
+const productsById = computed(() => {
+  const m = new Map<string, { image_url: string | null }>()
+  for (const p of products.value) m.set(p.id, p)
+  return m
+})
+const productsByName = computed(() => {
+  const m = new Map<string, { image_url: string | null }>()
+  for (const p of products.value) m.set(p.name.toLowerCase(), p)
+  return m
+})
+function resolveProductImage(ref: { productId?: string; productName?: string } | null): string | null {
+  if (!ref) return null
+  let p = ref.productId ? productsById.value.get(ref.productId) : undefined
+  if (!p && ref.productName) p = productsByName.value.get(ref.productName.toLowerCase())
+  return p?.image_url ?? null
+}
+
+// Labels, icons + detail chips are centralised in the descriptor so /history
+// and the dashboard feed render every action type identically.
+const { actionLabel, actionIcon, metadataChips, productRef } = useActivityDescriptor({
+  machineName: resolveMachineName,
+})
+
+// lucide component registry — the descriptor returns icon names as strings.
+const ICONS: Record<string, unknown> = {
+  ShoppingCart, Trash2, PlusCircle, RotateCcw, CircleDollarSign, Settings,
+  Package, PackagePlus, Truck, Repeat, Wallet, Coins, Link: LinkIcon, Unlink,
+  Activity, MapPin, Hash, Euro, CreditCard, Clock, Cpu, Warehouse, Boxes,
+  LayoutGrid, Plus, Tag, StickyNote, RefreshCw, ArrowUpRight, ArrowDownRight, ArrowRight,
+}
+const iconComp = (name?: string) => (name && ICONS[name]) || Activity
+
+// Leading action-badge colour per semantic tint bucket.
+const TINT_CLASSES: Record<string, string> = {
+  sale: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400',
+  danger: 'bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-400',
+  credit: 'bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-400',
+  stock: 'bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400',
+  tour: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-400',
+  cashbook: 'bg-teal-100 text-teal-700 dark:bg-teal-950/50 dark:text-teal-400',
+  config: 'bg-slate-100 text-slate-700 dark:bg-slate-800/60 dark:text-slate-300',
+  neutral: 'bg-muted text-muted-foreground',
+}
 
 const ENTITY_TYPES = computed(() => [
   { value: '', label: t('history.allEvents') },
@@ -41,18 +102,13 @@ watch([entityTypeFilter, dateFrom, dateTo], () => fetchLogs())
 let unsubscribe: (() => void) | null = null
 
 onMounted(async () => {
-  await fetchLogs()
+  await Promise.all([fetchLogs(), fetchMachineNames(), fetchProducts()])
   unsubscribe = subscribe()
 })
 
 onUnmounted(() => {
   unsubscribe?.()
 })
-
-function entityTypeLabel(type: string) {
-  const found = ENTITY_TYPES.value.find(e => e.value === type)
-  return found?.label ?? type
-}
 
 // Group logs by date for section headers
 const groupedLogs = computed(() => {
@@ -156,131 +212,83 @@ const groupedLogs = computed(() => {
       <p class="text-sm">{{ t('history.eventsWillAppear') }}</p>
     </div>
 
-    <!-- Log list (mobile: cards, desktop: table) -->
+    <!-- ── Unified activity list (grouped by date) ── -->
     <template v-else>
-      <!-- ── Mobile card list (grouped by date) ── -->
-      <div class="flex flex-col gap-4 sm:hidden">
+      <div class="flex flex-col gap-5">
         <div v-for="group in groupedLogs" :key="group.date">
-          <h3 class="sticky top-0 z-10 mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground bg-background py-1">
+          <h3 class="sticky top-0 z-10 mb-2 bg-background py-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             {{ group.label }}
           </h3>
-          <div class="flex flex-col gap-2">
+          <div class="divide-y overflow-hidden rounded-xl border bg-card">
             <div
               v-for="entry in group.entries"
               :key="entry.id"
-              class="rounded-lg border bg-card p-3 space-y-2"
+              class="flex gap-3 p-3 transition-colors hover:bg-muted/30 sm:px-4"
             >
-              <!-- Row 1: badge + action + time -->
-              <div class="flex items-center gap-2">
-                <Badge :variant="entityTypeVariant(entry.entity_type)" class="capitalize shrink-0">
-                  {{ entry.entity_type }}
-                </Badge>
-                <span class="font-medium text-sm truncate">{{ actionLabel(entry.action) }}</span>
-                <span class="ml-auto shrink-0 text-xs tabular-nums text-muted-foreground" :title="formatDateTime(entry.created_at, locale)">
-                  {{ formatTime(entry.created_at, locale) }}
-                </span>
+              <!-- Leading action icon -->
+              <div
+                class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
+                :class="TINT_CLASSES[actionIcon(entry.action).tint]"
+              >
+                <component :is="iconComp(actionIcon(entry.action).icon)" class="h-[18px] w-[18px]" />
               </div>
-              <!-- Row 2: chips -->
-              <div v-if="metadataChips(entry).length > 0" class="flex flex-wrap gap-1.5">
-                <span
-                  v-for="chip in metadataChips(entry)"
-                  :key="chip.label"
-                  class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs"
-                  :class="{
-                    'border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950': chip.variant === 'increase',
-                    'border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950': chip.variant === 'decrease',
-                  }"
-                >
-                  <span class="text-muted-foreground">{{ chip.label }}</span>
+
+              <!-- Body: title + meta line -->
+              <div class="min-w-0 flex-1">
+                <span class="text-sm font-medium">{{ actionLabel(entry.action) }}</span>
+                <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-muted-foreground">
+                  <!-- Product thumbnail + name -->
                   <span
-                    class="font-medium"
+                    v-if="productRef(entry)"
+                    class="inline-flex items-center gap-1.5 rounded-md bg-muted/60 py-0.5 pl-0.5 pr-2"
+                  >
+                    <img
+                      v-if="resolveProductImage(productRef(entry))"
+                      :src="resolveProductImage(productRef(entry))!"
+                      class="h-5 w-5 rounded object-cover"
+                      alt=""
+                    />
+                    <span v-else class="flex h-5 w-5 items-center justify-center rounded bg-muted">
+                      <Package class="h-3 w-3" />
+                    </span>
+                    <span class="text-foreground">{{ productRef(entry)?.productName || '—' }}</span>
+                  </span>
+
+                  <!-- Meta chips (icon + value) -->
+                  <span
+                    v-for="chip in metadataChips(entry)"
+                    :key="chip.label + chip.value"
+                    class="inline-flex items-center gap-1.5"
                     :class="{
-                      'text-emerald-700 dark:text-emerald-400': chip.variant === 'increase',
-                      'text-red-700 dark:text-red-400': chip.variant === 'decrease',
+                      'text-emerald-600 dark:text-emerald-400': chip.variant === 'increase',
+                      'text-red-600 dark:text-red-400': chip.variant === 'decrease',
                     }"
-                  >{{ chip.value }}</span>
-                </span>
+                  >
+                    <component :is="iconComp(chip.icon)" v-if="chip.icon" class="h-[15px] w-[15px] opacity-70" />
+                    <span>{{ chip.value }}</span>
+                  </span>
+                </div>
               </div>
-              <!-- Row 3: user -->
-              <div v-if="entry.user_display" class="text-xs text-muted-foreground">
-                {{ entry.user_display }}
+
+              <!-- Right: time + user -->
+              <div class="shrink-0 text-right">
+                <div
+                  class="text-xs tabular-nums text-muted-foreground"
+                  :title="formatDateTime(entry.created_at, locale)"
+                >
+                  {{ formatTime(entry.created_at, locale) }}
+                </div>
+                <div
+                  v-if="entry.user_display"
+                  class="mt-0.5 max-w-[7rem] truncate text-xs text-muted-foreground"
+                  :class="{ italic: !entry.user_id }"
+                >
+                  {{ entry.user_display }}
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
-
-      <!-- ── Desktop table (grouped by date) ── -->
-      <div class="hidden sm:block overflow-x-auto rounded-lg border">
-        <table class="w-full text-sm">
-          <thead>
-            <tr class="border-b bg-muted/50">
-              <th class="px-4 py-3 text-left font-medium text-muted-foreground">{{ t('history.timeCol') }}</th>
-              <th class="px-4 py-3 text-left font-medium text-muted-foreground">{{ t('history.typeCol') }}</th>
-              <th class="px-4 py-3 text-left font-medium text-muted-foreground">{{ t('history.actionCol') }}</th>
-              <th class="px-4 py-3 text-left font-medium text-muted-foreground">{{ t('history.detailsCol') }}</th>
-              <th class="px-4 py-3 text-left font-medium text-muted-foreground">{{ t('history.userCol') }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            <template v-for="group in groupedLogs" :key="group.date">
-              <!-- Date group header -->
-              <tr class="bg-muted/30">
-                <td colspan="5" class="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  {{ group.label }}
-                </td>
-              </tr>
-              <tr
-                v-for="entry in group.entries"
-                :key="entry.id"
-                class="border-b transition-colors last:border-0 hover:bg-muted/30"
-              >
-                <td class="whitespace-nowrap px-4 py-3 tabular-nums text-muted-foreground">
-                  {{ formatTime(entry.created_at, locale) }}
-                </td>
-                <td class="px-4 py-3">
-                  <Badge :variant="entityTypeVariant(entry.entity_type)" class="capitalize">
-                    {{ entry.entity_type }}
-                  </Badge>
-                </td>
-                <td class="px-4 py-3 font-medium">
-                  {{ actionLabel(entry.action) }}
-                </td>
-                <td class="px-4 py-3">
-                  <div class="flex flex-wrap gap-1.5">
-                    <span
-                      v-for="chip in metadataChips(entry)"
-                      :key="chip.label"
-                      class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs"
-                      :class="{
-                        'border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950': chip.variant === 'increase',
-                        'border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950': chip.variant === 'decrease',
-                      }"
-                    >
-                      <span class="text-muted-foreground">{{ chip.label }}</span>
-                      <span
-                        class="font-medium"
-                        :class="{
-                          'text-emerald-700 dark:text-emerald-400': chip.variant === 'increase',
-                          'text-red-700 dark:text-red-400': chip.variant === 'decrease',
-                        }"
-                      >{{ chip.value }}</span>
-                    </span>
-                    <span v-if="metadataChips(entry).length === 0" class="text-muted-foreground">—</span>
-                  </div>
-                </td>
-                <td class="px-4 py-3">
-                  <span
-                    :class="entry.user_id ? 'text-foreground' : 'italic text-muted-foreground'"
-                    class="text-sm"
-                  >
-                    {{ entry.user_display }}
-                  </span>
-                </td>
-              </tr>
-            </template>
-          </tbody>
-        </table>
       </div>
     </template>
 
