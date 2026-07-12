@@ -144,19 +144,9 @@ export function useActivityLog() {
         return () => supabase.removeChannel(channel)
     }
 
-    // ── Human-readable label for actions ────────────────────────────────────
-    function actionLabel(action: string): string {
-        const labels: Record<string, string> = {
-            sale_recorded: 'Sale recorded',
-            credit_sent: 'Credit sent',
-            stock_updated: 'Stock updated',
-            stock_refill_all: 'All trays refilled',
-            tour_started: 'Tour started',
-        }
-        return labels[action] ?? action.replace(/_/g, ' ')
-    }
-
     // ── Icon / colour per entity type ───────────────────────────────────────
+    // Action labels + detail chips now live in `useActivityDescriptor` so the
+    // history page and dashboard feed render every action type identically.
     function entityTypeVariant(type: string): 'default' | 'secondary' | 'destructive' | 'outline' {
         const map: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
             sale: 'default',
@@ -164,6 +154,7 @@ export function useActivityLog() {
             stock: 'outline',
             firmware: 'destructive',
             device: 'secondary',
+            cash_book: 'secondary',
         }
         return map[type] ?? 'outline'
     }
@@ -196,7 +187,6 @@ export function useActivityLog() {
         fetchLogs,
         fetchMore,
         subscribe,
-        actionLabel,
         entityTypeVariant,
     }
 }

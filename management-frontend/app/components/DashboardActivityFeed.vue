@@ -7,8 +7,10 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { timeAgo } from '@/lib/utils'
+import { useActivityDescriptor } from '@/composables/useActivityDescriptor'
 
 const { t } = useI18n()
+const { actionLabel, activitySummary } = useActivityDescriptor()
 
 export interface ActivityEntry {
   id: string
@@ -23,25 +25,6 @@ defineProps<{
   entries: ActivityEntry[]
 }>()
 
-function actionLabel(action: string): string {
-  const labels: Record<string, string> = {
-    sale_recorded: t('activity.saleRecorded'),
-    credit_sent: t('activity.creditSent'),
-    stock_updated: t('activity.stockUpdated'),
-    stock_refill_all: t('activity.stockRefillAll'),
-    device_online: t('activity.deviceOnline'),
-    device_offline: t('activity.deviceOffline'),
-    ota_triggered: t('activity.otaTriggered'),
-    machine_created: t('activity.machineCreated'),
-    product_created: t('activity.productCreated'),
-    product_updated: t('activity.productUpdated'),
-    tray_created: t('activity.trayCreated'),
-    tray_updated: t('activity.trayUpdated'),
-    warehouse_intake: t('activity.warehouseIntake'),
-  }
-  return labels[action] ?? action.replace(/_/g, ' ')
-}
-
 function entityBadgeClass(type: string): string {
   const map: Record<string, string> = {
     sale: 'bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-400',
@@ -52,17 +35,9 @@ function entityBadgeClass(type: string): string {
     machine: 'bg-slate-100 text-slate-700 dark:bg-slate-800/40 dark:text-slate-400',
     product: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-400',
     warehouse: 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400',
+    cash_book: 'bg-teal-100 text-teal-700 dark:bg-teal-950/40 dark:text-teal-400',
   }
   return map[type] ?? 'bg-muted text-muted-foreground'
-}
-
-function metadataDetail(entry: ActivityEntry): string {
-  const m = entry.metadata
-  if (!m) return ''
-  if (m.machine_name) return String(m.machine_name)
-  if (m.product_name) return String(m.product_name)
-  if (m.device_name) return String(m.device_name)
-  return ''
 }
 </script>
 
@@ -92,7 +67,7 @@ function metadataDetail(entry: ActivityEntry): string {
           <!-- Action label + detail -->
           <span class="min-w-0 flex-1 truncate text-sm">
             {{ actionLabel(entry.action) }}
-            <span v-if="metadataDetail(entry)" class="text-muted-foreground"> &middot; {{ metadataDetail(entry) }}</span>
+            <span v-if="activitySummary(entry)" class="text-muted-foreground"> &middot; {{ activitySummary(entry) }}</span>
           </span>
 
           <!-- User -->

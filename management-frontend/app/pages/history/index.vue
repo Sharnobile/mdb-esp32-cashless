@@ -1,8 +1,9 @@
 <script setup lang="ts">
 definePageMeta({ middleware: 'auth' })
 
-import { timeAgo, formatDate, formatTime, formatDateTime } from '@/lib/utils'
+import { formatDate, formatTime, formatDateTime } from '@/lib/utils'
 import { useActivityLog } from '@/composables/useActivityLog'
+import { useActivityDescriptor } from '@/composables/useActivityDescriptor'
 import { Badge } from '@/components/ui/badge'
 
 const { t, locale } = useI18n()
@@ -18,9 +19,12 @@ const {
   fetchLogs,
   fetchMore,
   subscribe,
-  actionLabel,
   entityTypeVariant,
 } = useActivityLog()
+
+// Human labels + detail chips are centralised in the descriptor so /history and
+// the dashboard feed render every action type identically.
+const { actionLabel, metadataChips } = useActivityDescriptor()
 
 const ENTITY_TYPES = computed(() => [
   { value: '', label: t('history.allEvents') },
@@ -76,80 +80,6 @@ const groupedLogs = computed(() => {
   }
   return groups
 })
-
-type ChipVariant = 'default' | 'increase' | 'decrease' | 'neutral'
-
-function stockChangeChip(label: string, oldVal: number, newVal: number): { label: string; value: string; variant: ChipVariant } {
-  const delta = newVal - oldVal
-  const arrow = delta > 0 ? '\u2191' : delta < 0 ? '\u2193' : ''
-  const sign = delta > 0 ? '+' : ''
-  const variant: ChipVariant = delta > 0 ? 'increase' : delta < 0 ? 'decrease' : 'neutral'
-  return { label, value: `${oldVal} ${arrow} ${newVal} (${sign}${delta})`, variant }
-}
-
-function metadataChips(entry: { action: string; metadata: Record<string, unknown> | null }): { label: string; value: string; variant?: ChipVariant }[] {
-  const m = entry.metadata
-  if (!m) return []
-  const chips: { label: string; value: string; variant?: ChipVariant }[] = []
-
-  if (entry.action === 'sale_recorded') {
-    if (m.item_number != null) chips.push({ label: 'Item', value: `#${m.item_number}` })
-    if (m.price != null) chips.push({ label: 'Price', value: `\u20AC${Number(m.price).toFixed(2)}` })
-    if (m.channel) chips.push({ label: 'Channel', value: String(m.channel) })
-    if (m.device_id) chips.push({ label: 'Device', value: String(m.device_id).slice(0, 8) + '\u2026' })
-  }
-
-  if (entry.action === 'credit_sent') {
-    if (m.amount != null) chips.push({ label: 'Amount', value: `\u20AC${Number(m.amount).toFixed(2)}` })
-    if (m.device_id) chips.push({ label: 'Device', value: String(m.device_id).slice(0, 8) + '\u2026' })
-  }
-
-  if (entry.action === 'stock_updated') {
-    if (m.machine_name) chips.push({ label: 'Machine', value: String(m.machine_name) })
-    if (m.product_name) chips.push({ label: 'Product', value: String(m.product_name) })
-    if (m.item_number != null) chips.push({ label: 'Slot', value: `#${m.item_number}` })
-    // Source label (manual, refill, etc.)
-    if (m.source === 'refill_wizard') {
-      chips.push({ label: t('activity.source'), value: t('activity.sourceRefill'), variant: 'increase' })
-    } else if (m.source === 'manual') {
-      chips.push({ label: t('activity.source'), value: t('activity.sourceManual'), variant: 'neutral' })
-    } else if (m.source === 'refill_full') {
-      chips.push({ label: t('activity.source'), value: t('activity.sourceRefillFull'), variant: 'increase' })
-    }
-    // Stock change with colored arrow + delta
-    if (m.old_stock != null && m.new_stock != null) {
-      chips.push(stockChangeChip(t('activity.stockLabel'), Number(m.old_stock), Number(m.new_stock)))
-    } else if (m.new_stock != null) {
-      chips.push({ label: t('activity.stockLabel'), value: String(m.new_stock) })
-    }
-    // Min stock change
-    if (m.old_min_stock != null && m.new_min_stock != null) {
-      chips.push(stockChangeChip('Min stock', Number(m.old_min_stock), Number(m.new_min_stock)))
-    } else if (m.new_min_stock != null) {
-      chips.push({ label: 'Min stock', value: String(m.new_min_stock) })
-    }
-    // Capacity change
-    if (m.old_capacity != null && m.new_capacity != null) {
-      chips.push(stockChangeChip('Capacity', Number(m.old_capacity), Number(m.new_capacity)))
-    } else if (m.new_capacity != null) {
-      chips.push({ label: 'Capacity', value: String(m.new_capacity) })
-    }
-  }
-
-  if (entry.action === 'stock_refill_all') {
-    if (m.machine_name) chips.push({ label: 'Machine', value: String(m.machine_name) })
-    const trays = m.trays_refilled as any[]
-    if (trays?.length) {
-      chips.push({ label: 'Trays', value: `${trays.length} ${t('activity.refilled')}` })
-      for (const tr of trays) {
-        const name = tr.product_name ? `${tr.product_name}` : `Slot #${tr.item_number}`
-        chips.push(stockChangeChip(name, Number(tr.old_stock), Number(tr.new_stock)))
-      }
-    }
-  }
-
-  return chips
-}
 </script>
 
 <template>

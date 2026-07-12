@@ -685,10 +685,12 @@ export function useNayaxReconciliation() {
         const inserted = data ? (typeof data === 'string' ? JSON.parse(data) : data) : null
         await logNayaxActivity('sale_inserted', inserted?.id ?? null, {
           machine_id: vmId,
+          machine_name: n.machineName || null,
           item_number: n.itemNumber,
           item_price: n.priceGross,
           channel,
           sale_created_at: n.utcDt,
+          product_name: n.productName || null,
           nayax_tx_id: n.txId,
           adjust_stock: adjustStock,
         })
@@ -714,6 +716,11 @@ export function useNayaxReconciliation() {
       const supabase = useSupabaseClient()
       // Capture the sale's fields for the audit log before deletion.
       const ghost = dbSales.value.find(s => s.id === saleId)
+      // Best-effort machine name: the DbSale only carries machine_id, so resolve
+      // the display name from a mapped Nayax row pointing at the same VM.
+      const machineName = ghost
+        ? (rawRows.value.find(r => mapping.value[r.nayaxMachineId] === ghost.machine_id)?.machineName ?? null)
+        : null
       const { error: err } = await (supabase as any).rpc('delete_sale_and_restore_stock', {
         p_sale_id: saleId,
         p_restore_stock: restoreStock,
@@ -721,10 +728,13 @@ export function useNayaxReconciliation() {
       if (err) throw err
       await logNayaxActivity('sale_deleted', saleId, {
         machine_id: ghost?.machine_id ?? null,
+        machine_name: machineName,
         item_number: ghost?.item_number ?? null,
         item_price: ghost?.item_price ?? null,
         channel: ghost?.channel ?? null,
         sale_created_at: ghost?.created_at ?? null,
+        product_id: ghost?.product_id ?? null,
+        product_name: ghost?.product_name ?? null,
         stock_restored: restoreStock,
       })
       // Refresh state

@@ -1143,7 +1143,8 @@ async function handleDeleteSale() {
     sales.value = sales.value.filter(s => s.id !== deletingSale.value.id)
     // Refresh trays to show updated stock
     await fetchTrays(machine.value.id, { silent: true })
-    // Log to activity log
+    // Log to activity log — capture the product identity (not just the slot)
+    // so the /history "sale deleted" entry says which product was removed.
     await logSaleActivity('sale_deleted', deletingSale.value.id, {
       machine_id: machine.value.id,
       machine_name: machine.value.name,
@@ -1151,6 +1152,8 @@ async function handleDeleteSale() {
       item_price: deletingSale.value.item_price,
       channel: deletingSale.value.channel,
       sale_created_at: deletingSale.value.created_at,
+      product_id: saleProductId(deletingSale.value),
+      product_name: saleProduct(deletingSale.value)?.name ?? null,
     })
   } catch (err: any) {
     console.error('Failed to delete sale:', err)
@@ -1185,6 +1188,7 @@ async function handleAddSale() {
     // Refresh trays to show updated stock
     await fetchTrays(machine.value.id, { silent: true })
     // Log to activity log
+    const insertedTray = trayProductMap.value.get(addSaleForm.item_number)
     await logSaleActivity('sale_inserted', data?.id ?? null, {
       machine_id: machine.value.id,
       machine_name: machine.value.name,
@@ -1193,6 +1197,8 @@ async function handleAddSale() {
       channel: addSaleForm.channel,
       sale_created_at: addSaleForm.created_at,
       source: 'manual',
+      product_id: insertedTray?.product_id ?? null,
+      product_name: insertedTray?.name ?? null,
     })
     showAddSaleModal.value = false
   } catch (err: any) {
