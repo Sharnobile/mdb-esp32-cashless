@@ -33,16 +33,17 @@ const {
 // product_id/name → thumbnail image.
 const machineNameMap = ref<Map<string, string>>(new Map())
 // device/embedded id → machine name (sale_recorded/credit_sent carry the
-// embedded id, not machine_id — vendingMachine.embedded_id links them).
+// embedded id, not machine_id). NB: the linking column on vendingMachine is
+// `embedded` (= embeddeds.id), NOT `embedded_id`.
 const deviceMachineNameMap = ref<Map<string, string>>(new Map())
 async function fetchMachineNames() {
-  const { data } = await (supabase as any).from('vendingMachine').select('id, name, embedded_id')
+  const { data } = await (supabase as any).from('vendingMachine').select('id, name, embedded')
   const byId = new Map<string, string>()
   const byDevice = new Map<string, string>()
-  for (const r of (data ?? []) as { id: string; name: string | null; embedded_id: string | null }[]) {
+  for (const r of (data ?? []) as { id: string; name: string | null; embedded: string | null }[]) {
     if (!r.name) continue
     byId.set(r.id, r.name)
-    if (r.embedded_id) byDevice.set(r.embedded_id, r.name)
+    if (r.embedded) byDevice.set(r.embedded, r.name)
   }
   machineNameMap.value = byId
   deviceMachineNameMap.value = byDevice
