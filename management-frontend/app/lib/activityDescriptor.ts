@@ -47,6 +47,8 @@ export interface DescriptorCtx {
   formatDateTime?: (iso: string) => string
   /** Resolve a machine_id → display name. Returns undefined when unknown. */
   machineName?: (id: string) => string | undefined
+  /** Resolve a device/embedded id → machine name (sale_recorded/credit_sent). */
+  machineNameByDevice?: (deviceId: string) => string | undefined
 }
 
 // Every action we render a proper (translated) label for. Anything not listed
@@ -131,11 +133,6 @@ function euro(v: unknown): string {
   return `€${Number(v).toFixed(2)}`
 }
 
-function shortId(v: unknown): string {
-  const s = String(v)
-  return s.length > 8 ? s.slice(0, 8) + '…' : s
-}
-
 /** Map a `source:` provenance code to a translated label (null → no chip). */
 function sourceLabel(source: unknown, t: TFn): string | null {
   switch (source) {
@@ -188,11 +185,14 @@ export function activityChips(entry: ActivityEntryLike, ctx: DescriptorCtx): Act
 
   switch (entry.action) {
     case 'sale_recorded': {
-      // From the MQTT webhook (service_role). Uses `price`, has no machine name.
+      // From the MQTT webhook (service_role): metadata carries the device
+      // (embedded) id, not a machine name — resolve it to the machine name so
+      // the row shows the vending machine, not a useless UUID.
+      const machine = m.device_id ? ctx.machineNameByDevice?.(String(m.device_id)) : undefined
+      if (machine) push(F('machine'), machine, { icon: 'MapPin' })
       if (m.item_number != null) push(F('slot'), `#${m.item_number}`, { icon: 'Hash' })
       if (m.price != null) push(F('price'), euro(m.price), { icon: 'Euro' })
       if (m.channel) push(F('channel'), m.channel, { icon: 'CreditCard' })
-      if (m.device_id) push(F('device'), shortId(m.device_id), { icon: 'Cpu' })
       break
     }
 
@@ -214,7 +214,8 @@ export function activityChips(entry: ActivityEntryLike, ctx: DescriptorCtx): Act
 
     case 'credit_sent': {
       if (m.amount != null) push(F('amount'), euro(m.amount), { icon: 'Euro' })
-      if (m.device_id) push(F('device'), shortId(m.device_id), { icon: 'Cpu' })
+      const machine = m.device_id ? ctx.machineNameByDevice?.(String(m.device_id)) : undefined
+      if (machine) push(F('machine'), machine, { icon: 'MapPin' })
       break
     }
 

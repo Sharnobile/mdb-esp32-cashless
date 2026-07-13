@@ -16,7 +16,9 @@ const t = (key: string, named?: Record<string, unknown>) => {
 }
 // A machine-id → name lookup, as the /history page injects at runtime.
 const machineName = (id: string) => (id === 'm-uuid-1234-5678' ? 'Getränkeautomat 1' : undefined)
-const ctx = { t, formatDateTime: (iso: string) => `DT[${iso}]`, machineName }
+// A device/embedded-id → machine name lookup (sale_recorded/credit_sent).
+const machineNameByDevice = (id: string) => (id === 'dev-embedded-1' ? 'Snackautomat 3' : undefined)
+const ctx = { t, formatDateTime: (iso: string) => `DT[${iso}]`, machineName, machineNameByDevice }
 
 const byLabel = (chips: ActivityChip[], label: string) => chips.find(c => c.label === label)
 const valueOf = (chips: ActivityChip[], label: string) => byLabel(chips, label)?.value
@@ -116,6 +118,29 @@ describe('activityChips — sale_deleted (the reported gap)', () => {
     }, ctx)
     expect(valueOf(chips, 'activity.field.stockRestored')).toBe('activity.yes')
     expect(valueOf(chips, 'activity.source')).toBe('activity.sourceNayax')
+  })
+})
+
+describe('activityChips — sale_recorded resolves the device to a machine name', () => {
+  it('shows the machine NAME (from device_id), never the embedded UUID', () => {
+    const chips = activityChips({
+      action: 'sale_recorded',
+      metadata: { device_id: 'dev-embedded-1', item_number: 5, price: 2.5, channel: 'cash' },
+    }, ctx)
+    expect(valueOf(chips, 'activity.field.machine')).toBe('Snackautomat 3')
+    expect(valueOf(chips, 'activity.field.price')).toBe('€2.50')
+    // the device id must not appear as a chip anywhere
+    expect(byLabel(chips, 'activity.field.device')).toBeUndefined()
+    expect(chips.every(c => !c.value.includes('dev-embedded'))).toBe(true)
+  })
+
+  it('omits the machine chip when the device cannot be resolved (no UUID fallback)', () => {
+    const chips = activityChips({
+      action: 'sale_recorded',
+      metadata: { device_id: 'unknown-dev', item_number: 5, price: 2.5 },
+    }, ctx)
+    expect(byLabel(chips, 'activity.field.machine')).toBeUndefined()
+    expect(chips.every(c => !c.value.includes('unknown-dev'))).toBe(true)
   })
 })
 
