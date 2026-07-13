@@ -8,24 +8,26 @@ import { normalizeLocale, t, formatPrice } from './notification-i18n.ts'
 
 // ── normalizeLocale ──────────────────────────────────────────────────────────
 
-Deno.test('normalizeLocale: accepts "de" and "en" as-is', () => {
+Deno.test('normalizeLocale: accepts "de", "en" and "fr" as-is', () => {
   assertEquals(normalizeLocale('de'), 'de')
   assertEquals(normalizeLocale('en'), 'en')
+  assertEquals(normalizeLocale('fr'), 'fr')
 })
 
 Deno.test('normalizeLocale: case-insensitive', () => {
   assertEquals(normalizeLocale('DE'), 'de')
   assertEquals(normalizeLocale('En'), 'en')
+  assertEquals(normalizeLocale('Fr'), 'fr')
 })
 
 Deno.test('normalizeLocale: strips region tag', () => {
   assertEquals(normalizeLocale('de-DE'), 'de')
   assertEquals(normalizeLocale('en-US'), 'en')
   assertEquals(normalizeLocale('de_AT'), 'de')
+  assertEquals(normalizeLocale('fr-FR'), 'fr')
 })
 
 Deno.test('normalizeLocale: unknown → en', () => {
-  assertEquals(normalizeLocale('fr'), 'en')
   assertEquals(normalizeLocale('xx-YY'), 'en')
 })
 
@@ -37,7 +39,7 @@ Deno.test('normalizeLocale: null / undefined / empty → en', () => {
 
 // ── t() dictionary ───────────────────────────────────────────────────────────
 
-Deno.test('t: all keys present for both locales', () => {
+Deno.test('t: all keys present for all locales', () => {
   const expectedKeys = [
     'sale', 'left', 'refillAt', 'noStockInfo',
     'lowStockTitle', 'remaining', 'testMachine', 'sampleProduct',
@@ -45,6 +47,7 @@ Deno.test('t: all keys present for both locales', () => {
   for (const key of expectedKeys) {
     assert(key in t('en'), `'en' missing key "${key}"`)
     assert(key in t('de'), `'de' missing key "${key}"`)
+    assert(key in t('fr'), `'fr' missing key "${key}"`)
   }
 })
 
@@ -72,6 +75,18 @@ Deno.test('t: de strings', () => {
   assertEquals(de.sampleProduct, 'Beispielprodukt')
 })
 
+Deno.test('t: fr strings', () => {
+  const fr = t('fr')
+  assertEquals(fr.sale, 'Vente')
+  assertEquals(fr.left, 'restant')
+  assertEquals(fr.refillAt(5), 'réapprovisionner à 5')
+  assertEquals(fr.noStockInfo, 'Aucune info de stock')
+  assertEquals(fr.lowStockTitle, 'Alerte stock bas')
+  assertEquals(fr.remaining, 'restant')
+  assertEquals(fr.testMachine, 'Machine de test')
+  assertEquals(fr.sampleProduct, 'Produit exemple')
+})
+
 // ── formatPrice ──────────────────────────────────────────────────────────────
 
 Deno.test('formatPrice: en uses dot decimal, € prefix', () => {
@@ -86,7 +101,14 @@ Deno.test('formatPrice: de uses comma decimal, € suffix', () => {
   assertStringIncludes(s, '€')
 })
 
+Deno.test('formatPrice: fr uses comma decimal, € suffix', () => {
+  const s = formatPrice(2.5, 'fr')
+  assertStringIncludes(s, '2,50')
+  assertStringIncludes(s, '€')
+})
+
 Deno.test('formatPrice: handles whole numbers', () => {
   assertStringIncludes(formatPrice(10, 'en'), '10.00')
   assertStringIncludes(formatPrice(10, 'de'), '10,00')
+  assertStringIncludes(formatPrice(10, 'fr'), '10,00')
 })

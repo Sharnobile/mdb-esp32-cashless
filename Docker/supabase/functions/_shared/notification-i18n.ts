@@ -7,7 +7,7 @@
  * locale-aware currency formatting.
  */
 
-export type Locale = 'en' | 'de'
+export type Locale = 'en' | 'de' | 'fr'
 
 /**
  * Clamp any input (user-supplied locale, Accept-Language header,
@@ -16,7 +16,9 @@ export type Locale = 'en' | 'de'
 export function normalizeLocale(raw: string | null | undefined): Locale {
   if (!raw) return 'en'
   const prefix = raw.toLowerCase().split(/[-_]/)[0] ?? ''
-  return prefix === 'de' ? 'de' : 'en'
+  if (prefix === 'de') return 'de'
+  if (prefix === 'fr') return 'fr'
+  return 'en'
 }
 
 export interface TranslationSet {
@@ -64,19 +66,38 @@ const de: TranslationSet = {
       : `${n} ${n === 1 ? 'neues Angebot' : 'neue Angebote'}`,
 }
 
+const fr: TranslationSet = {
+  sale: 'Vente',
+  left: 'restant',
+  refillAt: (n) => `réapprovisionner à ${n}`,
+  noStockInfo: 'Aucune info de stock',
+  lowStockTitle: 'Alerte stock bas',
+  remaining: 'restant',
+  testMachine: 'Machine de test',
+  sampleProduct: 'Produit exemple',
+  newDealsTitle: 'Nouvelles offres',
+  newDealsBody: (n, r) =>
+    r
+      ? `${n} ${n === 1 ? 'nouvelle offre' : 'nouvelles offres'} — ${r}`
+      : `${n} ${n === 1 ? 'nouvelle offre' : 'nouvelles offres'}`,
+}
+
 export function t(locale: Locale): TranslationSet {
-  return locale === 'de' ? de : en
+  if (locale === 'de') return de
+  if (locale === 'fr') return fr
+  return en
 }
 
 /**
  * Locale-aware EUR currency formatting.
  *   en → '€2.50'   (en-GB style, symbol-first)
  *   de → '2,50 €'  (de-DE style, symbol-last with NBSP separator)
+ *   fr → '2,50 €'  (fr-FR style, symbol-last with NBSP separator)
  *
  * Callers embed the returned string directly in the notification body.
  */
 export function formatPrice(amount: number, locale: Locale): string {
-  const bcp47 = locale === 'de' ? 'de-DE' : 'en-GB'
+  const bcp47 = locale === 'de' ? 'de-DE' : locale === 'fr' ? 'fr-FR' : 'en-GB'
   return new Intl.NumberFormat(bcp47, {
     style: 'currency',
     currency: 'EUR',
