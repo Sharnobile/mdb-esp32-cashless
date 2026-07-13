@@ -232,7 +232,7 @@ Deno.serve(async (req) => {
     const body = await req.json()
     const { machine_id, days = 30, force_refresh = false, locale = 'en', type = 'machine' } = body
 
-    const lang = locale === 'de' ? 'German' : locale === 'fr' ? 'French' : 'English'
+    const lang = locale === 'de' ? 'German' : locale === 'fr' ? 'French' : locale === 'nl' ? 'Dutch (Belgium)' : 'English'
 
     // ── Type: history — return past insights ──────────────────────────────────
     if (type === 'history') {
