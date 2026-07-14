@@ -15,25 +15,27 @@ jobs:
         with:
           xcode-version: latest-stable
 
-      - name: Build Unsigned IPA
+      - name: Build Unsigned Archive
         run: |
           cd ios
-          # Build the project without signing
+          # Build an archive of the project without signing
           xcodebuild -project VMflow.xcodeproj \
             -scheme VMflow \
             -configuration Release \
             -sdk iphoneos \
-            -derivedDataPath build \
+            -archivePath VMflow.xcarchive \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
-            clean build
+            clean archive
 
       - name: Package IPA
         run: |
-          mkdir -p ios/Payload
-          cp -r ios/build/Build/Products/Release-iphoneos/VMflow.app ios/Payload/
           cd ios
-          zip -r VMflow.ipa Payload
+          mkdir -p Payload
+          # Copy the .app from the archive, preserving permissions and symlinks
+          cp -rp VMflow.xcarchive/Products/Applications/VMflow.app Payload/
+          # Create zip preserving symlinks (-y)
+          zip -y -r VMflow.ipa Payload
 
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
