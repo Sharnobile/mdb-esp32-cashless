@@ -129,8 +129,12 @@ struct RefillSummaryView: View {
             }
         }
         .sheet(item: $autoSheetBarkasse) { barkasse in
-            WithdrawalSheet(cashBook: barkasse, fromTour: true)
-                .environmentObject(cashBookVM)
+            WithdrawalSheet(
+                cashBook: barkasse,
+                fromTour: true,
+                tourMachineIds: viewModel.visitedMachineIds
+            )
+            .environmentObject(cashBookVM)
         }
         .task {
             // 1. Refresh the cash-book VM (fetch books + machines)
