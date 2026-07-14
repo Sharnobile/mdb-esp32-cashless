@@ -67,6 +67,7 @@
     "ekColumn": "gebruikelijke kostprijs"
   },
   "common": {
+    "language": "Taal",
     "save": "Opslaan",
     "cancel": "Annuleren",
     "delete": "Verwijderen",

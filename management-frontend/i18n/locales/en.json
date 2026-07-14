@@ -67,6 +67,7 @@
     "ekColumn": "usual cost"
   },
   "common": {
+    "language": "Language",
     "save": "Save",
     "cancel": "Cancel",
     "delete": "Delete",
