@@ -32,15 +32,24 @@ const {
 // Resolve machine_id → name (so chips show the name, never a raw UUID) and
 // product_id/name → thumbnail image.
 const machineNameMap = ref<Map<string, string>>(new Map())
+// device/embedded id → machine name (sale_recorded/credit_sent carry the
+// embedded id, not machine_id). NB: the linking column on vendingMachine is
+// `embedded` (= embeddeds.id), NOT `embedded_id`.
+const deviceMachineNameMap = ref<Map<string, string>>(new Map())
 async function fetchMachineNames() {
-  const { data } = await (supabase as any).from('vendingMachine').select('id, name')
-  const map = new Map<string, string>()
-  for (const r of (data ?? []) as { id: string; name: string | null }[]) {
-    if (r.name) map.set(r.id, r.name)
+  const { data } = await (supabase as any).from('vendingMachine').select('id, name, embedded')
+  const byId = new Map<string, string>()
+  const byDevice = new Map<string, string>()
+  for (const r of (data ?? []) as { id: string; name: string | null; embedded: string | null }[]) {
+    if (!r.name) continue
+    byId.set(r.id, r.name)
+    if (r.embedded) byDevice.set(r.embedded, r.name)
   }
-  machineNameMap.value = map
+  machineNameMap.value = byId
+  deviceMachineNameMap.value = byDevice
 }
 const resolveMachineName = (id: string) => machineNameMap.value.get(id)
+const resolveMachineNameByDevice = (deviceId: string) => deviceMachineNameMap.value.get(deviceId)
 
 const { products, fetchProducts } = useProducts()
 const productsById = computed(() => {
@@ -64,6 +73,7 @@ function resolveProductImage(ref: { productId?: string; productName?: string } |
 // and the dashboard feed render every action type identically.
 const { actionLabel, actionIcon, metadataChips, productRef } = useActivityDescriptor({
   machineName: resolveMachineName,
+  machineNameByDevice: resolveMachineNameByDevice,
 })
 
 // lucide component registry — the descriptor returns icon names as strings.

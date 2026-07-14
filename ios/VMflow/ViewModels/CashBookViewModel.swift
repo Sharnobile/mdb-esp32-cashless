@@ -225,7 +225,23 @@ final class CashBookViewModel: ObservableObject {
             created_by: userId
         )
 
-        try await client.from("cash_book_entries").insert(row).execute()
+        let inserted: InsertedEntryId = try await client
+            .from("cash_book_entries")
+            .insert(row)
+            .select("id")
+            .single()
+            .execute()
+            .value
+
+        await logCashBookEntryActivity(
+            entryId: inserted.id,
+            cashBookId: cashBookId,
+            companyId: companyId,
+            type: "withdrawal",
+            amount: row.amount,
+            category: nil,
+            description: description.isEmpty ? nil : description
+        )
 
         // Refresh local state
         await loadEntries(for: cashBookId)
@@ -263,7 +279,23 @@ final class CashBookViewModel: ObservableObject {
             created_by: userId
         )
 
-        try await client.from("cash_book_entries").insert(row).execute()
+        let inserted: InsertedEntryId = try await client
+            .from("cash_book_entries")
+            .insert(row)
+            .select("id")
+            .single()
+            .execute()
+            .value
+
+        await logCashBookEntryActivity(
+            entryId: inserted.id,
+            cashBookId: cashBookId,
+            companyId: companyId,
+            type: "payout",
+            amount: row.amount,
+            category: nil,
+            description: description.isEmpty ? nil : description
+        )
 
         await loadEntries(for: cashBookId)
         await loadTheoreticalCash(for: cashBookId)
@@ -307,10 +339,82 @@ final class CashBookViewModel: ObservableObject {
             created_by: userId
         )
 
-        try await client.from("cash_book_entries").insert(row).execute()
+        let inserted: InsertedEntryId = try await client
+            .from("cash_book_entries")
+            .insert(row)
+            .select("id")
+            .single()
+            .execute()
+            .value
+
+        await logCashBookEntryActivity(
+            entryId: inserted.id,
+            cashBookId: cashBookId,
+            companyId: companyId,
+            type: "expense",
+            amount: row.amount,
+            category: category,
+            description: row.description
+        )
 
         await loadEntries(for: cashBookId)
         await loadTheoreticalCash(for: cashBookId)
+    }
+
+    // MARK: - Activity Log
+
+    /// Decodes just the id of a freshly-inserted `cash_book_entries` row.
+    private struct InsertedEntryId: Decodable { let id: UUID }
+
+    /// Mirrors the PWA's `logActivity('cash_book_entry_created', …)` in
+    /// `useCashBook.ts` so cash-book movements booked from iOS surface in the
+    /// dashboard "Recent Activity" feed (on both iOS and web). There is no DB
+    /// trigger — the activity_log row is written client-side, so iOS must do it
+    /// too. Non-critical: failures are logged, never thrown, so a logging hiccup
+    /// can't fail the entry itself. Metadata shape (type/amount/category/
+    /// description + _user_* fields) matches what `ActivityFeed.swift` decodes.
+    private func logCashBookEntryActivity(
+        entryId: UUID?,
+        cashBookId: UUID,
+        companyId: UUID,
+        type: String,
+        amount: Double,
+        category: String?,
+        description: String?
+    ) async {
+        do {
+            guard let user = client.auth.currentUser else { return }
+            let firstName = user.userMetadata["first_name"]?.stringValue
+            let lastName = user.userMetadata["last_name"]?.stringValue
+            let fullName = [firstName, lastName].compactMap { $0 }
+                .joined(separator: " ").trimmingCharacters(in: .whitespaces)
+            let userDisplay = fullName.isEmpty ? user.email : fullName
+
+            let metadata: [String: AnyJSON] = [
+                "cash_book_id": .string(cashBookId.uuidString),
+                "type": .string(type),
+                "amount": .double(amount),
+                "category": category.map { .string($0) } ?? .null,
+                "description": description.map { .string($0) } ?? .null,
+                "_user_email": user.email.map { .string($0) } ?? .null,
+                "_user_display": userDisplay.map { .string($0) } ?? .null,
+            ]
+
+            try await client
+                .from("activity_log")
+                .insert([
+                    "company_id": AnyJSON.string(companyId.uuidString),
+                    "user_id": AnyJSON.string(user.id.uuidString),
+                    "entity_type": AnyJSON.string("cash_book"),
+                    "entity_id": entryId.map { AnyJSON.string($0.uuidString) } ?? .null,
+                    "action": AnyJSON.string("cash_book_entry_created"),
+                    "metadata": AnyJSON.object(metadata),
+                ])
+                .execute()
+        } catch {
+            print("[CashBook] Activity log write failed: \(error)")
+            // Non-critical — the entry itself already succeeded.
+        }
     }
 
     // MARK: - Refill helpers

@@ -118,6 +118,32 @@ struct TheoreticalCash: Codable, Hashable {
     }
 }
 
+extension TheoreticalCash {
+    /// Expected cash limited to a subset of the Barkasse's machines — those
+    /// physically visited on a refill tour. `cashSalesSince` sums *every*
+    /// machine assigned to the Barkasse, so using it after a partial tour
+    /// implies the operator emptied machines they never touched. Passing the
+    /// visited machine IDs scopes the figure to what was actually collected.
+    ///
+    /// `machineIds == nil` → the full `cashSalesSince` (a manual, whole-
+    /// Barkasse withdrawal). A single-machine Barkasse, or a tour that visited
+    /// every assigned machine, yields the same value as `cashSalesSince`.
+    func expectedCash(forMachines machineIds: Set<UUID>?) -> Double {
+        guard let machineIds else { return cashSalesSince }
+        return machines
+            .filter { machineIds.contains($0.machineId) }
+            .reduce(0) { $0 + $1.cashSales }
+    }
+
+    /// The per-machine breakdown rows limited to `machineIds`, or all rows
+    /// when `nil`. Mirrors `expectedCash(forMachines:)` so the displayed rows
+    /// always add up to the displayed total.
+    func machineBreakdown(forMachines machineIds: Set<UUID>?) -> [PerMachineCashSales] {
+        guard let machineIds else { return machines }
+        return machines.filter { machineIds.contains($0.machineId) }
+    }
+}
+
 // MARK: - VendingMachine row used for cash-book wiring
 
 /// A trimmed projection of `vendingMachine` that the cash-book layer needs.

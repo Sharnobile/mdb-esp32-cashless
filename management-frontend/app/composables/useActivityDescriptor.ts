@@ -19,6 +19,7 @@ import type { ActivityEntryLike, TFn } from '@/lib/activityDescriptor'
  */
 export function useActivityDescriptor(opts?: {
   machineName?: (id: string) => string | undefined
+  machineNameByDevice?: (deviceId: string) => string | undefined
 }) {
   const { t, locale } = useI18n()
   const tt: TFn = (key, named) => (named ? t(key, named) : t(key))
@@ -26,6 +27,7 @@ export function useActivityDescriptor(opts?: {
     t: tt,
     formatDateTime: (iso: string) => formatDateTime(iso, locale.value),
     machineName: opts?.machineName,
+    machineNameByDevice: opts?.machineNameByDevice,
   })
 
   return {
