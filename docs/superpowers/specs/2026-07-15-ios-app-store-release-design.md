@@ -157,35 +157,112 @@ type-the-company-name confirmation.
 
 ### 4.2 Blocking foreign keys (must be fixed first)
 
-Four FKs lack `ON DELETE` behaviour and would make deletion fail with a raw
-`23503`:
+**17 FKs** reference `auth.users(id)` or `companies(id)` with no `ON DELETE`
+clause. A missing clause means `NO ACTION`, which blocks the parent delete
+**regardless of nullability** — nullability only decides whether `SET NULL` is a
+legal *fix*. All 17 raise a raw `23503` today.
 
-| FK | Problem |
-|---|---|
-| `api_keys.created_by → auth.users(id)` NOT NULL | any user who made an API key is undeletable |
-| `cash_books.created_by → auth.users(id)` NOT NULL | same |
-| `cash_book_entries.created_by → auth.users(id)` NOT NULL | same |
-| `cash_book_entries.company_id → companies(id)` | company delete dies here; every other table cascades |
+Blocking **auth-user deletion** (11):
 
-The first three break the **ordinary** deletion path, not just the last-admin
-one — an admin is exactly the user who has created API keys and cash-book
-entries.
+| FK | Source | Fix |
+|---|---|---|
+| `sales.owner_id` | `20260101000000:56` | SET NULL |
+| `embeddeds.owner_id` | `20260101000000:37` | SET NULL |
+| `paxcounter.owner_id` | `20260228000000:48` | SET NULL |
+| `organization_members.invited_by` | `20260228000000:14` | SET NULL |
+| `invitations.invited_by` | `20260228000000:33` | SET NULL |
+| `device_provisioning.created_by` | `20260228130000:11` | SET NULL |
+| `firmware_versions.uploaded_by` | `20260301800000:14` | SET NULL |
+| `ota_updates.triggered_by` | `20260301800000:46` | SET NULL |
+| `api_keys.created_by` **NOT NULL** | `20260303100000:5` | drop NOT NULL + SET NULL |
+| `cash_books.created_by` **NOT NULL** | `20260407000000:29` | drop NOT NULL + SET NULL |
+| `cash_book_entries.created_by` **NOT NULL** | `20260407000000:73` | drop NOT NULL + SET NULL |
 
-**New migration** `20260715000000_account_deletion_fk_fixes.sql` (migrations are
-immutable — new file, never edit `20260407000000_cash_book.sql`; memory
-`feedback_migration_immutability`):
+`sales.owner_id` and `embeddeds.owner_id` are the fatal pair: an operator's
+account is stamped on their own sales rows, so `deleteUser` fails for
+essentially every real user. This breaks the **ordinary** deletion path, not just
+the last-admin one.
 
-- `api_keys.created_by`, `cash_books.created_by`, `cash_book_entries.created_by`
-  → drop `NOT NULL`, re-create FK with `ON DELETE SET NULL`. Attribution is lost;
-  the record survives. Cascading instead would delete a company's accounting rows
-  and working API keys because a colleague left — wrong.
-- `cash_book_entries.company_id` → re-create FK with `ON DELETE CASCADE`,
-  matching every other company-scoped table.
+Blocking **company deletion** (6):
 
-Idempotent (`DROP CONSTRAINT IF EXISTS` + `ADD CONSTRAINT`), applied by
-`update.sh` on existing installs. Beware the phantom `20260606000000` when
-running `supabase migration up` locally (memory
-`project_cash_book_phantom_migration`).
+| FK | Source | Fix |
+|---|---|---|
+| `users.company` | `20260101000000:24` | CASCADE |
+| `embeddeds.company` | `20260101000000:42` | CASCADE |
+| `vendingMachine.company` | `20260101000000:76` | CASCADE |
+| `product_category.company` | `20260101000000:93` | CASCADE |
+| `products.company` | `20260101000000:112` | CASCADE |
+| `cash_book_entries.company_id` | `20260407000000:62` | CASCADE |
+
+Correcting an earlier claim in this spec: it is **not** true that "every other
+table cascades." Tables added from `20260303000000` onward cascade; the five
+original `initial_schema` tables and `cash_book_entries` never did.
+
+`SET NULL` rather than `CASCADE` for the `*_by` / `owner_id` columns: attribution
+is lost, the record survives. Cascading would destroy a company's sales history,
+accounting rows and working API keys because one colleague left — wrong.
+
+**Dropping `NOT NULL`** on the three `created_by` columns weakens an invariant
+that inserting code may assume. Audit before writing: any RLS policy, trigger, or
+`SECURITY DEFINER` RPC reading `created_by` (the cash-book RPCs and
+`add_purchase_price`-style functions are the risk). A policy of the form
+`created_by = auth.uid()` fails closed on NULL — acceptable. A `NOT NULL`-assuming
+trigger is not.
+
+**New migration** `20260715000000_account_deletion_fk_fixes.sql` — new file,
+never edit the originals (memory `feedback_migration_immutability`).
+
+**Do not drop constraints by guessed name.** `DROP CONSTRAINT IF EXISTS
+<table>_<column>_fkey` assumes Postgres's inline-declaration naming; if any
+deployed DB differs, `IF EXISTS` misses **silently**, the old blocking FK
+survives, the new one is added under another name, and the migration reports
+success while production still `23503`s. Because `update.sh` fires each migration
+once by filename, that failure is latent — the exact class of bug
+`feedback_migration_immutability` exists for. Instead, a `DO` block looks the
+constraint up in `pg_constraint` by `(conrelid, confrelid, conkey)` and drops
+whatever name it finds, then re-adds with the intended clause. That is both
+idempotent and name-independent. (Evidence the convention *usually* holds:
+`20260301400000_device_delete_fks.sql` drops by that exact pattern and works —
+but it drops without `IF EXISTS`, so it would have failed loudly. Our version
+must not fail quietly.)
+
+Beware the phantom `20260606000000` when running `supabase migration up` locally
+(memory `project_cash_book_phantom_migration`).
+
+### 4.3 The company cascade cannot be a cascade
+
+`sales` and `paxcounter` have **no company column** (verified:
+`20260101000000_initial_schema.sql:53-64`, `20260228000000_multitenancy.sql:45-52`).
+They reach a company only through `embedded_id` / `machine_id` — and both of those
+FKs are deliberately `ON DELETE SET NULL` (`20260301400000_device_delete_fks.sql`,
+`20260301200000_device_swap.sql:15`) so that history survives a device swap.
+
+So deleting the `companies` row would cascade away `embeddeds` and
+`vendingMachine`, and leave every `sales` and `paxcounter` row alive with **both**
+FKs NULL: unreachable by RLS, invisible in every UI, undeletable through the app,
+still holding the operator's revenue history. That is the opposite of what §4.1
+promises, and a live GDPR Art. 17 exposure. The device-swap `SET NULL` must stay,
+so the rows must be deleted **explicitly and first**.
+
+This ordering must be atomic, which an edge function issuing sequential
+PostgREST calls cannot guarantee. Therefore the migration also adds:
+
+```sql
+public.delete_company_and_data(p_company_id uuid) RETURNS void
+  SECURITY DEFINER
+  SET search_path = public, extensions   -- memory: feedback_supabase_security_definer_search_path
+```
+
+One transaction, in order: delete `sales` and `paxcounter` whose `embedded_id`
+belongs to the company's devices **or** whose `machine_id` belongs to its
+machines; then delete the `companies` row and let the (now fixed) FKs cascade the
+rest. Legacy rows with both FKs already NULL cannot be attributed to a company and
+are out of scope.
+
+Unlike the `get_platform_*` RPCs, this function is **not** self-guarding — it is
+called only by the edge function with the service role, after that function has
+verified the caller. It must not be granted to `authenticated`; `REVOKE` from
+`public` explicitly.
 
 ⚠️ **Flagged for the user, not decided here:** cash-book entries are accounting
 records that German retention law (GoBD/HGB §257) generally requires kept for
@@ -194,7 +271,7 @@ a company's cash book on account deletion may conflict with that duty. This is a
 legal question for your tax advisor, not an engineering one — it does not block
 the iOS work, but the answer may later change what §4.3 deletes.
 
-### 4.3 Edge function
+### 4.4 Edge function
 
 New `Docker/supabase/functions/delete-account/`.
 
@@ -212,12 +289,30 @@ Order:
 1. Resolve caller via `adminClient.auth.getUser(token)` — the established pattern
    (`verify_jwt = false` + in-function verification, `CLAUDE.md`).
 2. Read the caller's `organization_members` row → `company_id`, `role`.
-3. If `role = 'admin'` **and** no other admin exists for that company →
-   cascading path: require `confirm_company_name` to match `companies.name`
-   exactly (else `400`), then delete the `companies` row (FKs cascade the rest).
-4. Otherwise delete only the `organization_members` row.
+3. If `role = 'admin'` **and** no other admin exists for that company → cascading
+   path: require `confirm_company_name` to match `companies.name` exactly (else
+   `400`); collect the company's `products.image_path` values and remove those
+   objects from the `product-images` bucket (they are keyed `{product_id}.{ext}`
+   with no company FK, so nothing else reaps them); then call
+   `delete_company_and_data(company_id)`.
+4. Otherwise: no company-side work. The caller's `organization_members` row is
+   removed by step 5's cascade (`organization_members.user_id → auth.users
+   ON DELETE CASCADE`, `20260228000000_multitenancy.sql:12`) — no explicit delete
+   needed.
 5. `adminClient.auth.admin.deleteUser(userId)`.
 6. App signs out, returns to login.
+
+**Partial-failure boundary:** `deleteUser` goes through the GoTrue admin API and
+**cannot** join a Postgres transaction with step 3. A failure between 3 and 5
+leaves a company deleted and its user alive — an orphan admin with no company,
+who by §4.1's rules can then simply delete again (a user with no company row is
+always deletable). So the sequence is safe to retry, and it fails toward the
+recoverable state rather than the destructive one. It must run in this order for
+that property to hold; reversing 3 and 5 would strand the company undeletable.
+
+Storage cleanup is best-effort: an object-removal failure is logged but does not
+abort the deletion, since a stale image is a lesser harm than a half-deleted
+account.
 
 A user with no company row can always delete. Registration stays in the app.
 
@@ -227,7 +322,7 @@ change. Needs `[functions.delete-account]` with `import_map` in `config.toml`
 plus its own `deno.json` (both environments — memory
 `project_supabase_cli_workdir_env_parse`).
 
-### 4.4 UI
+### 4.5 UI
 
 Destructive "Konto löschen / Delete account" row at the bottom of
 `ios/VMflow/Views/Settings/SettingsView.swift`, below Sign Out. Confirmation
@@ -372,7 +467,8 @@ real app against a real server.
 
 1. **Upload blockers** — icon alpha, privacy manifest, entitlements split
    (pbxproj-level), ATS/strings both targets, `TARGETED_DEVICE_FAMILY = 1`.
-2. **Account deletion** — FK migration, edge function, Settings UI, strings.
+2. **Account deletion** — FK migration (17 FKs + `delete_company_and_data`),
+   `created_by` NOT NULL audit, edge function, Settings UI, strings.
 3. **Legal pages** — 4 pages, i18n text, `publicRoutes`.
 4. **Fastlane + Actions** — `beta` lane green → TestFlight reachable.
 5. **Screenshots** — test target, seam, fixtures, `screenshots` lane.
@@ -390,8 +486,11 @@ After step 4 TestFlight builds are possible; 5–6 complete the listing.
 | Entitlements | inspect the **Release archive's embedded** entitlements: `aps-environment: production` **and** associated-domains present |
 | Device family | Release archive `Info.plist` `UIDeviceFamily = [1]`, both targets |
 | ATS | Debug build + server picker → real `http://` LAN server; if broken, §3.4 fallback |
-| FK migration | `supabase migration up` clean; then: user with an API key + cash-book entry deletes successfully |
+| FK migration | `supabase migration up` clean; then assert **zero** FKs to `auth.users`/`companies` remain with `confdeltype = 'a'` (NO ACTION) — a query, not a spot-check, so a missed FK cannot hide |
+| Realistic user delete | a user who **owns sales + paxcounter rows, a registered device, an API key and a cash-book entry** (i.e. a real admin) deletes successfully. The weaker "API key + cash-book entry" case would pass while `sales.owner_id` still blocks everyone |
+| Cascade completeness | after deleting a company: **zero** `sales`/`paxcounter` rows remain with NULL `embedded_id` **and** NULL `machine_id` that belonged to it; company's product-image objects gone from the bucket |
 | `delete-account` | SQL/RPC test (memory `project_sql_test_harness`): non-admin deletes; admin with a second admin deletes without touching the company; sole admin + wrong name → 400; sole admin + correct name → company gone |
+| Device-swap regression | deleting a *single device* still leaves its sales rows intact with `machine_id` set — the `SET NULL` behaviour §4.3 preserves must not be broken by the FK migration |
 | Legal pages | `curl` each URL logged-out → 200, not a login redirect |
 | Screenshots | `fastlane screenshots --clean` twice → identical bytes; 10 PNGs (5 × 2 languages) plus fastlane's `screenshots.html` |
 | Pipeline | `beta` lane → build visible in TestFlight |
