@@ -1,7 +1,7 @@
 # iOS App Store Release — Design
 
 **Date:** 2026-07-15
-**Status:** Approved (design), spec review round 2
+**Status:** Approved (design), spec review round 3
 **Author:** Lucien Kerl (with Claude)
 
 ## 1. Problem & Goal
@@ -187,7 +187,7 @@ Blocking **company deletion** (6):
 
 | FK | Source | Fix |
 |---|---|---|
-| `users.company` | `20260101000000:24` | CASCADE |
+| `users.company` | `20260101000000:24` | **SET NULL** (see below) |
 | `embeddeds.company` | `20260101000000:42` | CASCADE |
 | `vendingMachine.company` | `20260101000000:76` | CASCADE |
 | `product_category.company` | `20260101000000:93` | CASCADE |
@@ -197,6 +197,14 @@ Blocking **company deletion** (6):
 Correcting an earlier claim in this spec: it is **not** true that "every other
 table cascades." Tables added from `20260303000000` onward cascade; the five
 original `initial_schema` tables and `cash_book_entries` never did.
+
+`users.company` is the one exception to CASCADE in that list. `public.users` is
+the *profile* table (`20260101000000_initial_schema.sql:21-27`), not company-owned
+data. Cascading it would delete the profile row of **every other member** of the
+deleted company — a viewer who merely belonged there would keep their
+`auth.users` row but lose their profile, and `on_auth_user_created` only fires at
+signup, so it is never recreated: a live account with no profile. Same reasoning
+as the `*_by` columns below — the person survives, the link is dropped.
 
 `SET NULL` rather than `CASCADE` for the `*_by` / `owner_id` columns: attribution
 is lost, the record survives. Cascading would destroy a company's sales history,
@@ -253,11 +261,24 @@ public.delete_company_and_data(p_company_id uuid) RETURNS void
   SET search_path = public, extensions   -- memory: feedback_supabase_security_definer_search_path
 ```
 
-One transaction, in order: delete `sales` and `paxcounter` whose `embedded_id`
-belongs to the company's devices **or** whose `machine_id` belongs to its
-machines; then delete the `companies` row and let the (now fixed) FKs cascade the
-rest. Legacy rows with both FKs already NULL cannot be attributed to a company and
-are out of scope.
+One transaction, in order: delete `sales`, `paxcounter` **and
+`stock_decrement_log`** whose `embedded_id` belongs to the company's devices **or**
+whose `machine_id` belongs to its machines; then delete the `companies` row and
+let the (now fixed) FKs cascade the rest. Legacy rows with both FKs already NULL
+cannot be attributed to a company and are out of scope.
+
+`stock_decrement_log` (`20260404000000_fix_stock_decrement_reliability.sql:17-26`)
+is the worst of the three: its `embedded_id` and `machine_id` are **bare `uuid`
+columns with no `references` clause at all**. So a company delete neither blocks
+on it nor cascades it — every row survives, holding per-sale pricing data, forever
+unreachable. It is the only table in this shape; every other indirect-only table
+(`machine_trays`, `ota_updates`, `mdb_log`, `machine_product_offerings`,
+`push_subscriptions`, …) cascades correctly via a real FK.
+
+Note the verification consequence: §12's `pg_constraint` sweep **cannot** see
+`stock_decrement_log`, because there is no constraint to find. A catalog query
+alone would report success while the rows survive. §12 therefore also asserts row
+counts.
 
 Unlike the `get_platform_*` RPCs, this function is **not** self-guarding — it is
 called only by the edge function with the service role, after that function has
@@ -291,10 +312,16 @@ Order:
 2. Read the caller's `organization_members` row → `company_id`, `role`.
 3. If `role = 'admin'` **and** no other admin exists for that company → cascading
    path: require `confirm_company_name` to match `companies.name` exactly (else
-   `400`); collect the company's `products.image_path` values and remove those
-   objects from the `product-images` bucket (they are keyed `{product_id}.{ext}`
-   with no company FK, so nothing else reaps them); then call
-   `delete_company_and_data(company_id)`.
+   `400`); **collect** the company's `products.image_path` values (they become
+   unreadable once the cascade runs); call `delete_company_and_data(company_id)`;
+   and only **after it returns successfully**, remove those objects from the
+   `product-images` bucket (keyed `{product_id}.{ext}` with no company FK, so
+   nothing else reaps them).
+
+   The order matters and is not cosmetic: removing the objects first means a
+   failing RPC leaves a live, in-use company that has silently lost every product
+   image — damage with no deletion. Reading paths first and deleting objects last
+   is the only order where each failure point degrades safely.
 4. Otherwise: no company-side work. The caller's `organization_members` row is
    removed by step 5's cascade (`organization_members.user_id → auth.users
    ON DELETE CASCADE`, `20260228000000_multitenancy.sql:12`) — no explicit delete
@@ -305,14 +332,19 @@ Order:
 **Partial-failure boundary:** `deleteUser` goes through the GoTrue admin API and
 **cannot** join a Postgres transaction with step 3. A failure between 3 and 5
 leaves a company deleted and its user alive — an orphan admin with no company,
-who by §4.1's rules can then simply delete again (a user with no company row is
-always deletable). So the sequence is safe to retry, and it fails toward the
-recoverable state rather than the destructive one. It must run in this order for
-that property to hold; reversing 3 and 5 would strand the company undeletable.
+who by §4.1's rules can simply delete again (a user with no company row is always
+deletable). So the sequence is retry-safe and fails toward the recoverable state.
+Reversing 3 and 5 would strand the company undeletable.
 
-Storage cleanup is best-effort: an object-removal failure is logged but does not
-abort the deletion, since a stale image is a lesser harm than a half-deleted
-account.
+**That property depends on §4.5's second delete affordance and is false without
+it.** An org-less user is routed to `NoOrganizationView`, not `SettingsView` — so
+without the fix in §4.5 the orphan admin cannot reach the button to retry, having
+destroyed their company and kept an undeletable account. The retry path is not
+theoretical safety; it must be reachable.
+
+Storage cleanup is best-effort *once the RPC has succeeded*: an object-removal
+failure is logged but does not abort, since a stale image after a completed
+deletion is the lesser harm.
 
 A user with no company row can always delete. Registration stays in the app.
 
@@ -322,7 +354,7 @@ change. Needs `[functions.delete-account]` with `import_map` in `config.toml`
 plus its own `deno.json` (both environments — memory
 `project_supabase_cli_workdir_env_parse`).
 
-### 4.5 UI
+### 4.5 UI — two entry points, not one
 
 Destructive "Konto löschen / Delete account" row at the bottom of
 `ios/VMflow/Views/Settings/SettingsView.swift`, below Sign Out. Confirmation
@@ -330,6 +362,24 @@ dialog names the consequence. For the cascading case: a second screen listing
 what disappears (machines, sales, warehouse, devices) and a text field requiring
 the company name. New `en`/`de` String Catalog entries, inserted surgically
 (memory `reference_ios_xcstrings_editing`).
+
+**`SettingsView` alone is not enough — this is a blocker, not a nicety.**
+`RootView` (`ios/VMflow/VMflowApp.swift:38-56`) routes on three states, and
+`organization == nil` lands on `NoOrganizationView`
+(`VMflowApp.swift:75-98`), which offers only **Sign Out** and **Retry** and reads
+*"Please create or join one using the web dashboard."* `AdaptiveRootView` — and
+therefore `SettingsView` — is never rendered.
+
+A user who registers in-app via `RegisterView` (the very fact that triggers
+5.1.1(v), §3.6) is **org-less on first launch**. So the most natural reviewer
+script — register a fresh account, then look for account deletion — dead-ends on
+a screen with no delete affordance that points at a website. That is the same
+rejection §4 exists to prevent, re-entering through a different door. It is also
+the state an orphan admin lands in (§4.4).
+
+So the same affordance must also live on `NoOrganizationView`. §4.4's contract
+already handles this case correctly (no company row → always deletable); only the
+UI cannot currently invoke it.
 
 Field devices are not notified — an ESP32 whose company vanished simply publishes
 into a void. Acceptable and out of scope; no firmware or MQTT change (a deleted
@@ -488,7 +538,9 @@ After step 4 TestFlight builds are possible; 5–6 complete the listing.
 | ATS | Debug build + server picker → real `http://` LAN server; if broken, §3.4 fallback |
 | FK migration | `supabase migration up` clean; then assert **zero** FKs to `auth.users`/`companies` remain with `confdeltype = 'a'` (NO ACTION) — a query, not a spot-check, so a missed FK cannot hide |
 | Realistic user delete | a user who **owns sales + paxcounter rows, a registered device, an API key and a cash-book entry** (i.e. a real admin) deletes successfully. The weaker "API key + cash-book entry" case would pass while `sales.owner_id` still blocks everyone |
-| Cascade completeness | after deleting a company: **zero** `sales`/`paxcounter` rows remain with NULL `embedded_id` **and** NULL `machine_id` that belonged to it; company's product-image objects gone from the bucket |
+| Cascade completeness | after deleting a company: **zero** `sales` / `paxcounter` / `stock_decrement_log` rows remain that belonged to it; company's product-image objects gone from the bucket. Row counts, **not** the catalog query — `stock_decrement_log` has no FK for `confdeltype` to see |
+| Profile survival | delete a company with a second (viewer) member → the viewer's `public.users` row still exists with `company IS NULL`, and they can still log in |
+| Deletion reachable | register a **fresh** account in-app, do not join an org → the delete affordance is present on `NoOrganizationView` and completes |
 | `delete-account` | SQL/RPC test (memory `project_sql_test_harness`): non-admin deletes; admin with a second admin deletes without touching the company; sole admin + wrong name → 400; sole admin + correct name → company gone |
 | Device-swap regression | deleting a *single device* still leaves its sales rows intact with `machine_id` set — the `SET NULL` behaviour §4.3 preserves must not be broken by the FK migration |
 | Legal pages | `curl` each URL logged-out → 200, not a login redirect |
