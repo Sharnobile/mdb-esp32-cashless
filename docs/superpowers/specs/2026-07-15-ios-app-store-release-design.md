@@ -120,9 +120,21 @@ The blanket exception has a real cause: `ServerStore` lets an operator point the
 app at a self-hosted Supabase over plain `http://` on their LAN.
 
 **Fix:** drop `NSAllowsArbitraryLoads` from both plists, keep
-`NSAllowsLocalNetworking` + Bonjour on the app, and reword the usage string to
-describe the actual feature (connecting to a self-hosted VMflow server on the
-local network) with no mention of development.
+`NSAllowsLocalNetworking` on **both** (plus Bonjour on the app), and reword the
+usage string to describe the actual feature (connecting to a self-hosted VMflow
+server on the local network) with no mention of development.
+
+**The extension needs the exception too — it is not HTTPS-only.**
+`NotificationService/NotificationService.swift:127` explicitly accepts
+`scheme == "http"`, and the image URL is built by
+`mqtt-webhook/index.ts:556` from the operator's `SUPABASE_PUBLIC_URL` — for a
+self-hosted LAN install, a plain-`http` numeric IP (the repo's own
+`Debug.xcconfig` points at `http://10.0.1.130:54321`). Removing ATS from the
+extension entirely would make iOS block that download, and it fails **silently**:
+the error is swallowed by `os_log` + `defer { deliverOnce(...) }`
+(`NotificationService.swift:46-59`), so the push still arrives as text-only, the
+build succeeds, and no plist or build check notices. Whatever ATS posture the app
+ends up with, the extension must match it.
 
 **Open risk — verify empirically, do not assume:** `NSAllowsLocalNetworking` is
 documented for unqualified hostnames and `.local`; whether it covers a numeric

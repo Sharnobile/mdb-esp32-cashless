@@ -74,6 +74,7 @@ flattening would change it; that needs a design decision, not this plan.
 - [ ] **Step 2: Record a checksum of the visible pixels**
 
 ```bash
+cd /Users/lucienkerl/Development/mdb-esp32-cashless/ios/VMflow/Resources/Assets.xcassets/AppIcon.appiconset
 python3 -c "
 from PIL import Image
 im = Image.open('AppIcon.png').convert('RGB')
@@ -86,6 +87,7 @@ Note the value — Step 4 asserts it is unchanged.
 - [ ] **Step 3: Drop the alpha channel**
 
 ```bash
+cd /Users/lucienkerl/Development/mdb-esp32-cashless/ios/VMflow/Resources/Assets.xcassets/AppIcon.appiconset
 python3 -c "
 from PIL import Image
 im = Image.open('AppIcon.png')
@@ -98,6 +100,7 @@ print('done')
 - [ ] **Step 4: Verify — no alpha, identical pixels**
 
 ```bash
+cd /Users/lucienkerl/Development/mdb-esp32-cashless/ios/VMflow/Resources/Assets.xcassets/AppIcon.appiconset
 sips -g hasAlpha -g pixelWidth -g pixelHeight AppIcon.png
 python3 -c "
 from PIL import Image
@@ -239,11 +242,16 @@ Expected: `OK`.
 
 - [ ] **Step 4: Point the VMflow Release config at it**
 
-Find the VMflow **Release** build-config block — the one whose `name = Release;`
-and which contains `INFOPLIST_FILE = VMflow/Resources/Info.plist;` (id
-`721C31EF76FFEFD13903BF0D`, ~line 943). Do **not** touch the Debug block
-(`47D683708BFD2B7EC2F3258E`) or either NotificationService block (their
-`CODE_SIGN_ENTITLEMENTS` is `""`, correct — the extension has no entitlements).
+Find the **target-level** VMflow Release build-config block — id
+`721C31EF76FFEFD13903BF0D`, ~line 943, the one that **contains a
+`CODE_SIGN_ENTITLEMENTS` line**.
+
+Two other blocks look similar; do not touch them. The **project-level** Release
+block (`38F117049B613547293740DE`, ~line 861) also has `name = Release` and the
+same `INFOPLIST_FILE` — the presence of `CODE_SIGN_ENTITLEMENTS` is what
+disambiguates. And leave the Debug block (`47D683708BFD2B7EC2F3258E`) and both
+NotificationService blocks alone (their `CODE_SIGN_ENTITLEMENTS` is `""`, which
+is correct — the extension has no entitlements).
 
 ```bash
 grep -n -A3 '721C31EF76FFEFD13903BF0D /\* Release \*/' VMflow.xcodeproj/project.pbxproj
@@ -362,11 +370,29 @@ In `ios/VMflow/Resources/Info.plist`, inside `NSAppTransportSecurity`, delete:
 		<true/>
 ```
 
-Keep `NSAllowsLocalNetworking` and the `NSBonjourServices` array.
+Keep `NSAllowsLocalNetworking` inside the dict. (`NSBonjourServices` is a
+top-level key, a sibling of the ATS dict — this edit does not go near it.)
 
-In `ios/NotificationService/Info.plist`, remove the whole
-`NSAppTransportSecurity` dict — the extension downloads push attachments over
-HTTPS only and needs no exception.
+In `ios/NotificationService/Info.plist`, remove **only** the same two lines from
+its `NSAppTransportSecurity` dict, leaving:
+
+```xml
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+```
+
+**Do not delete the extension's ATS dict.** The extension is *not* HTTPS-only:
+`NotificationService/NotificationService.swift:127` explicitly accepts
+`scheme == "http"`, and the push image URL comes from the operator's
+`SUPABASE_PUBLIC_URL` (`mqtt-webhook/index.ts:556`) — for a self-hosted LAN
+install that is a plain-`http` numeric IP, exactly what `Debug.xcconfig` points
+at today. Deleting the dict makes iOS block the download, and it fails
+**silently**: the error is swallowed by `os_log` + `defer { deliverOnce(...) }`
+(`NotificationService.swift:46-59`), so the push still arrives as text-only, the
+build succeeds, and every check in Task 6 still passes.
 
 Also reword the usage string in the app plist, which currently advertises the app
 as unfinished:
@@ -392,14 +418,23 @@ Expected: both `OK`; the ATS dict shows `NSAllowsLocalNetworking => 1` and **no*
 Repeat Step 1 with the rebuilt Debug app (delete the app from the simulator first
 so the new plist is picked up).
 
-- **Login still works** → `NSAllowsLocalNetworking` covers numeric private IPs.
-  Proceed to Step 5.
-- **Login now fails** (ATS error in the console) → it does not. **Restore
-  `NSAllowsArbitraryLoads = true` in the app plist only** (the extension's removal
-  still stands), and record in
-  `docs/ios/app-store-review-notes.md` that the exception exists because the app
-  connects to user-operated self-hosted servers. Then proceed to Step 5 with that
-  state. Do not guess — the console error is the evidence.
+**Test both paths, not just login.** The extension has its own plist and its own
+failure mode:
+
+1. Log in against the `http://` LAN server.
+2. Trigger a push **with an image** against that same server (the `test-push`
+   edge function), and confirm the notification arrives *with* the product image
+   attached — not just that a notification arrives. A text-only push is what a
+   silently-blocked download looks like.
+
+Then:
+
+- **Both work** → `NSAllowsLocalNetworking` covers numeric private IPs. Proceed.
+- **Either fails** (ATS error in the console / image missing) → it does not.
+  Restore `NSAllowsArbitraryLoads = true` in **both** plists — app and extension
+  together, since they load from the same host — and note the outcome for Task 6
+  Step 4 to record. Do not guess: the console error and the missing image are the
+  evidence.
 
 - [ ] **Step 5: Build**
 
@@ -624,9 +659,15 @@ for c in Release Debug; do
     -showBuildSettings 2>/dev/null | grep CODE_SIGN_ENTITLEMENTS
 done
 
-echo "--- ATS (expect: no NSAllowsArbitraryLoads, unless Task 4 Step 4 proved otherwise)"
-plutil -p VMflow/Resources/Info.plist | grep -c NSAllowsArbitraryLoads || true
-plutil -p NotificationService/Info.plist | grep -c NSAppTransportSecurity || true
+echo "--- ATS: no arbitrary loads in either target (skip if Task 4 Step 4 proved otherwise)"
+! plutil -p VMflow/Resources/Info.plist | grep -q NSAllowsArbitraryLoads \
+  && echo "app: clean" || { echo "app: STILL HAS NSAllowsArbitraryLoads"; false; }
+! plutil -p NotificationService/Info.plist | grep -q NSAllowsArbitraryLoads \
+  && echo "ext: clean" || { echo "ext: STILL HAS NSAllowsArbitraryLoads"; false; }
+
+echo "--- ATS: extension keeps local networking (push images on LAN installs)"
+plutil -p NotificationService/Info.plist | grep -q NSAllowsLocalNetworking \
+  && echo "ext: local networking kept" || { echo "ext: MISSING NSAllowsLocalNetworking"; false; }
 
 echo "--- privacy manifest (expect: OK)"
 plutil -lint VMflow/Resources/PrivacyInfo.xcprivacy
@@ -648,12 +689,27 @@ Run the Debug app, log in, open Settings. Nothing in this phase touches Swift, s
 a regression here means a plist or resource change broke something — investigate
 rather than proceed.
 
-- [ ] **Step 4: Record the ATS outcome**
+- [ ] **Step 4: Record the ATS outcome in the spec**
 
-If Task 4 Step 4 forced `NSAllowsArbitraryLoads` to stay, note it now in the plan
-file and in the spec's §3.4 "Open risk" paragraph, so the review-notes phase picks
-it up. If it was removed cleanly, note that too — it closes the spec's only
-open technical risk in §3.
+Write the result of Task 4 Step 4 into the spec's §3.4 "Open risk" paragraph
+(`docs/superpowers/specs/2026-07-15-ios-app-store-release-design.md`) — it is the
+one open technical question in §3, and phase 6 reads it when writing the review
+notes.
+
+- If the exception was removed cleanly: say so, and that the risk is closed.
+- If it had to stay: say so, name which of login / push-image forced it, and note
+  that the review notes must justify it ("connects to user-operated self-hosted
+  servers").
+
+Record it in the spec, not in a new `docs/ios/` file — that directory does not
+exist yet and is created in phase 6.
+
+```bash
+cd /Users/lucienkerl/Development/mdb-esp32-cashless
+git add docs/superpowers/specs/2026-07-15-ios-app-store-release-design.md
+git commit -m "docs(ios): record ATS verification outcome from phase 1" \
+  -- docs/superpowers/specs/2026-07-15-ios-app-store-release-design.md
+```
 
 ---
 
