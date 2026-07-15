@@ -1,7 +1,7 @@
 # iOS App Store Release — Design
 
 **Date:** 2026-07-15
-**Status:** Approved (design), spec review round 3
+**Status:** Approved (design + spec review, 4 rounds) — ready to plan
 **Author:** Lucien Kerl (with Claude)
 
 ## 1. Problem & Goal
@@ -66,16 +66,23 @@ large icons at upload.
 ### 3.2 Missing privacy manifest (upload fails, ITMS-91053)
 
 No `PrivacyInfo.xcprivacy` exists. `UserDefaults` — a required-reason API
-(`NSPrivacyAccessedAPICategoryUserDefaults`, CA92.1) — is used in
-`ServerStore.swift`, `AuthService.swift`, `NotificationService.swift`,
-`RefillWizardViewModel.swift`.
+(`NSPrivacyAccessedAPICategoryUserDefaults`, CA92.1) — is used in four **app
+target** files: `VMflow/Services/ServerStore.swift`,
+`VMflow/Services/AuthService.swift`, `VMflow/Services/NotificationService.swift`,
+`VMflow/ViewModels/RefillWizardViewModel.swift`.
 
 **Fix:** add `PrivacyInfo.xcprivacy` to the app target declaring the
-`UserDefaults` reason, plus the collected-data types matching §6. Audit the
-NotificationService target separately and give it its own manifest if it touches
-a required-reason API. Register as a resource in `project.pbxproj`.
-supabase-swift is not on Apple's SDK-signature list, so no third-party manifest
-obligation.
+`UserDefaults` reason, plus the collected-data types matching §6. Register as a
+resource in `project.pbxproj`. supabase-swift is not on Apple's SDK-signature
+list, so no third-party manifest obligation.
+
+**Don't conflate the two `NotificationService.swift` files.** The `UserDefaults`
+user above is `VMflow/Services/NotificationService.swift` (app target). The
+*extension* file `NotificationService/NotificationService.swift` uses only
+`FileManager.default.moveItem` / `removeItem` (lines 80, 93), which are **not**
+required-reason APIs — `NSPrivacyAccessedAPICategoryFileTimestamp` covers
+`creationDate` / `modificationDate` / the `stat` family, not move/remove. Expect
+the extension to need **no** manifest; confirm, then don't add a spurious one.
 
 ### 3.3 APNs entitlement (rejection)
 
@@ -144,7 +151,7 @@ exists. See §4.
 
 ## 4. Account Deletion
 
-### 4.1 Why the company cascades
+### 4.1 Why the company goes with the last admin
 
 The first design blocked the last admin. That is unshippable here: iOS has **no
 member management**, so a blocked admin has no in-app way to appoint a successor
@@ -518,7 +525,8 @@ real app against a real server.
 1. **Upload blockers** — icon alpha, privacy manifest, entitlements split
    (pbxproj-level), ATS/strings both targets, `TARGETED_DEVICE_FAMILY = 1`.
 2. **Account deletion** — FK migration (17 FKs + `delete_company_and_data`),
-   `created_by` NOT NULL audit, edge function, Settings UI, strings.
+   `created_by` NOT NULL audit, edge function, UI in **both** `SettingsView` and
+   `NoOrganizationView` (§4.5 — Settings alone is the blocker), strings.
 3. **Legal pages** — 4 pages, i18n text, `publicRoutes`.
 4. **Fastlane + Actions** — `beta` lane green → TestFlight reachable.
 5. **Screenshots** — test target, seam, fixtures, `screenshots` lane.
@@ -537,8 +545,8 @@ After step 4 TestFlight builds are possible; 5–6 complete the listing.
 | Device family | Release archive `Info.plist` `UIDeviceFamily = [1]`, both targets |
 | ATS | Debug build + server picker → real `http://` LAN server; if broken, §3.4 fallback |
 | FK migration | `supabase migration up` clean; then assert **zero** FKs to `auth.users`/`companies` remain with `confdeltype = 'a'` (NO ACTION) — a query, not a spot-check, so a missed FK cannot hide |
-| Realistic user delete | a user who **owns sales + paxcounter rows, a registered device, an API key and a cash-book entry** (i.e. a real admin) deletes successfully. The weaker "API key + cash-book entry" case would pass while `sales.owner_id` still blocks everyone |
-| Cascade completeness | after deleting a company: **zero** `sales` / `paxcounter` / `stock_decrement_log` rows remain that belonged to it; company's product-image objects gone from the bucket. Row counts, **not** the catalog query — `stock_decrement_log` has no FK for `confdeltype` to see |
+| Realistic user delete | a user who **owns sales + paxcounter rows, a registered device, an API key and a cash-book entry** (i.e. a real admin) **and has a second admin present** deletes successfully. The second admin is what isolates the ordinary path — without it this user is the sole admin and routes to the cascade instead. The weaker "API key + cash-book entry" case would pass while `sales.owner_id` still blocks everyone |
+| Cascade completeness | **snapshot the company's `embeddeds.id` and `vendingMachine.id` before deleting** (afterwards there is nothing left to join on — that is §4.3's whole premise), then assert **zero** `sales` / `paxcounter` / `stock_decrement_log` rows reference those captured IDs; company's product-image objects gone from the bucket. Row counts, **not** the catalog query — `stock_decrement_log` has no FK for `confdeltype` to see |
 | Profile survival | delete a company with a second (viewer) member → the viewer's `public.users` row still exists with `company IS NULL`, and they can still log in |
 | Deletion reachable | register a **fresh** account in-app, do not join an org → the delete affordance is present on `NoOrganizationView` and completes |
 | `delete-account` | SQL/RPC test (memory `project_sql_test_harness`): non-admin deletes; admin with a second admin deletes without touching the company; sole admin + wrong name → 400; sole admin + correct name → company gone |
