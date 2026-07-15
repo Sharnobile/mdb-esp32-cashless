@@ -422,19 +422,40 @@ so the new plist is picked up).
 failure mode:
 
 1. Log in against the `http://` LAN server.
-2. Trigger a push **with an image** against that same server (the `test-push`
-   edge function), and confirm the notification arrives *with* the product image
-   attached — not just that a notification arrives. A text-only push is what a
-   silently-blocked download looks like.
+2. Trigger a push **with an image** via the `test-push` edge function against that
+   same server.
+
+**Precondition — without it the push test proves nothing.** `test-push` attaches
+an image only if the company has a product with a non-null `image_path`
+(`test-push/index.ts:56-61`); otherwise it sends a text-only push and calls that
+"still a valid test" — valid for *its* purpose, not for this one. Confirm first:
+
+```bash
+curl -s "$LAN_URL/rest/v1/products?select=name,image_path&image_path=not.is.null&limit=1" \
+  -H "apikey: $ANON" -H "Authorization: Bearer $JWT"
+```
+
+If this returns `[]`, upload a product image before testing.
+
+**A missing image is not by itself evidence of an ATS block.** The extension logs
+its own failure (`NotificationService.swift:52-58`). In Console.app filter
+subsystem `de.kerl-handel.app.debug.NotificationService` (the extension's own
+bundle id — `Bundle.main` inside an app extension is the *extension* bundle, not
+the host app), category `push`, and look for `Image download failed: …`.
 
 Then:
 
-- **Both work** → `NSAllowsLocalNetworking` covers numeric private IPs. Proceed.
-- **Either fails** (ATS error in the console / image missing) → it does not.
-  Restore `NSAllowsArbitraryLoads = true` in **both** plists — app and extension
-  together, since they load from the same host — and note the outcome for Task 6
-  Step 4 to record. Do not guess: the console error and the missing image are the
-  evidence.
+- **Image arrives** → `NSAllowsLocalNetworking` covers numeric private IPs.
+  Proceed.
+- **Image missing *and* an ATS / `NSURLErrorDomain` error in that log** → it does
+  not. Restore `NSAllowsArbitraryLoads = true` in **both** plists — app and
+  extension together, since they load from the same host — and note the outcome
+  for Task 6 Step 4.
+- **Image missing with *no* such log** → the payload carried no image. Fix the
+  precondition and re-test. Do **not** read this as ATS evidence; doing so would
+  restore the exception on a false negative and throw away the one real decision
+  in this plan.
+- **Login fails with an ATS error** → same as the second case.
 
 - [ ] **Step 5: Build**
 
@@ -642,6 +663,7 @@ which are not required-reason APIs, so it needs no manifest." \
 - [ ] **Step 1: Assert every §3 blocker is closed**
 
 ```bash
+set -e   # without this the asserts below print loudly but still exit 0
 cd /Users/lucienkerl/Development/mdb-esp32-cashless/ios
 
 echo "--- icon (expect: hasAlpha: no)"
