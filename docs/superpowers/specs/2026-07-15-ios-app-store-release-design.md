@@ -253,8 +253,9 @@ idempotent and name-independent. (Evidence the convention *usually* holds:
 but it drops without `IF EXISTS`, so it would have failed loudly. Our version
 must not fail quietly.)
 
-Beware the phantom `20260606000000` when running `supabase migration up` locally
-(memory `project_cash_book_phantom_migration`).
+(An earlier draft warned about a "phantom" `20260606000000` blocking
+`supabase migration up`. **That is obsolete** — the file was committed in
+`49456fa` and is tracked; verified 2026-07-16. No special handling needed.)
 
 ### 4.3 The company cascade cannot be a cascade
 
