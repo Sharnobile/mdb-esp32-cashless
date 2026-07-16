@@ -584,3 +584,9 @@ enabled = true
 verify_jwt = false
 import_map = "./functions/api-v1/deno.json"
 entrypoint = "./functions/api-v1/index.ts"
+
+[functions.delete-account]
+enabled = true
+verify_jwt = false
+import_map = "./functions/delete-account/deno.json"
+entrypoint = "./functions/delete-account/index.ts"
