@@ -17,6 +17,11 @@ export default defineNuxtRouteMiddleware(async (to) => {
   if (to.path === '/install') {
     return
   }
+  // Public legal pages (App Store privacy/support URLs — reviewers are logged out).
+  // Defense-in-depth only: these pages never declare this middleware.
+  if (to.path === '/legal' || to.path.startsWith('/legal/')) {
+    return
+  }
 
   // Use session, not user: in @nuxtjs/supabase v2.0+ useSupabaseUser() is
   // populated asynchronously via getClaims() after onAuthStateChange fires,

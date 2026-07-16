@@ -1,4 +1,194 @@
 {
+  "legal": {
+    "common": {
+      "lastUpdated": "Last updated: July 2026"
+    },
+    "privacy": {
+      "title": "Privacy Policy",
+      "intro": "This privacy policy explains which personal data is processed when you use VMflow (web application and iOS app), for what purposes, and which rights you have.",
+      "sections": [
+        {
+          "heading": "1. Controller",
+          "paragraphs": [
+            "[FILL IN: company name and legal form]",
+            "[FILL IN: street, postal code, city]",
+            "E-mail: [FILL IN: privacy contact address]"
+          ]
+        },
+        {
+          "heading": "2. What VMflow is",
+          "paragraphs": [
+            "VMflow is a vending machine management system for commercial operators. It primarily processes your company's operational data: machines, sales, stock levels, devices and the cash book. Personal data arises mainly in connection with your user account."
+          ]
+        },
+        {
+          "heading": "3. Account and sign-in",
+          "paragraphs": [
+            "Using VMflow requires a user account. We process your e-mail address and a password (stored as a cryptographic hash, never in plain text). The legal basis is Art. 6(1)(b) GDPR (performance of a contract).",
+            "Accounts are usually created via an invitation from your company's administrator, or via self-registration."
+          ]
+        },
+        {
+          "heading": "4. Your company's operational data",
+          "paragraphs": [
+            "Sales data, stock levels, machine telemetry and cash-book entries belong to your company, not to individuals. Where entries carry a user attribution (e.g. who created a booking), this serves traceability within your team. Legal bases are Art. 6(1)(b) and — for accounting data — Art. 6(1)(c) GDPR."
+          ]
+        },
+        {
+          "heading": "5. Push notifications (Apple)",
+          "paragraphs": [
+            "If you enable push notifications (e.g. low-stock alerts), we store your iPhone's device token. Delivery is handled by the Apple Push Notification service of Apple Inc., One Apple Park Way, Cupertino, USA. This involves a transfer of data to the USA; Apple is certified under the EU-US Data Privacy Framework. The legal basis is your consent (Art. 6(1)(a) GDPR), which you can withdraw at any time in the iOS settings."
+          ]
+        },
+        {
+          "heading": "6. Camera",
+          "paragraphs": [
+            "The iOS app uses the camera exclusively on-device to scan barcodes and QR codes. No photos or videos are captured, stored or uploaded."
+          ]
+        },
+        {
+          "heading": "7. Cookies and local storage",
+          "paragraphs": [
+            "VMflow uses only technically necessary cookies and local storage (§ 25(2) of the German TDDDG); no consent banner is therefore required. Specifically: an authentication cookie for your session, a cookie storing your language preference, and a browser local-storage entry for the colour scheme (light/dark). There is no tracking, no analytics cookies and no advertising cookies."
+          ]
+        },
+        {
+          "heading": "8. Hosting and processing on our behalf",
+          "paragraphs": [
+            "VMflow is self-operated. The instance hosted by us runs on servers of [FILL IN: hosting provider and server location]. Where required, a data-processing agreement under Art. 28 GDPR is in place with the hosting provider. Operators who install VMflow on their own infrastructure are responsible for that processing themselves."
+          ]
+        },
+        {
+          "heading": "9. Server logs",
+          "paragraphs": [
+            "When you access this website and its interfaces, access data is processed for technical reasons (IP address, time, requested resource). These logs serve operational security and troubleshooting (Art. 6(1)(f) GDPR) and are deleted after a short period."
+          ]
+        },
+        {
+          "heading": "10. Retention and account deletion",
+          "paragraphs": [
+            "You can delete your account at any time directly in the iOS app (Settings → Delete Account). If you are your company's last administrator, the company data is deleted as well after explicit confirmation.",
+            "Statutory retention duties (in particular for accounting records under German commercial and tax law) may prevent the immediate erasure of individual data (Art. 17(3)(b) GDPR); such data is deleted once the retention periods expire."
+          ]
+        },
+        {
+          "heading": "11. Your rights",
+          "paragraphs": [
+            "You have the right of access (Art. 15), rectification (Art. 16), erasure (Art. 17), restriction of processing (Art. 18), data portability (Art. 20) and objection to processing based on legitimate interests (Art. 21 GDPR). You may withdraw any consent at any time with effect for the future.",
+            "You also have the right to lodge a complaint with a data protection supervisory authority."
+          ]
+        },
+        {
+          "heading": "12. No tracking",
+          "paragraphs": [
+            "VMflow uses no analytics, tracking or advertising services — neither on this website nor in the app."
+          ]
+        }
+      ]
+    },
+    "terms": {
+      "title": "Terms of Use",
+      "intro": "These terms govern the use of VMflow (web application and iOS app) by commercial vending machine operators.",
+      "sections": [
+        {
+          "heading": "1. Scope",
+          "paragraphs": [
+            "VMflow is offered exclusively to businesses (Unternehmer within the meaning of § 14 of the German Civil Code). The provider is [FILL IN: company name] (see imprint)."
+          ]
+        },
+        {
+          "heading": "2. Service",
+          "paragraphs": [
+            "VMflow provides features for managing vending machines, in particular sales analytics, stock and warehouse management, device management and a cash book. Scope and features may evolve as the product develops, to the extent reasonable for you."
+          ]
+        },
+        {
+          "heading": "3. Account and obligations",
+          "paragraphs": [
+            "You must keep your credentials confidential and must not misuse the platform. You are responsible for the content and data your company enters."
+          ]
+        },
+        {
+          "heading": "4. Availability",
+          "paragraphs": [
+            "We aim for high availability but do not owe a specific uptime. Maintenance may cause temporary restrictions."
+          ]
+        },
+        {
+          "heading": "5. Liability",
+          "paragraphs": [
+            "We are liable without limitation for intent and gross negligence and under the German Product Liability Act. For simple negligence we are liable only for damage resulting from the breach of essential contractual obligations, limited to the damage typically foreseeable for this kind of contract."
+          ]
+        },
+        {
+          "heading": "6. Final provisions",
+          "paragraphs": [
+            "German law applies. Where permissible, the place of jurisdiction is the provider's registered office. Should individual provisions be invalid, the validity of the remaining provisions remains unaffected."
+          ]
+        }
+      ]
+    },
+    "imprint": {
+      "title": "Imprint",
+      "sections": [
+        {
+          "heading": "Information pursuant to § 5 DDG (German Digital Services Act)",
+          "paragraphs": [
+            "[FILL IN: company name and legal form]\n[FILL IN: street and number]\n[FILL IN: postal code and city]"
+          ]
+        },
+        {
+          "heading": "Represented by",
+          "paragraphs": [
+            "[FILL IN: authorised representative(s)]"
+          ]
+        },
+        {
+          "heading": "Contact",
+          "paragraphs": [
+            "E-mail: [FILL IN: contact e-mail]\nPhone: [FILL IN: phone number, optional]"
+          ]
+        },
+        {
+          "heading": "Register entry and VAT",
+          "paragraphs": [
+            "[FILL IN: commercial register and number, if any — otherwise remove this section]\nVAT identification number pursuant to § 27a UStG: [FILL IN: VAT ID, if any]"
+          ]
+        },
+        {
+          "heading": "Responsible for content",
+          "paragraphs": [
+            "[FILL IN: name and address of the person responsible for content]"
+          ]
+        }
+      ]
+    },
+    "support": {
+      "title": "Support",
+      "intro": "Help for the VMflow iOS app and web application.",
+      "contactHeading": "Contact",
+      "contactText": "For questions or problems, reach us by e-mail at [FILL IN: support e-mail]. We usually reply within two business days.",
+      "faqHeading": "Frequently asked questions",
+      "faq": [
+        {
+          "q": "How do I get an account?",
+          "a": "VMflow is a system for commercial vending operators. You can register in the app; you join an existing company via an invitation from its administrator."
+        },
+        {
+          "q": "I can't sign in — what should I do?",
+          "a": "First check that the correct server is selected in the app (server picker on the sign-in screen). If you forgot your password, contact your company's administrator or support."
+        },
+        {
+          "q": "How do I delete my account?",
+          "a": "Directly in the iOS app: Settings → Delete Account. If you don't belong to a company yet, the option is on the screen you see after signing in. Deletion is permanent."
+        },
+        {
+          "q": "Is my data used for advertising?",
+          "a": "No. VMflow contains no tracking, no analytics services and no advertising. See the privacy policy for details."
+        }
+      ]
+    }
+  },
   "platformAdmin": {
     "title": "Platform Overview",
     "subtitle": "Cross-company operator dashboard",

@@ -1,4 +1,194 @@
 {
+  "legal": {
+    "common": {
+      "lastUpdated": "Stand: Juli 2026"
+    },
+    "privacy": {
+      "title": "Datenschutzerklärung",
+      "intro": "Diese Datenschutzerklärung informiert dich darüber, welche personenbezogenen Daten bei der Nutzung von VMflow (Web-Anwendung und iOS-App) verarbeitet werden, zu welchen Zwecken und welche Rechte dir zustehen.",
+      "sections": [
+        {
+          "heading": "1. Verantwortlicher",
+          "paragraphs": [
+            "[AUSFÜLLEN: Firmenname und Rechtsform]",
+            "[AUSFÜLLEN: Straße, PLZ, Ort]",
+            "E-Mail: [AUSFÜLLEN: Datenschutz-Kontaktadresse]"
+          ]
+        },
+        {
+          "heading": "2. Was VMflow ist",
+          "paragraphs": [
+            "VMflow ist ein System zur Verwaltung von Verkaufsautomaten für gewerbliche Betreiber. Es verarbeitet in erster Linie betriebliche Daten deines Unternehmens: Automaten, Verkäufe, Lagerbestände, Geräte und Kassenbuch. Personenbezogene Daten fallen vor allem im Rahmen deines Benutzerkontos an."
+          ]
+        },
+        {
+          "heading": "3. Konto und Anmeldung",
+          "paragraphs": [
+            "Für die Nutzung ist ein Benutzerkonto erforderlich. Dabei verarbeiten wir deine E-Mail-Adresse und ein Passwort (gespeichert als kryptografischer Hash, niemals im Klartext). Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO (Vertragserfüllung).",
+            "Konten werden in der Regel per Einladung durch den Administrator deines Unternehmens angelegt oder per Selbstregistrierung erstellt."
+          ]
+        },
+        {
+          "heading": "4. Betriebsdaten deines Unternehmens",
+          "paragraphs": [
+            "Verkaufsdaten, Lagerbestände, Automaten-Telemetrie und Kassenbucheinträge sind deinem Unternehmen zugeordnet, nicht einzelnen Personen. Soweit Einträge eine Nutzerzuordnung tragen (z. B. wer eine Buchung angelegt hat), dient dies der Nachvollziehbarkeit im Team. Rechtsgrundlagen sind Art. 6 Abs. 1 lit. b und — für Buchführungsdaten — lit. c DSGVO."
+          ]
+        },
+        {
+          "heading": "5. Push-Benachrichtigungen (Apple)",
+          "paragraphs": [
+            "Wenn du Push-Benachrichtigungen aktivierst (z. B. Warnungen bei niedrigem Bestand), speichern wir das Geräte-Token deines iPhones. Die Zustellung erfolgt über den Apple Push Notification Service der Apple Inc., One Apple Park Way, Cupertino, USA. Dabei werden Daten in die USA übermittelt; Apple ist unter dem EU-US Data Privacy Framework zertifiziert. Rechtsgrundlage ist deine Einwilligung (Art. 6 Abs. 1 lit. a DSGVO), die du jederzeit in den iOS-Einstellungen widerrufen kannst."
+          ]
+        },
+        {
+          "heading": "6. Kamera",
+          "paragraphs": [
+            "Die iOS-App nutzt die Kamera ausschließlich lokal auf deinem Gerät zum Scannen von Barcodes und QR-Codes. Es werden keine Fotos oder Videos aufgenommen, gespeichert oder hochgeladen."
+          ]
+        },
+        {
+          "heading": "7. Cookies und lokale Speicherung",
+          "paragraphs": [
+            "VMflow verwendet ausschließlich technisch erforderliche Cookies und lokale Speicherung (§ 25 Abs. 2 TDDDG); ein Einwilligungsbanner ist daher nicht erforderlich. Im Einzelnen: ein Authentifizierungs-Cookie für deine Sitzung, ein Cookie zur Speicherung deiner Sprachwahl sowie ein Eintrag im lokalen Speicher deines Browsers für das Farbschema (hell/dunkel). Es gibt kein Tracking, keine Analyse-Cookies und keine Werbe-Cookies."
+          ]
+        },
+        {
+          "heading": "8. Hosting und Auftragsverarbeitung",
+          "paragraphs": [
+            "VMflow wird selbst betrieben. Die von uns gehostete Instanz läuft auf Servern von [AUSFÜLLEN: Hosting-Anbieter und Serverstandort]. Mit dem Hosting-Anbieter besteht, soweit erforderlich, ein Auftragsverarbeitungsvertrag nach Art. 28 DSGVO. Betreiber, die VMflow auf eigener Infrastruktur installieren, sind für deren Datenverarbeitung selbst verantwortlich."
+          ]
+        },
+        {
+          "heading": "9. Server-Protokolle",
+          "paragraphs": [
+            "Beim Aufruf dieser Website und der Schnittstellen werden technisch bedingt Zugriffsdaten verarbeitet (IP-Adresse, Zeitpunkt, aufgerufene Ressource). Diese Protokolle dienen der Betriebssicherheit und Fehleranalyse (Art. 6 Abs. 1 lit. f DSGVO) und werden nach kurzer Zeit gelöscht."
+          ]
+        },
+        {
+          "heading": "10. Speicherdauer und Kontolöschung",
+          "paragraphs": [
+            "Du kannst dein Konto jederzeit direkt in der iOS-App löschen (Einstellungen → Konto löschen). Bist du die letzte Administratorin oder der letzte Administrator deines Unternehmens, werden dabei nach ausdrücklicher Bestätigung auch die Unternehmensdaten gelöscht.",
+            "Gesetzliche Aufbewahrungspflichten (insbesondere für Buchführungsunterlagen nach HGB und AO) können einer sofortigen Löschung einzelner Daten entgegenstehen (Art. 17 Abs. 3 lit. b DSGVO); solche Daten werden nach Ablauf der Fristen gelöscht."
+          ]
+        },
+        {
+          "heading": "11. Deine Rechte",
+          "paragraphs": [
+            "Du hast das Recht auf Auskunft (Art. 15), Berichtigung (Art. 16), Löschung (Art. 17), Einschränkung der Verarbeitung (Art. 18), Datenübertragbarkeit (Art. 20) und Widerspruch gegen Verarbeitungen auf Grundlage berechtigter Interessen (Art. 21 DSGVO). Erteilte Einwilligungen kannst du jederzeit mit Wirkung für die Zukunft widerrufen.",
+            "Außerdem hast du das Recht, dich bei einer Datenschutz-Aufsichtsbehörde zu beschweren."
+          ]
+        },
+        {
+          "heading": "12. Kein Tracking",
+          "paragraphs": [
+            "VMflow setzt keine Analyse-, Tracking- oder Werbedienste ein — weder auf dieser Website noch in der App."
+          ]
+        }
+      ]
+    },
+    "terms": {
+      "title": "Nutzungsbedingungen",
+      "intro": "Diese Nutzungsbedingungen gelten für die Nutzung von VMflow (Web-Anwendung und iOS-App) durch gewerbliche Betreiber von Verkaufsautomaten.",
+      "sections": [
+        {
+          "heading": "1. Geltungsbereich",
+          "paragraphs": [
+            "VMflow richtet sich ausschließlich an Unternehmer im Sinne des § 14 BGB. Anbieter ist [AUSFÜLLEN: Firmenname] (siehe Impressum)."
+          ]
+        },
+        {
+          "heading": "2. Leistung",
+          "paragraphs": [
+            "VMflow stellt Funktionen zur Verwaltung von Verkaufsautomaten bereit, insbesondere Verkaufsauswertung, Bestands- und Lagerverwaltung, Geräteverwaltung und Kassenbuch. Art und Umfang können sich im Zuge der Weiterentwicklung ändern, soweit dies für dich zumutbar ist."
+          ]
+        },
+        {
+          "heading": "3. Konto und Pflichten",
+          "paragraphs": [
+            "Du bist verpflichtet, deine Zugangsdaten geheim zu halten und die Plattform nicht missbräuchlich zu nutzen. Für Inhalte und Daten, die dein Unternehmen einstellt, bist du verantwortlich."
+          ]
+        },
+        {
+          "heading": "4. Verfügbarkeit",
+          "paragraphs": [
+            "Wir bemühen uns um eine hohe Verfügbarkeit, schulden aber keine bestimmte Verfügbarkeitsquote. Wartungsarbeiten können zu vorübergehenden Einschränkungen führen."
+          ]
+        },
+        {
+          "heading": "5. Haftung",
+          "paragraphs": [
+            "Wir haften unbeschränkt bei Vorsatz und grober Fahrlässigkeit sowie nach dem Produkthaftungsgesetz. Bei einfacher Fahrlässigkeit haften wir nur für Schäden aus der Verletzung wesentlicher Vertragspflichten, begrenzt auf den vertragstypisch vorhersehbaren Schaden."
+          ]
+        },
+        {
+          "heading": "6. Schlussbestimmungen",
+          "paragraphs": [
+            "Es gilt deutsches Recht. Gerichtsstand ist, soweit zulässig, der Sitz des Anbieters. Sollten einzelne Bestimmungen unwirksam sein, bleibt die Wirksamkeit der übrigen unberührt."
+          ]
+        }
+      ]
+    },
+    "imprint": {
+      "title": "Impressum",
+      "sections": [
+        {
+          "heading": "Angaben gemäß § 5 DDG",
+          "paragraphs": [
+            "[AUSFÜLLEN: Firmenname und Rechtsform]\n[AUSFÜLLEN: Straße und Hausnummer]\n[AUSFÜLLEN: PLZ und Ort]"
+          ]
+        },
+        {
+          "heading": "Vertreten durch",
+          "paragraphs": [
+            "[AUSFÜLLEN: Vertretungsberechtigte Person(en)]"
+          ]
+        },
+        {
+          "heading": "Kontakt",
+          "paragraphs": [
+            "E-Mail: [AUSFÜLLEN: Kontakt-E-Mail]\nTelefon: [AUSFÜLLEN: Telefonnummer, optional]"
+          ]
+        },
+        {
+          "heading": "Registereintrag und Umsatzsteuer",
+          "paragraphs": [
+            "[AUSFÜLLEN: Handelsregister und HRB-Nummer, falls vorhanden — sonst Abschnitt entfernen]\nUmsatzsteuer-Identifikationsnummer gemäß § 27a UStG: [AUSFÜLLEN: USt-IdNr., falls vorhanden]"
+          ]
+        },
+        {
+          "heading": "Verantwortlich für den Inhalt",
+          "paragraphs": [
+            "[AUSFÜLLEN: Name und Anschrift der inhaltlich verantwortlichen Person]"
+          ]
+        }
+      ]
+    },
+    "support": {
+      "title": "Support",
+      "intro": "Hilfe zur VMflow iOS-App und Web-Anwendung.",
+      "contactHeading": "Kontakt",
+      "contactText": "Bei Fragen oder Problemen erreichst du uns per E-Mail unter [AUSFÜLLEN: Support-E-Mail]. Wir antworten in der Regel innerhalb von zwei Werktagen.",
+      "faqHeading": "Häufige Fragen",
+      "faq": [
+        {
+          "q": "Wie bekomme ich ein Konto?",
+          "a": "VMflow ist ein System für gewerbliche Automatenbetreiber. Du kannst dich in der App registrieren; einem bestehenden Unternehmen trittst du über eine Einladung durch dessen Administrator bei."
+        },
+        {
+          "q": "Ich kann mich nicht anmelden — was tun?",
+          "a": "Prüfe zuerst, ob in der App der richtige Server ausgewählt ist (Server-Auswahl auf dem Anmeldebildschirm). Falls du dein Passwort vergessen hast, wende dich an den Administrator deines Unternehmens oder an den Support."
+        },
+        {
+          "q": "Wie lösche ich mein Konto?",
+          "a": "Direkt in der iOS-App: Einstellungen → Konto löschen. Wenn du noch keinem Unternehmen angehörst, findest du die Option auf dem Startbildschirm nach der Anmeldung. Die Löschung ist endgültig."
+        },
+        {
+          "q": "Werden meine Daten für Werbung genutzt?",
+          "a": "Nein. VMflow enthält kein Tracking, keine Analyse-Dienste und keine Werbung. Details stehen in der Datenschutzerklärung."
+        }
+      ]
+    }
+  },
   "platformAdmin": {
     "title": "Plattform-Übersicht",
     "subtitle": "Firmenübergreifendes Betreiber-Dashboard",
