@@ -91,6 +91,7 @@
 		F0501A7FD0A96B9377D2DCCF /* SupabaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70E364431AFD63E8DE1238E3 /* SupabaseService.swift */; };
 		F4C8EB2697C216371012CB06 /* DealCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6D19B501E340C90B0032C32 /* DealCard.swift */; };
 		F65C2BAC5F1F46AB4788DECF /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 1C6D6D60C1508A2B07975E1F /* Localizable.xcstrings */; };
+		C3D4E5F60718293A4B5C6D7E /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F60718293A4B5C6D /* PrivacyInfo.xcprivacy */; };
 		F9ED3640AECA682247FEB81A /* DealsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64E2C159F72B60828783FDAE /* DealsView.swift */; };
 		FA92F123C410DDE5A56A5EF7 /* RealtimeService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AE7FC95E2E89DD0AC7A6981 /* RealtimeService.swift */; };
 		FDA63D4358CC508737E8C10F /* AuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC323B6816B89C5044F50027 /* AuthService.swift */; };
@@ -155,6 +156,7 @@
 		453803D692FAEE4E9DDA1040 /* CompactTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompactTabView.swift; sourceTree = "<group>"; };
 		45AE89831021CC12416B0F89 /* VMflow.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = VMflow.entitlements; sourceTree = "<group>"; };
 		A1B2C3D4E5F60718293A4B5C /* VMflow.Release.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = VMflow.Release.entitlements; sourceTree = "<group>"; };
+		B2C3D4E5F60718293A4B5C6D /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		496AADA2A0C49A331A85311A /* TrayRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrayRow.swift; sourceTree = "<group>"; };
 		4E7EC46F36DD12575C056A1A /* VendingMachine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VendingMachine.swift; sourceTree = "<group>"; };
 		4F54EBC4BB41B8FD7D53B95C /* MachineLayoutGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MachineLayoutGrid.swift; sourceTree = "<group>"; };
@@ -519,6 +521,7 @@
 				1C6D6D60C1508A2B07975E1F /* Localizable.xcstrings */,
 				45AE89831021CC12416B0F89 /* VMflow.entitlements */,
 				A1B2C3D4E5F60718293A4B5C /* VMflow.Release.entitlements */,
+				B2C3D4E5F60718293A4B5C6D /* PrivacyInfo.xcprivacy */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -615,6 +618,7 @@
 			files = (
 				D26A6A4A55DF5DC1587BAD9A /* Assets.xcassets in Resources */,
 				F65C2BAC5F1F46AB4788DECF /* Localizable.xcstrings in Resources */,
+				C3D4E5F60718293A4B5C6D7E /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
