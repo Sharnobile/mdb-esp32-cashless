@@ -262,13 +262,25 @@ BEGIN
 END;
 $$;
 
--- CREATE FUNCTION grants EXECUTE to PUBLIC by default, and service_role holds
--- EXECUTE only via PUBLIC (it is NOLOGIN + BYPASSRLS, not superuser). So the
--- revoke must be paired with an explicit grant, or PostgREST's
--- SET ROLE service_role gets 42501 and the edge function is dead — while the
--- SQL test suite, which runs as the postgres superuser, stays green.
--- House pattern: 20260712000000:77-78.
+-- Three statements, all load-bearing — do not "simplify":
+--
+-- 1. REVOKE FROM public: CREATE FUNCTION grants EXECUTE to PUBLIC by default.
+-- 2. REVOKE FROM anon, authenticated: Supabase images often configure
+--    ALTER DEFAULT PRIVILEGES ... GRANT ALL ON FUNCTIONS TO anon, authenticated —
+--    which stamps EXPLICIT per-role ACL entries at creation time that the PUBLIC
+--    revoke does not reach (see 20260602120000:190-191: default privileges vary
+--    per install; rely on them neither being present NOR absent). Without this
+--    line, on such installs ANY authenticated user could POST
+--    /rest/v1/rpc/delete_company_and_data with an arbitrary company uuid —
+--    the function is deliberately not self-guarding (the edge function verifies
+--    the caller), so this revoke IS the tenant boundary.
+-- 3. GRANT TO service_role: service_role is NOLOGIN + BYPASSRLS, not superuser;
+--    after the revokes it has no EXECUTE path left, and PostgREST's
+--    SET ROLE service_role would get 42501 — killing the edge function while the
+--    SQL suite (which runs as the postgres superuser) stays green.
+--    House pattern: 20260712000000:77-78.
 REVOKE ALL ON FUNCTION public.delete_company_and_data(uuid) FROM public;
+REVOKE ALL ON FUNCTION public.delete_company_and_data(uuid) FROM anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.delete_company_and_data(uuid) TO service_role;
 
 COMMENT ON FUNCTION public.delete_company_and_data(uuid) IS
@@ -489,7 +501,7 @@ BEGIN
   ASSERT NOT EXISTS (SELECT 1 FROM public.embeddeds WHERE id = ANY(v_devices)),
     'devices must cascade';
   ASSERT NOT EXISTS (SELECT 1 FROM public.cash_book_entries WHERE company_id = v_company),
-    'cash-book entries must cascade';
+    'cash-book entries must be erased by delete_company_and_data (explicit delete, not cascade)';
   RAISE NOTICE 'Test 3 passed: cascade completeness';
 
   -- ── Test 4: profile survival ──
@@ -550,7 +562,7 @@ opens its own session and never sees an uncommitted `ALTER TABLE`, so it would
 "verify" nothing.
 
 ```bash
-psql postgresql://postgres:postgres@127.0.0.1:54322/postgres <<'SQL'
+psql postgresql://postgres:postgres@127.0.0.1:54322/postgres -v ON_ERROR_STOP=1 <<'SQL'
 BEGIN;
 -- Sabotage: put sales.owner_id back the way it was before the migration
 ALTER TABLE public.sales DROP CONSTRAINT sales_owner_id_fkey;
@@ -903,7 +915,10 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>" \
 
 - `supabase migration up` applies cleanly, and re-running the file succeeds
 - **Zero** FKs to `auth.users` / `companies` have `confdeltype = 'a'`
-- `./run-sql-tests.sh` green, including the four new cases
+- `./run-sql-tests.sh` green, including all five new cases — realistic user
+  delete, device-swap regression, cascade completeness, profile survival, and
+  **grants** (Test 5 is the only one that can see a missing/excess ACL entry;
+  the other four run as superuser and are blind to it)
 - Re-breaking `sales_owner_id_fkey` makes Test 1 fail (the test tests something)
 - `delete-account` returns 200 / 400 / 401 per the contract, verified by curl
   **against the full running stack** (not just `functions serve`)
