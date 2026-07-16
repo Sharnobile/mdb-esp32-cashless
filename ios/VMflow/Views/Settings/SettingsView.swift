@@ -7,6 +7,7 @@ struct SettingsView: View {
     @StateObject private var deals = DealsViewModel()
     @State private var isSendingTest = false
     @State private var showSignOutConfirm = false
+    @State private var showDeleteAccount = false
 
     var body: some View {
         List {
@@ -105,6 +106,22 @@ struct SettingsView: View {
                     }
                 }
             }
+
+            // MARK: - Delete Account
+            Section {
+                Button(role: .destructive) {
+                    showDeleteAccount = true
+                } label: {
+                    HStack {
+                        Spacer()
+                        Text("Delete Account")
+                            .fontWeight(.semibold)
+                        Spacer()
+                    }
+                }
+            } footer: {
+                Text("Permanently delete your account and, if you are the last admin, your organization's data.")
+            }
         }
         .navigationTitle("Settings")
         .task {
@@ -132,6 +149,9 @@ struct SettingsView: View {
             Button("OK") { notifications.error = nil }
         } message: {
             Text(notifications.error ?? "")
+        }
+        .sheet(isPresented: $showDeleteAccount) {
+            DeleteAccountSheet()
         }
     }
 

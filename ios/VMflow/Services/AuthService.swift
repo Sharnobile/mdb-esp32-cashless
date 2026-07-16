@@ -182,4 +182,49 @@ final class AuthService: ObservableObject {
             try? await client.auth.session.accessToken
         }
     }
+
+    // MARK: - Account Deletion
+
+    /// Outcome of a `delete-account` call (Apple Guideline 5.1.1(v)).
+    enum DeleteAccountOutcome {
+        case success(companyDeleted: Bool)
+        case companyNameMismatch
+        case failure(String)
+    }
+
+    /// Calls the `delete-account` edge function.
+    ///
+    /// Deliberately does NOT duplicate the "sole admin" rule client-side: the
+    /// server is the single source of truth for whether the caller must type
+    /// the company name. A 400 `company_name_mismatch` response is what
+    /// drives `DeleteAccountSheet`'s second stage — the client only reacts to
+    /// that response, it never decides on its own.
+    func deleteAccount(confirmCompanyName: String?) async -> DeleteAccountOutcome {
+        struct RequestBody: Encodable {
+            let confirm_company_name: String?
+        }
+        struct SuccessResponse: Decodable {
+            let deleted: Bool
+            let company_deleted: Bool
+        }
+        struct ErrorResponse: Decodable {
+            let error: String
+        }
+
+        do {
+            let response: SuccessResponse = try await client.functions.invoke(
+                "delete-account",
+                options: .init(method: .post, body: RequestBody(confirm_company_name: confirmCompanyName))
+            )
+            return .success(companyDeleted: response.company_deleted)
+        } catch FunctionsError.httpError(let code, let data) {
+            let serverError = try? JSONDecoder().decode(ErrorResponse.self, from: data)
+            if code == 400 && serverError?.error == "company_name_mismatch" {
+                return .companyNameMismatch
+            }
+            return .failure(serverError?.error ?? "Account deletion failed (\(code)).")
+        } catch {
+            return .failure(error.localizedDescription)
+        }
+    }
 }

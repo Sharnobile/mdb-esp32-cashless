@@ -1,6 +1,106 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Delete Account" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Konto löschen"
+          }
+        }
+      }
+    },
+    "Delete Your Account" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dein Konto löschen"
+          }
+        }
+      }
+    },
+    "This will permanently delete your account. This action cannot be undone." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dadurch wird dein Konto endgültig gelöscht. Diese Aktion kann nicht rückgängig gemacht werden."
+          }
+        }
+      }
+    },
+    "You're the Last Admin" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Du bist der letzte Admin"
+          }
+        }
+      }
+    },
+    "You are the only admin of %@. Deleting your account will also permanently delete the company and all of its data — machines, sales, warehouse stock, registered devices, and the cash book." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Du bist der einzige Admin von %@. Wenn du dein Konto löschst, werden auch das Unternehmen und alle zugehörigen Daten endgültig gelöscht – Automaten, Verkäufe, Lagerbestand, registrierte Geräte und die Kasse."
+          }
+        }
+      }
+    },
+    "Type the company name to confirm:" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gib den Firmennamen zur Bestätigung ein:"
+          }
+        }
+      }
+    },
+    "Company name" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Firmenname"
+          }
+        }
+      }
+    },
+    "Delete Company & Account" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unternehmen & Konto löschen"
+          }
+        }
+      }
+    },
+    "That name doesn't match. Please try again." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Name stimmt nicht überein. Bitte versuche es erneut."
+          }
+        }
+      }
+    },
+    "Permanently delete your account and, if you are the last admin, your organization's data." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Löscht dein Konto endgültig – und, falls du der letzte Admin bist, auch die Daten deines Unternehmens."
+          }
+        }
+      }
+    },
     " · " : {
 
     },

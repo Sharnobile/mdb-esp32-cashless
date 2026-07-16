@@ -76,6 +76,7 @@ struct LaunchScreenView: View {
 
 struct NoOrganizationView: View {
     @EnvironmentObject var auth: AuthService
+    @State private var showDeleteAccount = false
 
     var body: some View {
         VStack(spacing: 24) {
@@ -96,6 +97,13 @@ struct NoOrganizationView: View {
                 Task { await auth.fetchOrganization() }
             }
             .buttonStyle(.borderedProminent)
+            Button("Delete Account", role: .destructive) {
+                showDeleteAccount = true
+            }
+            .buttonStyle(.bordered)
+        }
+        .sheet(isPresented: $showDeleteAccount) {
+            DeleteAccountSheet()
         }
     }
 }
