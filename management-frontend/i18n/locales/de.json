@@ -10,9 +10,9 @@
         {
           "heading": "1. Verantwortlicher",
           "paragraphs": [
-            "[AUSFÜLLEN: Firmenname und Rechtsform]",
-            "[AUSFÜLLEN: Straße, PLZ, Ort]",
-            "E-Mail: [AUSFÜLLEN: Datenschutz-Kontaktadresse]"
+            "Kerl Handel GmbH",
+            "Ziegelweg 1, 74676 Niedernhall",
+            "E-Mail: info@kerl-handel.de"
           ]
         },
         {
@@ -93,7 +93,7 @@
         {
           "heading": "1. Geltungsbereich",
           "paragraphs": [
-            "VMflow richtet sich ausschließlich an Unternehmer im Sinne des § 14 BGB. Anbieter ist [AUSFÜLLEN: Firmenname] (siehe Impressum)."
+            "VMflow richtet sich ausschließlich an Unternehmer im Sinne des § 14 BGB. Anbieter ist die Kerl Handel GmbH (siehe Impressum)."
           ]
         },
         {
@@ -134,7 +134,7 @@
         {
           "heading": "Angaben gemäß § 5 DDG",
           "paragraphs": [
-            "[AUSFÜLLEN: Firmenname und Rechtsform]\n[AUSFÜLLEN: Straße und Hausnummer]\n[AUSFÜLLEN: PLZ und Ort]"
+            "Kerl Handel GmbH\nZiegelweg 1\n74676 Niedernhall"
           ]
         },
         {
@@ -146,7 +146,7 @@
         {
           "heading": "Kontakt",
           "paragraphs": [
-            "E-Mail: [AUSFÜLLEN: Kontakt-E-Mail]\nTelefon: [AUSFÜLLEN: Telefonnummer, optional]"
+            "E-Mail: info@kerl-handel.de"
           ]
         },
         {
@@ -167,7 +167,7 @@
       "title": "Support",
       "intro": "Hilfe zur VMflow iOS-App und Web-Anwendung.",
       "contactHeading": "Kontakt",
-      "contactText": "Bei Fragen oder Problemen erreichst du uns per E-Mail unter [AUSFÜLLEN: Support-E-Mail]. Wir antworten in der Regel innerhalb von zwei Werktagen.",
+      "contactText": "Bei Fragen oder Problemen erreichst du uns per E-Mail unter info@kerl-handel.de. Wir antworten in der Regel innerhalb von zwei Werktagen.",
       "faqHeading": "Häufige Fragen",
       "faq": [
         {
