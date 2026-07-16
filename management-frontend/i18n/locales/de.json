@@ -12,7 +12,7 @@
           "paragraphs": [
             "Kerl Handel GmbH",
             "Ziegelweg 1, 74676 Niedernhall",
-            "E-Mail: info@kerl-handel.de"
+            "E-Mail: info{'@'}kerl-handel.de"
           ]
         },
         {
@@ -146,7 +146,7 @@
         {
           "heading": "Kontakt",
           "paragraphs": [
-            "E-Mail: info@kerl-handel.de"
+            "E-Mail: info{'@'}kerl-handel.de"
           ]
         },
         {
@@ -167,7 +167,7 @@
       "title": "Support",
       "intro": "Hilfe zur VMflow iOS-App und Web-Anwendung.",
       "contactHeading": "Kontakt",
-      "contactText": "Bei Fragen oder Problemen erreichst du uns per E-Mail unter info@kerl-handel.de. Wir antworten in der Regel innerhalb von zwei Werktagen.",
+      "contactText": "Bei Fragen oder Problemen erreichst du uns per E-Mail unter info{'@'}kerl-handel.de. Wir antworten in der Regel innerhalb von zwei Werktagen.",
       "faqHeading": "Häufige Fragen",
       "faq": [
         {
