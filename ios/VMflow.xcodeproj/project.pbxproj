@@ -154,6 +154,7 @@
 		3B84189DCC212B6DBBF84DEB /* MachineDetailViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MachineDetailViewModel.swift; sourceTree = "<group>"; };
 		453803D692FAEE4E9DDA1040 /* CompactTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompactTabView.swift; sourceTree = "<group>"; };
 		45AE89831021CC12416B0F89 /* VMflow.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = VMflow.entitlements; sourceTree = "<group>"; };
+		A1B2C3D4E5F60718293A4B5C /* VMflow.Release.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = VMflow.Release.entitlements; sourceTree = "<group>"; };
 		496AADA2A0C49A331A85311A /* TrayRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrayRow.swift; sourceTree = "<group>"; };
 		4E7EC46F36DD12575C056A1A /* VendingMachine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VendingMachine.swift; sourceTree = "<group>"; };
 		4F54EBC4BB41B8FD7D53B95C /* MachineLayoutGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MachineLayoutGrid.swift; sourceTree = "<group>"; };
@@ -517,6 +518,7 @@
 				CA772EA0093974ACECD47777 /* Info.plist */,
 				1C6D6D60C1508A2B07975E1F /* Localizable.xcstrings */,
 				45AE89831021CC12416B0F89 /* VMflow.entitlements */,
+				A1B2C3D4E5F60718293A4B5C /* VMflow.Release.entitlements */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -940,7 +942,7 @@
 		721C31EF76FFEFD13903BF0D /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CODE_SIGN_ENTITLEMENTS = VMflow/Resources/VMflow.entitlements;
+				CODE_SIGN_ENTITLEMENTS = VMflow/Resources/VMflow.Release.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = 4JT3V7XVXM;
