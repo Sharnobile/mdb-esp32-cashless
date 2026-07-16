@@ -80,9 +80,23 @@ SELECT c.conrelid::regclass AS tbl,
 FROM pg_constraint c
 JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = c.conkey[1]
 WHERE c.contype = 'f'
+  AND c.connamespace = 'public'::regnamespace   -- only the schema we own
   AND c.confrelid IN ('auth.users'::regclass, 'public.companies'::regclass)
   AND c.confdeltype = 'a'          -- 'a' = NO ACTION = blocks
 ORDER BY 1, 2;
+
+-- Diagnostic (informational, NOT a gate): the same sweep without the schema
+-- filter. GoTrue/Storage manage their own FKs to auth.users; on the pinned
+-- images (gotrue v2.177.0, storage v1.25.7) they cascade, but if this ever
+-- returns rows in auth/storage, that is a real deleteUser blocker owned by a
+-- container upgrade, not by this migration — report it, don't widen the
+-- migration to touch schemas we don't own.
+SELECT c.conrelid::regclass, c.confdeltype
+FROM pg_constraint c
+WHERE c.contype = 'f'
+  AND c.connamespace <> 'public'::regnamespace
+  AND c.confrelid = 'auth.users'::regclass
+  AND c.confdeltype = 'a';
 SQL
 ```
 
@@ -233,12 +247,29 @@ BEGIN
   DELETE FROM public.stock_decrement_log
    WHERE embedded_id = ANY(v_devices) OR machine_id = ANY(v_machines);
 
+  -- cash_book_entries.cash_book_id is ON DELETE RESTRICT (20260407000000:61),
+  -- which is non-deferrable and fires the moment the companies-cascade reaches
+  -- cash_books. Cascade-trigger order is OID-string order, so relying on the
+  -- entries cascade winning that race is not a guarantee — it could differ
+  -- between dev and prod. Delete both explicitly, entries first — the same
+  -- order delete_cash_book() uses (20260407100000). The single-statement
+  -- entries delete also satisfies the corrects_entry_id self-FK (NO ACTION),
+  -- which is checked at end-of-statement.
+  DELETE FROM public.cash_book_entries WHERE company_id = p_company_id;
+  DELETE FROM public.cash_books        WHERE company_id = p_company_id;
+
   DELETE FROM public.companies WHERE id = p_company_id;
 END;
 $$;
 
+-- CREATE FUNCTION grants EXECUTE to PUBLIC by default, and service_role holds
+-- EXECUTE only via PUBLIC (it is NOLOGIN + BYPASSRLS, not superuser). So the
+-- revoke must be paired with an explicit grant, or PostgREST's
+-- SET ROLE service_role gets 42501 and the edge function is dead — while the
+-- SQL test suite, which runs as the postgres superuser, stays green.
+-- House pattern: 20260712000000:77-78.
 REVOKE ALL ON FUNCTION public.delete_company_and_data(uuid) FROM public;
-REVOKE ALL ON FUNCTION public.delete_company_and_data(uuid) FROM anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.delete_company_and_data(uuid) TO service_role;
 
 COMMENT ON FUNCTION public.delete_company_and_data(uuid) IS
   'Erases a company and the rows a companies-cascade cannot reach (sales, '
@@ -277,10 +308,11 @@ BEGIN
   SELECT count(*) INTO n
   FROM pg_constraint c
   WHERE c.contype = 'f'
+    AND c.connamespace = 'public'::regnamespace
     AND c.confrelid IN ('auth.users'::regclass, 'public.companies'::regclass)
     AND c.confdeltype = 'a';
-  ASSERT n = 0, format('%s blocking FKs remain', n);
-  RAISE NOTICE 'OK: no blocking FKs to auth.users/companies';
+  ASSERT n = 0, format('%s blocking FKs remain in public', n);
+  RAISE NOTICE 'OK: no blocking FKs to auth.users/companies in public';
 END $$;
 SQL
 ```
@@ -476,7 +508,22 @@ BEGIN
   ASSERT EXISTS (SELECT 1 FROM public.users WHERE id = v_viewer AND company IS NULL),
     'a viewer of a deleted company must keep their profile, with company nulled';
   RAISE NOTICE 'Test 4 passed: profile survival';
+END $$;
 
+-- ── Test 5: grants — the suite runs as postgres (superuser), which would mask
+-- a missing service_role grant entirely. Check the ACL itself, per role.
+DO $$
+BEGIN
+  ASSERT has_function_privilege('service_role',
+    'public.delete_company_and_data(uuid)', 'EXECUTE'),
+    'service_role must be able to execute delete_company_and_data';
+  ASSERT NOT has_function_privilege('authenticated',
+    'public.delete_company_and_data(uuid)', 'EXECUTE'),
+    'authenticated must NOT be able to execute delete_company_and_data';
+  ASSERT NOT has_function_privilege('anon',
+    'public.delete_company_and_data(uuid)', 'EXECUTE'),
+    'anon must NOT be able to execute delete_company_and_data';
+  RAISE NOTICE 'Test 5 passed: grants';
   RAISE NOTICE 'All account-deletion tests passed';
 END $$;
 
@@ -497,23 +544,49 @@ match the real schema — do not weaken an assertion to make the test pass.
 
 - [ ] **Step 3: Prove the test would have caught the bug**
 
-This is the step that makes the test worth having. Temporarily re-break one FK
-and confirm Test 1 fails:
+This is the step that makes the test worth having. The sabotage and the probe
+must run **in the same transaction** — a separate `./run-sql-tests.sh` invocation
+opens its own session and never sees an uncommitted `ALTER TABLE`, so it would
+"verify" nothing.
 
 ```bash
 psql postgresql://postgres:postgres@127.0.0.1:54322/postgres <<'SQL'
 BEGIN;
+-- Sabotage: put sales.owner_id back the way it was before the migration
 ALTER TABLE public.sales DROP CONSTRAINT sales_owner_id_fkey;
 ALTER TABLE public.sales ADD CONSTRAINT sales_owner_id_fkey
   FOREIGN KEY (owner_id) REFERENCES auth.users(id);
--- now run the test body's Test 1 — it must raise 23503
+
+-- Probe: the minimal Test-1 shape, same transaction. MUST raise 23503.
+DO $$
+DECLARE
+  v_company uuid := gen_random_uuid();
+  v_user    uuid := gen_random_uuid();
+  v_dev     uuid := gen_random_uuid();
+  v_raised  boolean := false;
+BEGIN
+  INSERT INTO public.companies (id, name) VALUES (v_company, 'Sabotage');
+  INSERT INTO auth.users (id, instance_id, email, created_at)
+    VALUES (v_user, '00000000-0000-0000-0000-000000000000', 'sab@test.local', now());
+  INSERT INTO public.embeddeds (id, company, status, status_at)
+    VALUES (v_dev, v_company, 'online', now());
+  INSERT INTO public.sales (embedded_id, owner_id, item_price, item_number, channel, created_at)
+    VALUES (v_dev, v_user, 1.00, 1, 'mdb', now());
+  BEGIN
+    DELETE FROM auth.users WHERE id = v_user;
+  EXCEPTION WHEN foreign_key_violation THEN
+    v_raised := true;
+  END;
+  ASSERT v_raised, 'SABOTAGE NOT DETECTED: deleting a sales-owning user succeeded with the broken FK — the test proves nothing';
+  RAISE NOTICE 'OK: broken FK is detected (23503 raised)';
+END $$;
 ROLLBACK;
 SQL
 ```
 
-Expected: `23503`. Then confirm the suite still passes afterwards (the `ROLLBACK`
-undoes the sabotage). If Test 1 passes with the FK re-broken, the test is not
-testing what it claims.
+Expected: `OK: broken FK is detected`. The `ROLLBACK` undoes the sabotage;
+confirm with a normal `./run-sql-tests.sh` run afterwards that the suite is
+green again.
 
 - [ ] **Step 4: Commit**
 
@@ -597,12 +670,24 @@ Two properties to preserve exactly:
 }
 ```
 
-In `Docker/supabase/config.toml`, add next to the other function entries:
+In `Docker/supabase/config.toml`, add next to the other function entries — **all
+four keys**, matching the house format exactly:
 
 ```toml
 [functions.delete-account]
+enabled = true
+verify_jwt = false
 import_map = "./functions/delete-account/deno.json"
+entrypoint = "./functions/delete-account/index.ts"
 ```
+
+`verify_jwt = false` is not optional: the CLI default is `true`, and the local
+edge runtime's ES256 `CryptoKey` bug (documented in `CLAUDE.md`) then 401s every
+call. The curl tests below would NOT catch the omission, because
+`supabase functions serve --no-verify-jwt` bypasses `config.toml` entirely — the
+failure would first appear after a normal `supabase start`. So after wiring,
+verify via the full stack once: `supabase stop && supabase start`, then re-run the
+Step 3 curl against the running stack (not `functions serve`).
 
 The function needs only `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`, which
 already exist in both prod (docker-compose `environment:`) and dev
@@ -650,6 +735,14 @@ curl -i -X POST http://127.0.0.1:54321/functions/v1/delete-account \
 ```
 Expected: `200 {"deleted":true,"company_deleted":true}`; company, devices, sales
 all gone.
+
+**Stated deviation from spec §12:** the spec's verification table describes the
+admin-count/name-guard cases as SQL/RPC tests. The guard lives in TypeScript, not
+SQL, so it is exercised here by curl instead — which means it has **no regression
+coverage** after this phase. Accepted trade-off: the SQL-side invariants (FKs,
+cascade completeness, grants) are covered by the test suite; the TS-side guard is
+four lines of comparison whose failure modes are all loud (400/401). If it ever
+grows branches, give it a Deno test like `mqtt-webhook/mdb-log.test.ts`.
 
 - [ ] **Step 5: Test unauthorized**
 
@@ -813,6 +906,11 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>" \
 - `./run-sql-tests.sh` green, including the four new cases
 - Re-breaking `sales_owner_id_fkey` makes Test 1 fail (the test tests something)
 - `delete-account` returns 200 / 400 / 401 per the contract, verified by curl
+  **against the full running stack** (not just `functions serve`)
+- After a cascade delete via the edge function, the company's `product-images`
+  objects are gone from the bucket — list the paths before the delete, re-list
+  after. The removal is best-effort and log-only, so nothing else would ever
+  notice it silently no-op'ing (wrong bucket name, path vs. object-key mismatch)
 - **A freshly registered, org-less account can delete itself from
   `NoOrganizationView`** — the reviewer's script
 - A member with a second admin present can delete from Settings, company intact
