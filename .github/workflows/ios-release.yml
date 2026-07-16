@@ -1,0 +1,55 @@
+name: iOS Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      lane:
+        description: "fastlane lane"
+        required: true
+        type: choice
+        options: [beta, metadata, release, screenshots]
+        default: beta
+
+jobs:
+  fastlane:
+    runs-on: macos-15
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: ios
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # Build number = git rev-list --count HEAD (both prebuild scripts).
+          # A shallow clone yields 1 and App Store Connect rejects any build
+          # number at or below the last upload.
+          fetch-depth: 0
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+          working-directory: ios
+
+      - name: Select Xcode
+        # Verified present and default on the current macos-15 image; pinned
+        # anyway so an image update cannot move us silently (and 16.4 avoids
+        # the Xcode-26 avtool upload bug, fastlane #29743).
+        run: sudo xcode-select -s /Applications/Xcode_16.4.app
+
+      - name: Run fastlane lane
+        env:
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_KEY_P8: ${{ secrets.APP_STORE_CONNECT_KEY_P8 }}
+        run: bundle exec fastlane ${{ github.event.inputs.lane }}
+
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v5
+        with:
+          name: fastlane-logs
+          path: |
+            ios/fastlane/report.xml
+            ~/Library/Logs/gym
+          if-no-files-found: ignore

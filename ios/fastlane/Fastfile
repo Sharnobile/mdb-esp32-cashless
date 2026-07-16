@@ -1,0 +1,100 @@
+# VMflow iOS release lanes.
+#
+# Signing: App Store Connect API key + Xcode cloud signing. No cert repo.
+# The key MUST have the Admin role — cloud-managed distribution certificates
+# cannot be granted to lesser API keys (Apple forums thread 698117).
+#
+# Cloud-signing auth must reach BOTH xcodebuild steps: gym's `xcargs` covers
+# only the archive; the -exportArchive step re-signs with the distribution
+# certificate and needs the same flags via `export_xcargs`
+# (fastlane discussion #19973). Do not remove either.
+#
+# Build numbers: both prebuild scripts run `git rev-list --count HEAD`
+# independently (app + extension). In CI nothing commits mid-build, so they
+# always agree; locally a commit landing between the two stamps mismatched
+# CFBundleVersions, which App Store Connect rejects. Policy: UPLOADS HAPPEN
+# ONLY FROM CI — local archives are for debugging. CI checkouts need
+# fetch-depth: 0 or the count is 1 and ASC rejects the build number.
+
+default_platform(:ios)
+
+platform :ios do
+  # Decode the base64 .p8 from the environment, hand it to fastlane, and
+  # return [api_key, auth_args] where auth_args carries the same credentials
+  # to xcodebuild for cloud signing.
+  private_lane :asc_auth do
+    %w[APP_STORE_CONNECT_KEY_ID APP_STORE_CONNECT_ISSUER_ID APP_STORE_CONNECT_KEY_P8].each do |var|
+      UI.user_error!("Missing env var #{var} — set it as a GitHub Actions secret") if ENV[var].to_s.empty?
+    end
+
+    key_path = File.join(Dir.mktmpdir("asc"), "AuthKey_#{ENV['APP_STORE_CONNECT_KEY_ID']}.p8")
+    File.write(key_path, Base64.decode64(ENV["APP_STORE_CONNECT_KEY_P8"]))
+
+    api_key = app_store_connect_api_key(
+      key_id: ENV["APP_STORE_CONNECT_KEY_ID"],
+      issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"],
+      key_filepath: key_path
+    )
+
+    auth_args = "-allowProvisioningUpdates " \
+                "-authenticationKeyPath #{key_path.shellescape} " \
+                "-authenticationKeyID #{ENV['APP_STORE_CONNECT_KEY_ID'].shellescape} " \
+                "-authenticationKeyIssuerID #{ENV['APP_STORE_CONNECT_ISSUER_ID'].shellescape}"
+
+    { api_key: api_key, auth_args: auth_args }
+  end
+
+  private_lane :build_signed do
+    auth = asc_auth
+    setup_ci if ENV["CI"]
+    build_app(
+      project: "VMflow.xcodeproj",
+      scheme: "VMflow",
+      export_method: "app-store",
+      xcargs: auth[:auth_args],
+      export_xcargs: auth[:auth_args]
+    )
+    auth[:api_key]
+  end
+
+  desc "Build, sign and upload to TestFlight"
+  lane :beta do
+    api_key = build_signed
+    upload_to_testflight(
+      api_key: api_key,
+      skip_waiting_for_build_processing: true
+    )
+  end
+
+  desc "Build, sign, upload binary + metadata to App Store Connect (no review submission)"
+  lane :release do
+    api_key = build_signed
+    upload_to_app_store(
+      api_key: api_key,
+      force: true, # non-interactive CI: the HTML-preview prompt would hard-error
+      submit_for_review: false,
+      automatic_release: false,
+      precheck_include_in_app_purchases: false # precheck can't check IAP with an API key
+    )
+  end
+
+  desc "Upload metadata + screenshots only (no binary)"
+  lane :metadata do
+    auth = asc_auth
+    upload_to_app_store(
+      api_key: auth[:api_key],
+      force: true,
+      skip_binary_upload: true,
+      submit_for_review: false,
+      precheck_include_in_app_purchases: false
+    )
+  end
+
+  desc "Generate localized App Store screenshots (phase 5)"
+  lane :screenshots do
+    UI.user_error!(
+      "The screenshots lane lands in phase 5 (UI-test target + fixture stub). " \
+      "See docs/superpowers/specs/2026-07-15-ios-app-store-release-design.md §8."
+    )
+  end
+end
