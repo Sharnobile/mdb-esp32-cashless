@@ -55,7 +55,7 @@
         {
           "heading": "8. Hosting and processing on our behalf",
           "paragraphs": [
-            "VMflow is self-operated. The instance hosted by us runs on servers of [FILL IN: hosting provider and server location]. Where required, a data-processing agreement under Art. 28 GDPR is in place with the hosting provider. Operators who install VMflow on their own infrastructure are responsible for that processing themselves."
+            "VMflow is self-operated. The instance hosted by us runs on servers of Contabo GmbH (server location: Germany). Where required, a data-processing agreement under Art. 28 GDPR is in place with the hosting provider. Operators who install VMflow on their own infrastructure are responsible for that processing themselves."
           ]
         },
         {
