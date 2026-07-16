@@ -509,6 +509,13 @@ the past that relative copy (`timeAgo`) renders stably.
 - `actions/checkout` with **`fetch-depth: 0`** — the build number is
   `git rev-list --count HEAD`; a shallow clone yields `1` and ASC rejects a build
   number below the last upload.
+- **The two prebuild scripts each run `git rev-list --count HEAD` independently**
+  (app and extension, `project.yml:39-45`), so a commit landing *between* them
+  stamps mismatched `CFBundleVersion`s — and ASC rejects an extension whose build
+  number differs from its host app. Observed live during phase 1 (1647 vs 1648,
+  caused by a commit mid-build). CI never commits mid-build, so the race does not
+  fire there; but it means a local archive is not reliably uploadable, and the
+  fix (compute once, pass to both) is cheap. Decide during this phase.
 - Secrets: `APP_STORE_CONNECT_KEY_ID`, `APP_STORE_CONNECT_ISSUER_ID`,
   `APP_STORE_CONNECT_KEY_P8` (base64). Secrets are unavailable to fork PRs and
   `workflow_dispatch` is collaborator-only, so the public repo is not a leak path.
