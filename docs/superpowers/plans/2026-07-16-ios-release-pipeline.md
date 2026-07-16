@@ -30,6 +30,32 @@
    (`-authenticationKeyPath …`) — cloud signing needs it on the xcodebuild side
    too, or `-allowProvisioningUpdates` has nothing to authenticate with.
 
+## Review corrections (round 1 — each invisible to this plan's own checks)
+
+1. **`export_xcargs` is mandatory.** gym passes `xcargs` only to the archive
+   step; the `-exportArchive` step re-signs with the distribution certificate
+   and needs `-allowProvisioningUpdates` + the three `-authenticationKey*` flags
+   itself (fastlane discussion #19973). Local archives can't catch this — the
+   Mac's Xcode is signed into the team.
+2. **The shared scheme was never committed.** `ios/VMflow.xcodeproj/xcshareddata/`
+   is untracked; every local check passes, CI dies with "Couldn't find scheme
+   'VMflow'". Commit `xcshareddata/xcschemes/VMflow.xcscheme`.
+3. **`force: true` on both `upload_to_app_store` lanes** — deliver otherwise
+   prompts to confirm the HTML preview, which in CI's non-interactive mode is a
+   hard error (fastlane #10078).
+4. **The ASC API key must have the Admin role** — cloud-managed distribution
+   certificates are not grantable to lesser keys (Apple forums 698117); a
+   least-privilege key fails opaquely at export. Goes in the user checklist.
+5. **The ASC app record must exist before the first `beta` dispatch** — pilot
+   uploads to existing apps only; cloud signing creates the App ID but not the
+   app record. Goes in the user checklist.
+6. Action majors bumped (checkout/upload-artifact ≥ v5); `timeout-minutes: 60`
+   on the job. `Xcode_16.4.app` verified present and default on the current
+   macos-15 image. Confirmed non-issues: missing `fastlane/metadata/` dirs are a
+   silent no-op in deliver (Dir.glob returns []), and
+   `precheck_include_in_app_purchases: false` is the correct flag alongside
+   `submit_for_review: false`.
+
 ## Tasks
 
 ### Task 1: Gemfile + fastlane skeleton
