@@ -34,6 +34,10 @@ export function buildMachineEntry(entry: RawLogEntry): TourMachineEntry {
   const isSkip = entry.action === 'stock_refill_tour_skip'
   // Rich per-tray snapshot lives under `trays_detail` (additive key);
   // `trays_refilled` is a scalar count (kept scalar for iOS compat).
+  // Unlike activityProductRefs, this reader is tour-only (stock_refill_tour
+  // /_skip) and deliberately has no `trays_refilled`-as-array fallback —
+  // that array shape only ever belongs to stock_refill_all, which never
+  // reaches this function.
   const detail = Array.isArray(m.trays_detail) ? (m.trays_detail as any[]) : []
   return {
     machine_id: String(m.machine_id ?? ''),
