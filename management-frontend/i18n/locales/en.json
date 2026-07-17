@@ -1415,6 +1415,11 @@
     "sourceNayax": "Nayax reconciliation",
     "sourceAnalysisSwap": "Analysis swap",
     "sourceSuppressedRestore": "Restored suppressed",
+    "technicalDetails": "Technical details",
+    "showMore": "Show more",
+    "showLess": "Show less",
+    "moreItems": "+{count} more",
+    "timeUncertainWarning": "Timestamp uncertain — may be a duplicate report after a device restart",
     "actions": {
       "sale_recorded": "Sale recorded",
       "sale_deleted": "Sale deleted",
@@ -1461,7 +1466,9 @@
       "config": "Config",
       "cashBook": "Cash book",
       "minStock": "Min stock",
-      "capacity": "Capacity"
+      "capacity": "Capacity",
+      "saleSeq": "Sequence number",
+      "timeUncertain": "Timestamp status"
     }
   },
   "deals": {

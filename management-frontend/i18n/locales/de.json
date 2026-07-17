@@ -1415,6 +1415,11 @@
     "sourceNayax": "Nayax-Abgleich",
     "sourceAnalysisSwap": "Analyse-Tausch",
     "sourceSuppressedRestore": "Unterdrückt wiederhergestellt",
+    "technicalDetails": "Technische Details",
+    "showMore": "Mehr anzeigen",
+    "showLess": "Weniger anzeigen",
+    "moreItems": "+{count} weitere",
+    "timeUncertainWarning": "Zeitstempel unsicher — möglicherweise ein Doppel-Report nach einem Geräte-Neustart",
     "actions": {
       "sale_recorded": "Verkauf erfasst",
       "sale_deleted": "Verkauf gelöscht",
@@ -1461,7 +1466,9 @@
       "config": "Konfiguration",
       "cashBook": "Kassenbuch",
       "minStock": "Mindestbestand",
-      "capacity": "Kapazität"
+      "capacity": "Kapazität",
+      "saleSeq": "Sequenznummer",
+      "timeUncertain": "Zeitstempel-Status"
     }
   },
   "deals": {
