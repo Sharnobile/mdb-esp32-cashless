@@ -75,6 +75,21 @@ platform :ios do
     { api_key: api_key, auth_args: auth_args }
   end
 
+  # Abort before any metadata upload if the reviewer demo credentials are still
+  # placeholders. Uploading the literal "[FILL IN: …]" as the demo login is a
+  # certain Guideline 2.1 rejection ("cannot sign in").
+  private_lane :guard_review_info do
+    Dir.glob("fastlane/metadata/review_information/*.txt").each do |f|
+      if File.read(f).include?("[FILL IN")
+        UI.user_error!(
+          "#{f} still contains a [FILL IN …] placeholder. Fill the demo " \
+          "credentials + phone in fastlane/metadata/review_information/ before " \
+          "uploading metadata (see docs/ios/app-store-review-notes.md)."
+        )
+      end
+    end
+  end
+
   private_lane :build_signed do
     auth = asc_auth
     setup_ci if ENV["CI"]
@@ -99,6 +114,7 @@ platform :ios do
 
   desc "Build, sign, upload binary + metadata to App Store Connect (no review submission)"
   lane :release do
+    guard_review_info
     api_key = build_signed
     upload_to_app_store(
       api_key: api_key,
@@ -111,6 +127,7 @@ platform :ios do
 
   desc "Upload metadata + screenshots only (no binary)"
   lane :metadata do
+    guard_review_info
     auth = asc_auth
     upload_to_app_store(
       api_key: auth[:api_key],

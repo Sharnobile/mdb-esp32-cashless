@@ -38,8 +38,11 @@ Metadata and screenshots are handled by the `metadata`/`release` lanes from
 submission if empty:
 - **Age rating** questionnaire → answer honestly; this app has no objectionable
   content and should rate 4+.
-- **Category** — Primary **Business**, Secondary **Productivity** (also in
-  `metadata/primary_category.txt`; the hand setting is the source of truth).
+- **Category** — Primary **Business**, Secondary **Productivity**. These live in
+  `metadata/primary_category.txt` / `secondary_category.txt` and the `metadata`/
+  `release` lanes run `force: true`, so **deliver overwrites** any hand-set
+  category on every run — the files are the source of truth. Change the files,
+  not the ASC UI, or your edit gets reverted next upload.
 - **Price** — Free.
 - **App Privacy** — enter the answers from `app-store-privacy-answers.md`.
 - **Review information** — comes from `metadata/review_information/` via deliver;
