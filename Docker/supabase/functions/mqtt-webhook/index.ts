@@ -513,6 +513,11 @@ Deno.serve(async (req) => {
         throw insertError;
       }
 
+      // Hoisted out of the push-notification try block below so the
+      // activity-log insert further down can also reference them.
+      let productName: string | undefined;
+      let tray: { product_id: string | null; current_stock: number; min_stock: number; capacity: number; fill_when_below: number } | null = null;
+
       // ── Push notification dispatch (best-effort, never blocks sale recording) ──
       try {
         // Look up machine + tray + product once (used by both sale and low-stock notifications)
@@ -522,10 +527,8 @@ Deno.serve(async (req) => {
           .eq('embedded', embedded.id)
           .maybeSingle();
 
-        let productName: string | undefined;
         let productImageUrl: string | undefined;
         let lowTray: { current_stock: number; capacity: number } | undefined;
-        let tray: { product_id: string | null; current_stock: number; min_stock: number; capacity: number; fill_when_below: number } | null = null;
 
         if (machine) {
           const { data: trayRow } = await adminClient
@@ -627,6 +630,10 @@ Deno.serve(async (req) => {
             price: salePrice,
             channel,
             device_id: embedded.id,
+            product_id: tray?.product_id ?? null,
+            product_name: productName ?? null,
+            sale_seq: saleSeq,
+            time_uncertain: timeUncertain,
           },
         });
       } catch (logErr) {
