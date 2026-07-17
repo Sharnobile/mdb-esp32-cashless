@@ -29,6 +29,42 @@ interface RawLogEntry {
 // Cache user labels to avoid re-fetching
 const userCache = new Map<string, string>()
 
+export function buildMachineEntry(entry: RawLogEntry): TourMachineEntry {
+  const m = entry.metadata ?? {}
+  const isSkip = entry.action === 'stock_refill_tour_skip'
+  // trays_refilled became an array of {id, item_number, product_name,
+  // product_id, old_stock, new_stock} snapshots; historical rows still
+  // have the legacy plain-number shape (with a separate flat `products`
+  // array carrying only product_id/product_name/quantity, no deltas).
+  const trays = Array.isArray(m.trays_refilled) ? (m.trays_refilled as any[]) : []
+  return {
+    machine_id: String(m.machine_id ?? ''),
+    machine_name: String(m.machine_name ?? 'Unknown'),
+    skipped: isSkip,
+    trays_refilled: isSkip
+      ? 0
+      : (trays.length ? trays.length : Number(m.trays_refilled ?? 0)),
+    total_added: isSkip ? 0 : Number(m.total_added ?? 0),
+    products: isSkip
+      ? []
+      : (trays.length
+          ? trays.map((tr: any) => ({
+              product_id: tr.product_id ? String(tr.product_id) : null,
+              product_name: tr.product_name ? String(tr.product_name) : '',
+              quantity: (tr.new_stock != null && tr.old_stock != null)
+                ? Math.max(0, Number(tr.new_stock) - Number(tr.old_stock))
+                : 0,
+            }))
+          : (Array.isArray(m.products)
+              ? m.products.map((p: any) => ({
+                  product_id: p.product_id ? String(p.product_id) : null,
+                  product_name: String(p.product_name ?? ''),
+                  quantity: Number(p.quantity ?? 0),
+                }))
+              : [])),
+  }
+}
+
 export function useTourHistory() {
   const supabase = useSupabaseClient()
 
@@ -60,27 +96,6 @@ export function useTourHistory() {
     if (!entry.user_id) return 'System'
     const baked = (entry.metadata as any)?._user_display as string | undefined
     return baked || userCache.get(entry.user_id) || (entry.metadata as any)?._user_email || entry.user_id.slice(0, 8)
-  }
-
-  function buildMachineEntry(entry: RawLogEntry): TourMachineEntry {
-    const m = entry.metadata ?? {}
-    const isSkip = entry.action === 'stock_refill_tour_skip'
-    return {
-      machine_id: String(m.machine_id ?? ''),
-      machine_name: String(m.machine_name ?? 'Unknown'),
-      skipped: isSkip,
-      trays_refilled: isSkip ? 0 : Number(m.trays_refilled ?? 0),
-      total_added: isSkip ? 0 : Number(m.total_added ?? 0),
-      products: isSkip
-        ? []
-        : (Array.isArray(m.products)
-            ? m.products.map((p: any) => ({
-                product_id: p.product_id ? String(p.product_id) : null,
-                product_name: String(p.product_name ?? ''),
-                quantity: Number(p.quantity ?? 0),
-              }))
-            : []),
-    }
   }
 
   async function fetchTours() {
