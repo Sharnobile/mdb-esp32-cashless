@@ -2,8 +2,10 @@ import { formatDateTime } from '@/lib/utils'
 import {
   activityActionLabel,
   activityChips,
+  activityDetails,
   activityIcon,
   activityProductRef,
+  activityProductRefs,
   activitySummary,
 } from '@/lib/activityDescriptor'
 import type { ActivityEntryLike, TFn } from '@/lib/activityDescriptor'
@@ -34,7 +36,9 @@ export function useActivityDescriptor(opts?: {
     actionLabel: (action: string) => activityActionLabel(action, tt),
     actionIcon: (action: string) => activityIcon(action),
     productRef: (entry: ActivityEntryLike) => activityProductRef(entry),
+    productRefs: (entry: ActivityEntryLike) => activityProductRefs(entry),
     metadataChips: (entry: ActivityEntryLike) => activityChips(entry, ctx()),
+    activityDetailsFor: (entry: ActivityEntryLike) => activityDetails(entry, ctx()),
     activitySummary: (entry: ActivityEntryLike) => activitySummary(entry, ctx()),
   }
 }
