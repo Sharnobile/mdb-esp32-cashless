@@ -2,3 +2,4 @@
 *.dSYM.zip
 fastlane/report.xml
 fastlane/README.md
+fastlane/screenshots/screenshots.html
