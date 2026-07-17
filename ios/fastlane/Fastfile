@@ -75,16 +75,18 @@ platform :ios do
     { api_key: api_key, auth_args: auth_args }
   end
 
-  # Abort before any metadata upload if the reviewer demo credentials are still
-  # placeholders. Uploading the literal "[FILL IN: …]" as the demo login is a
-  # certain Guideline 2.1 rejection ("cannot sign in").
+  # Abort before any metadata upload if a review_information file still holds a
+  # "[FILL IN: …]" placeholder — uploading that as the demo login is a certain
+  # Guideline 2.1 rejection. The demo credentials themselves live directly in
+  # App Store Connect (demo_user/password/phone are git-ignored, absent in CI —
+  # this check just guards the tracked files like notes.txt).
   private_lane :guard_review_info do
     Dir.glob("fastlane/metadata/review_information/*.txt").each do |f|
       if File.read(f).include?("[FILL IN")
         UI.user_error!(
-          "#{f} still contains a [FILL IN …] placeholder. Fill the demo " \
-          "credentials + phone in fastlane/metadata/review_information/ before " \
-          "uploading metadata (see docs/ios/app-store-review-notes.md)."
+          "#{f} still contains a [FILL IN …] placeholder. Set the demo " \
+          "credentials in App Store Connect (App Review Information) and fix " \
+          "this file (see docs/ios/app-store-review-notes.md)."
         )
       end
     end

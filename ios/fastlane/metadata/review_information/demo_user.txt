@@ -1,1 +1,1 @@
-[FILL IN: demo account email on supabase.kerl-handel.de]
+review@kerl.io

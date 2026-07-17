@@ -7,8 +7,14 @@ from fixtures; review does not. This is what has to be in place.
 Live in `ios/fastlane/metadata/review_information/notes.txt` and are uploaded by
 deliver. They explain: the pre-selected server, how to sign in, that account
 deletion is testable, and that this is a B2B operator tool (heads off Guideline
-4.2/4.3 "who is this for" questions). Keep the password **only** in ASC's demo
-fields, never in the repo.
+4.2/4.3 "who is this for" questions).
+
+**Demo credentials are NOT in the repo — this repo is public.** `demo_user.txt`,
+`demo_password.txt` and `phone_number.txt` are git-ignored; they exist only on
+your machine. Enter these three **once, by hand, in App Store Connect → App
+Review Information** — they persist across versions, so deliver never needs them.
+(The current demo login: `review@kerl.io`. Password + phone are in the local
+files and in ASC, nowhere else.)
 
 ## The demo account — must be disposable
 Guideline 5.1.1(v) means the reviewer will likely **delete** the demo account.
