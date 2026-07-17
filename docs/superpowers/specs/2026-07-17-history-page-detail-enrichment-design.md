@@ -91,6 +91,13 @@ metadata: {
 }
 ```
 
+`tray`/`productName` are already `null`/`undefined`-safe from the existing
+lookup above (a sale on a slot with no assigned product, or a machine record
+that fails to resolve, falls through to `null` — same as today, just also
+persisted). `saleSeq` is `number | null`; `activityDetails` (below) must
+render on presence (`sale_seq != null`), not truthiness, since `0` is a
+valid sequence number.
+
 No other change to this function. Still wrapped in the existing try/catch —
 a logging failure must never affect the sale itself.
 
@@ -136,10 +143,23 @@ with historical rows.
 - **New `activityProductRefs(entry): ProductRefWithStock[]`** — plural
   variant for multi-item entries. Reads `trays_refilled` when it's an array,
   for both `stock_refill_all` and `stock_refill_tour`, returning
-  `{ productId, productName, oldStock, newStock }[]`. This replaces the
-  current per-product chip loops in both actions' `activityChips` cases —
-  those loops stay removed; the view renders this list directly instead of
-  as icon-less/label-less chips.
+  `{ productId, productName, oldStock, newStock }[]`, falling back to
+  `#item_number` for `productName` when a tray has no assigned product
+  (mirrors the existing `stock_refill_all` chip fallback in
+  `activityChips` today). This replaces the current per-product chip loops
+  in both actions' `activityChips` cases for the **array** `trays_refilled`
+  shape — those loops stay removed for that shape.
+
+  For `stock_refill_tour` specifically, historical rows written before this
+  change have neither an array `trays_refilled` nor per-item stock deltas —
+  only the old flat `products: [{product_id, product_name, quantity}]`
+  array (no images, no old/new stock). `activityProductRefs` must also
+  accept that legacy shape as a fallback source (mapped to
+  `{ productId, productName, oldStock: undefined, newStock: undefined,
+  quantity }`, with the view rendering `×quantity` instead of an old→new
+  pill when stock deltas are absent) — otherwise those rows regress from
+  "broken but present" `×N` chips today to nothing at all, which the
+  non-goals section explicitly rules out.
 
 - **New `activityDetails(entry): ActivityDetail[]`** — curated
   "technical details" for the expand panel, deliberately a whitelist (not a
