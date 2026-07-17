@@ -11,3 +11,9 @@ ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon
 
 // Notification Service Extension bundle ID (must be suffix of host app ID)
 EXTENSION_BUNDLE_IDENTIFIER = de.kerl-handel.app.NotificationService
+
+// Screenshot-automation fixture engine is Debug-only (FixtureURLProtocol.swift
+// is also wrapped in #if DEBUG, so it compiles empty here). Resource
+// membership has no per-config toggle, so the Fixtures/ folder — fictional
+// demo data, never meant to ship — is excluded from the Release bundle here.
+EXCLUDED_SOURCE_FILE_NAMES = $(inherited) Fixtures*

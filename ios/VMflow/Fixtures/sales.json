@@ -1,0 +1,450 @@
+[
+  {
+    "id": "eeeeeeee-eeee-eeee-eeee-000000000001",
+    "created_at": "__NOW-1H__",
+    "machine_id": "33333333-3333-3333-3333-333333333331",
+    "embedded_id": "44444444-4444-4444-4444-444444444441",
+    "item_price": 1.8,
+    "item_number": 11,
+    "channel": "mdb",
+    "product_id": "55555555-5555-5555-5555-555555555551",
+    "products": {
+      "name": "Cola Zero 0,5 l",
+      "image_path": "cola-zero.png"
+    }
+  },
+  {
+    "id": "eeeeeeee-eeee-eeee-eeee-000000000002",
+    "created_at": "__NOW-2H__",
+    "machine_id": "33333333-3333-3333-3333-333333333331",
+    "embedded_id": "44444444-4444-4444-4444-444444444441",
+    "item_price": 1.5,
+    "item_number": 12,
+    "channel": "mdb",
+    "product_id": "55555555-5555-5555-5555-555555555552",
+    "products": {
+      "name": "Snickers",
+      "image_path": "snickers.png"
+    }
+  },
+  {
+    "id": "eeeeeeee-eeee-eeee-eeee-000000000003",
+    "created_at": "__NOW-4H__",
+    "machine_id": "33333333-3333-3333-3333-333333333332",
+    "embedded_id": "44444444-4444-4444-4444-444444444442",
+    "item_price": 2.0,
+    "item_number": 13,
+    "channel": "mdb",
+    "product_id": "55555555-5555-5555-5555-555555555553",
+    "products": {
+      "name": "Chips Paprika",
+      "image_path": "chips-paprika.png"
+    }
+  },
+  {
+    "id": "eeeeeeee-eeee-eeee-eeee-000000000004",
+    "created_at": "__NOW-1D__",
+    "machine_id": "33333333-3333-3333-3333-333333333332",
+    "embedded_id": "44444444-4444-4444-4444-444444444442",
+    "item_price": 1.5,
+    "item_number": 12,
+    "channel": "mdb",
+    "product_id": "55555555-5555-5555-5555-555555555552",
+    "products": {
+      "name": "Snickers",
+      "image_path": "snickers.png"
+    }
+  },
+  {
+    "id": "eeeeeeee-eeee-eeee-eeee-000000000005",
+    "created_at": "__NOW-2D__",
+    "machine_id": "33333333-3333-3333-3333-333333333333",
+    "embedded_id": "44444444-4444-4444-4444-444444444443",
+    "item_price": 2.0,
+    "item_number": 13,
+    "channel": "mdb",
+    "product_id": "55555555-5555-5555-5555-555555555553",
+    "products": {
+      "name": "Chips Paprika",
+      "image_path": "chips-paprika.png"
+    }
+  },
+  {
+    "id": "eeeeeeee-eeee-eeee-eeee-000000000006",
+    "created_at": "__NOW-3D__",
+    "machine_id": "33333333-3333-3333-3333-333333333331",
+    "embedded_id": "44444444-4444-4444-4444-444444444441",
+    "item_price": 1.2,
+    "item_number": 14,
+    "channel": "mdb",
+    "product_id": "55555555-5555-5555-5555-555555555554",
+    "products": {
+      "name": "Wasser still 0,5 l",
+      "image_path": "wasser.png"
+    }
+  },
+  {
+    "id": "eeeeeeee-eeee-eeee-eeee-000000000007",
+    "created_at": "__NOW-4D__",
+    "machine_id": "33333333-3333-3333-3333-333333333332",
+    "embedded_id": "44444444-4444-4444-4444-444444444442",
+    "item_price": 1.8,
+    "item_number": 11,
+    "channel": "mdb",
+    "product_id": "55555555-5555-5555-5555-555555555551",
+    "products": {
+      "name": "Cola Zero 0,5 l",
+      "image_path": "cola-zero.png"
+    }
+  },
+  {
+    "id": "eeeeeeee-eeee-eeee-eeee-000000000008",
+    "created_at": "__NOW-5D__",
+    "machine_id": "33333333-3333-3333-3333-333333333333",
+    "embedded_id": "44444444-4444-4444-4444-444444444443",
+    "item_price": 1.5,
+    "item_number": 12,
+    "channel": "mdb",
+    "product_id": "55555555-5555-5555-5555-555555555552",
+    "products": {
+      "name": "Snickers",
+      "image_path": "snickers.png"
+    }
+  },
+  {
+    "id": "eeeeeeee-eeee-eeee-eeee-000000000009",
+    "created_at": "__NOW-6D__",
+    "machine_id": "33333333-3333-3333-3333-333333333331",
+    "embedded_id": "44444444-4444-4444-4444-444444444441",
+    "item_price": 2.0,
+    "item_number": 13,
+    "channel": "mdb",
+    "product_id": "55555555-5555-5555-5555-555555555553",
+    "products": {
+      "name": "Chips Paprika",
+      "image_path": "chips-paprika.png"
+    }
+  },
+  {
+    "id": "eeeeeeee-eeee-eeee-eeee-000000000010",
+    "created_at": "__NOW-7D__",
+    "machine_id": "33333333-3333-3333-3333-333333333332",
+    "embedded_id": "44444444-4444-4444-4444-444444444442",
+    "item_price": 1.2,
+    "item_number": 14,
+    "channel": "mdb",
+    "product_id": "55555555-5555-5555-5555-555555555554",
+    "products": {
+      "name": "Wasser still 0,5 l",
+      "image_path": "wasser.png"
+    }
+  },
+  {
+    "id": "eeeeeeee-eeee-eeee-eeee-000000000011",
+    "created_at": "__NOW-8D__",
+    "machine_id": "33333333-3333-3333-3333-333333333333",
+    "embedded_id": "44444444-4444-4444-4444-444444444443",
+    "item_price": 1.8,
+    "item_number": 11,
+    "channel": "mdb",
+    "product_id": "55555555-5555-5555-5555-555555555551",
+    "products": {
+      "name": "Cola Zero 0,5 l",
+      "image_path": "cola-zero.png"
+    }
+  },
+  {
+    "id": "eeeeeeee-eeee-eeee-eeee-000000000012",
+    "created_at": "__NOW-9D__",
+    "machine_id": "33333333-3333-3333-3333-333333333331",
+    "embedded_id": "44444444-4444-4444-4444-444444444441",
+    "item_price": 1.5,
+    "item_number": 12,
+    "channel": "mdb",
+    "product_id": "55555555-5555-5555-5555-555555555552",
+    "products": {
+      "name": "Snickers",
+      "image_path": "snickers.png"
+    }
+  },
+  {
+    "id": "eeeeeeee-eeee-eeee-eeee-000000000013",
+    "created_at": "__NOW-10D__",
+    "machine_id": "33333333-3333-3333-3333-333333333332",
+    "embedded_id": "44444444-4444-4444-4444-444444444442",
+    "item_price": 2.0,
+    "item_number": 13,
+    "channel": "mdb",
+    "product_id": "55555555-5555-5555-5555-555555555553",
+    "products": {
+      "name": "Chips Paprika",
+      "image_path": "chips-paprika.png"
+    }
+  },
+  {
+    "id": "eeeeeeee-eeee-eeee-eeee-000000000014",
+    "created_at": "__NOW-11D__",
+    "machine_id": "33333333-3333-3333-3333-333333333333",
+    "embedded_id": "44444444-4444-4444-4444-444444444443",
+    "item_price": 1.2,
+    "item_number": 14,
+    "channel": "mdb",
+    "product_id": "55555555-5555-5555-5555-555555555554",
+    "products": {
+      "name": "Wasser still 0,5 l",
+      "image_path": "wasser.png"
+    }
+  },
+  {
+    "id": "eeeeeeee-eeee-eeee-eeee-000000000015",
+    "created_at": "__NOW-12D__",
+    "machine_id": "33333333-3333-3333-3333-333333333331",
+    "embedded_id": "44444444-4444-4444-4444-444444444441",
+    "item_price": 1.8,
+    "item_number": 11,
+    "channel": "mdb",
+    "product_id": "55555555-5555-5555-5555-555555555551",
+    "products": {
+      "name": "Cola Zero 0,5 l",
+      "image_path": "cola-zero.png"
+    }
+  },
+  {
+    "id": "eeeeeeee-eeee-eeee-eeee-000000000016",
+    "created_at": "__NOW-13D__",
+    "machine_id": "33333333-3333-3333-3333-333333333332",
+    "embedded_id": "44444444-4444-4444-4444-444444444442",
+    "item_price": 1.5,
+    "item_number": 12,
+    "channel": "mdb",
+    "product_id": "55555555-5555-5555-5555-555555555552",
+    "products": {
+      "name": "Snickers",
+      "image_path": "snickers.png"
+    }
+  },
+  {
+    "id": "eeeeeeee-eeee-eeee-eeee-000000000017",
+    "created_at": "__NOW-14D__",
+    "machine_id": "33333333-3333-3333-3333-333333333333",
+    "embedded_id": "44444444-4444-4444-4444-444444444443",
+    "item_price": 2.0,
+    "item_number": 13,
+    "channel": "mdb",
+    "product_id": "55555555-5555-5555-5555-555555555553",
+    "products": {
+      "name": "Chips Paprika",
+      "image_path": "chips-paprika.png"
+    }
+  },
+  {
+    "id": "eeeeeeee-eeee-eeee-eeee-000000000018",
+    "created_at": "__NOW-15D__",
+    "machine_id": "33333333-3333-3333-3333-333333333331",
+    "embedded_id": "44444444-4444-4444-4444-444444444441",
+    "item_price": 1.2,
+    "item_number": 14,
+    "channel": "mdb",
+    "product_id": "55555555-5555-5555-5555-555555555554",
+    "products": {
+      "name": "Wasser still 0,5 l",
+      "image_path": "wasser.png"
+    }
+  },
+  {
+    "id": "eeeeeeee-eeee-eeee-eeee-000000000019",
+    "created_at": "__NOW-16D__",
+    "machine_id": "33333333-3333-3333-3333-333333333332",
+    "embedded_id": "44444444-4444-4444-4444-444444444442",
+    "item_price": 1.8,
+    "item_number": 11,
+    "channel": "mdb",
+    "product_id": "55555555-5555-5555-5555-555555555551",
+    "products": {
+      "name": "Cola Zero 0,5 l",
+      "image_path": "cola-zero.png"
+    }
+  },
+  {
+    "id": "eeeeeeee-eeee-eeee-eeee-000000000020",
+    "created_at": "__NOW-17D__",
+    "machine_id": "33333333-3333-3333-3333-333333333333",
+    "embedded_id": "44444444-4444-4444-4444-444444444443",
+    "item_price": 1.5,
+    "item_number": 12,
+    "channel": "mdb",
+    "product_id": "55555555-5555-5555-5555-555555555552",
+    "products": {
+      "name": "Snickers",
+      "image_path": "snickers.png"
+    }
+  },
+  {
+    "id": "eeeeeeee-eeee-eeee-eeee-000000000021",
+    "created_at": "__NOW-18D__",
+    "machine_id": "33333333-3333-3333-3333-333333333331",
+    "embedded_id": "44444444-4444-4444-4444-444444444441",
+    "item_price": 2.0,
+    "item_number": 13,
+    "channel": "mdb",
+    "product_id": "55555555-5555-5555-5555-555555555553",
+    "products": {
+      "name": "Chips Paprika",
+      "image_path": "chips-paprika.png"
+    }
+  },
+  {
+    "id": "eeeeeeee-eeee-eeee-eeee-000000000022",
+    "created_at": "__NOW-19D__",
+    "machine_id": "33333333-3333-3333-3333-333333333332",
+    "embedded_id": "44444444-4444-4444-4444-444444444442",
+    "item_price": 1.2,
+    "item_number": 14,
+    "channel": "mdb",
+    "product_id": "55555555-5555-5555-5555-555555555554",
+    "products": {
+      "name": "Wasser still 0,5 l",
+      "image_path": "wasser.png"
+    }
+  },
+  {
+    "id": "eeeeeeee-eeee-eeee-eeee-000000000023",
+    "created_at": "__NOW-20D__",
+    "machine_id": "33333333-3333-3333-3333-333333333333",
+    "embedded_id": "44444444-4444-4444-4444-444444444443",
+    "item_price": 1.8,
+    "item_number": 11,
+    "channel": "mdb",
+    "product_id": "55555555-5555-5555-5555-555555555551",
+    "products": {
+      "name": "Cola Zero 0,5 l",
+      "image_path": "cola-zero.png"
+    }
+  },
+  {
+    "id": "eeeeeeee-eeee-eeee-eeee-000000000024",
+    "created_at": "__NOW-21D__",
+    "machine_id": "33333333-3333-3333-3333-333333333331",
+    "embedded_id": "44444444-4444-4444-4444-444444444441",
+    "item_price": 1.5,
+    "item_number": 12,
+    "channel": "mdb",
+    "product_id": "55555555-5555-5555-5555-555555555552",
+    "products": {
+      "name": "Snickers",
+      "image_path": "snickers.png"
+    }
+  },
+  {
+    "id": "eeeeeeee-eeee-eeee-eeee-000000000025",
+    "created_at": "__NOW-22D__",
+    "machine_id": "33333333-3333-3333-3333-333333333332",
+    "embedded_id": "44444444-4444-4444-4444-444444444442",
+    "item_price": 2.0,
+    "item_number": 13,
+    "channel": "mdb",
+    "product_id": "55555555-5555-5555-5555-555555555553",
+    "products": {
+      "name": "Chips Paprika",
+      "image_path": "chips-paprika.png"
+    }
+  },
+  {
+    "id": "eeeeeeee-eeee-eeee-eeee-000000000026",
+    "created_at": "__NOW-23D__",
+    "machine_id": "33333333-3333-3333-3333-333333333333",
+    "embedded_id": "44444444-4444-4444-4444-444444444443",
+    "item_price": 1.2,
+    "item_number": 14,
+    "channel": "mdb",
+    "product_id": "55555555-5555-5555-5555-555555555554",
+    "products": {
+      "name": "Wasser still 0,5 l",
+      "image_path": "wasser.png"
+    }
+  },
+  {
+    "id": "eeeeeeee-eeee-eeee-eeee-000000000027",
+    "created_at": "__NOW-24D__",
+    "machine_id": "33333333-3333-3333-3333-333333333331",
+    "embedded_id": "44444444-4444-4444-4444-444444444441",
+    "item_price": 1.8,
+    "item_number": 11,
+    "channel": "mdb",
+    "product_id": "55555555-5555-5555-5555-555555555551",
+    "products": {
+      "name": "Cola Zero 0,5 l",
+      "image_path": "cola-zero.png"
+    }
+  },
+  {
+    "id": "eeeeeeee-eeee-eeee-eeee-000000000028",
+    "created_at": "__NOW-25D__",
+    "machine_id": "33333333-3333-3333-3333-333333333332",
+    "embedded_id": "44444444-4444-4444-4444-444444444442",
+    "item_price": 1.5,
+    "item_number": 12,
+    "channel": "mdb",
+    "product_id": "55555555-5555-5555-5555-555555555552",
+    "products": {
+      "name": "Snickers",
+      "image_path": "snickers.png"
+    }
+  },
+  {
+    "id": "eeeeeeee-eeee-eeee-eeee-000000000029",
+    "created_at": "__NOW-26D__",
+    "machine_id": "33333333-3333-3333-3333-333333333333",
+    "embedded_id": "44444444-4444-4444-4444-444444444443",
+    "item_price": 2.0,
+    "item_number": 13,
+    "channel": "mdb",
+    "product_id": "55555555-5555-5555-5555-555555555553",
+    "products": {
+      "name": "Chips Paprika",
+      "image_path": "chips-paprika.png"
+    }
+  },
+  {
+    "id": "eeeeeeee-eeee-eeee-eeee-000000000030",
+    "created_at": "__NOW-27D__",
+    "machine_id": "33333333-3333-3333-3333-333333333331",
+    "embedded_id": "44444444-4444-4444-4444-444444444441",
+    "item_price": 1.2,
+    "item_number": 14,
+    "channel": "mdb",
+    "product_id": "55555555-5555-5555-5555-555555555554",
+    "products": {
+      "name": "Wasser still 0,5 l",
+      "image_path": "wasser.png"
+    }
+  },
+  {
+    "id": "eeeeeeee-eeee-eeee-eeee-000000000031",
+    "created_at": "__NOW-28D__",
+    "machine_id": "33333333-3333-3333-3333-333333333332",
+    "embedded_id": "44444444-4444-4444-4444-444444444442",
+    "item_price": 1.8,
+    "item_number": 11,
+    "channel": "mdb",
+    "product_id": "55555555-5555-5555-5555-555555555551",
+    "products": {
+      "name": "Cola Zero 0,5 l",
+      "image_path": "cola-zero.png"
+    }
+  },
+  {
+    "id": "eeeeeeee-eeee-eeee-eeee-000000000032",
+    "created_at": "__NOW-29D__",
+    "machine_id": "33333333-3333-3333-3333-333333333333",
+    "embedded_id": "44444444-4444-4444-4444-444444444443",
+    "item_price": 1.5,
+    "item_number": 12,
+    "channel": "mdb",
+    "product_id": "55555555-5555-5555-5555-555555555552",
+    "products": {
+      "name": "Snickers",
+      "image_path": "snickers.png"
+    }
+  }
+]

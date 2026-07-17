@@ -1,0 +1,50 @@
+[
+  {
+    "id": "33333333-3333-3333-3333-333333333331",
+    "name": "Snackomat West",
+    "location_lat": 48.137154,
+    "location_lon": 11.576124,
+    "embedded": "44444444-4444-4444-4444-444444444441",
+    "country_code": "DE",
+    "embeddeds": {
+      "id": "44444444-4444-4444-4444-444444444441",
+      "status": "online",
+      "status_at": "__NOW__",
+      "subdomain": 1001,
+      "mac_address": "AA:BB:CC:DD:EE:01",
+      "firmware_version": "2.4.1"
+    }
+  },
+  {
+    "id": "33333333-3333-3333-3333-333333333332",
+    "name": "Automat Hauptbahnhof",
+    "location_lat": 52.525592,
+    "location_lon": 13.369545,
+    "embedded": "44444444-4444-4444-4444-444444444442",
+    "country_code": "DE",
+    "embeddeds": {
+      "id": "44444444-4444-4444-4444-444444444442",
+      "status": "online",
+      "status_at": "__NOW-1H__",
+      "subdomain": 1002,
+      "mac_address": "AA:BB:CC:DD:EE:02",
+      "firmware_version": "2.4.1"
+    }
+  },
+  {
+    "id": "33333333-3333-3333-3333-333333333333",
+    "name": "Snackomat Ost",
+    "location_lat": 53.553406,
+    "location_lon": 9.992196,
+    "embedded": "44444444-4444-4444-4444-444444444443",
+    "country_code": "DE",
+    "embeddeds": {
+      "id": "44444444-4444-4444-4444-444444444443",
+      "status": "offline",
+      "status_at": "__NOW-2D__",
+      "subdomain": 1003,
+      "mac_address": "AA:BB:CC:DD:EE:03",
+      "firmware_version": "2.3.9"
+    }
+  }
+]

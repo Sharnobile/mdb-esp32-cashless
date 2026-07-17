@@ -100,6 +100,8 @@
 		FE02AA03BB04CC05DD06EE07 /* ActivityFeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE12AA13BB14CC15DD16EE17 /* ActivityFeed.swift */; };
 		FE4C794519B8D88EA6886C0A /* StockBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204427FECDDE3A1BB3CB316C /* StockBar.swift */; };
 		A1B2C3D4E5F600000000EF01 /* ExpiryDateField.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F600000000EF02 /* ExpiryDateField.swift */; };
+		197F3264DB4FF1F030584AD6 /* FixtureURLProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58DE29ECFD46BCDD98F18DCF /* FixtureURLProtocol.swift */; };
+		7796889F9147FF3D55C754A6 /* Fixtures in Resources */ = {isa = PBXBuildFile; fileRef = 9A552F665C89F83D12EECC44 /* Fixtures */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -139,6 +141,8 @@
 		1C6D6D60C1508A2B07975E1F /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		204427FECDDE3A1BB3CB316C /* StockBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StockBar.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F600000000EF02 /* ExpiryDateField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExpiryDateField.swift; sourceTree = "<group>"; };
+		58DE29ECFD46BCDD98F18DCF /* FixtureURLProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FixtureURLProtocol.swift; sourceTree = "<group>"; };
+		9A552F665C89F83D12EECC44 /* Fixtures */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Fixtures; sourceTree = "<group>"; };
 		215EDEE2A21B82EE7D2ED841 /* Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Debug.xcconfig; sourceTree = "<group>"; };
 		24171AEC291F3AA1B07FEB50 /* ReplacementProductPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReplacementProductPicker.swift; sourceTree = "<group>"; };
 		254111FB4644A0C29A6E97ED /* PurchasePricesSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PurchasePricesSheet.swift; sourceTree = "<group>"; };
@@ -477,6 +481,7 @@
 				5AE7FC95E2E89DD0AC7A6981 /* RealtimeService.swift */,
 				81E4EBBB3677A660B6E57BD2 /* ServerStore.swift */,
 				70E364431AFD63E8DE1238E3 /* SupabaseService.swift */,
+				58DE29ECFD46BCDD98F18DCF /* FixtureURLProtocol.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -493,6 +498,7 @@
 				1FBFCFC97325A6C6D9B8D065 /* Utilities */,
 				BA69BE2898BA7064DAC9A74C /* ViewModels */,
 				C0C9A4E98467B62E7FE1AFBD /* Views */,
+				9A552F665C89F83D12EECC44 /* Fixtures */,
 			);
 			path = VMflow;
 			sourceTree = "<group>";
@@ -622,6 +628,7 @@
 				D26A6A4A55DF5DC1587BAD9A /* Assets.xcassets in Resources */,
 				F65C2BAC5F1F46AB4788DECF /* Localizable.xcstrings in Resources */,
 				C3D4E5F60718293A4B5C6D7E /* PrivacyInfo.xcprivacy in Resources */,
+				7796889F9147FF3D55C754A6 /* Fixtures in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -768,6 +775,7 @@
 				DB8E9911CE913C6DAF12F49D /* PurchaseComparison.swift in Sources */,
 				7DD2B71154768AA698F1D5BB /* PurchasePricesViewModel.swift in Sources */,
 				836A2197542D4BCCB8D8C2A3 /* PurchasePricesSheet.swift in Sources */,
+				197F3264DB4FF1F030584AD6 /* FixtureURLProtocol.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

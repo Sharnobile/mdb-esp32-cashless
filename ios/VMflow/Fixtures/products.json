@@ -1,0 +1,42 @@
+[
+  {
+    "id": "55555555-5555-5555-5555-555555555551",
+    "name": "Cola Zero 0,5 l",
+    "image_path": "cola-zero.png",
+    "discontinued": false,
+    "sellprice": 1.80,
+    "category": "66666666-6666-6666-6666-666666666661"
+  },
+  {
+    "id": "55555555-5555-5555-5555-555555555552",
+    "name": "Snickers",
+    "image_path": "snickers.png",
+    "discontinued": false,
+    "sellprice": 1.50,
+    "category": "66666666-6666-6666-6666-666666666662"
+  },
+  {
+    "id": "55555555-5555-5555-5555-555555555553",
+    "name": "Chips Paprika",
+    "image_path": "chips-paprika.png",
+    "discontinued": false,
+    "sellprice": 2.00,
+    "category": "66666666-6666-6666-6666-666666666662"
+  },
+  {
+    "id": "55555555-5555-5555-5555-555555555554",
+    "name": "Wasser still 0,5 l",
+    "image_path": "wasser.png",
+    "discontinued": false,
+    "sellprice": 1.20,
+    "category": "66666666-6666-6666-6666-666666666661"
+  },
+  {
+    "id": "55555555-5555-5555-5555-555555555555",
+    "name": "Kaffee Latte",
+    "image_path": null,
+    "discontinued": true,
+    "sellprice": 2.20,
+    "category": "66666666-6666-6666-6666-666666666661"
+  }
+]

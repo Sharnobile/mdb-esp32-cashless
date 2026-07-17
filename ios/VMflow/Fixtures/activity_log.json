@@ -1,0 +1,43 @@
+[
+  {
+    "id": "dddddddd-dddd-dddd-dddd-ddddddddddd1",
+    "created_at": "__NOW-1D__",
+    "action": "stock_refill_tour",
+    "metadata": {
+      "tour_id": "fixture-tour-1",
+      "machine_name": "Snackomat West",
+      "trays_refilled": 3,
+      "total_added": 18,
+      "_user_display": "Demo User",
+      "products": [
+        { "product_name": "Cola Zero 0,5 l", "quantity": 8 },
+        { "product_name": "Snickers", "quantity": 6 },
+        { "product_name": "Chips Paprika", "quantity": 4 }
+      ]
+    }
+  },
+  {
+    "id": "dddddddd-dddd-dddd-dddd-ddddddddddd2",
+    "created_at": "__NOW-2D__",
+    "action": "tour_started",
+    "metadata": {
+      "tour_id": "fixture-tour-2",
+      "_user_display": "Demo User",
+      "machine_count": 2,
+      "machine_names": ["Snackomat West", "Automat Hauptbahnhof"],
+      "warehouse_name": "Zentrallager München"
+    }
+  },
+  {
+    "id": "dddddddd-dddd-dddd-dddd-ddddddddddd3",
+    "created_at": "__NOW-3D__",
+    "action": "cash_book_entry_created",
+    "metadata": {
+      "type": "expense",
+      "amount": 34.90,
+      "category": "cleaning",
+      "description": "Reinigung Snackomat West",
+      "_user_display": "Demo User"
+    }
+  }
+]

@@ -37,6 +37,35 @@ final class SupabaseService {
     private(set) var supabaseURL: URL
 
     private init() {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-UITestFixtures") {
+            // Screenshot-automation seam (docs/superpowers/plans/2026-07-17-ios-screenshot-automation.md).
+            // `.invalid` (RFC 2606), not `.local` — `.local` triggers multi-second
+            // mDNS resolution timeouts on paths that do try to resolve (the
+            // realtime websocket); `.invalid` fails instantly.
+            let url = URL(string: "https://fixtures.invalid")!
+            supabaseURL = url
+
+            let configuration = URLSessionConfiguration.ephemeral
+            configuration.protocolClasses = [FixtureURLProtocol.self]
+            let fixtureSession = URLSession(configuration: configuration)
+
+            // `ProductImage.swift` deliberately loads images via
+            // `URLSession.shared` (an AsyncImage/LazyVStack workaround), not
+            // through this client's session — without this global
+            // registration every screenshot would show gray placeholder
+            // boxes while every other check passes.
+            URLProtocol.registerClass(FixtureURLProtocol.self)
+
+            client = SupabaseClient(
+                supabaseURL: url,
+                supabaseKey: "fixtures",
+                options: SupabaseClientOptions(global: .init(session: fixtureSession))
+            )
+            return
+        }
+        #endif
+
         let server = ServerStore.shared.selectedServer
         let url = URL(string: server.sanitizedURL) ?? AppConfig.supabaseURL
         supabaseURL = url

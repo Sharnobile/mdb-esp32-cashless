@@ -1,0 +1,200 @@
+[
+  {
+    "id": "88888888-8888-8888-8888-888888880011",
+    "machine_id": "33333333-3333-3333-3333-333333333331",
+    "item_number": 11,
+    "product_id": "55555555-5555-5555-5555-555555555551",
+    "capacity": 10,
+    "current_stock": 8,
+    "min_stock": 2,
+    "fill_when_below": 4,
+    "products": { "name": "Cola Zero 0,5 l", "image_path": "cola-zero.png", "discontinued": false, "sellprice": 1.80 }
+  },
+  {
+    "id": "88888888-8888-8888-8888-888888880012",
+    "machine_id": "33333333-3333-3333-3333-333333333331",
+    "item_number": 12,
+    "product_id": "55555555-5555-5555-5555-555555555552",
+    "capacity": 10,
+    "current_stock": 1,
+    "min_stock": 2,
+    "fill_when_below": 4,
+    "products": { "name": "Snickers", "image_path": "snickers.png", "discontinued": false, "sellprice": 1.50 }
+  },
+  {
+    "id": "88888888-8888-8888-8888-888888880013",
+    "machine_id": "33333333-3333-3333-3333-333333333331",
+    "item_number": 13,
+    "product_id": "55555555-5555-5555-5555-555555555553",
+    "capacity": 8,
+    "current_stock": 0,
+    "min_stock": 2,
+    "fill_when_below": 3,
+    "products": { "name": "Chips Paprika", "image_path": "chips-paprika.png", "discontinued": false, "sellprice": 2.00 }
+  },
+  {
+    "id": "88888888-8888-8888-8888-888888880014",
+    "machine_id": "33333333-3333-3333-3333-333333333331",
+    "item_number": 14,
+    "product_id": "55555555-5555-5555-5555-555555555554",
+    "capacity": 10,
+    "current_stock": 6,
+    "min_stock": 2,
+    "fill_when_below": 4,
+    "products": { "name": "Wasser still 0,5 l", "image_path": "wasser.png", "discontinued": false, "sellprice": 1.20 }
+  },
+  {
+    "id": "88888888-8888-8888-8888-888888880015",
+    "machine_id": "33333333-3333-3333-3333-333333333331",
+    "item_number": 15,
+    "product_id": "55555555-5555-5555-5555-555555555555",
+    "capacity": 8,
+    "current_stock": 0,
+    "min_stock": 2,
+    "fill_when_below": 3,
+    "products": { "name": "Kaffee Latte", "image_path": null, "discontinued": true, "sellprice": 2.20 }
+  },
+  {
+    "id": "88888888-8888-8888-8888-888888880016",
+    "machine_id": "33333333-3333-3333-3333-333333333331",
+    "item_number": 16,
+    "product_id": null,
+    "capacity": 8,
+    "current_stock": 0,
+    "min_stock": 2,
+    "fill_when_below": 3,
+    "products": null
+  },
+  {
+    "id": "88888888-8888-8888-8888-888888880017",
+    "machine_id": "33333333-3333-3333-3333-333333333331",
+    "item_number": 17,
+    "product_id": "55555555-5555-5555-5555-555555555551",
+    "capacity": 10,
+    "current_stock": 9,
+    "min_stock": 2,
+    "fill_when_below": 4,
+    "products": { "name": "Cola Zero 0,5 l", "image_path": "cola-zero.png", "discontinued": false, "sellprice": 1.80 }
+  },
+  {
+    "id": "88888888-8888-8888-8888-888888880018",
+    "machine_id": "33333333-3333-3333-3333-333333333331",
+    "item_number": 18,
+    "product_id": "55555555-5555-5555-5555-555555555552",
+    "capacity": 10,
+    "current_stock": 10,
+    "min_stock": 2,
+    "fill_when_below": 4,
+    "products": { "name": "Snickers", "image_path": "snickers.png", "discontinued": false, "sellprice": 1.50 }
+  },
+  {
+    "id": "88888888-8888-8888-8888-888888880021",
+    "machine_id": "33333333-3333-3333-3333-333333333332",
+    "item_number": 11,
+    "product_id": "55555555-5555-5555-5555-555555555551",
+    "capacity": 10,
+    "current_stock": 7,
+    "min_stock": 2,
+    "fill_when_below": 4,
+    "products": { "name": "Cola Zero 0,5 l", "image_path": "cola-zero.png", "discontinued": false, "sellprice": 1.80 }
+  },
+  {
+    "id": "88888888-8888-8888-8888-888888880022",
+    "machine_id": "33333333-3333-3333-3333-333333333332",
+    "item_number": 12,
+    "product_id": "55555555-5555-5555-5555-555555555554",
+    "capacity": 10,
+    "current_stock": 2,
+    "min_stock": 3,
+    "fill_when_below": 5,
+    "products": { "name": "Wasser still 0,5 l", "image_path": "wasser.png", "discontinued": false, "sellprice": 1.20 }
+  },
+  {
+    "id": "88888888-8888-8888-8888-888888880023",
+    "machine_id": "33333333-3333-3333-3333-333333333332",
+    "item_number": 13,
+    "product_id": "55555555-5555-5555-5555-555555555553",
+    "capacity": 8,
+    "current_stock": 8,
+    "min_stock": 2,
+    "fill_when_below": 3,
+    "products": { "name": "Chips Paprika", "image_path": "chips-paprika.png", "discontinued": false, "sellprice": 2.00 }
+  },
+  {
+    "id": "88888888-8888-8888-8888-888888880024",
+    "machine_id": "33333333-3333-3333-3333-333333333332",
+    "item_number": 14,
+    "product_id": "55555555-5555-5555-5555-555555555552",
+    "capacity": 10,
+    "current_stock": 0,
+    "min_stock": 2,
+    "fill_when_below": 4,
+    "products": { "name": "Snickers", "image_path": "snickers.png", "discontinued": false, "sellprice": 1.50 }
+  },
+  {
+    "id": "88888888-8888-8888-8888-888888880025",
+    "machine_id": "33333333-3333-3333-3333-333333333332",
+    "item_number": 15,
+    "product_id": "55555555-5555-5555-5555-555555555555",
+    "capacity": 8,
+    "current_stock": 3,
+    "min_stock": 2,
+    "fill_when_below": 3,
+    "products": { "name": "Kaffee Latte", "image_path": null, "discontinued": true, "sellprice": 2.20 }
+  },
+  {
+    "id": "88888888-8888-8888-8888-888888880026",
+    "machine_id": "33333333-3333-3333-3333-333333333332",
+    "item_number": 16,
+    "product_id": "55555555-5555-5555-5555-555555555554",
+    "capacity": 10,
+    "current_stock": 9,
+    "min_stock": 2,
+    "fill_when_below": 4,
+    "products": { "name": "Wasser still 0,5 l", "image_path": "wasser.png", "discontinued": false, "sellprice": 1.20 }
+  },
+  {
+    "id": "88888888-8888-8888-8888-888888880031",
+    "machine_id": "33333333-3333-3333-3333-333333333333",
+    "item_number": 11,
+    "product_id": "55555555-5555-5555-5555-555555555551",
+    "capacity": 10,
+    "current_stock": 5,
+    "min_stock": 2,
+    "fill_when_below": 4,
+    "products": { "name": "Cola Zero 0,5 l", "image_path": "cola-zero.png", "discontinued": false, "sellprice": 1.80 }
+  },
+  {
+    "id": "88888888-8888-8888-8888-888888880032",
+    "machine_id": "33333333-3333-3333-3333-333333333333",
+    "item_number": 12,
+    "product_id": "55555555-5555-5555-5555-555555555552",
+    "capacity": 10,
+    "current_stock": 5,
+    "min_stock": 2,
+    "fill_when_below": 4,
+    "products": { "name": "Snickers", "image_path": "snickers.png", "discontinued": false, "sellprice": 1.50 }
+  },
+  {
+    "id": "88888888-8888-8888-8888-888888880033",
+    "machine_id": "33333333-3333-3333-3333-333333333333",
+    "item_number": 13,
+    "product_id": "55555555-5555-5555-5555-555555555553",
+    "capacity": 8,
+    "current_stock": 2,
+    "min_stock": 2,
+    "fill_when_below": 3,
+    "products": { "name": "Chips Paprika", "image_path": "chips-paprika.png", "discontinued": false, "sellprice": 2.00 }
+  },
+  {
+    "id": "88888888-8888-8888-8888-888888880034",
+    "machine_id": "33333333-3333-3333-3333-333333333333",
+    "item_number": 14,
+    "product_id": "55555555-5555-5555-5555-555555555554",
+    "capacity": 10,
+    "current_stock": 0,
+    "min_stock": 2,
+    "fill_when_below": 4,
+    "products": { "name": "Wasser still 0,5 l", "image_path": "wasser.png", "discontinued": false, "sellprice": 1.20 }
+  }
+]

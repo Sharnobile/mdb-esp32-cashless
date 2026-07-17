@@ -1,0 +1,50 @@
+[
+  {
+    "id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb1",
+    "product_id": "55555555-5555-5555-5555-555555555551",
+    "warehouse_id": "77777777-7777-7777-7777-777777777771",
+    "user_id": "22222222-2222-2222-2222-222222222222",
+    "quantity_change": 24,
+    "transaction_type": "intake",
+    "created_at": "__NOW-1D__",
+    "notes": "Batch: B-2026-014",
+    "products": { "name": "Cola Zero 0,5 l", "image_path": "cola-zero.png" },
+    "warehouses": { "name": "Zentrallager München" }
+  },
+  {
+    "id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb2",
+    "product_id": "55555555-5555-5555-5555-555555555552",
+    "warehouse_id": "77777777-7777-7777-7777-777777777771",
+    "user_id": "22222222-2222-2222-2222-222222222222",
+    "quantity_change": 12,
+    "transaction_type": "intake",
+    "created_at": "__NOW-2D__",
+    "notes": "Batch: B-2026-018",
+    "products": { "name": "Snickers", "image_path": "snickers.png" },
+    "warehouses": { "name": "Zentrallager München" }
+  },
+  {
+    "id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb3",
+    "product_id": "55555555-5555-5555-5555-555555555553",
+    "warehouse_id": "77777777-7777-7777-7777-777777777771",
+    "user_id": "22222222-2222-2222-2222-222222222222",
+    "quantity_change": 15,
+    "transaction_type": "intake",
+    "created_at": "__NOW-4D__",
+    "notes": "Batch: B-2026-021",
+    "products": { "name": "Chips Paprika", "image_path": "chips-paprika.png" },
+    "warehouses": { "name": "Zentrallager München" }
+  },
+  {
+    "id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb4",
+    "product_id": "55555555-5555-5555-5555-555555555554",
+    "warehouse_id": "77777777-7777-7777-7777-777777777771",
+    "user_id": "22222222-2222-2222-2222-222222222222",
+    "quantity_change": 30,
+    "transaction_type": "intake",
+    "created_at": "__NOW-6D__",
+    "notes": "Batch: B-2026-009",
+    "products": { "name": "Wasser still 0,5 l", "image_path": "wasser.png" },
+    "warehouses": { "name": "Zentrallager München" }
+  }
+]

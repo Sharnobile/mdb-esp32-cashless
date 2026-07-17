@@ -9,6 +9,12 @@ struct VMflowApp: App {
     init() {
         #if DEBUG
         LocalNetworkPermission.shared.trigger()
+        if ProcessInfo.processInfo.arguments.contains("-UITestFixtures") {
+            // Deterministic screenshots: no animations to race against the
+            // UI test's anchor-element waits (design decision 3 in
+            // docs/superpowers/plans/2026-07-17-ios-screenshot-automation.md).
+            UIView.setAnimationsEnabled(false)
+        }
         #endif
     }
 
@@ -28,6 +34,15 @@ struct VMflowApp: App {
                         await authService.syncLocaleToServer()
                     }
                 }
+                #if DEBUG
+                .task {
+                    guard ProcessInfo.processInfo.arguments.contains("-UITestFixtures") else { return }
+                    // Auto-login under the fixture flag: deterministic and
+                    // skips flaky text entry. The stubbed `/auth/v1/token`
+                    // (FixtureURLProtocol) answers with a long-lived session.
+                    await authService.login(email: "demo@vmflow.app", password: "fixtures")
+                }
+                #endif
         }
     }
 }
