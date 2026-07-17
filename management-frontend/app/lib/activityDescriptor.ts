@@ -113,6 +113,7 @@ export function activityProductRef(entry: ActivityEntryLike): ProductRef | null 
   const m = entry.metadata
   if (!m) return null
   switch (entry.action) {
+    case 'sale_recorded':
     case 'sale_deleted':
     case 'sale_inserted':
     case 'sale_restored':

@@ -61,6 +61,20 @@ describe('activityProductRef — drives the row thumbnail', () => {
     expect(activityProductRef({ action: 'tour_started', metadata: { machine_count: 2 } })).toBeNull()
     expect(activityProductRef({ action: 'sale_recorded', metadata: { item_number: 1 } })).toBeNull()
   })
+
+  it('returns the product for a real MDB sale (sale_recorded)', () => {
+    expect(activityProductRef({
+      action: 'sale_recorded',
+      metadata: { product_id: 'p1', product_name: 'Coca-Cola', item_number: 12 },
+    })).toEqual({ productId: 'p1', productName: 'Coca-Cola' })
+  })
+
+  it('returns null for a sale_recorded row predating this field (no product_id/name)', () => {
+    expect(activityProductRef({
+      action: 'sale_recorded',
+      metadata: { item_number: 12, price: 2.5, channel: 'cash', device_id: 'dev-1' },
+    })).toBeNull()
+  })
 })
 
 describe('activityChips — sale_deleted (the reported gap)', () => {
