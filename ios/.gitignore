@@ -3,8 +3,6 @@
 fastlane/report.xml
 fastlane/README.md
 fastlane/screenshots/screenshots.html
-# Review demo credentials + phone — set these directly in App Store Connect
-# (App Review Information). Kept local for reference; never in a public repo.
-fastlane/metadata/review_information/demo_user.txt
-fastlane/metadata/review_information/demo_password.txt
-fastlane/metadata/review_information/phone_number.txt
+# Review information is set by hand in App Store Connect, never in this
+# public repo (demo creds + phone are secret/PII). deliver skips it.
+fastlane/metadata/review_information/

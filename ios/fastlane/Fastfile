@@ -77,23 +77,11 @@ platform :ios do
     { api_key: api_key, auth_args: auth_args }
   end
 
-  # Abort before any metadata upload if a review_information file still holds a
-  # "[FILL IN: …]" placeholder — uploading that as the demo login is a certain
-  # Guideline 2.1 rejection. The demo credentials themselves live directly in
-  # App Store Connect (demo_user/password/phone are git-ignored, absent in CI —
-  # this check just guards the tracked files like notes.txt).
-  private_lane :guard_review_info do
-    Dir.glob("fastlane/metadata/review_information/*.txt").each do |f|
-      if File.read(f).include?("[FILL IN")
-        UI.user_error!(
-          "#{f} still contains a [FILL IN …] placeholder. Set the demo " \
-          "credentials in App Store Connect (App Review Information) and fix " \
-          "this file (see docs/ios/app-store-review-notes.md)."
-        )
-      end
-    end
-  end
-
+  # NOTE: App Review Information (demo account, phone, notes) is set BY HAND in
+  # App Store Connect, not via deliver — this repo is public and those are
+  # secret/PII. The fastlane/metadata/review_information/ folder is git-ignored
+  # and absent in CI, so deliver skips the review-info upload entirely. See
+  # docs/ios/app-store-review-notes.md.
   private_lane :build_signed do
     auth = asc_auth
     setup_ci if ENV["CI"]
@@ -118,7 +106,6 @@ platform :ios do
 
   desc "Build, sign, upload binary + metadata to App Store Connect (no review submission)"
   lane :release do
-    guard_review_info
     api_key = build_signed
     upload_to_app_store(
       api_key: api_key,
@@ -131,7 +118,6 @@ platform :ios do
 
   desc "Upload metadata + screenshots only (no binary)"
   lane :metadata do
-    guard_review_info
     auth = asc_auth
     upload_to_app_store(
       api_key: auth[:api_key],
