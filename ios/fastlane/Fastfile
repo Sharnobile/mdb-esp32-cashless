@@ -4,10 +4,12 @@
 # The key MUST have the Admin role — cloud-managed distribution certificates
 # cannot be granted to lesser API keys (Apple forums thread 698117).
 #
-# Cloud-signing auth must reach BOTH xcodebuild steps: gym's `xcargs` covers
-# only the archive; the -exportArchive step re-signs with the distribution
-# certificate and needs the same flags via `export_xcargs`
-# (fastlane discussion #19973). Do not remove either.
+# Cloud-signing auth: gym's `xcargs` carries the API-key flags to the ARCHIVE
+# step. The EXPORT step's auth is injected automatically by gym (2.237) because
+# `app_store_connect_api_key` ran and is in the lane context — so we must NOT
+# also pass it via `export_xcargs`, or xcodebuild errors
+# "-authenticationKeyPath may only be provided once". (An earlier version set
+# export_xcargs on the assumption gym didn't auto-inject; CI proved it does.)
 #
 # Build numbers: both prebuild scripts run `git rev-list --count HEAD`
 # independently (app + extension). In CI nothing commits mid-build, so they
@@ -99,8 +101,8 @@ platform :ios do
       project: "VMflow.xcodeproj",
       scheme: "VMflow",
       export_method: "app-store",
-      xcargs: auth[:auth_args],
-      export_xcargs: auth[:auth_args]
+      xcargs: auth[:auth_args]
+      # no export_xcargs — gym auto-injects the API key into the export step
     )
     auth[:api_key]
   end
