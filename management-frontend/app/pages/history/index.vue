@@ -10,6 +10,7 @@ import {
   Package, PackagePlus, Truck, Repeat, Wallet, Coins, Link as LinkIcon, Unlink,
   Activity, MapPin, Hash, Euro, CreditCard, Clock, Cpu, Warehouse, Boxes,
   LayoutGrid, Plus, Tag, StickyNote, RefreshCw, ArrowUpRight, ArrowDownRight, ArrowRight,
+  ChevronDown,
 } from 'lucide-vue-next'
 
 const { t, locale } = useI18n()
@@ -71,7 +72,7 @@ function resolveProductImage(ref: { productId?: string; productName?: string } |
 
 // Labels, icons + detail chips are centralised in the descriptor so /history
 // and the dashboard feed render every action type identically.
-const { actionLabel, actionIcon, metadataChips, productRef } = useActivityDescriptor({
+const { actionLabel, actionIcon, metadataChips, productRef, productRefs, activityDetailsFor } = useActivityDescriptor({
   machineName: resolveMachineName,
   machineNameByDevice: resolveMachineNameByDevice,
 })
@@ -146,6 +147,25 @@ const groupedLogs = computed(() => {
   }
   return groups
 })
+
+// ── Expandable rows (product-refill breakdown + technical details) ─────────
+const expandedIds = ref<Set<string>>(new Set())
+function isExpanded(id: string): boolean {
+  return expandedIds.value.has(id)
+}
+function toggleExpanded(id: string) {
+  const next = new Set(expandedIds.value)
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  expandedIds.value = next
+}
+function visibleProductRefs(entry: { id: string; action: string; metadata: Record<string, unknown> | null }) {
+  const refs = productRefs(entry)
+  return isExpanded(entry.id) ? refs : refs.slice(0, 3)
+}
+function hasExpandableContent(entry: { id: string; action: string; metadata: Record<string, unknown> | null }): boolean {
+  return productRefs(entry).length > 3 || activityDetailsFor(entry).length > 0
+}
 </script>
 
 <template>
@@ -245,9 +265,20 @@ const groupedLogs = computed(() => {
 
               <!-- Body: title + meta line -->
               <div class="min-w-0 flex-1">
-                <span class="text-sm font-medium">{{ actionLabel(entry.action) }}</span>
+                <div class="flex items-center gap-1.5">
+                  <span class="text-sm font-medium">{{ actionLabel(entry.action) }}</span>
+                  <button
+                    v-if="hasExpandableContent(entry)"
+                    type="button"
+                    class="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-muted"
+                    :aria-label="isExpanded(entry.id) ? t('activity.showLess') : t('activity.showMore')"
+                    @click="toggleExpanded(entry.id)"
+                  >
+                    <ChevronDown class="h-3.5 w-3.5 transition-transform" :class="{ 'rotate-180': isExpanded(entry.id) }" />
+                  </button>
+                </div>
                 <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-muted-foreground">
-                  <!-- Product thumbnail + name -->
+                  <!-- Product thumbnail + name (single-product entries) -->
                   <span
                     v-if="productRef(entry)"
                     class="inline-flex items-center gap-1.5 rounded-md bg-muted/60 py-0.5 pl-0.5 pr-2"
@@ -277,6 +308,59 @@ const groupedLogs = computed(() => {
                     <component :is="iconComp(chip.icon)" v-if="chip.icon" class="h-[15px] w-[15px] opacity-70" />
                     <span>{{ chip.value }}</span>
                   </span>
+                </div>
+
+                <!-- Multi-item refill breakdown (stock_refill_all / stock_refill_tour) -->
+                <div v-if="productRefs(entry).length" class="mt-2 flex flex-wrap items-center gap-1.5">
+                  <span
+                    v-for="(p, i) in visibleProductRefs(entry)"
+                    :key="(p.productId || p.productName || i) + ''"
+                    class="inline-flex items-center gap-1.5 rounded-md bg-muted/60 py-0.5 pl-0.5 pr-2 text-[13px]"
+                  >
+                    <img
+                      v-if="resolveProductImage(p)"
+                      :src="resolveProductImage(p)!"
+                      class="h-5 w-5 rounded object-cover"
+                      alt=""
+                    />
+                    <span v-else class="flex h-5 w-5 items-center justify-center rounded bg-muted">
+                      <Package class="h-3 w-3" />
+                    </span>
+                    <span class="text-foreground">{{ p.productName || '—' }}</span>
+                    <span
+                      v-if="p.oldStock != null && p.newStock != null"
+                      class="tabular-nums"
+                      :class="p.newStock > p.oldStock ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'"
+                    >
+                      {{ p.oldStock }} → {{ p.newStock }}
+                    </span>
+                    <span v-else-if="p.quantity != null" class="tabular-nums text-muted-foreground">×{{ p.quantity }}</span>
+                  </span>
+                  <button
+                    v-if="!isExpanded(entry.id) && productRefs(entry).length > 3"
+                    type="button"
+                    class="text-[13px] text-muted-foreground underline-offset-2 hover:underline"
+                    @click="toggleExpanded(entry.id)"
+                  >
+                    {{ t('activity.moreItems', { count: productRefs(entry).length - 3 }) }}
+                  </button>
+                </div>
+
+                <!-- Technical details (expand panel) -->
+                <div
+                  v-if="isExpanded(entry.id) && activityDetailsFor(entry).length"
+                  class="mt-2 rounded-md border border-dashed p-2 text-[13px]"
+                >
+                  <div class="mb-1 font-medium text-muted-foreground">{{ t('activity.technicalDetails') }}</div>
+                  <div
+                    v-for="d in activityDetailsFor(entry)"
+                    :key="d.label"
+                    class="flex items-center gap-2"
+                    :class="{ 'text-amber-600 dark:text-amber-400': d.variant === 'warning' }"
+                  >
+                    <span class="text-muted-foreground">{{ d.label }}:</span>
+                    <span>{{ d.value }}</span>
+                  </div>
                 </div>
               </div>
 
