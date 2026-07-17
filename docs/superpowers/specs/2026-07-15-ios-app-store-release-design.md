@@ -305,12 +305,13 @@ called only by the edge function with the service role, after that function has
 verified the caller. It must not be granted to `authenticated`; `REVOKE` from
 `public` explicitly.
 
-⚠️ **Flagged for the user, not decided here:** cash-book entries are accounting
-records that German retention law (GoBD/HGB §257) generally requires kept for
-years, while GDPR Art. 17(3)(b) exempts exactly such data from erasure. Deleting
-a company's cash book on account deletion may conflict with that duty. This is a
-legal question for your tax advisor, not an engineering one — it does not block
-the iOS work, but the answer may later change what §4.3 deletes.
+**RESOLVED 2026-07-17 — cash book may be deleted.** The retention question
+(GoBD/HGB §257 vs GDPR Art. 17(3)(b)) was raised with the operator, who decided
+the cash book may be erased on account deletion. `delete_company_and_data` as
+implemented (deletes `cash_book_entries` then `cash_books`) is therefore correct
+as-is; no change. (Original concern kept for the record: cash-book entries are
+accounting records that retention law may require kept, and Art. 17(3)(b) exempts
+such data from erasure — but that is the controller's call, and it was made.)
 
 ### 4.4 Edge function
 
@@ -415,9 +416,12 @@ New Nuxt pages under `management-frontend/app/pages/legal/`: `privacy.vue`,
 - `https://lagerapp.kerl.io/legal/support` → App Store support URL (required)
 - `/legal/terms`, `/legal/imprint` → linked from both
 
-**Must-not-forget:** add `/legal` to `publicRoutes` in
-`management-frontend/app/middleware/auth.ts:2-11`. Without it the reviewer's
-browser is redirected to login and the mandatory URL counts as dead.
+**Must-not-forget (corrected 2026-07-16):** `auth.ts` is a *named* middleware —
+pages opt in via `definePageMeta({ middleware: 'auth' })`, and
+`@nuxtjs/supabase` has `redirect: false` (`nuxt.config.ts:34`). So the
+load-bearing rule is the inverse of what an earlier draft claimed: **the legal
+pages must simply not declare the auth middleware** (like `/install` and
+`/m/*`). The `publicRoutes` entry in `auth.ts` is defense-in-depth only.
 
 Text lives in `i18n/locales/{en,de}.json` under a `legal.*` tree. i18n
 `strategy: 'no_prefix'` means there is no `/de/legal/privacy`; one URL renders in
