@@ -156,6 +156,22 @@ describe('activityChips — sale_recorded resolves the device to a machine name'
     expect(byLabel(chips, 'activity.field.machine')).toBeUndefined()
     expect(chips.every(c => !c.value.includes('unknown-dev'))).toBe(true)
   })
+
+  it('sale_recorded chips are unaffected by the new product/dedup metadata fields', () => {
+    const chips = activityChips({
+      action: 'sale_recorded',
+      metadata: {
+        item_number: 12, price: 2.5, channel: 'cash', device_id: 'dev-embedded-1',
+        product_id: 'p1', product_name: 'Coca-Cola', sale_seq: 42, time_uncertain: false,
+      },
+    }, ctx)
+    expect(valueOf(chips, 'activity.field.machine')).toBe('Snackautomat 3')
+    expect(valueOf(chips, 'activity.field.slot')).toBe('#12')
+    expect(valueOf(chips, 'activity.field.price')).toBe('€2.50')
+    expect(valueOf(chips, 'activity.field.channel')).toBe('cash')
+    // sale_seq / time_uncertain must NOT appear as chips — they're debug-only (activityDetails)
+    expect(chips.some(c => c.label.includes('saleSeq'))).toBe(false)
+  })
 })
 
 describe('activityChips — other actions', () => {
