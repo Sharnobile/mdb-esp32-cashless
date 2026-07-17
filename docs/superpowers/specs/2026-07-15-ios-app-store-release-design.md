@@ -35,7 +35,7 @@ Verified by inspection on 2026-07-15.
 | supabase-swift pinned at **2.43.1** (exposes `SupabaseClientOptions.global.session`) | `Package.resolved` |
 | No test target, no fastlane, no iOS workflow | `ios/`, `.github/workflows/` |
 | Public repo → macOS runners free; `workflow_dispatch` is collaborator-only | `gh repo view` |
-| Public frontend URL | `https://lagerapp.kerl.io` |
+| Public frontend URL | `https://app.kerl-handel.de` |
 | **No** member/role management UI in iOS (Settings shows org + role read-only) | `ios/VMflow/Views/` |
 
 **XcodeGen divergence:** `ios/project.yml` exists but the committed
@@ -412,8 +412,8 @@ for unknown devices).
 New Nuxt pages under `management-frontend/app/pages/legal/`: `privacy.vue`,
 `support.vue`, `terms.vue`, `imprint.vue`.
 
-- `https://lagerapp.kerl.io/legal/privacy` → App Store privacy URL (required)
-- `https://lagerapp.kerl.io/legal/support` → App Store support URL (required)
+- `https://app.kerl-handel.de/legal/privacy` → App Store privacy URL (required)
+- `https://app.kerl-handel.de/legal/support` → App Store support URL (required)
 - `/legal/terms`, `/legal/imprint` → linked from both
 
 **Must-not-forget (corrected 2026-07-16):** `auth.ts` is a *named* middleware —

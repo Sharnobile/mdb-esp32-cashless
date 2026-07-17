@@ -5,8 +5,8 @@ app_identifier("de.kerl-handel.app")
 
 # The privacy URL is mandatory for a first submission. Same page the app links to.
 privacy_url({
-  "en-US" => "https://lagerapp.kerl.io/legal/privacy",
-  "de-DE" => "https://lagerapp.kerl.io/legal/privacy",
+  "en-US" => "https://app.kerl-handel.de/legal/privacy",
+  "de-DE" => "https://app.kerl-handel.de/legal/privacy",
 })
 
 # Never auto-submit or auto-release — a human presses the button.

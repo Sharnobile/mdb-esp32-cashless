@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Publicly reachable privacy policy, support, terms and imprint pages at `https://lagerapp.kerl.io/legal/*` — the App Store's required URLs.
+**Goal:** Publicly reachable privacy policy, support, terms and imprint pages at `https://app.kerl-handel.de/legal/*` — the App Store's required URLs.
 
 **Architecture:** Four Nuxt pages under `app/pages/legal/`, text in the existing `i18n/locales/{en,de}.json` under a `legal.*` tree, one shared minimal layout component.
 
@@ -109,6 +109,6 @@ the final report, not silently assumed fine.
 
 ## Out of scope
 
-Deploying to `lagerapp.kerl.io` (the user's normal deploy flow does that);
+Deploying to `app.kerl-handel.de` (the user's normal deploy flow does that);
 having the texts legally reviewed (explicitly the user's job, flagged in the
 report); linking the pages from the app UI (optional, later).
