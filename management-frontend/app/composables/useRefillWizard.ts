@@ -145,6 +145,31 @@ export function buildTourStartedEntry(input: TourStartedEntryInput) {
   }
 }
 
+// ── refill snapshot ─────────────────────────────────────────────────────────
+
+/**
+ * Join the refill RPC's authoritative per-tray stock deltas with the
+ * tray metadata (product) known client-side, producing the same shape
+ * `useMachineTrays.ts`'s "refill all" snapshot uses — so both actions
+ * render identically in the /history product-refill list.
+ */
+export function buildRefillSnapshot(
+  results: { tray_id: string; old_stock: number; new_stock: number }[],
+  traysToRefill: { id: string; item_number: number; product_id: string | null; product_name: string | null }[],
+) {
+  return results.map(r => {
+    const tray = traysToRefill.find(t => t.id === r.tray_id)
+    return {
+      id: r.tray_id,
+      item_number: tray?.item_number,
+      product_name: tray?.product_name ?? undefined,
+      product_id: tray?.product_id ?? undefined,
+      old_stock: r.old_stock,
+      new_stock: r.new_stock,
+    }
+  })
+}
+
 // ── Composable ───────────────────────────────────────────────────────────────
 
 export function useRefillWizard() {
@@ -871,13 +896,8 @@ export function useRefillWizard() {
             machine_id: machine.id,
             machine_name: machine.name,
             warehouse_id: selectedWarehouseId.value,
-            trays_refilled: results.length,
+            trays_refilled: buildRefillSnapshot(results, traysToRefill),
             total_added: totalAdded,
-            products: traysToRefill.map(t => ({
-              product_id: t.product_id,
-              product_name: t.product_name,
-              quantity: t.fill_amount,
-            })),
             _user_email: u?.email ?? null,
             _user_display: userDisplay,
           },
