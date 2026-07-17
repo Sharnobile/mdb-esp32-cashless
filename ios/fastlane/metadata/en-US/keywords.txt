@@ -1,0 +1,1 @@
+vending,machine,operator,inventory,stock,refill,route,warehouse,cashless,MDB

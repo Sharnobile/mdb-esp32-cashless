@@ -1,0 +1,13 @@
+VMflow is a business tool for operators of vending machines. It connects to a self-hosted backend and requires an account.
+
+SIGNING IN
+The demo account above is already tied to a demo organisation with seeded machines, sales and stock. On the sign-in screen, the correct server (supabase.kerl-handel.de) is pre-selected — no action is needed there. Just enter the demo credentials and tap Sign In.
+
+WHAT YOU CAN TEST
+- Dashboard, machines, trays/stock, the guided refill tour, and warehouse are all populated with demo data.
+- Account deletion (Guideline 5.1.1(v)) is available in Settings → Delete Account, and also on the "No organization" screen shown right after registering a fresh account. The demo account is disposable and re-seeded before each submission, so deleting it is safe to test.
+
+ABOUT THE SERVER PICKER
+VMflow can connect to different self-hosted servers (operators run their own). The picker on the sign-in screen exists for that reason; the demo server is pre-selected, so you can ignore it.
+
+This app is intended for commercial vending operators managing their own business data; it is not a consumer social or content app.

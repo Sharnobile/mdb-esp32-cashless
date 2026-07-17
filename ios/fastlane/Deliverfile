@@ -1,0 +1,23 @@
+# App-level delivery config read by the `release` and `metadata` lanes.
+# Localized text lives in fastlane/metadata/<locale>/; app-level values below.
+
+app_identifier("de.kerl-handel.app")
+
+# The privacy URL is mandatory for a first submission. Same page the app links to.
+privacy_url({
+  "en-US" => "https://lagerapp.kerl.io/legal/privacy",
+  "de-DE" => "https://lagerapp.kerl.io/legal/privacy",
+})
+
+# Never auto-submit or auto-release — a human presses the button.
+submit_for_review(false)
+automatic_release(false)
+
+# Export compliance is already answered in Info.plist
+# (ITSAppUsesNonExemptEncryption = false); no upload-time prompt.
+#
+# Reminder — these first-submission fields are NOT settable here and must be
+# done once by hand in App Store Connect (see docs/ios/app-store-connect-setup.md):
+#   - Age rating questionnaire (per version)
+#   - Pricing (free) and availability
+#   - The app record itself must exist before the first upload

@@ -1,0 +1,1 @@
+Automat,Verkaufsautomat,Betreiber,Lager,Bestand,Befüllen,Umsatz,Route,Kasse,Vending
