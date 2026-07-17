@@ -4,6 +4,7 @@ import {
   activityChips,
   activityIcon,
   activityProductRef,
+  activityProductRefs,
   activitySummary,
 } from '../activityDescriptor'
 import type { ActivityChip } from '../activityDescriptor'
@@ -74,6 +75,61 @@ describe('activityProductRef — drives the row thumbnail', () => {
       action: 'sale_recorded',
       metadata: { item_number: 12, price: 2.5, channel: 'cash', device_id: 'dev-1' },
     })).toBeNull()
+  })
+})
+
+describe('activityProductRefs — multi-item refill breakdown', () => {
+  it('reads the new trays_refilled array shape (stock_refill_all)', () => {
+    const refs = activityProductRefs({
+      action: 'stock_refill_all',
+      metadata: {
+        trays_refilled: [
+          { id: 't1', item_number: 3, product_name: 'Coca-Cola', product_id: 'p1', old_stock: 2, new_stock: 10 },
+          { id: 't2', item_number: 7, product_name: null, product_id: null, old_stock: 0, new_stock: 5 },
+        ],
+      },
+    })
+    expect(refs).toEqual([
+      { productId: 'p1', productName: 'Coca-Cola', oldStock: 2, newStock: 10 },
+      { productId: undefined, productName: '#7', oldStock: 0, newStock: 5 },
+    ])
+  })
+
+  it('reads the new trays_refilled array shape (stock_refill_tour)', () => {
+    const refs = activityProductRefs({
+      action: 'stock_refill_tour',
+      metadata: {
+        trays_refilled: [
+          { id: 't1', item_number: 3, product_name: 'Sprite', product_id: 'p2', old_stock: 1, new_stock: 6 },
+        ],
+      },
+    })
+    expect(refs).toEqual([{ productId: 'p2', productName: 'Sprite', oldStock: 1, newStock: 6 }])
+  })
+
+  it('falls back to the legacy flat products array (historical stock_refill_tour rows)', () => {
+    const refs = activityProductRefs({
+      action: 'stock_refill_tour',
+      metadata: {
+        trays_refilled: 3, // legacy plain-number shape
+        products: [
+          { product_id: 'p1', product_name: 'Coca-Cola', quantity: 5 },
+          { product_id: 'p2', product_name: 'Sprite', quantity: 2 },
+        ],
+      },
+    })
+    expect(refs).toEqual([
+      { productId: 'p1', productName: 'Coca-Cola', quantity: 5 },
+      { productId: 'p2', productName: 'Sprite', quantity: 2 },
+    ])
+  })
+
+  it('returns an empty array for actions with no refill breakdown', () => {
+    expect(activityProductRefs({ action: 'sale_recorded', metadata: { item_number: 3 } })).toEqual([])
+  })
+
+  it('returns an empty array when metadata is null', () => {
+    expect(activityProductRefs({ action: 'stock_refill_tour', metadata: null })).toEqual([])
   })
 })
 

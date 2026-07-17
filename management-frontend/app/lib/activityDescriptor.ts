@@ -39,6 +39,20 @@ export interface ProductRef {
   productName?: string
 }
 
+/**
+ * A product entry within a multi-item refill breakdown. `oldStock`/`newStock`
+ * are present for rows written after this feature shipped; `quantity` is the
+ * legacy fallback for historical `stock_refill_tour` rows that only ever
+ * logged a flat requested amount, not an authoritative before/after delta.
+ */
+export interface ProductRefWithStock {
+  productId?: string
+  productName?: string
+  oldStock?: number
+  newStock?: number
+  quantity?: number
+}
+
 export type TFn = (key: string, named?: Record<string, unknown>) => string
 
 export interface DescriptorCtx {
@@ -126,6 +140,37 @@ export function activityProductRef(entry: ActivityEntryLike): ProductRef | null 
     default:
       return null
   }
+}
+
+/**
+ * The full list of products behind a multi-item refill entry, for the
+ * /history expandable product-refill list. Only `stock_refill_all` and
+ * `stock_refill_tour` carry this; everything else returns `[]`.
+ */
+export function activityProductRefs(entry: ActivityEntryLike): ProductRefWithStock[] {
+  const m = entry.metadata
+  if (!m) return []
+  if (entry.action !== 'stock_refill_all' && entry.action !== 'stock_refill_tour') return []
+
+  const trays = Array.isArray(m.trays_refilled) ? (m.trays_refilled as any[]) : []
+  if (trays.length) {
+    return trays.map(tr => ({
+      productId: tr.product_id ?? undefined,
+      productName: tr.product_name
+        ? String(tr.product_name)
+        : (tr.item_number != null ? `#${tr.item_number}` : undefined),
+      oldStock: tr.old_stock != null ? Number(tr.old_stock) : undefined,
+      newStock: tr.new_stock != null ? Number(tr.new_stock) : undefined,
+    }))
+  }
+
+  // Legacy stock_refill_tour rows: flat `products` array, no stock deltas.
+  const products = Array.isArray(m.products) ? (m.products as any[]) : []
+  return products.map(p => ({
+    productId: p.product_id ?? undefined,
+    productName: p.product_name ? String(p.product_name) : undefined,
+    quantity: p.quantity != null ? Number(p.quantity) : undefined,
+  }))
 }
 
 // ── formatting helpers ──────────────────────────────────────────────────────
@@ -250,19 +295,17 @@ export function activityChips(entry: ActivityEntryLike, ctx: DescriptorCtx): Act
     }
 
     case 'stock_refill_all': {
+      // Per-product breakdown is rendered from activityProductRefs, not chips.
       pushMachine()
       const trays = Array.isArray(m.trays_refilled) ? (m.trays_refilled as any[]) : []
       if (trays.length) {
         push(F('trays'), `${trays.length} ${t('activity.refilled')}`, { icon: 'LayoutGrid' })
-        for (const tr of trays) {
-          const name = tr.product_name ? String(tr.product_name) : `#${tr.item_number}`
-          chips.push(stockChangeChip(name, Number(tr.old_stock), Number(tr.new_stock)))
-        }
       }
       break
     }
 
     case 'stock_refill_tour': {
+      // Per-product breakdown is rendered from activityProductRefs, not chips.
       pushMachine()
       if (m.warehouse_name) push(F('warehouse'), m.warehouse_name, { icon: 'Warehouse' })
       if (m.trays_refilled != null) {
@@ -270,10 +313,6 @@ export function activityChips(entry: ActivityEntryLike, ctx: DescriptorCtx): Act
         push(F('trays'), n, { icon: 'LayoutGrid' })
       }
       if (m.total_added != null) push(F('totalAdded'), `+${m.total_added}`, { variant: 'increase', icon: 'Plus' })
-      const products = Array.isArray(m.products) ? (m.products as any[]) : []
-      for (const p of products.slice(0, 6)) {
-        if (p?.product_name) push(String(p.product_name), `×${p.quantity ?? '?'}`)
-      }
       break
     }
 
