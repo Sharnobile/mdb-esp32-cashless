@@ -31,11 +31,19 @@ jobs:
           bundler-cache: true
           working-directory: ios
 
-      - name: Select Xcode
-        # Verified present and default on the current macos-15 image; pinned
-        # anyway so an image update cannot move us silently (and 16.4 avoids
-        # the Xcode-26 avtool upload bug, fastlane #29743).
-        run: sudo xcode-select -s /Applications/Xcode_16.4.app
+      - name: Select Xcode 26
+        # Apple requires the iOS 26 SDK (Xcode 26+) for every App Store upload;
+        # a 18.x-SDK build is rejected at validation ("must be built with the
+        # iOS 26 SDK or later"). Pick the highest Xcode 26.x present rather than
+        # a fixed patch, so an image update can't silently break this.
+        run: |
+          XCODE=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+          if [ -z "$XCODE" ]; then
+            echo "::error::No Xcode 26 found on this runner"; ls -d /Applications/Xcode_*.app; exit 1
+          fi
+          echo "Selecting $XCODE"
+          sudo xcode-select -s "$XCODE"
+          xcodebuild -version
 
       - name: Run fastlane lane
         env:
