@@ -1401,3 +1401,223 @@ Expected: all tests pass, including the new ones added in Chunks 1-2.
 No commit for this task. Summarize what was verified (or any issue found
 and how it was fixed, with a fixup commit) before considering the plan
 complete.
+
+---
+
+## Chunk 4: Cross-client backward-compat fix (post-final-review)
+
+### Task 12: Don't repurpose `trays_refilled` type — additive `trays_detail` key (iOS compat)
+
+**Discovered by the final holistic review, not anticipated by the spec/plan.**
+Task 2 changed `stock_refill_tour`'s `trays_refilled` metadata from a scalar
+count to a JSON array and dropped the flat `products` array. The native iOS
+app (`ios/VMflow/`) decodes the same rows: `ActivityLogMetadata.traysRefilled`
+is typed `Int?` keyed to `trays_refilled` (`ios/VMflow/Models/ActivityFeed.swift:23,42`),
+and the whole dashboard "Verlauf" feed is a single bulk `[ActivityLogRow]`
+decode (`ios/VMflow/ViewModels/DashboardViewModel.swift:386-394`). A JSON
+array on `trays_refilled` throws `DecodingError.typeMismatch`, which aborts
+the entire array decode → **the iOS dashboard feed fails to load for any
+company that does a single PWA tour refill**. iOS also renders the flat
+`products` array (`ActivityFeed.swift:238`), which Task 2 dropped.
+
+This violates the project's cross-client backward-compat contract
+(MEMORY.md: native iOS/Android clients share the `activity_log` DB; all
+metadata changes must be additive/backward-compatible — never change the
+type of an existing key, add a new one). Since none of this feature has
+been deployed yet (all commits are local), there are no production rows in
+the intermediate array-`trays_refilled` shape to worry about.
+
+**Fix — fully additive, requires NO iOS change** (protects already-shipped
+iOS builds, App Store release in progress):
+- `stock_refill_tour` metadata keeps `trays_refilled: <scalar count>` and
+  `products: [{product_id, product_name, quantity}]` **exactly as they were
+  before this feature** — iOS reads both unchanged.
+- The rich per-tray snapshot (with `old_stock`/`new_stock`) moves to a **new
+  additive key** `trays_detail`. Only the new PWA reads it.
+- `stock_refill_all` is untouched — it has always written its array under
+  `trays_refilled` and iOS never fetches it.
+
+**Files:**
+- Modify: `management-frontend/app/composables/useRefillWizard.ts` (writer)
+- Modify: `management-frontend/app/lib/activityDescriptor.ts` (`activityProductRefs` reader)
+- Modify: `management-frontend/app/composables/useTourHistory.ts` (`buildMachineEntry` reader)
+- Modify: the three corresponding test files
+
+- [ ] **Step 1: Writer — `useRefillWizard.ts` confirmMachineRefill metadata**
+
+Change the `stock_refill_tour` metadata (currently `trays_refilled:
+buildRefillSnapshot(results, traysToRefill)`) back to the iOS-compatible
+scalar + flat products, plus the new detail key:
+
+```ts
+          metadata: {
+            tour_id: tourId.value,
+            machine_id: machine.id,
+            machine_name: machine.name,
+            warehouse_id: selectedWarehouseId.value,
+            // Scalar count + flat products stay for the native iOS decoder
+            // (ActivityLogMetadata.traysRefilled: Int?, .products) — never
+            // change an existing key's type; add a new one instead.
+            trays_refilled: results.length,
+            products: traysToRefill.map(t => ({
+              product_id: t.product_id,
+              product_name: t.product_name,
+              quantity: t.fill_amount,
+            })),
+            // Rich per-tray old/new snapshot for the PWA /history view only.
+            trays_detail: buildRefillSnapshot(results, traysToRefill),
+            total_added: totalAdded,
+            _user_email: u?.email ?? null,
+            _user_display: userDisplay,
+          },
+```
+
+`buildRefillSnapshot` and its tests are unchanged (still produce the
+snapshot array; it just lands under `trays_detail` now).
+
+- [ ] **Step 2: Reader — `activityDescriptor.ts` activityProductRefs**
+
+Make it read the tour's rich array from `trays_detail` first, then
+`stock_refill_all`'s array from `trays_refilled`, then legacy flat
+`products`:
+
+```ts
+export function activityProductRefs(entry: ActivityEntryLike): ProductRefWithStock[] {
+  const m = entry.metadata
+  if (!m) return []
+  if (entry.action !== 'stock_refill_all' && entry.action !== 'stock_refill_tour') return []
+
+  // stock_refill_tour carries its rich per-tray snapshot under `trays_detail`
+  // (an additive key — `trays_refilled` stays a scalar count so the native
+  // iOS decoder, which types it as Int, keeps working). stock_refill_all has
+  // always carried its array under `trays_refilled` (iOS never reads it).
+  const detail = Array.isArray(m.trays_detail)
+    ? (m.trays_detail as any[])
+    : (Array.isArray(m.trays_refilled) ? (m.trays_refilled as any[]) : [])
+  if (detail.length) {
+    return detail.map(tr => ({
+      productId: tr.product_id ?? undefined,
+      productName: tr.product_name
+        ? String(tr.product_name)
+        : (tr.item_number != null ? `#${tr.item_number}` : undefined),
+      oldStock: tr.old_stock != null ? Number(tr.old_stock) : undefined,
+      newStock: tr.new_stock != null ? Number(tr.new_stock) : undefined,
+    }))
+  }
+
+  // Legacy stock_refill_tour rows (and iOS-written tour rows): flat `products`
+  // array, no stock deltas.
+  const products = Array.isArray(m.products) ? (m.products as any[]) : []
+  return products.map(p => ({
+    productId: p.product_id ?? undefined,
+    productName: p.product_name ? String(p.product_name) : undefined,
+    quantity: p.quantity != null ? Number(p.quantity) : undefined,
+  }))
+}
+```
+
+Add a test case to the `activityProductRefs` describe block for the new
+`trays_detail` shape on `stock_refill_tour` (array under `trays_detail`,
+scalar `trays_refilled` alongside it, must read the `trays_detail` array):
+
+```ts
+  it('reads the new trays_detail array on stock_refill_tour (scalar trays_refilled alongside)', () => {
+    const refs = activityProductRefs({
+      action: 'stock_refill_tour',
+      metadata: {
+        trays_refilled: 2,
+        trays_detail: [
+          { id: 't1', item_number: 3, product_name: 'Sprite', product_id: 'p2', old_stock: 1, new_stock: 6 },
+        ],
+        products: [{ product_id: 'p2', product_name: 'Sprite', quantity: 5 }],
+      },
+    })
+    expect(refs).toEqual([{ productId: 'p2', productName: 'Sprite', oldStock: 1, newStock: 6 }])
+  })
+```
+
+The existing `stock_refill_tour` array-under-`trays_refilled` test must be
+updated: that shape is no longer written by the tour path. Change it to use
+`trays_detail`, OR delete it and rely on the new test above — but keep the
+`stock_refill_all` array-under-`trays_refilled` test (that shape is still
+correct for refill_all) and the legacy flat-`products` fallback test.
+
+- [ ] **Step 3: Reader — `useTourHistory.ts` buildMachineEntry**
+
+Count comes from the scalar `trays_refilled` again; products come from
+`trays_detail` (new) when present, else the legacy flat `products`:
+
+```ts
+  export function buildMachineEntry(entry: RawLogEntry): TourMachineEntry {
+    const m = entry.metadata ?? {}
+    const isSkip = entry.action === 'stock_refill_tour_skip'
+    // Rich per-tray snapshot lives under `trays_detail` (additive key);
+    // `trays_refilled` is a scalar count (kept scalar for iOS compat).
+    const detail = Array.isArray(m.trays_detail) ? (m.trays_detail as any[]) : []
+    return {
+      machine_id: String(m.machine_id ?? ''),
+      machine_name: String(m.machine_name ?? 'Unknown'),
+      skipped: isSkip,
+      trays_refilled: isSkip
+        ? 0
+        : (typeof m.trays_refilled === 'number'
+            ? m.trays_refilled
+            : (detail.length || Number(m.trays_refilled ?? 0))),
+      total_added: isSkip ? 0 : Number(m.total_added ?? 0),
+      products: isSkip
+        ? []
+        : (detail.length
+            ? detail.map((tr: any) => ({
+                product_id: tr.product_id ? String(tr.product_id) : null,
+                product_name: tr.product_name ? String(tr.product_name) : '',
+                quantity: (tr.new_stock != null && tr.old_stock != null)
+                  ? Math.max(0, Number(tr.new_stock) - Number(tr.old_stock))
+                  : 0,
+              }))
+            : (Array.isArray(m.products)
+                ? m.products.map((p: any) => ({
+                    product_id: p.product_id ? String(p.product_id) : null,
+                    product_name: String(p.product_name ?? ''),
+                    quantity: Number(p.quantity ?? 0),
+                  }))
+                : [])),
+    }
+  }
+```
+
+Update `useTourHistory.test.ts`: the "new array shape" test must now put
+the array under `trays_detail` with a scalar `trays_refilled: 2` alongside
+(and still expect count 2 + the derived products). The legacy-flat-`products`
+and skip tests stay as-is.
+
+- [ ] **Step 4: Run the affected test files**
+
+Run: `cd management-frontend && npx vitest run app/lib/__tests__/activityDescriptor.test.ts app/composables/__tests__/useTourHistory.test.ts app/composables/__tests__/useRefillWizard.refillSnapshot.test.ts app/composables/__tests__/useRefillWizard.tourStarted.test.ts`
+Expected: all pass.
+
+- [ ] **Step 5: Full suite + type-check**
+
+Run: `cd management-frontend && npx vitest run && npx vue-tsc --noEmit -p tsconfig.json`
+Expected: all tests pass, no new type errors.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add management-frontend/app/composables/useRefillWizard.ts management-frontend/app/lib/activityDescriptor.ts management-frontend/app/composables/useTourHistory.ts management-frontend/app/lib/__tests__/activityDescriptor.test.ts management-frontend/app/composables/__tests__/useTourHistory.test.ts
+git commit -m "fix(refill-wizard): keep trays_refilled scalar for iOS, add trays_detail
+
+The stock_refill_tour metadata reshape repurposed trays_refilled from a
+scalar count to a JSON array, which crashes the native iOS dashboard feed
+(ActivityLogMetadata.traysRefilled is Int?, decoded in one bulk pass) and
+dropped the flat products array iOS renders. Keep trays_refilled scalar +
+products flat (iOS reads both unchanged) and move the rich per-tray
+old/new snapshot to a new additive key trays_detail that only the PWA
+/history view reads. No iOS change needed."
+```
+
+- [ ] **Step 7: iOS compile sanity check (optional, if xcodebuild available)**
+
+The fix requires no iOS source change, but confirm the iOS model still
+compiles unchanged: no edit to `ios/VMflow/Models/ActivityFeed.swift` is
+expected. (Skip if the iOS toolchain isn't set up in this environment —
+the guarantee is that iOS source is untouched, so its build is unaffected.)
