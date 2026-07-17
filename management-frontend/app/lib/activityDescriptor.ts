@@ -53,6 +53,15 @@ export interface ProductRefWithStock {
   quantity?: number
 }
 
+export type ActivityDetailVariant = 'default' | 'warning'
+
+/** A single row in the /history "technical details" expand panel. */
+export interface ActivityDetail {
+  label: string
+  value: string
+  variant?: ActivityDetailVariant
+}
+
 export type TFn = (key: string, named?: Record<string, unknown>) => string
 
 export interface DescriptorCtx {
@@ -382,6 +391,35 @@ export function activityChips(entry: ActivityEntryLike, ctx: DescriptorCtx): Act
   }
 
   return chips
+}
+
+// ── technical/debug details (expand panel) ──────────────────────────────────
+
+/**
+ * Curated, operator-useful fields not shown as chips — a deliberate
+ * whitelist (not a raw metadata dump) so the expand panel stays readable.
+ * Extend this per-action as new debugging needs come up.
+ */
+export function activityDetails(entry: ActivityEntryLike, ctx: DescriptorCtx): ActivityDetail[] {
+  const m = entry.metadata
+  if (!m) return []
+  const { t } = ctx
+  const F = (k: string) => t(`activity.field.${k}`)
+  const details: ActivityDetail[] = []
+
+  switch (entry.action) {
+    case 'sale_recorded': {
+      if (m.sale_seq != null) details.push({ label: F('saleSeq'), value: String(m.sale_seq) })
+      if (m.time_uncertain === true) {
+        details.push({ label: F('timeUncertain'), value: t('activity.timeUncertainWarning'), variant: 'warning' })
+      }
+      break
+    }
+    default:
+      break
+  }
+
+  return details
 }
 
 // ── compact single-line summary (dashboard feed) ────────────────────────────

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   activityActionLabel,
   activityChips,
+  activityDetails,
   activityIcon,
   activityProductRef,
   activityProductRefs,
@@ -267,6 +268,55 @@ describe('activityChips — other actions', () => {
   it('returns no chips for null metadata or unknown actions', () => {
     expect(activityChips({ action: 'sale_deleted', metadata: null }, ctx)).toEqual([])
     expect(activityChips({ action: 'totally_unknown', metadata: { x: 1 } }, ctx)).toEqual([])
+  })
+})
+
+describe('activityDetails — technical/debug panel', () => {
+  it('surfaces sale_seq when present', () => {
+    const details = activityDetails({
+      action: 'sale_recorded',
+      metadata: { item_number: 3, sale_seq: 42, time_uncertain: false },
+    }, ctx)
+    expect(details).toContainEqual({ label: 'activity.field.saleSeq', value: '42' })
+  })
+
+  it('surfaces sale_seq 0 (falsy but valid)', () => {
+    const details = activityDetails({
+      action: 'sale_recorded',
+      metadata: { item_number: 3, sale_seq: 0, time_uncertain: false },
+    }, ctx)
+    expect(details).toContainEqual({ label: 'activity.field.saleSeq', value: '0' })
+  })
+
+  it('adds a warning detail when time_uncertain is true', () => {
+    const details = activityDetails({
+      action: 'sale_recorded',
+      metadata: { item_number: 3, sale_seq: 42, time_uncertain: true },
+    }, ctx)
+    expect(details).toContainEqual({
+      label: 'activity.field.timeUncertain',
+      value: 'activity.timeUncertainWarning',
+      variant: 'warning',
+    })
+  })
+
+  it('omits the warning when time_uncertain is false or absent', () => {
+    const details = activityDetails({
+      action: 'sale_recorded',
+      metadata: { item_number: 3, sale_seq: 42, time_uncertain: false },
+    }, ctx)
+    expect(details.some(d => d.variant === 'warning')).toBe(false)
+  })
+
+  it('returns an empty array for older sale_recorded rows with no dedup fields', () => {
+    expect(activityDetails({
+      action: 'sale_recorded',
+      metadata: { item_number: 3, price: 2.5, channel: 'cash', device_id: 'dev-1' },
+    }, ctx)).toEqual([])
+  })
+
+  it('returns an empty array for actions with no curated details', () => {
+    expect(activityDetails({ action: 'stock_refill_tour', metadata: { trays_refilled: 3 } }, ctx)).toEqual([])
   })
 })
 
