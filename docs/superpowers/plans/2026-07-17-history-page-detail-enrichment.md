@@ -294,6 +294,195 @@ was requested."
 
 ---
 
+### Task 2b: Fix `useTourHistory.ts` regression from the new `trays_refilled` shape
+
+**Discovered during Task 2 implementation, not anticipated by the original
+spec/plan.** `/tour-history` (`useTourHistory.ts`) reads the exact same
+`stock_refill_tour` metadata fields Task 2 just changed:
+
+```ts
+trays_refilled: isSkip ? 0 : Number(m.trays_refilled ?? 0),
+products: isSkip ? [] : (Array.isArray(m.products) ? m.products.map(...) : []),
+```
+
+After Task 2, `m.trays_refilled` is an array (not a count) for every new
+tour refill — `Number(array)` is `NaN` — and `m.products` no longer exists
+at all. This is not just a historical-rows concern; it's an immediate
+regression on `/tour-history` for every refill confirmed after Task 2's
+commit lands. Fix it the same way `activityProductRefs` (Task 5) will
+handle the descriptor side: derive from the new array shape when present,
+fall back to the legacy flat `products` shape for historical rows.
+
+**Files:**
+- Modify: `management-frontend/app/composables/useTourHistory.ts:65-84`
+- Test: `management-frontend/app/composables/__tests__/useTourHistory.test.ts` (create if it doesn't exist; check first)
+
+- [ ] **Step 1: Check for an existing test file**
+
+Run: `find app/composables/__tests__ -iname "*TourHistory*"`
+
+If a test file already exists for `useTourHistory.ts`, add to it. If not,
+create `app/composables/__tests__/useTourHistory.test.ts` — but first check
+whether `buildMachineEntry` is exported; if it isn't, export it (it's
+already a pure function of `RawLogEntry`, no Nuxt dependency at call time)
+so it can be unit tested directly, matching the `buildTourStartedEntry`
+pattern in `useRefillWizard.ts`.
+
+- [ ] **Step 2: Write the failing tests**
+
+```ts
+import { describe, it, expect } from 'vitest'
+import { buildMachineEntry } from '../useTourHistory'
+
+describe('buildMachineEntry', () => {
+  it('derives trays_refilled count and products from the new trays_refilled array shape', () => {
+    const entry = buildMachineEntry({
+      id: 'e1', created_at: '2026-07-17T00:00:00Z', user_id: null,
+      action: 'stock_refill_tour',
+      metadata: {
+        machine_id: 'm1', machine_name: 'Automat 1', total_added: 7,
+        trays_refilled: [
+          { id: 't1', item_number: 3, product_id: 'p1', product_name: 'Coca-Cola', old_stock: 2, new_stock: 7 },
+          { id: 't2', item_number: 5, product_id: 'p2', product_name: 'Sprite', old_stock: 0, new_stock: 2 },
+        ],
+      },
+    })
+    expect(entry.trays_refilled).toBe(2)
+    expect(entry.products).toEqual([
+      { product_id: 'p1', product_name: 'Coca-Cola', quantity: 5 },
+      { product_id: 'p2', product_name: 'Sprite', quantity: 2 },
+    ])
+  })
+
+  it('falls back to the legacy flat products array for historical rows', () => {
+    const entry = buildMachineEntry({
+      id: 'e1', created_at: '2026-07-01T00:00:00Z', user_id: null,
+      action: 'stock_refill_tour',
+      metadata: {
+        machine_id: 'm1', machine_name: 'Automat 1', total_added: 5,
+        trays_refilled: 2, // legacy plain-number shape
+        products: [{ product_id: 'p1', product_name: 'Coca-Cola', quantity: 5 }],
+      },
+    })
+    expect(entry.trays_refilled).toBe(2)
+    expect(entry.products).toEqual([{ product_id: 'p1', product_name: 'Coca-Cola', quantity: 5 }])
+  })
+
+  it('returns zero/empty for a skipped machine', () => {
+    const entry = buildMachineEntry({
+      id: 'e1', created_at: '2026-07-17T00:00:00Z', user_id: null,
+      action: 'stock_refill_tour_skip',
+      metadata: { machine_id: 'm1', machine_name: 'Automat 1' },
+    })
+    expect(entry.trays_refilled).toBe(0)
+    expect(entry.products).toEqual([])
+  })
+})
+```
+
+- [ ] **Step 3: Run the tests to verify they fail**
+
+Run: `cd management-frontend && npx vitest run app/composables/__tests__/useTourHistory.test.ts`
+Expected: FAIL on the first test (old code computes `NaN`/`[]` instead of
+`2`/the product list) — confirms this is a real, reproducible regression,
+not a hypothetical one.
+
+- [ ] **Step 4: Fix `buildMachineEntry`**
+
+Change:
+
+```ts
+  function buildMachineEntry(entry: RawLogEntry): TourMachineEntry {
+    const m = entry.metadata ?? {}
+    const isSkip = entry.action === 'stock_refill_tour_skip'
+    return {
+      machine_id: String(m.machine_id ?? ''),
+      machine_name: String(m.machine_name ?? 'Unknown'),
+      skipped: isSkip,
+      trays_refilled: isSkip ? 0 : Number(m.trays_refilled ?? 0),
+      total_added: isSkip ? 0 : Number(m.total_added ?? 0),
+      products: isSkip
+        ? []
+        : (Array.isArray(m.products)
+            ? m.products.map((p: any) => ({
+                product_id: p.product_id ? String(p.product_id) : null,
+                product_name: String(p.product_name ?? ''),
+                quantity: Number(p.quantity ?? 0),
+              }))
+            : []),
+    }
+  }
+```
+
+to:
+
+```ts
+  export function buildMachineEntry(entry: RawLogEntry): TourMachineEntry {
+    const m = entry.metadata ?? {}
+    const isSkip = entry.action === 'stock_refill_tour_skip'
+    // trays_refilled became an array of {id, item_number, product_name,
+    // product_id, old_stock, new_stock} snapshots; historical rows still
+    // have the legacy plain-number shape (with a separate flat `products`
+    // array carrying only product_id/product_name/quantity, no deltas).
+    const trays = Array.isArray(m.trays_refilled) ? (m.trays_refilled as any[]) : []
+    return {
+      machine_id: String(m.machine_id ?? ''),
+      machine_name: String(m.machine_name ?? 'Unknown'),
+      skipped: isSkip,
+      trays_refilled: isSkip
+        ? 0
+        : (trays.length ? trays.length : Number(m.trays_refilled ?? 0)),
+      total_added: isSkip ? 0 : Number(m.total_added ?? 0),
+      products: isSkip
+        ? []
+        : (trays.length
+            ? trays.map((tr: any) => ({
+                product_id: tr.product_id ? String(tr.product_id) : null,
+                product_name: tr.product_name ? String(tr.product_name) : '',
+                quantity: (tr.new_stock != null && tr.old_stock != null)
+                  ? Math.max(0, Number(tr.new_stock) - Number(tr.old_stock))
+                  : 0,
+              }))
+            : (Array.isArray(m.products)
+                ? m.products.map((p: any) => ({
+                    product_id: p.product_id ? String(p.product_id) : null,
+                    product_name: String(p.product_name ?? ''),
+                    quantity: Number(p.quantity ?? 0),
+                  }))
+                : [])),
+    }
+  }
+```
+
+(Also add the `export` keyword to the function declaration if it wasn't
+already exported, so the new test file can import it.)
+
+- [ ] **Step 5: Run the tests to verify they pass**
+
+Run: `cd management-frontend && npx vitest run app/composables/__tests__/useTourHistory.test.ts`
+Expected: PASS (3 tests)
+
+- [ ] **Step 6: Run the full frontend test suite to check for regressions**
+
+Run: `cd management-frontend && npx vitest run`
+Expected: PASS, all green.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add app/composables/useTourHistory.ts app/composables/__tests__/useTourHistory.test.ts
+git commit -m "fix(tour-history): read the new trays_refilled array shape
+
+Task 2 changed stock_refill_tour's activity_log metadata from a flat
+{trays_refilled: number, products: [...]} shape to an array of
+per-tray old/new-stock snapshots, but /tour-history (useTourHistory.ts)
+still read the old shape directly — new tours would show NaN trays and
+an empty product list. Derive from the new shape, falling back to the
+legacy shape for historical rows."
+```
+
+---
+
 ## Chunk 2: Descriptor layer (`activityDescriptor.ts`)
 
 ### Task 3: Extend `activityProductRef` to cover `sale_recorded`
