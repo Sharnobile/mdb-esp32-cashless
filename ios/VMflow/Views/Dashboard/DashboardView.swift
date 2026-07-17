@@ -202,7 +202,9 @@ struct DashboardView: View {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .foregroundStyle(.red)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("\(offline) machine\(offline == 1 ? "" : "s") offline")
+                    // Two distinct keys so both pluralize cleanly in the catalog;
+                    // interpolating the "s" made the string unlocalizable.
+                    (offline == 1 ? Text("1 machine offline") : Text("\(offline) machines offline"))
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.red)
                     Text("Tap to view")
@@ -276,7 +278,7 @@ private struct RevenueKPICard: View {
                 Image(systemName: "cart.fill")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
-                Text(verbatim: "\(currentSales) sales")
+                Text("\(currentSales) sales")
                     .font(.caption.weight(.medium))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -301,7 +303,7 @@ private struct RevenueKPICard: View {
                 Text(verbatim: "·")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
-                Text(verbatim: "\(previousSales) sales")
+                Text("\(previousSales) sales")
                     .font(.caption.weight(.medium))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -358,7 +360,7 @@ private struct StockAlertsCard: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
             } else {
-                Text(verbatim: "\(critical + low) alerts")
+                Text("\(critical + low) alerts")
                     .font(.title3.weight(.bold))
                     .foregroundStyle(alertColor)
                     .lineLimit(1)

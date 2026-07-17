@@ -20,3 +20,9 @@ override_status_bar(true)
 stop_after_first_error(true)
 
 concurrent_simulators(false)
+
+# Raw xcodebuild output instead of xcpretty. xcpretty crashes under Homebrew
+# Ruby 4.0 (`uninitialized constant Gem::Resolver::APISet::GemParser` inside
+# the `| tee | xcpretty` pipeline) and earlier choked on non-UTF-8 locales.
+# Logs get longer; determinism and portability win.
+xcodebuild_formatter("")
