@@ -44,6 +44,7 @@ DECLARE
   p_snick   uuid := gen_random_uuid();
   p_chips   uuid := gen_random_uuid();
   p_haribo  uuid := gen_random_uuid();
+  p_cat     uuid := gen_random_uuid();
   d         int;
 BEGIN
   -- Resolve the demo login account.
@@ -85,14 +86,21 @@ BEGIN
       ON CONFLICT (company_id, user_id) DO UPDATE SET role = 'admin';
   END IF;
 
+  -- A demo category. products.category is set EXPLICITLY below so the seed does
+  -- not depend on the column's default — prod has schema drift where the
+  -- category default points at a category id that isn't present (it fails the
+  -- products_category_fkey). Providing our own category overrides that.
+  INSERT INTO public.product_category (id, company, name)
+    VALUES (p_cat, c_id, 'Getränke & Snacks');
+
   -- Products (image_path left NULL — renders a placeholder; point at real
   -- product-images bucket paths here if you want photos in the demo).
-  INSERT INTO public.products (id, company, name, sellprice) VALUES
-    (p_cola,   c_id, 'Cola Zero 0,5 l', 2.50),
-    (p_water,  c_id, 'Wasser still 0,5 l', 1.50),
-    (p_snick,  c_id, 'Snickers', 1.80),
-    (p_chips,  c_id, 'Chips Paprika', 2.20),
-    (p_haribo, c_id, 'Haribo Goldbären', 1.60);
+  INSERT INTO public.products (id, company, category, name, sellprice) VALUES
+    (p_cola,   c_id, p_cat, 'Cola Zero 0,5 l', 2.50),
+    (p_water,  c_id, p_cat, 'Wasser still 0,5 l', 1.50),
+    (p_snick,  c_id, p_cat, 'Snickers', 1.80),
+    (p_chips,  c_id, p_cat, 'Chips Paprika', 2.20),
+    (p_haribo, c_id, p_cat, 'Haribo Goldbären', 1.60);
 
   -- Devices (one offline) + machines
   INSERT INTO public.embeddeds (id, company, status, status_at) VALUES
