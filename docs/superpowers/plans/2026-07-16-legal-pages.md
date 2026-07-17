@@ -4,7 +4,9 @@
 
 **Goal:** Publicly reachable privacy policy, support, terms and imprint pages at `https://lagerapp.kerl.io/legal/*` — the App Store's required URLs.
 
-**Architecture:** Four Nuxt pages under `app/pages/legal/`, text in the existing `i18n/locales/{en,de}.json` under a `legal.*` tree, one shared minimal layout component. `/legal` added to the auth middleware's public routes — without that single line, Apple's reviewer is redirected to login and the mandatory URL counts as dead.
+**Architecture:** Four Nuxt pages under `app/pages/legal/`, text in the existing `i18n/locales/{en,de}.json` under a `legal.*` tree, one shared minimal layout component.
+
+**Public reachability (corrected after review):** `auth.ts` is a *named* middleware — protection is opt-in per page via `definePageMeta({ middleware: 'auth' })`, and `@nuxtjs/supabase` has `redirect: false` (`nuxt.config.ts:34`). The load-bearing rule is therefore: **the legal pages must NOT declare the auth middleware** (same as `/install`, `/m/*`). The `auth.ts` edit in Task 3 is defense-in-depth only. Further review corrections folded in: use `tm()`/`rt()` for message arrays (plain `t()` returns a string; the codebase has no precedent to copy), en/de key parity is a hard requirement verified by diffing the key trees (missingWarn is globally off, the console shows nothing), `/legal` matching uses the `=== '/legal' || startsWith('/legal/')` idiom, content additionally covers cookies/localStorage (TDDDG §25: auth-cookie, i18n-cookie — set on these very pages, color-scheme), hosting as Art.-28 processor + server location, Apple/APNs as third-country recipient, website access logs, and the imprint cites §5 DDG (not the repealed TMG).
 
 **Tech Stack:** Nuxt 4, @nuxtjs/i18n (`no_prefix`), TailwindCSS 4.
 
