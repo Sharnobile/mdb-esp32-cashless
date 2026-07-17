@@ -161,9 +161,15 @@ export function activityProductRefs(entry: ActivityEntryLike): ProductRefWithSto
   if (!m) return []
   if (entry.action !== 'stock_refill_all' && entry.action !== 'stock_refill_tour') return []
 
-  const trays = Array.isArray(m.trays_refilled) ? (m.trays_refilled as any[]) : []
-  if (trays.length) {
-    return trays.map(tr => ({
+  // stock_refill_tour carries its rich per-tray snapshot under `trays_detail`
+  // (an additive key — `trays_refilled` stays a scalar count so the native
+  // iOS decoder, which types it as Int, keeps working). stock_refill_all has
+  // always carried its array under `trays_refilled` (iOS never reads it).
+  const detail = Array.isArray(m.trays_detail)
+    ? (m.trays_detail as any[])
+    : (Array.isArray(m.trays_refilled) ? (m.trays_refilled as any[]) : [])
+  if (detail.length) {
+    return detail.map(tr => ({
       productId: tr.product_id ?? undefined,
       productName: tr.product_name
         ? String(tr.product_name)
@@ -173,7 +179,8 @@ export function activityProductRefs(entry: ActivityEntryLike): ProductRefWithSto
     }))
   }
 
-  // Legacy stock_refill_tour rows: flat `products` array, no stock deltas.
+  // Legacy stock_refill_tour rows (and iOS-written tour rows): flat `products`
+  // array, no stock deltas.
   const products = Array.isArray(m.products) ? (m.products as any[]) : []
   return products.map(p => ({
     productId: p.product_id ?? undefined,

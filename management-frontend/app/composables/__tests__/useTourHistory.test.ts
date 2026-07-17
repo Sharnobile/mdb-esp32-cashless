@@ -2,13 +2,14 @@ import { describe, it, expect } from 'vitest'
 import { buildMachineEntry } from '../useTourHistory'
 
 describe('buildMachineEntry', () => {
-  it('derives trays_refilled count and products from the new trays_refilled array shape', () => {
+  it('derives trays_refilled count and products from the new trays_detail array shape', () => {
     const entry = buildMachineEntry({
       id: 'e1', created_at: '2026-07-17T00:00:00Z', user_id: null,
       action: 'stock_refill_tour',
       metadata: {
         machine_id: 'm1', machine_name: 'Automat 1', total_added: 7,
-        trays_refilled: [
+        trays_refilled: 2,
+        trays_detail: [
           { id: 't1', item_number: 3, product_id: 'p1', product_name: 'Coca-Cola', old_stock: 2, new_stock: 7 },
           { id: 't2', item_number: 5, product_id: 'p2', product_name: 'Sprite', old_stock: 0, new_stock: 2 },
         ],

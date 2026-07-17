@@ -896,7 +896,17 @@ export function useRefillWizard() {
             machine_id: machine.id,
             machine_name: machine.name,
             warehouse_id: selectedWarehouseId.value,
-            trays_refilled: buildRefillSnapshot(results, traysToRefill),
+            // Scalar count + flat products stay for the native iOS decoder
+            // (ActivityLogMetadata.traysRefilled: Int?, .products) — never
+            // change an existing key's type; add a new one instead.
+            trays_refilled: results.length,
+            products: traysToRefill.map(t => ({
+              product_id: t.product_id,
+              product_name: t.product_name,
+              quantity: t.fill_amount,
+            })),
+            // Rich per-tray old/new snapshot for the PWA /history view only.
+            trays_detail: buildRefillSnapshot(results, traysToRefill),
             total_added: totalAdded,
             _user_email: u?.email ?? null,
             _user_display: userDisplay,

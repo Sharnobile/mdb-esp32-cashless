@@ -96,13 +96,15 @@ describe('activityProductRefs — multi-item refill breakdown', () => {
     ])
   })
 
-  it('reads the new trays_refilled array shape (stock_refill_tour)', () => {
+  it('reads the new trays_detail array on stock_refill_tour (scalar trays_refilled alongside)', () => {
     const refs = activityProductRefs({
       action: 'stock_refill_tour',
       metadata: {
-        trays_refilled: [
+        trays_refilled: 2,
+        trays_detail: [
           { id: 't1', item_number: 3, product_name: 'Sprite', product_id: 'p2', old_stock: 1, new_stock: 6 },
         ],
+        products: [{ product_id: 'p2', product_name: 'Sprite', quantity: 5 }],
       },
     })
     expect(refs).toEqual([{ productId: 'p2', productName: 'Sprite', oldStock: 1, newStock: 6 }])

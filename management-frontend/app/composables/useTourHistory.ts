@@ -32,23 +32,23 @@ const userCache = new Map<string, string>()
 export function buildMachineEntry(entry: RawLogEntry): TourMachineEntry {
   const m = entry.metadata ?? {}
   const isSkip = entry.action === 'stock_refill_tour_skip'
-  // trays_refilled became an array of {id, item_number, product_name,
-  // product_id, old_stock, new_stock} snapshots; historical rows still
-  // have the legacy plain-number shape (with a separate flat `products`
-  // array carrying only product_id/product_name/quantity, no deltas).
-  const trays = Array.isArray(m.trays_refilled) ? (m.trays_refilled as any[]) : []
+  // Rich per-tray snapshot lives under `trays_detail` (additive key);
+  // `trays_refilled` is a scalar count (kept scalar for iOS compat).
+  const detail = Array.isArray(m.trays_detail) ? (m.trays_detail as any[]) : []
   return {
     machine_id: String(m.machine_id ?? ''),
     machine_name: String(m.machine_name ?? 'Unknown'),
     skipped: isSkip,
     trays_refilled: isSkip
       ? 0
-      : (trays.length ? trays.length : Number(m.trays_refilled ?? 0)),
+      : (typeof m.trays_refilled === 'number'
+          ? m.trays_refilled
+          : (detail.length || Number(m.trays_refilled ?? 0))),
     total_added: isSkip ? 0 : Number(m.total_added ?? 0),
     products: isSkip
       ? []
-      : (trays.length
-          ? trays.map((tr: any) => ({
+      : (detail.length
+          ? detail.map((tr: any) => ({
               product_id: tr.product_id ? String(tr.product_id) : null,
               product_name: tr.product_name ? String(tr.product_name) : '',
               quantity: (tr.new_stock != null && tr.old_stock != null)
