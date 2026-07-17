@@ -90,6 +90,8 @@ struct TrayRow: View {
         .padding(.vertical, 8)
         .contentShape(Rectangle())
         .onTapGesture { onEdit() }
+        // Data-dependent UI-test anchor: only exists once trays have loaded.
+        .accessibilityIdentifier("tray-row")
     }
 
     private var slotColor: Color {

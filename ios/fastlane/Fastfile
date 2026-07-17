@@ -18,6 +18,37 @@
 
 default_platform(:ios)
 
+# --- snapshot / simctl gem workaround (Xcode 26 CoreSimulator) --------------
+# fastlane's `snapshot` action resolves each configured device name to a
+# `SimCtl::DeviceType` via the (effectively unmaintained) `simctl` gem, purely
+# to confirm every device in the run shares one OS family (iOS/tvOS/watchOS).
+# On Xcode 26's CoreSimulator, `SimCtl::Device#devicetype` raises internally
+# and its own rescue clause papers over that by returning the raw device.plist
+# string instead of a resolved DeviceType — the call site then does
+# `device.devicetype.name`, which blows up with "undefined method 'name' for
+# an instance of String" (`test_command_generator.rb#get_device_type_with_simctl`).
+# The check itself only needs the device *names* (it substring-matches
+# "iphone"/"ipad"/"apple tv"/"apple watch"), so bypass the simctl gem entirely
+# and answer with what was configured — this is exactly the shortcut fastlane
+# itself takes under `Helper.test?`. Harmless on CI's older Xcode where the
+# simctl gem still works fine; it just skips a resolution step that would
+# have agreed with the raw name anyway.
+require "snapshot"
+# NOTE: the leading `::` is load-bearing. Fastlane evaluates the Fastfile
+# nested inside its own `Fastlane::FastFile` class, so a bare `module
+# Snapshot` here would silently define `Fastlane::FastFile::Snapshot` — a
+# brand new, disconnected module — instead of reopening the real top-level
+# `::Snapshot` from the fastlane gem. Verified via `singleton_class.ancestors`
+# during development: without `::` the patched method never runs (the real
+# `Snapshot::TestCommandGenerator` code path still executes and still raises).
+class ::Snapshot::TestCommandGenerator
+  class << self
+    def get_device_type_with_simctl(device_names)
+      device_names
+    end
+  end
+end
+
 platform :ios do
   # Decode the base64 .p8 from the environment, hand it to fastlane, and
   # return [api_key, auth_args] where auth_args carries the same credentials
@@ -92,9 +123,8 @@ platform :ios do
 
   desc "Generate localized App Store screenshots (phase 5)"
   lane :screenshots do
-    UI.user_error!(
-      "The screenshots lane lands in phase 5 (UI-test target + fixture stub). " \
-      "See docs/superpowers/specs/2026-07-15-ios-app-store-release-design.md §8."
-    )
+    # Deterministic, offline, from fixtures (-UITestFixtures) — needs no ASC
+    # secrets, so it also runs locally without any of the asc_auth env vars.
+    capture_screenshots
   end
 end

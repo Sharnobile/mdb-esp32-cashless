@@ -253,6 +253,10 @@ struct ReviewStepView: View {
                 .fill(.regularMaterial)
                 .shadow(color: .black.opacity(0.06), radius: 6, y: 2)
         }
+        // Data-dependent UI-test anchor: only exists once loadData() has
+        // populated viewModel.replacements (fixtures guarantee at least one
+        // unassigned tray, so this always appears on the Review step).
+        .accessibilityIdentifier("refill-replacement-card")
     }
 
     // MARK: - Reason Badge

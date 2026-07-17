@@ -631,6 +631,9 @@ struct StockSummaryRow: View {
         }
         .padding(.vertical, 4)
         .opacity(summary.discontinued ? 0.55 : 1)
+        // Data-dependent UI-test anchor: only exists once warehouse stock
+        // summaries have loaded.
+        .accessibilityIdentifier("warehouse-stock-row")
     }
 
     private var quantityColor: Color {

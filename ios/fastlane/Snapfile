@@ -1,0 +1,22 @@
+# App Store screenshot capture (phase 5). See
+# docs/superpowers/plans/2026-07-17-ios-screenshot-automation.md.
+#
+# Device parameterized via SNAPSHOT_DEVICE: this Mac's Xcode 26 simulators
+# have "iPhone 17 Pro Max" (no "iPhone 16 Pro Max"); CI's Xcode 16.4 has the
+# reverse. Both are the same 6.9-inch class (1320x2868) — the App Store asset
+# slot cares about the resolution class, not the exact device name.
+devices([ENV.fetch("SNAPSHOT_DEVICE", "iPhone 17 Pro Max")])
+
+languages(["en-US", "de-DE"])
+
+scheme("VMflow")
+
+output_directory("./fastlane/screenshots")
+
+clear_previous_screenshots(true)
+
+override_status_bar(true)
+
+stop_after_first_error(true)
+
+concurrent_simulators(false)

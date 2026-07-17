@@ -23,6 +23,9 @@ struct MachineListView: View {
                             MachineCard(stats: stats)
                         }
                         .buttonStyle(.plain)
+                        // Not unique — UI tests match `.firstMatch` to tap the
+                        // first machine cell, locale-independently.
+                        .accessibilityIdentifier("machine-cell")
                     }
                 }
                 .padding(.horizontal)

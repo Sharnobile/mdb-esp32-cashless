@@ -226,6 +226,10 @@ struct DashboardView: View {
             }
         }
         .buttonStyle(.plain)
+        // Only rendered once machine data has loaded AND at least one machine
+        // is offline — a data-dependent UI-test anchor for the dashboard
+        // screenshot (fixtures deliberately have 2/3 machines online).
+        .accessibilityIdentifier("dashboard-offline-banner")
     }
 
 }

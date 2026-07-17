@@ -42,6 +42,11 @@ jobs:
           APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           APP_STORE_CONNECT_KEY_P8: ${{ secrets.APP_STORE_CONNECT_KEY_P8 }}
+          # Only consulted by the `screenshots` lane's Snapfile. This
+          # runner's Xcode 16.4 image has "iPhone 16 Pro Max" but not
+          # "iPhone 17 Pro Max" — both are the same 6.9-inch (1320x2868)
+          # class, so either produces the correct App Store asset size.
+          SNAPSHOT_DEVICE: "iPhone 16 Pro Max"
         run: bundle exec fastlane ${{ github.event.inputs.lane }}
 
       - name: Upload logs on failure

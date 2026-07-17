@@ -25,6 +25,7 @@ struct CompactTabView: View {
             }
             .tabItem {
                 Label("Dashboard", systemImage: "chart.bar.fill")
+                    .accessibilityIdentifier("tab-dashboard")
             }
             .tag(AppTab.dashboard)
 
@@ -33,6 +34,7 @@ struct CompactTabView: View {
             }
             .tabItem {
                 Label("Machines", systemImage: "storefront.fill")
+                    .accessibilityIdentifier("tab-machines")
             }
             .tag(AppTab.machines)
 
@@ -41,6 +43,7 @@ struct CompactTabView: View {
             }
             .tabItem {
                 Label("Refill", systemImage: "arrow.clockwise.circle.fill")
+                    .accessibilityIdentifier("tab-refill")
             }
             .tag(AppTab.refill)
 
@@ -49,6 +52,7 @@ struct CompactTabView: View {
             }
             .tabItem {
                 Label("Warehouse", systemImage: "shippingbox.fill")
+                    .accessibilityIdentifier("tab-warehouse")
             }
             .tag(AppTab.warehouse)
 
