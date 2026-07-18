@@ -1,0 +1,10 @@
+# Ignore everything by default
+*
+
+# Keep the core KiCad project files
+!*.kicad_pcb
+!*.kicad_pro
+!*.kicad_sch
+
+# Keep this .gitignore
+!.gitignore
