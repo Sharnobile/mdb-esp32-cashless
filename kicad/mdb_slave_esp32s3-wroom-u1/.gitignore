@@ -5,6 +5,7 @@
 !*.kicad_pcb
 !*.kicad_pro
 !*.kicad_sch
+!*.md
 
 # Keep this .gitignore
 !.gitignore
