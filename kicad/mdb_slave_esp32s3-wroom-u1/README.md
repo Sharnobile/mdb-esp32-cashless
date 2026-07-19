@@ -1,4 +1,4 @@
-# MDB32 ESP32-S3 Cashless Module
+# MDB ESP32-S3 Cashless Module
 
 Custom PCB adding cashless payment and telemetry to vending machines via the **MDB (Multi-Drop Bus)** protocol. Built around an **ESP32-S3-WROOM-1U** module with external antenna. Designed in KiCad 10.
 
