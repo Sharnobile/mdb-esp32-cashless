@@ -524,7 +524,7 @@
     "pinned_symbol_libs": []
   },
   "meta": {
-    "filename": "mdb32_slave_esp32_sharnobile.kicad_pro",
+    "filename": "mdb_slave_esp32s3-wroom-u1.kicad_pro",
     "version": 3
   },
   "net_settings": {
@@ -855,18 +855,18 @@
     "subpart_id_separator": 0,
     "top_level_sheets": [
       {
-        "filename": "mdb32_slave_esp32_sharnobile.kicad_sch",
-        "name": "mdb32_slave_esp32_sharnobile",
+        "filename": "mdb_slave_esp32s3-wroom-u1.kicad_sch",
+        "name": "mdb_slave_esp32s3-wroom-u1",
         "uuid": "95980b25-0707-441d-ba83-7f6c6e1d1aaa"
       }
     ],
-    "used_designators": "U1-5,#PWR1-55,D1-6,C1-8,#FLG1-6,R1-22,J1-14,Q1-3,BZ1,L1,L3,#SYM1,H1-5,SW1,TH1,F1",
+    "used_designators": "U1-5,#PWR1-55,D1-6,C1-8,#FLG1-6,R1-22,J1-14,Q1-3,BZ1,L1,L3,#SYM1,H1-5,SW1,TH1,F1,BUZZER1",
     "variants": []
   },
   "sheets": [
     [
       "95980b25-0707-441d-ba83-7f6c6e1d1aaa",
-      "mdb32_slave_esp32_sharnobile"
+      "mdb_slave_esp32s3-wroom-u1"
     ]
   ],
   "text_variables": {},
