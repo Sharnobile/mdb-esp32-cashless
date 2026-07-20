@@ -257,6 +257,7 @@
     "ekColumn": "üblicher EK"
   },
   "common": {
+    "language": "Sprache",
     "save": "Speichern",
     "cancel": "Abbrechen",
     "delete": "Löschen",

@@ -4,6 +4,8 @@ import {
   IconLogout,
   IconSettings,
   IconUserCircle,
+  IconLanguage,
+  IconCheck,
 } from "@tabler/icons-vue"
 
 import {
@@ -18,6 +20,9 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
 } from '@/components/ui/dropdown-menu'
 import {
   SidebarMenu,
@@ -26,7 +31,7 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar'
 
-const { t } = useI18n()
+const { t, locale, locales, setLocale } = useI18n()
 const supabase = useSupabaseClient()
 const user = useSupabaseUser()
 const { isMobile, setOpenMobile } = useSidebar()
@@ -70,6 +75,17 @@ async function loadUserName() {
 }
 
 watch(userId, (uid) => { if (import.meta.client && uid) loadUserName() }, { immediate: true })
+
+async function switchLocale(code: string) {
+  await setLocale(code)
+  try {
+    if (userId.value) {
+      await supabase.from('users').update({ locale: code }).eq('id', userId.value)
+    }
+  } catch (err) {
+    console.warn('[NavUser] locale persist failed:', err)
+  }
+}
 
 async function logout() {
   await supabase.auth.signOut()
@@ -129,9 +145,23 @@ async function logout() {
             </DropdownMenuItem>
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
-          <DropdownMenuItem as="div" class="p-0">
-            <LanguageSwitcher />
-          </DropdownMenuItem>
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              <IconLanguage />
+              <span>{{ t('common.language') }}</span>
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent class="w-48">
+              <DropdownMenuItem
+                v-for="loc in locales"
+                :key="loc.code"
+                class="flex items-center justify-between"
+                @click="switchLocale(loc.code)"
+              >
+                <span>{{ loc.name }}</span>
+                <IconCheck v-if="loc.code === locale" class="ml-auto h-4 w-4" />
+              </DropdownMenuItem>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
           <DropdownMenuSeparator />
           <DropdownMenuItem @click="logout">
             <IconLogout />
