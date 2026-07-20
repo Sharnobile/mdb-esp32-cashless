@@ -506,6 +506,66 @@ struct ProductEditSheet: View {
             pendingBarcodes.append((code: code, format: format))
         }
         showScanner = false
+
+        // Auto-fill the name from the barcode, same as typing it manually —
+        // setting `name` triggers the existing .onChange(of: name) photo
+        // search, so no separate image lookup is needed here. Never
+        // overwrites a name the user already typed.
+        if name.trimmingCharacters(in: .whitespaces).isEmpty,
+           let suggested = await lookupBarcodeProduct(code) {
+            name = suggested
+        }
+    }
+
+    /// Looks up a barcode against Open Food Facts and returns a suggested
+    /// product name combining its name and quantity (e.g. "Coca-Cola 330ml"),
+    /// or nil if the barcode isn't found or has no usable name.
+    private func lookupBarcodeProduct(_ code: String) async -> String? {
+        guard let url = URL(string: "https://world.openfoodfacts.org/api/v2/product/\(code).json?fields=product_name,quantity") else {
+            return nil
+        }
+        struct Response: Decodable {
+            let status: Int
+            let product: OFFProduct?
+            struct OFFProduct: Decodable {
+                let productName: String?
+                let quantity: String?
+                enum CodingKeys: String, CodingKey {
+                    case productName = "product_name"
+                    case quantity
+                }
+            }
+        }
+        do {
+            var request = URLRequest(url: url)
+            request.timeoutInterval = 8
+            let (data, _) = try await URLSession.shared.data(for: request)
+            let decoded = try JSONDecoder().decode(Response.self, from: data)
+            guard decoded.status == 1,
+                  let name = decoded.product?.productName?.trimmingCharacters(in: .whitespaces),
+                  !name.isEmpty else { return nil }
+            if let quantity = decoded.product?.quantity?.trimmingCharacters(in: .whitespaces), !quantity.isEmpty {
+                return "\(name) \(normalizeQuantityUnit(quantity))"
+            }
+            return name
+        } catch {
+            return nil
+        }
+    }
+
+    /// Open Food Facts quantities are free text ("500 ml", "1,5 l", "33cl"). Just
+    /// normalize the common spelled-out/abbreviated units; pass anything else through.
+    private func normalizeQuantityUnit(_ raw: String) -> String {
+        var q = raw
+        let replacements: [(String, String)] = [
+            ("milliliters", "ml"), ("millilitres", "ml"), ("milliliter", "ml"), ("millilitre", "ml"),
+            ("centiliters", "cl"), ("centilitres", "cl"), ("centiliter", "cl"), ("centilitre", "cl"),
+            ("liters", "L"), ("litres", "L"), ("liter", "L"), ("litre", "L"),
+        ]
+        for (pattern, unit) in replacements {
+            q = q.replacingOccurrences(of: pattern, with: unit, options: [.caseInsensitive])
+        }
+        return q
     }
 
     /// Simple heuristic to detect barcode format from the string length.
