@@ -594,7 +594,7 @@ struct StockSummaryRow: View {
                 }
 
                 HStack(spacing: 8) {
-                    Text("\(summary.batchCount) batch\(summary.batchCount == 1 ? "" : "es")")
+                    Text(String(format: NSLocalizedString("warehouse_batch_count", comment: ""), summary.batchCount))
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
