@@ -41,7 +41,8 @@ struct ExpenseSheet: View {
                 Section("cash_book_category") {
                     Picker("cash_book_category", selection: $category) {
                         ForEach(cashBookVM.expenseCategories, id: \.self) { code in
-                            Text(LocalizedStringKey("cash_book_category_\(code)")).tag(code)
+                            let key: String = "cash_book_category_\(code)"
+                            Text(LocalizedStringKey(key)).tag(code)
                         }
                     }
                     .labelsHidden()

@@ -172,8 +172,8 @@ final class MachineDetailViewModel: ObservableObject {
         let empty = trays.filter { $0.isEmpty }.count
         let low = trays.filter { $0.isBelowMinStock && !$0.isEmpty }.count
 
-        if empty > 0 { return "\(empty) empty, \(low) low" }
-        if low > 0 { return "\(low) low" }
-        return "All good"
+        if empty > 0 { return String(localized: "\(empty) empty, \(low) low") }
+        if low > 0 { return String(localized: "\(low) low") }
+        return String(localized: "All good")
     }
 }

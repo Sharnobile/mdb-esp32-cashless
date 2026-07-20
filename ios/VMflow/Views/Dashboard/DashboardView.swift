@@ -710,7 +710,8 @@ extension DashboardView {
         if let user = cash.userDisplay { parts.append(user) }
         parts.append(NumberFormatter.localizedString(from: cash.amount as NSNumber, number: .currency))
         if let cat = cash.category, !cat.isEmpty {
-            parts.append(String(localized: String.LocalizationValue("cash_book_category_\(cat)")))
+            let key: String = "cash_book_category_\(cat)"
+            parts.append(String(localized: String.LocalizationValue(key)))
         }
         return parts.joined(separator: " · ")
     }

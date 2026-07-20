@@ -388,7 +388,7 @@ struct MachineDetailView: View {
                         HStack {
                             Image(systemName: "doc.badge.minus")
                                 .foregroundStyle(.orange)
-                            Text("\(viewModel.suppressedSales.count) auto-removed")
+                            Text(String(localized: "\(viewModel.suppressedSales.count) auto-removed"))
                                 .font(.subheadline.weight(.semibold))
                             Spacer()
                         }

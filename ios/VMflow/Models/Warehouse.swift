@@ -22,6 +22,7 @@ struct WarehouseStockBatch: Codable, Identifiable, Equatable {
     let quantity: Int
     let batchNumber: String?
     let expirationDate: String?
+    let supplierId: UUID?
 
     enum CodingKeys: String, CodingKey {
         case id, quantity
@@ -29,6 +30,7 @@ struct WarehouseStockBatch: Codable, Identifiable, Equatable {
         case productId = "product_id"
         case batchNumber = "batch_number"
         case expirationDate = "expiration_date"
+        case supplierId = "supplier_id"
     }
 }
 
@@ -91,6 +93,7 @@ struct IntakeEntry: Identifiable, Equatable {
     let quantity: Int
     let batchNumber: String?
     let expirationDate: String?
+    let supplierName: String?
     let createdAt: Date
 }
 
@@ -102,6 +105,7 @@ struct InsertStockBatch: Codable {
     let batchNumber: String?
     let expirationDate: String?
     let companyId: UUID
+    let supplierId: UUID?
 
     enum CodingKeys: String, CodingKey {
         case quantity
@@ -110,6 +114,7 @@ struct InsertStockBatch: Codable {
         case batchNumber = "batch_number"
         case expirationDate = "expiration_date"
         case companyId = "company_id"
+        case supplierId = "supplier_id"
     }
 }
 
@@ -128,6 +133,7 @@ struct InsertWarehouseTransaction: Codable {
     let quantityAfter: Int?
     let batchNumber: String?
     let expirationDate: String?
+    let supplierId: UUID?
 
     enum CodingKeys: String, CodingKey {
         case notes
@@ -142,6 +148,7 @@ struct InsertWarehouseTransaction: Codable {
         case quantityAfter = "quantity_after"
         case batchNumber = "batch_number"
         case expirationDate = "expiration_date"
+        case supplierId = "supplier_id"
     }
 }
 

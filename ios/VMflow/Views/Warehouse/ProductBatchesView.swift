@@ -76,7 +76,7 @@ private struct BatchRow: View {
                     HStack(spacing: 4) {
                         Image(systemName: "calendar")
                             .font(.caption2)
-                        Text(exp)
+                        Text(Self.displayDate(exp))
                             .font(.caption)
                     }
                     .foregroundStyle(expirationColor(exp))
@@ -103,6 +103,12 @@ private struct BatchRow: View {
         f.timeZone = TimeZone(secondsFromGMT: 0)
         return f
     }()
+
+    /// Locale-aware short date (DD/MM/YYYY for fr/nl/de) from a raw ISO string.
+    private static func displayDate(_ s: String) -> String {
+        guard let d = isoFormatter.date(from: s) else { return s }
+        return d.formatted(.dateTime.day().month(.twoDigits).year())
+    }
 
     private func expirationColor(_ dateString: String) -> Color {
         guard let date = Self.isoFormatter.date(from: dateString) else { return .secondary }
