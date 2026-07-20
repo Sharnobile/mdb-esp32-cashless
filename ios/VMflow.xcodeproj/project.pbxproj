@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		9A93A3DD8DEE7A9396AD8067 /* LabeledStepperField.swift in Sources */ = {isa = PBXBuildFile; fileRef = B11A08577B71951E307864CF /* LabeledStepperField.swift */; };
+		62804A2444C19D44764D647B /* SuppliersViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D817EB0E24B2B8E4258E98A /* SuppliersViewModel.swift */; };
+		3F5597C381D9342CEDA10A6F /* SuppliersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F46A2B4C9F0B860321B285A4 /* SuppliersView.swift */; };
 		009EBF498DA30943CF9B822D /* ReviewStepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C374A772F98B97BE6F2EE986 /* ReviewStepView.swift */; };
 		01DA0CBC6A7F8197F2EA4208 /* DealDetailSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 262B82892D49D5104059509A /* DealDetailSheet.swift */; };
 		03840B5283B50C3D3193477A /* MachinesSplitView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5AEF7E62775F83FFCD0149A /* MachinesSplitView.swift */; };
@@ -206,6 +209,9 @@
 		9C98118B90638CE2F176B419 /* Deal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Deal.swift; sourceTree = "<group>"; };
 		9D17D5562BFC75116621B04A /* RefillWizardViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefillWizardViewModel.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F600000000EF02 /* ExpiryDateField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExpiryDateField.swift; sourceTree = "<group>"; };
+		B11A08577B71951E307864CF /* LabeledStepperField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabeledStepperField.swift; sourceTree = "<group>"; };
+		8D817EB0E24B2B8E4258E98A /* SuppliersViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuppliersViewModel.swift; sourceTree = "<group>"; };
+		F46A2B4C9F0B860321B285A4 /* SuppliersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuppliersView.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60718293A4B5C /* VMflow.Release.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = VMflow.Release.entitlements; sourceTree = "<group>"; };
 		A6908142D65605FE1D58C1AE /* Warehouse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Warehouse.swift; sourceTree = "<group>"; };
 		A8B6CB1492BFAA927C077A18 /* MachineListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MachineListView.swift; sourceTree = "<group>"; };
@@ -305,6 +311,7 @@
 				AC27FF5E0A1C34BCE4ACCDBE /* StatusBadge.swift */,
 				204427FECDDE3A1BB3CB316C /* StockBar.swift */,
 				A1B2C3D4E5F600000000EF02 /* ExpiryDateField.swift */,
+				B11A08577B71951E307864CF /* LabeledStepperField.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -435,6 +442,7 @@
 			children = (
 				0C4757F332F815A5F5300AC8 /* SettingsView.swift */,
 				D5E67290C7704C799B4012AF /* DeleteAccountSheet.swift */,
+				F46A2B4C9F0B860321B285A4 /* SuppliersView.swift */,
 			);
 			path = Settings;
 			sourceTree = "<group>";
@@ -465,6 +473,7 @@
 				7E9A5023EED5804698A679E6 /* TrayViewModel.swift */,
 				84AF9FDF2E1ADB75E706F23A /* WarehouseViewModel.swift */,
 				82F533E0A6E11E3C77E48D43 /* PurchasePricesViewModel.swift */,
+				8D817EB0E24B2B8E4258E98A /* SuppliersViewModel.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -867,6 +876,9 @@
 				7DD2B71154768AA698F1D5BB /* PurchasePricesViewModel.swift in Sources */,
 				836A2197542D4BCCB8D8C2A3 /* PurchasePricesSheet.swift in Sources */,
 				197F3264DB4FF1F030584AD6 /* FixtureURLProtocol.swift in Sources */,
+				9A93A3DD8DEE7A9396AD8067 /* LabeledStepperField.swift in Sources */,
+				62804A2444C19D44764D647B /* SuppliersViewModel.swift in Sources */,
+				3F5597C381D9342CEDA10A6F /* SuppliersView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
