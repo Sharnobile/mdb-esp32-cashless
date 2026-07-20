@@ -105,7 +105,7 @@ struct InboxView: View {
         .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
     }
 
-    private func pill(label: String, count: Int, isSelected: Bool, color: Color, action: @escaping () -> Void) -> some View {
+    private func pill(label: LocalizedStringKey, count: Int, isSelected: Bool, color: Color, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: 6) {
                 Text(label)
@@ -220,11 +220,11 @@ private struct InboxRow: View {
     }
 
     private var kindBadge: some View {
-        let (label, color): (String, Color) = {
+        let (label, color): (LocalizedStringKey, Color) = {
             switch item.kind {
-            case .problem:  return ("PROBLEM", .red)
-            case .feedback: return ("FEEDBACK", .blue)
-            case .wish:     return ("WISH", .orange)
+            case .problem:  return ("inbox_kind_problem", .red)
+            case .feedback: return ("inbox_kind_feedback", .blue)
+            case .wish:     return ("inbox_kind_wish", .orange)
             }
         }()
 

@@ -8,6 +8,7 @@ struct SettingsView: View {
     @State private var isSendingTest = false
     @State private var showSignOutConfirm = false
     @State private var showDeleteAccount = false
+    @FocusState private var zipFieldFocused: Bool
 
     var body: some View {
         List {
@@ -60,8 +61,22 @@ struct SettingsView: View {
                             .multilineTextAlignment(.trailing)
                             .keyboardType(.numberPad)
                             .frame(maxWidth: 120)
+                            .focused($zipFieldFocused)
                             .onSubmit {
                                 Task { await deals.saveSettings() }
+                            }
+                            .toolbar {
+                                // .numberPad has no Return key, so onSubmit above can
+                                // never fire — this is the only way to confirm entry.
+                                ToolbarItemGroup(placement: .keyboard) {
+                                    if zipFieldFocused {
+                                        Spacer()
+                                        Button(String(localized: "Done")) {
+                                            zipFieldFocused = false
+                                            Task { await deals.saveSettings() }
+                                        }
+                                    }
+                                }
                             }
                     }
                 }
