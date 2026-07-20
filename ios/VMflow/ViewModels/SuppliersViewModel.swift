@@ -17,19 +17,37 @@ final class SuppliersViewModel: ObservableObject {
         isLoading = true; defer { isLoading = false }
         do {
             suppliers = try await client.from("suppliers")
-                .select("id, name").order("name", ascending: true).execute().value
+                .select("id, name, email, phone, address, customer_number")
+                .order("name", ascending: true).execute().value
         } catch is CancellationError {} catch { self.error = error.localizedDescription }
     }
 
+    /// Persists all editable fields of a supplier (name + contact info).
     @discardableResult
-    func renameSupplier(id: UUID, name: String) async -> Bool {
-        let trimmed = name.trimmingCharacters(in: .whitespaces)
-        guard !trimmed.isEmpty else { return false }
+    func updateSupplier(_ supplier: Supplier) async -> Bool {
+        let trimmedName = supplier.name.trimmingCharacters(in: .whitespaces)
+        guard !trimmedName.isEmpty else { return false }
+        struct Update: Encodable {
+            let name: String
+            let email: String?
+            let phone: String?
+            let address: String?
+            let customerNumber: String?
+            enum CodingKeys: String, CodingKey {
+                case name, email, phone, address
+                case customerNumber = "customer_number"
+            }
+        }
+        let blank = { (s: String?) in (s?.trimmingCharacters(in: .whitespaces)).flatMap { $0.isEmpty ? nil : $0 } }
         do {
             try await client.from("suppliers")
-                .update(["name": trimmed]).eq("id", value: id.uuidString).execute()
-            if let idx = suppliers.firstIndex(where: { $0.id == id }) {
-                suppliers[idx] = Supplier(id: id, name: trimmed)
+                .update(Update(name: trimmedName, email: blank(supplier.email), phone: blank(supplier.phone),
+                                address: blank(supplier.address), customerNumber: blank(supplier.customerNumber)))
+                .eq("id", value: supplier.id.uuidString).execute()
+            if let idx = suppliers.firstIndex(where: { $0.id == supplier.id }) {
+                suppliers[idx] = Supplier(id: supplier.id, name: trimmedName, email: blank(supplier.email),
+                                           phone: blank(supplier.phone), address: blank(supplier.address),
+                                           customerNumber: blank(supplier.customerNumber))
                 suppliers.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
             }
             return true

@@ -1,13 +1,14 @@
 import SwiftUI
 
-/// Company-wide supplier management, reachable from the "More" tab: list, rename,
-/// delete. Suppliers themselves are created implicitly from the purchase-price
-/// editor (see PurchasePricesSheet.SupplierPickerView) — this screen is for
-/// cleaning them up afterwards (typo fixes, removing unused entries).
+/// Company-wide supplier management, reachable from the "More" tab: list, edit
+/// (name + contact info), delete. Suppliers themselves are created implicitly
+/// from the purchase-price editor (see PurchasePricesSheet.SupplierPickerView)
+/// or the warehouse intake supplier picker — this screen is for filling in
+/// their details and cleaning them up afterwards (typo fixes, removing unused
+/// entries).
 struct SuppliersView: View {
     @StateObject private var vm = SuppliersViewModel()
-    @State private var renamingSupplier: Supplier?
-    @State private var renameText = ""
+    @State private var editingSupplier: Supplier?
 
     var body: some View {
         List {
@@ -16,10 +17,16 @@ struct SuppliersView: View {
             }
             ForEach(vm.suppliers) { supplier in
                 Button {
-                    renamingSupplier = supplier
-                    renameText = supplier.name
+                    editingSupplier = supplier
                 } label: {
-                    Text(supplier.name).foregroundStyle(.primary)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(supplier.name).foregroundStyle(.primary)
+                        if let email = supplier.email, !email.isEmpty {
+                            Text(email).font(.caption).foregroundStyle(.secondary)
+                        } else if let phone = supplier.phone, !phone.isEmpty {
+                            Text(phone).font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
                 }
                 .swipeActions {
                     Button(role: .destructive) {
@@ -34,21 +41,9 @@ struct SuppliersView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task { await vm.loadSuppliers() }
         .refreshable { await vm.loadSuppliers() }
-        .alert(
-            String(localized: "Rename Supplier"),
-            isPresented: Binding(
-                get: { renamingSupplier != nil },
-                set: { if !$0 { renamingSupplier = nil } }
-            )
-        ) {
-            TextField(String(localized: "Supplier"), text: $renameText)
-                .autocorrectionDisabled()
-            Button(String(localized: "Cancel"), role: .cancel) { renamingSupplier = nil }
-            Button(String(localized: "Save")) {
-                if let s = renamingSupplier {
-                    Task { await vm.renameSupplier(id: s.id, name: renameText) }
-                }
-                renamingSupplier = nil
+        .sheet(item: $editingSupplier) { supplier in
+            SupplierEditSheet(supplier: supplier) { updated in
+                await vm.updateSupplier(updated)
             }
         }
         .alert(
@@ -58,6 +53,77 @@ struct SuppliersView: View {
             Button(String(localized: "OK")) { vm.error = nil }
         } message: {
             Text(vm.error ?? "")
+        }
+    }
+}
+
+/// Edit a supplier's name and contact/reference info.
+private struct SupplierEditSheet: View {
+    let supplier: Supplier
+    let onSave: (Supplier) async -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var name: String
+    @State private var email: String
+    @State private var phone: String
+    @State private var address: String
+    @State private var customerNumber: String
+    @State private var isSaving = false
+
+    init(supplier: Supplier, onSave: @escaping (Supplier) async -> Void) {
+        self.supplier = supplier
+        self.onSave = onSave
+        _name = State(initialValue: supplier.name)
+        _email = State(initialValue: supplier.email ?? "")
+        _phone = State(initialValue: supplier.phone ?? "")
+        _address = State(initialValue: supplier.address ?? "")
+        _customerNumber = State(initialValue: supplier.customerNumber ?? "")
+    }
+
+    private var canSave: Bool { !name.trimmingCharacters(in: .whitespaces).isEmpty }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextField(String(localized: "Supplier"), text: $name)
+                }
+                Section {
+                    TextField(String(localized: "Email"), text: $email)
+                        .keyboardType(.emailAddress)
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+                    TextField(String(localized: "Phone"), text: $phone)
+                        .keyboardType(.phonePad)
+                    TextField(String(localized: "Address"), text: $address, axis: .vertical)
+                        .lineLimit(2...4)
+                    TextField(String(localized: "Customer number"), text: $customerNumber)
+                }
+            }
+            .navigationTitle(String(localized: "Edit Supplier"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        isSaving = true
+                        var updated = supplier
+                        updated.name = name
+                        updated.email = email
+                        updated.phone = phone
+                        updated.address = address
+                        updated.customerNumber = customerNumber
+                        Task {
+                            await onSave(updated)
+                            isSaving = false
+                            dismiss()
+                        }
+                    }
+                    .disabled(!canSave || isSaving)
+                }
+            }
         }
     }
 }
