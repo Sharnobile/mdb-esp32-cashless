@@ -1,0 +1,44 @@
+name: Build iOS App
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Build Unsigned Archive
+        run: |
+          cd ios
+          # Build an archive of the project without signing
+          xcodebuild -project VMflow.xcodeproj \
+            -scheme VMflow \
+            -configuration Release \
+            -sdk iphoneos \
+            -archivePath VMflow.xcarchive \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            clean archive
+
+      - name: Package IPA
+        run: |
+          cd ios
+          mkdir -p Payload
+          # Copy the .app from the archive, preserving permissions and symlinks
+          cp -rp VMflow.xcarchive/Products/Applications/VMflow.app Payload/
+          # Create zip preserving symlinks (-y)
+          zip -y -r VMflow.ipa Payload
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: VMflow-Unsigned-IPA
+          path: ios/VMflow.ipa
