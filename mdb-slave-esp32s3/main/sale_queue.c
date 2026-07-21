@@ -262,6 +262,37 @@ bool sale_queue_enqueue(uint8_t cmd, uint16_t item_price, uint16_t item_number) 
     }
     xSemaphoreTake(s_lock, portMAX_DELAY);
 
+    // MDB bus retransmit guard: the VMC resends CASH_SALE / VEND_SUCCESS
+    // when the ACK byte is lost or corrupted (common during motor-induced
+    // EMI). Each retransmit gets a fresh sale_seq, so the backend unique
+    // index cannot catch it. Suppress identical (cmd, price, item) within
+    // a short window. 5 s is safe — a real repeat purchase requires a full
+    // mechanical cycle (coin-in → select → motor → dispense ≥ 10 s).
+    // Returns true (not false!) so the caller does NOT fall back to the
+    // unprotected v1 direct-publish path.
+    {
+        static uint8_t  s_dedup_cmd   = 0;
+        static uint16_t s_dedup_price = 0;
+        static uint16_t s_dedup_item  = 0;
+        static TickType_t s_dedup_tick = 0;
+
+        TickType_t now_tick = xTaskGetTickCount();
+        if (cmd == s_dedup_cmd
+            && item_price == s_dedup_price
+            && item_number == s_dedup_item
+            && (now_tick - s_dedup_tick) < pdMS_TO_TICKS(5000)) {
+            ESP_LOGW(TAG, "dedup: suppressed retransmit cmd=0x%02x item=%u price=%u (%ums since last)",
+                     cmd, (unsigned)item_number, (unsigned)item_price,
+                     (unsigned)(now_tick - s_dedup_tick) * portTICK_PERIOD_MS);
+            xSemaphoreGive(s_lock);
+            return true;
+        }
+        s_dedup_cmd   = cmd;
+        s_dedup_price = item_price;
+        s_dedup_item  = item_number;
+        s_dedup_tick  = now_tick;
+    }
+
     uint32_t pending = s_tail - s_head;
     if (pending >= SALE_QUEUE_CAPACITY) {
         s_overflow++;
