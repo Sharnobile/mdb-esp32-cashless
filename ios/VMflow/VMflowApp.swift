@@ -185,7 +185,7 @@ struct MoreView: View {
                     NavigationLink {
                         SuppliersView()
                     } label: {
-                        Label(String(localized: "Suppliers"), systemImage: "shippingbox.fill")
+                        Label(String(localized: "Suppliers"), systemImage: "truck.box.fill")
                     }
 
                     NavigationLink {

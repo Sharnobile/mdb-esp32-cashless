@@ -14,6 +14,9 @@ struct MachineDetailView: View {
     @State private var editingTray: Tray?
     @State private var selectedProduct: ProductSelection?
     @State private var rowToRestore: SuppressedSale?
+    @State private var showMachineSettings = false
+    @State private var showDeviceHealth = false
+    @State private var showSendCredit = false
     @EnvironmentObject private var realtime: RealtimeService
     @EnvironmentObject private var auth: AuthService
 
@@ -46,7 +49,7 @@ struct MachineDetailView: View {
             Picker("Section", selection: $selectedTab) {
                 Text("Overview").tag(0)
                 Text("Sales").tag(1)
-                Text("Duplicates").tag(2)
+                Text("Statistics").tag(2)
             }
             .pickerStyle(.segmented)
             .padding(.horizontal)
@@ -56,12 +59,47 @@ struct MachineDetailView: View {
             TabView(selection: $selectedTab) {
                 overviewTab.tag(0)
                 salesTab.tag(1)
-                suppressedTab.tag(2)
+                MachineAnalysisView(detailViewModel: viewModel, trayViewModel: trayVM).tag(2)
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
         }
         .navigationTitle(machine.displayName)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    showSendCredit = true
+                } label: {
+                    Image(systemName: "eurosign.circle")
+                }
+                .accessibilityLabel(String(localized: "Send Credit"))
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    showDeviceHealth = true
+                } label: {
+                    Image(systemName: "waveform.path.ecg.rectangle")
+                }
+                .accessibilityLabel(String(localized: "Device Health"))
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    showMachineSettings = true
+                } label: {
+                    Image(systemName: "gearshape")
+                }
+                .accessibilityLabel(String(localized: "Machine Settings"))
+            }
+        }
+        .sheet(isPresented: $showMachineSettings) {
+            MachineSettingsSheet(viewModel: viewModel)
+        }
+        .sheet(isPresented: $showDeviceHealth) {
+            DeviceHealthSheet(detailViewModel: viewModel)
+        }
+        .sheet(isPresented: $showSendCredit) {
+            SendCreditSheet(viewModel: viewModel)
+        }
         .task {
             await viewModel.loadDetail()
             await trayVM.loadTrays()
@@ -371,89 +409,6 @@ struct MachineDetailView: View {
         }
     }
 
-    // MARK: - Suppressed (Duplicates) Tab
-
-    private var suppressedTab: some View {
-        Group {
-            if viewModel.isLoading {
-                ScrollView {
-                    ProgressView()
-                        .frame(maxWidth: .infinity)
-                        .padding(.top, 60)
-                }
-            } else {
-                List {
-                    // Header card
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Image(systemName: "doc.badge.minus")
-                                .foregroundStyle(.orange)
-                            Text(String(localized: "\(viewModel.suppressedSales.count) auto-removed"))
-                                .font(.subheadline.weight(.semibold))
-                            Spacer()
-                        }
-                        Text("Sales auto-dropped as suspected brownout re-reports.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding(16)
-                    .background(RoundedRectangle(cornerRadius: 14).fill(.regularMaterial))
-                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 4, trailing: 16))
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
-
-                    if viewModel.suppressedSales.isEmpty {
-                        VStack(spacing: 12) {
-                            Image(systemName: "checkmark.circle")
-                                .font(.system(size: 40))
-                                .foregroundStyle(.green)
-                            Text("None — no duplicates auto-removed.")
-                                .foregroundStyle(.secondary)
-                                .multilineTextAlignment(.center)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.top, 40)
-                        .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
-                    } else {
-                        let groups = groupSuppressedByDay(viewModel.suppressedSales)
-                        ForEach(groups, id: \.date) { group in
-                            Section {
-                                ForEach(group.rows) { sale in
-                                    SuppressedSaleRow(sale: sale, trays: viewModel.trays)
-                                        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
-                                        .listRowBackground(Color.clear)
-                                        .listRowSeparator(.hidden)
-                                        // Long press instead of swipe — same interaction as the
-                                        // suppressed rows in the Sales tab.
-                                        .contextMenu {
-                                            if isAdmin {
-                                                Button {
-                                                    rowToRestore = sale
-                                                } label: {
-                                                    Label("Take up as sale", systemImage: "checkmark.circle")
-                                                }
-                                            }
-                                        }
-                                        .restoreSaleDialog(for: sale, selection: $rowToRestore) { sale in
-                                            Task { await viewModel.restoreSuppressed(sale.id) }
-                                        }
-                                }
-                            } header: {
-                                DaySectionHeader(label: dayLabel(for: group.date), count: group.rows.count, unit: String(localized: "removed"))
-                            }
-                        }
-                    }
-                }
-                .listStyle(.plain)
-            }
-        }
-        .refreshable {
-            await viewModel.loadDetail()
-        }
-    }
-
     private func formatEUR(_ amount: Double) -> String {
         String(format: "%.2f\u{00A0}\u{20AC}", amount)
     }
@@ -481,11 +436,6 @@ struct MachineDetailView: View {
     private struct DayGroup {
         let date: Date
         let sales: [Sale]
-    }
-
-    private struct SuppressedDayGroup {
-        let date: Date
-        let rows: [SuppressedSale]
     }
 
     private func groupSalesByDay(_ sales: [Sale]) -> [DayGroup] {
@@ -542,16 +492,6 @@ struct MachineDetailView: View {
     }
 
     private var isAdmin: Bool { auth.role == .admin }
-
-    private func groupSuppressedByDay(_ rows: [SuppressedSale]) -> [SuppressedDayGroup] {
-        let calendar = Calendar.current
-        let grouped = Dictionary(grouping: rows) { row in
-            calendar.startOfDay(for: row.receivedAt)
-        }
-        return grouped.keys.sorted(by: >).map { date in
-            SuppressedDayGroup(date: date, rows: grouped[date]!.sorted { $0.receivedAt > $1.receivedAt })
-        }
-    }
 
     private func dayLabel(for date: Date) -> String {
         let calendar = Calendar.current
@@ -816,7 +756,10 @@ struct DaySectionHeader: View {
 
 // MARK: - Restore Confirmation Dialog
 
-private extension View {
+// Not `private` — `DeviceHealthSheet.swift` reuses this for its own
+// auto-removed-duplicates list (the old "Duplicates" tab's content, moved
+// there).
+extension View {
     /// Per-row "take up as sale" confirmation. Attached to the pressed row (not a
     /// shared ancestor) so the iPad popover anchors at the item instead of the
     /// top edge of the list.
@@ -841,6 +784,80 @@ private extension View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("Adds a real sale and reduces stock by 1.")
+        }
+    }
+}
+
+// MARK: - Send Credit Sheet
+
+/// Sends free credit to the machine's device, same effect as inserting a
+/// coin/card payment. No sale is recorded here — the device reports the vend
+/// itself over MQTT when it happens. Open to any authenticated member, not
+/// just admins: the `send-credit` edge function itself doesn't require an
+/// admin role for JWT auth, so the UI matches that.
+private struct SendCreditSheet: View {
+    @ObservedObject var viewModel: MachineDetailViewModel
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var amountText = ""
+    @State private var isSending = false
+    @State private var sendError: String?
+
+    private var amount: Double? {
+        let normalized = amountText.replacingOccurrences(of: ",", with: ".")
+        guard let value = Double(normalized), value > 0 else { return nil }
+        return value
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    HStack {
+                        Text(String(localized: "Amount"))
+                        Spacer()
+                        TextField("0,00", text: $amountText)
+                            .keyboardType(.decimalPad)
+                            .multilineTextAlignment(.trailing)
+                            .frame(maxWidth: 120)
+                        Text("€").foregroundStyle(.secondary)
+                    }
+                } footer: {
+                    Text("Credits the machine as if a coin or card payment had been made. No sale is recorded until the machine reports a vend.")
+                }
+                if let sendError {
+                    Section { Text(sendError).font(.footnote).foregroundStyle(.red) }
+                }
+            }
+            .navigationTitle(String(localized: "Send Credit"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(String(localized: "Cancel")) { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(String(localized: "Send")) {
+                        Task { await send() }
+                    }
+                    .disabled(amount == nil || isSending)
+                }
+            }
+            .disabled(isSending)
+            .overlay {
+                if isSending { ProgressView() }
+            }
+        }
+    }
+
+    private func send() async {
+        guard let amount else { return }
+        isSending = true
+        defer { isSending = false }
+        let ok = await viewModel.sendCredit(amount: amount)
+        if ok {
+            dismiss()
+        } else {
+            sendError = viewModel.error ?? String(localized: "Failed to send credit.")
         }
     }
 }
