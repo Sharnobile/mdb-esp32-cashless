@@ -348,6 +348,11 @@ private struct SupplierPickerView: View {
     @Binding var selected: String
     @Environment(\.dismiss) private var dismiss
     @State private var query = ""
+    // Explicit "+" alongside the typed "Add …" row below: the search field
+    // already doubles as an add-new field, but that isn't obvious before you've
+    // typed something, so this gives an unambiguous, always-visible way in.
+    @State private var showAddAlert = false
+    @State private var newSupplierName = ""
 
     private var filtered: [Supplier] {
         let q = query.trimmingCharacters(in: .whitespaces)
@@ -393,6 +398,27 @@ private struct SupplierPickerView: View {
         .navigationBarTitleDisplayMode(.inline)
         .searchable(text: $query, prompt: String(localized: "Search or add supplier"))
         .autocorrectionDisabled()
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    newSupplierName = query.trimmingCharacters(in: .whitespaces)
+                    showAddAlert = true
+                } label: {
+                    Image(systemName: "plus")
+                }
+                .accessibilityLabel(String(localized: "New Supplier"))
+            }
+        }
+        .alert(String(localized: "New Supplier"), isPresented: $showAddAlert) {
+            TextField(String(localized: "Supplier"), text: $newSupplierName)
+            Button(String(localized: "Cancel"), role: .cancel) {}
+            Button(String(localized: "Add")) {
+                let trimmed = newSupplierName.trimmingCharacters(in: .whitespaces)
+                guard !trimmed.isEmpty else { return }
+                selected = trimmed
+                dismiss()
+            }
+        }
     }
 }
 

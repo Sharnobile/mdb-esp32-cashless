@@ -49,6 +49,7 @@
     "supplier": "Leverancier",
     "supplierPlaceholder": "Zoek of voeg een leverancier toe …",
     "useSupplier": "Gebruik \"{name}\"",
+    "typeToCreateHint": "Typ een naam om een nieuwe leverancier toe te voegen",
     "pricePerUnit": "Prijs per eenheid",
     "basis": "Basis",
     "net": "netto",

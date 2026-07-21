@@ -239,6 +239,7 @@
     "supplier": "Lieferant",
     "supplierPlaceholder": "Lieferant suchen oder anlegen …",
     "useSupplier": "„{name}“ verwenden",
+    "typeToCreateHint": "Namen eingeben, um einen neuen Lieferanten anzulegen",
     "pricePerUnit": "Preis je Stück",
     "basis": "Basis",
     "net": "netto",

@@ -49,6 +49,7 @@
     "supplier": "Fournisseur",
     "supplierPlaceholder": "Rechercher ou ajouter un fournisseur …",
     "useSupplier": "Utiliser « {name} »",
+    "typeToCreateHint": "Tapez un nom pour ajouter un nouveau fournisseur",
     "pricePerUnit": "Prix unitaire",
     "basis": "Base",
     "net": "HT",

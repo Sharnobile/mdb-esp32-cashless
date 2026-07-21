@@ -239,6 +239,7 @@
     "supplier": "Supplier",
     "supplierPlaceholder": "Search or add a supplier …",
     "useSupplier": "Use \"{name}\"",
+    "typeToCreateHint": "Type a name to add a new supplier",
     "pricePerUnit": "Price per unit",
     "basis": "Basis",
     "net": "net",
