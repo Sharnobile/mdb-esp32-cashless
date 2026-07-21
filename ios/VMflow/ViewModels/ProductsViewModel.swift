@@ -365,9 +365,11 @@ final class ProductsViewModel: ObservableObject {
         static let empty = ImageSearchPage(images: [], hasMore: false)
     }
 
-    /// Searches DuckDuckGo for product images via the edge function.
-    /// `offset` pages through the result list (8 per page).
-    func searchImages(query: String, offset: Int = 0) async -> ImageSearchPage {
+    /// Searches product images via the edge function. `offset` pages through
+    /// the result list (8 per page). With `foodOnly`, the backend puts Open
+    /// Food Facts packshots first and biases the web search towards groceries,
+    /// so a name like "Mars" resolves to the bar instead of the planet.
+    func searchImages(query: String, offset: Int = 0, foodOnly: Bool = true) async -> ImageSearchPage {
         guard query.count >= 2 else { return .empty }
 
         do {
@@ -381,7 +383,11 @@ final class ProductsViewModel: ObservableObject {
                 }
             }
 
-            let body: [String: AnyJSON] = ["query": .string(query), "offset": .integer(offset)]
+            let body: [String: AnyJSON] = [
+                "query": .string(query),
+                "offset": .integer(offset),
+                "foodOnly": .bool(foodOnly),
+            ]
             let response: SearchResponse = try await client.functions.invoke(
                 "search-product-images",
                 options: .init(body: body)

@@ -14,6 +14,14 @@ const PAGE_SIZE = 8
 const MAX_IMAGE_DIM = 600
 const JPEG_QUALITY = 80
 
+// Food mode (`foodOnly: true`). Extra terms steer the web search away from
+// same-name non-food subjects ("Mars" the planet, "Bounty" the ship, ...).
+const FOOD_QUERY_HINT = 'food product packaging'
+const OFF_PAGE_SIZE = 24
+const OFF_TIMEOUT_MS = 6000
+// Open Food Facts asks API clients to identify themselves.
+const OFF_USER_AGENT = 'VMflow - Vending management - https://github.com/Sharnobile/mdb-esp32-cashless'
+
 interface ImageResult {
   thumbnail: string
   image: string
@@ -41,7 +49,7 @@ async function getVqd(query: string): Promise<string> {
   throw new Error('Failed to extract VQD token')
 }
 
-async function searchImages(query: string, offset: number): Promise<{ images: ImageResult[]; hasMore: boolean }> {
+async function fetchDuckDuckGo(query: string): Promise<ImageResult[]> {
   const vqd = await getVqd(query)
   const params = new URLSearchParams({
     q: query,
@@ -67,18 +75,95 @@ async function searchImages(query: string, offset: number): Promise<{ images: Im
 
   const data = await response.json()
   const all = (data.results ?? []) as any[]
-  // Page server-side from the full result list so arbitrary offsets are exact,
-  // independent of how DuckDuckGo's own `s` cursor snaps.
-  const page = all.slice(offset, offset + PAGE_SIZE)
 
-  return {
-    images: page.map((r: any) => ({
-      thumbnail: r.thumbnail ?? '',
-      image: r.image ?? '',
-      title: r.title ?? '',
-    })),
-    hasMore: all.length > offset + PAGE_SIZE,
+  return all.map((r: any) => ({
+    thumbnail: r.thumbnail ?? '',
+    image: r.image ?? '',
+    title: r.title ?? '',
+  }))
+}
+
+// Lowercase and strip accents so "Crème" and "creme" compare equal.
+function normalize(s: string): string {
+  return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
+}
+
+// Lower is better: name starts with the query, name contains it, brand
+// contains it, no textual match at all.
+function matchRank(needle: string, productName?: string, brands?: string): number {
+  const name = normalize(productName ?? '')
+  const brand = normalize(brands ?? '')
+  if (name.startsWith(needle)) return 0
+  if (name.includes(needle)) return 1
+  if (brand.includes(needle)) return 2
+  return 3
+}
+
+// Open Food Facts front-of-pack photos. Used as the first source in food mode:
+// a query like "Mars" resolves to the confectionery bar there, where a plain
+// web image search returns the planet.
+async function fetchOpenFoodFacts(query: string): Promise<ImageResult[]> {
+  const params = new URLSearchParams({
+    search_terms: query,
+    search_simple: '1',
+    action: 'process',
+    json: '1',
+    page_size: String(OFF_PAGE_SIZE),
+    fields: 'product_name,brands,image_front_url,image_front_small_url',
+  })
+
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), OFF_TIMEOUT_MS)
+  try {
+    const response = await fetch(
+      `https://world.openfoodfacts.org/cgi/search.pl?${params}`,
+      { headers: { 'User-Agent': OFF_USER_AGENT }, signal: controller.signal },
+    )
+    if (!response.ok) return []
+    const data = await response.json()
+    const needle = normalize(query)
+    return ((data.products ?? []) as any[])
+      .filter((p) => typeof p.image_front_url === 'string' && p.image_front_url)
+      // Open Food Facts ranks by popularity, not by how well the name matches,
+      // so "Mars" can put unrelated best-sellers above the bar itself.
+      .map((p) => ({ p, rank: matchRank(needle, p.product_name, p.brands) }))
+      .sort((a, b) => a.rank - b.rank)
+      .map(({ p }) => ({
+        thumbnail: p.image_front_small_url ?? p.image_front_url,
+        image: p.image_front_url,
+        title: [p.brands, p.product_name].filter(Boolean).join(' - '),
+      }))
+  } catch {
+    // Best-effort: OFF being slow or down must not break the search.
+    return []
+  } finally {
+    clearTimeout(timeout)
   }
+}
+
+// Builds the full candidate list for a query; the caller pages it. In food mode
+// the Open Food Facts hits come first (they are actual packshots), topped up
+// with a food-biased web search; otherwise it is the plain web search,
+// unchanged from before.
+async function buildResultPool(query: string, foodOnly: boolean): Promise<ImageResult[]> {
+  if (!foodOnly) return await fetchDuckDuckGo(query)
+
+  const [offResult, webResult] = await Promise.allSettled([
+    fetchOpenFoodFacts(query),
+    fetchDuckDuckGo(`${query} ${FOOD_QUERY_HINT}`),
+  ])
+  const off = offResult.status === 'fulfilled' ? offResult.value : []
+  // A DuckDuckGo failure is only fatal when Open Food Facts gave us nothing —
+  // otherwise the packshots alone are a usable result set.
+  if (webResult.status === 'rejected' && off.length === 0) throw webResult.reason
+  const web = webResult.status === 'fulfilled' ? webResult.value : []
+
+  const seen = new Set<string>()
+  return [...off, ...web].filter((r) => {
+    if (!r.image || seen.has(r.image)) return false
+    seen.add(r.image)
+    return true
+  })
 }
 
 // Decode, downscale to MAX_IMAGE_DIM on the longest edge, re-encode as JPEG.
@@ -163,8 +248,14 @@ Deno.serve(async (req) => {
 
       const rawOffset = Number(body.offset ?? 0)
       const offset = Number.isFinite(rawOffset) && rawOffset > 0 ? Math.floor(rawOffset) : 0
+      const foodOnly = body.foodOnly === true
 
-      const { images, hasMore } = await searchImages(query, offset)
+      const pool = await buildResultPool(query, foodOnly)
+      // Page server-side from the full result list so arbitrary offsets are
+      // exact, independent of how DuckDuckGo's own `s` cursor snaps.
+      const images = pool.slice(offset, offset + PAGE_SIZE)
+      const hasMore = pool.length > offset + PAGE_SIZE
+
       return new Response(JSON.stringify({ images, hasMore }), {
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

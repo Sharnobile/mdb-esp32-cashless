@@ -12,6 +12,22 @@ final class AuthService: ObservableObject {
     @Published var role: OrganizationRole?
     @Published var error: String?
 
+    /// Signed-in user's profile, mirrored from the auth session so the UI can
+    /// show and edit the name that ends up in refill/activity logs.
+    @Published var firstName = ""
+    @Published var lastName = ""
+    @Published var userEmail: String?
+
+    /// Full name if set, otherwise the email — same fallback the activity-log
+    /// writers use for `_user_display`.
+    var displayName: String {
+        let full = [firstName, lastName]
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+        return full.isEmpty ? (userEmail ?? "") : full
+    }
+
     private var client: SupabaseClient { SupabaseService.shared.client }
     private var authStateTask: Task<Void, Never>?
 
@@ -35,11 +51,15 @@ final class AuthService: ObservableObject {
                 case .signedIn:
                     self.isAuthenticated = true
                     await self.fetchOrganization()
+                    await self.loadProfile()
                     Task { await self.syncLocaleToServer() }
                 case .signedOut:
                     self.isAuthenticated = false
                     self.organization = nil
                     self.role = nil
+                    self.firstName = ""
+                    self.lastName = ""
+                    self.userEmail = nil
                 default:
                     break
                 }
@@ -62,6 +82,7 @@ final class AuthService: ObservableObject {
             isAuthenticated = true
             _ = session
             await fetchOrganization()
+            await loadProfile()
             Task { await self.syncLocaleToServer() }
         } catch {
             isAuthenticated = false
@@ -79,6 +100,7 @@ final class AuthService: ObservableObject {
             try await client.auth.signIn(email: email, password: password)
             isAuthenticated = true
             await fetchOrganization()
+            await loadProfile()
             Task { await self.syncLocaleToServer() }
         } catch {
             self.error = error.localizedDescription
@@ -121,6 +143,86 @@ final class AuthService: ObservableObject {
         isAuthenticated = false
         organization = nil
         role = nil
+    }
+
+    // MARK: - Profile
+
+    /// Reads the signed-in user's name from the auth session metadata. Falls
+    /// back to `public.users` for accounts created before the metadata was
+    /// written (or renamed from the web app, which only writes the table).
+    func loadProfile() async {
+        do {
+            let user = try await client.auth.session.user
+            userEmail = user.email
+            firstName = user.userMetadata["first_name"]?.stringValue ?? ""
+            lastName = user.userMetadata["last_name"]?.stringValue ?? ""
+
+            if firstName.isEmpty && lastName.isEmpty {
+                struct Row: Decodable {
+                    let firstName: String?
+                    let lastName: String?
+                    enum CodingKeys: String, CodingKey {
+                        case firstName = "first_name"
+                        case lastName = "last_name"
+                    }
+                }
+                let rows: [Row] = try await client
+                    .from("users")
+                    .select("first_name, last_name")
+                    .eq("id", value: user.id.uuidString)
+                    .limit(1)
+                    .execute()
+                    .value
+                firstName = rows.first?.firstName ?? ""
+                lastName = rows.first?.lastName ?? ""
+            }
+        } catch {
+            print("[AuthService] loadProfile failed: \(error)")
+        }
+    }
+
+    /// Renames the signed-in user. Writes both places the app reads names from:
+    /// the auth metadata (used at write time by the refill/cash-book activity
+    /// log) and `public.users` (joined when rendering historical entries).
+    /// Returns an error message on failure, nil on success.
+    func updateProfileName(firstName newFirst: String, lastName newLast: String) async -> String? {
+        let first = newFirst.trimmingCharacters(in: .whitespaces)
+        let last = newLast.trimmingCharacters(in: .whitespaces)
+        guard !first.isEmpty || !last.isEmpty else {
+            return String(localized: "Enter a first or last name.")
+        }
+
+        do {
+            let userId = try await client.auth.session.user.id
+
+            _ = try await client.auth.update(
+                user: UserAttributes(data: [
+                    "first_name": .string(first),
+                    "last_name": .string(last),
+                ])
+            )
+
+            struct Update: Encodable {
+                let firstName: String
+                let lastName: String
+                enum CodingKeys: String, CodingKey {
+                    case firstName = "first_name"
+                    case lastName = "last_name"
+                }
+            }
+            try await client
+                .from("users")
+                .update(Update(firstName: first, lastName: last))
+                .eq("id", value: userId.uuidString)
+                .execute()
+
+            firstName = first
+            lastName = last
+            return nil
+        } catch {
+            print("[AuthService] updateProfileName failed: \(error)")
+            return error.localizedDescription
+        }
     }
 
     // MARK: - Locale sync

@@ -18,6 +18,9 @@ struct DashboardView: View {
     /// Push CashBookView when the cash-book tile is tapped.
     @State private var showCashBook = false
 
+    /// Profile menu → "Change Name" sheet.
+    @State private var showRenameProfile = false
+
     /// Feed rows (refill/tour/intake) whose detail list is expanded.
     @State private var expandedActivityIds: Set<String> = []
 
@@ -62,6 +65,15 @@ struct DashboardView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
+                    // Shows who is signed in — the same name that lands in the
+                    // refill/activity logs, so it is worth surfacing here.
+                    Section(auth.displayName) {
+                        Button {
+                            showRenameProfile = true
+                        } label: {
+                            Label("Change Name", systemImage: "person.text.rectangle")
+                        }
+                    }
                     Button(role: .destructive) {
                         Task { await auth.logout() }
                     } label: {
@@ -72,6 +84,10 @@ struct DashboardView: View {
                         .font(.title3)
                 }
             }
+        }
+        .sheet(isPresented: $showRenameProfile) {
+            ProfileNameSheet()
+                .environmentObject(auth)
         }
         .task {
             await viewModel.loadDashboard()
@@ -963,6 +979,87 @@ struct ActivityEventRow: View {
         let formatter = DateFormatter()
         formatter.dateFormat = "HH:mm:ss"
         return formatter.string(from: date)
+    }
+}
+
+// MARK: - Profile Name Sheet
+
+/// Renames the signed-in user. The name is what shows up as the author of
+/// refill tours, cash-book entries and other activity-log rows, so this is the
+/// one place to correct it without going through the web app.
+struct ProfileNameSheet: View {
+    @EnvironmentObject private var auth: AuthService
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var firstName = ""
+    @State private var lastName = ""
+    @State private var isSaving = false
+    @State private var saveError: String?
+
+    private var canSave: Bool {
+        !(firstName.trimmingCharacters(in: .whitespaces).isEmpty
+          && lastName.trimmingCharacters(in: .whitespaces).isEmpty)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextField(String(localized: "First Name"), text: $firstName)
+                        .textContentType(.givenName)
+                    TextField(String(localized: "Last Name"), text: $lastName)
+                        .textContentType(.familyName)
+                } footer: {
+                    Text("This name identifies you in refill tours, cash book entries and the activity log.")
+                }
+
+                if let email = auth.userEmail {
+                    Section {
+                        HStack {
+                            Text("Email")
+                            Spacer()
+                            Text(email).foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+            .navigationTitle(String(localized: "Change Name"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        isSaving = true
+                        Task {
+                            let failure = await auth.updateProfileName(
+                                firstName: firstName, lastName: lastName)
+                            isSaving = false
+                            if let failure {
+                                saveError = failure
+                            } else {
+                                dismiss()
+                            }
+                        }
+                    }
+                    .disabled(!canSave || isSaving)
+                }
+            }
+            .task {
+                await auth.loadProfile()
+                firstName = auth.firstName
+                lastName = auth.lastName
+            }
+            .alert(
+                String(localized: "Error"),
+                isPresented: Binding(get: { saveError != nil }, set: { if !$0 { saveError = nil } })
+            ) {
+                Button(String(localized: "OK")) { saveError = nil }
+            } message: {
+                Text(saveError ?? "")
+            }
+        }
     }
 }
 

@@ -38,7 +38,6 @@ struct ProductsView: View {
 struct ProductsTabView: View {
     @ObservedObject var viewModel: ProductsViewModel
     @State private var showAddSheet = false
-    @State private var editingProduct: Product?
     @State private var detailProduct: Product?
 
     var body: some View {
@@ -82,27 +81,12 @@ struct ProductsTabView: View {
                 onDelete: nil
             )
         }
-        .sheet(item: $editingProduct) { product in
-            ProductEditSheet(
-                product: product,
-                categories: viewModel.categories,
-                viewModel: viewModel,
-                onSave: { name, price, categoryId, discontinued in
-                    await viewModel.updateProduct(id: product.id, name: name, sellprice: price, categoryId: categoryId, discontinued: discontinued)
-                    return product.id
-                },
-                onUploadImage: { productId, data in
-                    await viewModel.uploadProductImage(productId: productId, imageData: data)
-                },
-                onDeleteImage: { productId, path in
-                    await viewModel.deleteProductImage(productId: productId, imagePath: path)
-                },
-                onDelete: {
-                    await viewModel.deleteProduct(id: product.id)
-                }
-            )
-        }
-        .sheet(item: $detailProduct) { product in
+        // Tapping a row always opens the stats sheet; editing lives behind the
+        // pencil in that sheet's toolbar. It edits through its own view model,
+        // so refresh the list on dismiss to pick up renames/deletions.
+        .sheet(item: $detailProduct, onDismiss: {
+            Task { await viewModel.loadAll() }
+        }) { product in
             ProductDetailSheet(
                 productId: product.id,
                 fallbackName: product.name ?? "",
@@ -139,12 +123,11 @@ struct ProductsTabView: View {
             ForEach(viewModel.filteredProducts) { product in
                 ProductRow(
                     product: product,
-                    categoryName: viewModel.categoryName(for: product.category),
-                    onImageTap: { detailProduct = product }
+                    categoryName: viewModel.categoryName(for: product.category)
                 )
                 .contentShape(Rectangle())
                 .onTapGesture {
-                    editingProduct = product
+                    detailProduct = product
                 }
             }
             .onDelete { indexSet in
@@ -165,17 +148,10 @@ struct ProductsTabView: View {
 struct ProductRow: View {
     let product: Product
     let categoryName: String?
-    /// Tapping the product image opens the product detail (separate from the
-    /// row tap, which opens the edit sheet).
-    var onImageTap: () -> Void = {}
 
     var body: some View {
         HStack(spacing: 12) {
-            Button(action: onImageTap) {
-                ProductImage(imagePath: product.imagePath, size: 40)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.borderless)
+            ProductImage(imagePath: product.imagePath, size: 40)
 
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {

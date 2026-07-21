@@ -8,6 +8,7 @@ struct SettingsView: View {
     @State private var isSendingTest = false
     @State private var showSignOutConfirm = false
     @State private var showDeleteAccount = false
+    @State private var showRenameProfile = false
     @FocusState private var zipFieldFocused: Bool
 
     var body: some View {
@@ -88,6 +89,20 @@ struct SettingsView: View {
 
             // MARK: - Account Section
             Section {
+                // Same rename entry point as the dashboard profile menu.
+                Button {
+                    showRenameProfile = true
+                } label: {
+                    HStack {
+                        Text("Name").foregroundStyle(.primary)
+                        Spacer()
+                        Text(auth.displayName)
+                            .foregroundStyle(.secondary)
+                        Image(systemName: "chevron.right")
+                            .font(.caption)
+                            .foregroundStyle(.quaternary)
+                    }
+                }
                 if let org = auth.organization {
                     HStack {
                         Text("Organization")
@@ -167,6 +182,10 @@ struct SettingsView: View {
         }
         .sheet(isPresented: $showDeleteAccount) {
             DeleteAccountSheet()
+        }
+        .sheet(isPresented: $showRenameProfile) {
+            ProfileNameSheet()
+                .environmentObject(auth)
         }
     }
 
