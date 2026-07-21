@@ -580,6 +580,8 @@
     "optionalDescription": "Description facultative",
     "clickToUpload": "Cliquer pour téléverser",
     "imageSuggestions": "Suggestions d'images",
+    "foodOnlyImages": "Produits alimentaires uniquement",
+    "foodOnlyImagesHint": "privilégie les photos de produits alimentaires plutôt que des résultats sans rapport",
     "searchingImages": "Recherche d'images...",
     "showMoreImages": "Afficher 8 de plus",
     "nameRequired": "Le nom est requis",

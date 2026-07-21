@@ -580,6 +580,8 @@
     "optionalDescription": "Optionele beschrijving",
     "clickToUpload": "Klik om te uploaden",
     "imageSuggestions": "Afbeeldingssuggesties",
+    "foodOnlyImages": "Alleen levensmiddelen",
+    "foodOnlyImagesHint": "geeft voorrang aan productfoto’s van levensmiddelen boven irrelevante resultaten",
     "searchingImages": "Afbeeldingen worden gezocht...",
     "showMoreImages": "8 meer tonen",
     "nameRequired": "Naam is verplicht",

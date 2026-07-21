@@ -770,6 +770,8 @@
     "optionalDescription": "Optional description",
     "clickToUpload": "Click to upload",
     "imageSuggestions": "Image suggestions",
+    "foodOnlyImages": "Food products only",
+    "foodOnlyImagesHint": "prefers grocery packshots over unrelated matches",
     "searchingImages": "Searching images...",
     "showMoreImages": "Show 8 more",
     "nameRequired": "Name is required",

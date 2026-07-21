@@ -1,3 +1,5 @@
+import { useLocalStorage } from '@vueuse/core'
+
 export interface SuggestedImage {
   thumbnail: string
   image: string
@@ -5,6 +7,8 @@ export interface SuggestedImage {
 }
 
 const PAGE_SIZE = 8
+// Same preference key the iOS app uses for its own toggle.
+const FOOD_ONLY_KEY = 'vmflow-image-search-food-only'
 
 interface ImagePage {
   images: SuggestedImage[]
@@ -20,16 +24,20 @@ export function useProductImageSearch() {
   const error = ref('')
   const cache = new Map<string, ImagePage>()
 
+  // Restrict suggestions to groceries. On by default — this is a vending
+  // catalogue, and a plain web search returns the planet for "Mars".
+  const foodOnly = useLocalStorage(FOOD_ONLY_KEY, true)
+
   let debounceTimer: ReturnType<typeof setTimeout> | null = null
   let currentQuery = ''
   let currentOffset = 0
 
   async function fetchPage(q: string, offset: number): Promise<ImagePage> {
-    const cacheKey = `${q}|${offset}`
+    const cacheKey = `${q}|${offset}|${foodOnly.value}`
     if (cache.has(cacheKey)) return cache.get(cacheKey)!
 
     const { data, error: fnError } = await (supabase as any).functions.invoke('search-product-images', {
-      body: { query: q, offset },
+      body: { query: q, offset, foodOnly: foodOnly.value },
     })
     if (fnError) throw fnError
     const page: ImagePage = { images: data?.images ?? [], hasMore: data?.hasMore ?? false }
@@ -86,6 +94,12 @@ export function useProductImageSearch() {
     debounceTimer = setTimeout(() => searchImages(query), 500)
   }
 
+  // Flipping the filter re-runs the current query so the grid reflects it
+  // immediately instead of waiting for the next keystroke.
+  watch(foodOnly, () => {
+    if (currentQuery) searchImages(currentQuery)
+  })
+
   async function downloadImage(imageUrl: string): Promise<File | null> {
     try {
       // Use direct fetch instead of supabase.functions.invoke
@@ -125,5 +139,5 @@ export function useProductImageSearch() {
     if (debounceTimer) clearTimeout(debounceTimer)
   }
 
-  return { images, searching, loadingMore, hasMore, error, searchDebounced, loadMore, downloadImage, clear }
+  return { images, searching, loadingMore, hasMore, error, foodOnly, searchDebounced, loadMore, downloadImage, clear }
 }
