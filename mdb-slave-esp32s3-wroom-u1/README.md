@@ -52,15 +52,18 @@ Per the schematic's IO legend:
 Original layout reused GPIO8/9 for `custom_input2/3` (J13/J14), which
 collide with `PIN_DEX_RX`/`PIN_DEX_TX` on the original board — flashing
 the "wrong" firmware would silently disable one function or the other.
-**Fix in progress**: J13/J14 are being rerouted to GPIO47/48 on the
-WROOM-U1 schematic (PCB layout engineer notified). GPIO17/18 were
-considered and rejected — those collide instead with `PIN_SIM7080G_TX`/
-`PIN_SIM7080G_RX` on the basic-plus/cellular variant. GPIO47/48 are free
-on every variant and aren't affected by Quad-vs-Octal PSRAM pin
-reservations (unlike GPIO35-37). Firmware side already updated
-(`PIN_CUSTOM_INPUT1/2/3` in `mdb-slave-esp32s3-wroom-u1.c`); **this
-README's pin table reflects the target layout, not yet a built/tested
-board** — update again once the new WROOM-U1 schematic revision lands.
+GPIO17/18 were considered and rejected — those collide instead with
+`PIN_SIM7080G_TX`/`PIN_SIM7080G_RX` on the basic-plus/cellular variant.
+GPIO47/48 are free on every variant and aren't affected by
+Quad-vs-Octal PSRAM pin reservations (unlike GPIO35-37).
+
+**Done, verified against the schematic**: `feature/esp32s3-wroom-u1-pcb`
+commit `0fb67e0` reroutes J13/J14 (with their pull-up resistors) to
+GPIO47/48 and leaves GPIO8/9 as no-connect. Parsing the committed
+`.kicad_sch` confirms `io47`→R19→J13 and `io48`→R22→J14, matching
+`PIN_CUSTOM_INPUT2`/`PIN_CUSTOM_INPUT3` in
+`mdb-slave-esp32s3-wroom-u1.c` exactly — no further firmware change
+needed for this. Still not built/tested on a physical board.
 
 ### Automatic board detection (GPIO3) — kept as defense-in-depth
 
