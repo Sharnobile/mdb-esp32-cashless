@@ -133,6 +133,44 @@ struct VendingMachine: Codable, Identifiable, Equatable {
         case publicListing = "public_listing"
     }
 
+    /// Explicit memberwise initializer. `let` properties that carry a default
+    /// value at declaration (the additive fields below) are excluded from the
+    /// compiler-synthesized memberwise init, so callers that need to set them
+    /// explicitly (e.g. reconstructing after a save) need this instead.
+    /// Defaults are kept on the additive params so existing call sites that
+    /// only pass the original 7 fields keep compiling unchanged.
+    init(
+        id: UUID,
+        name: String?,
+        locationLat: Double?,
+        locationLon: Double?,
+        embedded: UUID?,
+        countryCode: String?,
+        embeddeds: Embedded?,
+        addressStreet: String? = nil,
+        addressHouseNumber: String? = nil,
+        addressPostalCode: String? = nil,
+        addressCity: String? = nil,
+        formattedAddress: String? = nil,
+        nayaxMachineId: String? = nil,
+        publicListing: Bool? = nil
+    ) {
+        self.id = id
+        self.name = name
+        self.locationLat = locationLat
+        self.locationLon = locationLon
+        self.embedded = embedded
+        self.countryCode = countryCode
+        self.embeddeds = embeddeds
+        self.addressStreet = addressStreet
+        self.addressHouseNumber = addressHouseNumber
+        self.addressPostalCode = addressPostalCode
+        self.addressCity = addressCity
+        self.formattedAddress = formattedAddress
+        self.nayaxMachineId = nayaxMachineId
+        self.publicListing = publicListing
+    }
+
     /// Display name, falling back to "Unnamed Machine".
     var displayName: String {
         name ?? "Unnamed Machine"
