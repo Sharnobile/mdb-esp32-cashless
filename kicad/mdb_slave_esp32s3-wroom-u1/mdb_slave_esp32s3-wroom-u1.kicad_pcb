@@ -13853,7 +13853,7 @@
 	(footprint "Connector_Molex:Molex_Mini-Fit_Jr_5566-06A_2x03_P4.20mm_Vertical"
 		(layer "F.Cu")
 		(uuid "d7650717-f0f7-45e1-b0b0-029b6bd23f49")
-		(at 51.61 32.58)
+		(at 173.11 127.58)
 		(descr "Molex Mini-Fit Jr. Power Connectors, old mpn/engineering number: 5566-06A, example for new mpn: 39-28-x06x, 3 Pins per row, Mounting:  (http://www.molex.com/pdm_docs/sd/039281043_sd.pdf)")
 		(tags "connector Molex Mini-Fit_Jr vertical")
 		(property "Reference" "J12"
