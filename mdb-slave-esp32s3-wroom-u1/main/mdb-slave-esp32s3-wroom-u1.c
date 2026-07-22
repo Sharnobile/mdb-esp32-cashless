@@ -60,6 +60,17 @@
 #define PIN_SIM7080G_PWR        GPIO_NUM_14
 #define PIN_BUZZER_PWR          GPIO_NUM_12
 
+/* Custom digital inputs (J11/J13/J14 on the WROOM-U1 board). GPIO6 was
+ * already clear of both boards' PIN_* usage. GPIO47/48 were picked for
+ * custom_input2/3 specifically to AVOID GPIO8/9 (clashes with
+ * PIN_DEX_RX/TX on the original board) and GPIO17/18 (clashes with
+ * PIN_SIM7080G_TX/RX on the basic-plus/cellular variant) — 47/48 are
+ * free on every variant and unaffected by Quad-vs-Octal PSRAM pin
+ * reservations (unlike GPIO35-37). No driver reads these yet. */
+#define PIN_CUSTOM_INPUT1       GPIO_NUM_6
+#define PIN_CUSTOM_INPUT2       GPIO_NUM_47
+#define PIN_CUSTOM_INPUT3       GPIO_NUM_48
+
 /* Board-ID strap: GPIO3 is unused on both the original mdb-slave-esp32s3
  * PCB and this WROOM-U1 PCB per their schematics. Fitting a 10k pull-down
  * to GND on GPIO3 on the WROOM-U1 board only (nothing to add on the
