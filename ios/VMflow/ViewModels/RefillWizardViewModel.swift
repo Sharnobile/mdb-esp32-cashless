@@ -288,6 +288,18 @@ final class RefillWizardViewModel: ObservableObject {
     /// Whether we found a saved tour that can be resumed.
     @Published var hasSavedTour: Bool = false
 
+    /// Guards the wizard's one-time entry decision (resume-vs-load).
+    ///
+    /// SwiftUI ties `.task` to appear/disappear, and `TabView` fires those on
+    /// every tab switch — so `RefillWizardView.task` re-runs each time the user
+    /// returns to the Refill tab. Without this gate, a return mid-tour re-runs
+    /// `checkForSavedTour()` and re-offers "Resume Tour?", and resuming
+    /// overwrites the live tray stock with the saved tour-start snapshot while
+    /// leaving the "sold during tour" badges set (the reported icon-present /
+    /// stock-reverted-to-Anfangsbestand desync). Set once on first entry;
+    /// cleared only by `reset()` so a brand-new tour reloads fresh.
+    private(set) var didRunInitialLoad = false
+
     private let client = SupabaseService.shared.client
 
     // MARK: - Persistence
@@ -320,6 +332,16 @@ final class RefillWizardViewModel: ObservableObject {
         guard let state = try? JSONDecoder().decode(PersistedTourState.self, from: data) else { return false }
         if Date().timeIntervalSince(state.savedAt) > maxAgeSeconds { return false }
         return state.currentStep == "refill" || state.currentStep == "summary"
+    }
+
+    /// Claim the wizard's one-time entry decision. Returns `true` exactly once
+    /// per VM lifetime (until `reset()`); every later call — i.e. every tab
+    /// re-selection that re-fires `.task` — returns `false` so the view skips
+    /// the resume/load decision and leaves the in-memory tour untouched.
+    func beginInitialLoadIfNeeded() -> Bool {
+        guard !didRunInitialLoad else { return false }
+        didRunInitialLoad = true
+        return true
     }
 
     /// Check for a saved tour on launch.
@@ -360,6 +382,11 @@ final class RefillWizardViewModel: ObservableObject {
             selectedWarehouseId = state.selectedWarehouseId
             tourId = state.tourId
             tourLog = state.tourLog
+            // The snapshot holds tour-start stock; "sold during tour" badges
+            // are not persisted. Start clean and let the caller's live refresh
+            // (RefillWizardView) re-flag any trays that actually dropped, so a
+            // resumed tour never shows a badge against a stale baseline.
+            staleStockTrayIds = []
 
             switch state.currentStep {
             case "refill": currentStep = .refill
@@ -1113,6 +1140,8 @@ final class RefillWizardViewModel: ObservableObject {
                 uniqueKeysWithValues: rows.map { ($0.id, $0.currentStock) }
             )
 
+            var didChange = false
+
             for mi in machines.indices {
                 // Skip machines the user has already confirmed or skipped.
                 guard !machines[mi].isRefilled, !machines[mi].isSkipped else { continue }
@@ -1121,6 +1150,7 @@ final class RefillWizardViewModel: ObservableObject {
                     let rt = machines[mi].trays[ti]
                     guard let fresh = freshById[rt.tray.id] else { continue }
                     guard fresh != rt.tray.currentStock else { continue }
+                    didChange = true
 
                     // Only flag *decreases* — a decrease means a sale happened.
                     // An increase means a competing refill already topped the
@@ -1152,6 +1182,14 @@ final class RefillWizardViewModel: ObservableObject {
                         isInTour: rt.isInTour
                     )
                 }
+            }
+
+            // Persist the live stock into the tour snapshot. `saveTourState()`
+            // otherwise only runs at start/confirm/skip, so a resume (real app
+            // kill mid-tour) would restore tour-start stock and silently drop
+            // any sales that happened since. Only write when something changed.
+            if didChange {
+                saveTourState()
             }
         } catch {
             print("[RefillWizard] refreshDuringRefill failed: \(error)")
@@ -1327,6 +1365,10 @@ final class RefillWizardViewModel: ObservableObject {
         } catch {
             print("[RefillWizard] Error: \(error)")
             self.error = error.localizedDescription
+            // Initial load failed and established no state — re-arm the entry
+            // gate so returning to the tab retries the load instead of being
+            // permanently skipped. (No tour is in memory to protect here.)
+            didRunInitialLoad = false
         }
 
         isLoading = false
@@ -2072,6 +2114,9 @@ final class RefillWizardViewModel: ObservableObject {
         packedItems = [:]
         customQuantities = [:]
         staleStockTrayIds = []
+        // Re-arm the entry gate so the next Refill-tab appearance reloads
+        // fresh machine data for a brand-new tour instead of being skipped.
+        didRunInitialLoad = false
         Self.clearSavedTour()
         for i in machines.indices {
             machines[i].isPacked = false
