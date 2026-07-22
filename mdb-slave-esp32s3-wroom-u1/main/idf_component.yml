@@ -1,0 +1,23 @@
+## IDF Component Manager Manifest File
+dependencies:
+  ## Required IDF version
+  idf:
+    version: '>=4.1.0'
+  # # Put list of dependencies here
+  # # For components maintained by Espressif:
+  # component: "~1.0.0"
+  # # For 3rd party components:
+  # username/component: ">=1.0.0,<2.0.0"
+  # username2/component2:
+  #   version: "~1.0.0"
+  #   # For transient dependencies `public` flag can be set.
+  #   # `public` flag doesn't have an effect dependencies of the `main` component.
+  #   # All dependencies of `main` are public by default.
+  #   public: true
+  espressif/led_strip: ^3.0.2
+  # Pinned to 1.4.0: v2.0.0 triggers an `intr_alloc` assert
+  # (find_desc_for_source) inside uart_driver_install on ESP-IDF v5.5.1.
+  # v1.4.0 has the same C API surface we use (modem_probe / init / connect /
+  # disconnect / status / set_apn / set_pin) but no IDF-v6.0 changes that
+  # break v5.5 shared-interrupt allocation.
+  espressif/esp_modem: "==1.4.0"

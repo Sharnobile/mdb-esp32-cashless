@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>VMFlow Setup</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA0OCA0OCIgd2lkdGg9IjQ4IiBoZWlnaHQ9IjQ4Ij4KICA8cmVjdCB3aWR0aD0iNDgiIGhlaWdodD0iNDgiIHJ4PSIxMCIgZmlsbD0iIzBGMTcyQSIvPgogIDxnIHRyYW5zZm9ybT0idHJhbnNsYXRlKDgsMTEpIj4KICAgIDxyZWN0IHg9IjAiICB5PSIwIiB3aWR0aD0iNSIgaGVpZ2h0PSIyMiIgcng9IjEuNSIgZmlsbD0iI2ZmZiIvPgogICAgPHJlY3QgeD0iOCIgIHk9IjAiIHdpZHRoPSI1IiBoZWlnaHQ9IjE0IiByeD0iMS41IiBmaWxsPSIjZmZmIi8+CiAgICA8cmVjdCB4PSIxNiIgeT0iMCIgd2lkdGg9IjUiIGhlaWdodD0iMjIiIHJ4PSIxLjUiIGZpbGw9IiNBM0U2MzUiLz4KICAgIDxyZWN0IHg9IjI0IiB5PSIwIiB3aWR0aD0iNSIgaGVpZ2h0PSIxNCIgcng9IjEuNSIgZmlsbD0iI0EzRTYzNSIvPgogICAgPHBhdGggZD0iTTAgMjggTDMwIDI4IE0yNi41IDI1IEwzMCAyOCBMMjYuNSAzMSIgc3Ryb2tlPSIjQTNFNjM1IiBzdHJva2Utd2lkdGg9IjIuNSIgZmlsbD0ibm9uZSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+CiAgPC9nPgo8L3N2Zz4K">
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    html,body{background:#0F172A;color:#fff;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;min-height:100%}
+    body{padding:14px;font-size:14px;line-height:1.4}
+    .wrap{max-width:480px;margin:0 auto}
+    .panel{background:#1E293B;border-radius:10px;padding:16px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+    .brand{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+    .brand-mark{width:36px;height:36px;flex-shrink:0;border-radius:8px}
+    .brand h1{font-size:18px;font-weight:600}
+    .muted{color:#94A3B8;font-size:12px}
+    .accent{color:#A3E635}
+    .err-text{color:#F87171}
+    h2{font-size:15px;font-weight:600;margin-bottom:10px}
+    label{display:block;font-size:12px;font-weight:600;margin-bottom:4px;margin-top:12px;color:#CBD5E1;letter-spacing:.02em;text-transform:uppercase}
+    label:first-child,label.first{margin-top:0}
+    input,select{width:100%;padding:10px;background:#0F172A;color:#fff;border:1px solid #334155;border-radius:6px;font-size:14px;font-family:inherit}
+    input:focus,select:focus{outline:none;border-color:#A3E635}
+    input::placeholder{color:#475569}
+    .hint{font-size:11px;color:#94A3B8;margin-top:4px}
+    button{display:block;width:100%;margin-top:14px;padding:11px;background:#A3E635;color:#0F172A;border:none;border-radius:6px;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit}
+    button:hover{background:#84CC16}
+    button:active{background:#65A30D}
+    button:disabled{background:#475569;color:#94A3B8;cursor:not-allowed}
+    button.ghost{background:transparent;color:#A3E635;border:1px solid #334155}
+    button.ghost:hover{background:#0F172A}
+    button.ghost:disabled{color:#94A3B8;border-color:#334155;background:transparent}
+    .err-banner{display:none;background:#7F1D1D;color:#FECACA;border:1px solid #B91C1C;border-radius:6px;padding:9px 11px;margin-top:12px;font-size:13px;line-height:1.4}
+    .err-banner.show{display:block}
+    .info-banner{background:#0F172A;color:#CBD5E1;border:1px solid #334155;border-radius:6px;padding:10px 12px;margin-top:12px;font-size:13px;line-height:1.4}
+    .info-banner.warn{background:#451A03;color:#FED7AA;border-color:#B45309}
+    .row{display:flex;align-items:center;gap:8px}
+    .row+.row{margin-top:6px}
+    .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;background:#0F172A;color:#94A3B8;border:1px solid #334155}
+    .badge.ok{background:#14532D;color:#BBF7D0;border-color:#166534}
+    .badge.warn{background:#7C2D12;color:#FED7AA;border-color:#9A3412}
+    .badge.err{background:#7F1D1D;color:#FECACA;border-color:#B91C1C}
+    .icon{font-size:18px;line-height:1}
+    /* signal bars */
+    .signal-bars{display:inline-flex;align-items:flex-end;gap:2px;height:14px}
+    .signal-bars span{width:3px;background:#334155;border-radius:1px;display:inline-block}
+    .signal-bars span.on{background:#A3E635}
+    .signal-bars span:nth-child(1){height:3px}
+    .signal-bars span:nth-child(2){height:6px}
+    .signal-bars span:nth-child(3){height:10px}
+    .signal-bars span:nth-child(4){height:14px}
+    /* loading spinner */
+    .spinner{width:24px;height:24px;border:3px solid #334155;border-top-color:#A3E635;border-radius:50%;animation:spin 1s linear infinite;display:inline-block;vertical-align:middle}
+    .spinner.sm{width:14px;height:14px;border-width:2px;margin-right:6px}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .center{text-align:center;padding:18px 4px}
+    /* WiFi picker (used in wifi_connecting view only) */
+    .wifi-list{max-height:180px;overflow-y:auto;border:1px solid #334155;border-radius:6px;background:#0F172A;margin-bottom:6px}
+    .wifi-list:empty::after{content:"No networks found";display:block;text-align:center;padding:14px;color:#64748B;font-size:12px}
+    .wifi-item{display:flex;align-items:center;gap:8px;padding:9px 11px;border-bottom:1px solid #1E293B;cursor:pointer}
+    .wifi-item:last-child{border-bottom:none}
+    .wifi-item:hover{background:#1E293B}
+    .wifi-item.selected{background:#1E293B;outline:1px solid #A3E635;outline-offset:-2px}
+    .wifi-name{flex:1;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .wifi-lock{font-size:11px;color:#94A3B8;flex-shrink:0}
+    .wifi-header-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+    .wifi-header-row label{margin:0}
+    .scan-btn{width:auto;display:inline-block;margin:0;padding:5px 10px;font-size:12px;background:transparent;color:#A3E635;border:1px solid #334155;font-weight:500}
+    .scan-btn:hover{background:#0F172A}
+    .scan-btn:disabled{color:#94A3B8;border-color:#334155;background:transparent}
+    .scanning-msg{text-align:center;padding:14px;color:#64748B;font-size:12px}
+    /* Status banner uplink details */
+    .uplink-details{margin-top:8px;padding-top:8px;border-top:1px solid #334155;font-size:12px;color:#94A3B8;display:grid;grid-template-columns:auto 1fr;gap:4px 10px}
+    .uplink-details dt{font-weight:500;color:#94A3B8}
+    .uplink-details dd{color:#CBD5E1;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;overflow-wrap:anywhere}
+  </style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <!-- ============ STATUS BANNER ============ -->
+  <div class="panel" id="status_banner">
+    <div class="brand">
+      <svg class="brand-mark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" aria-hidden="true">
+        <rect width="48" height="48" rx="10" fill="#0F172A"/>
+        <g transform="translate(8,11)">
+          <rect x="0"  y="0" width="5" height="22" rx="1.5" fill="#fff"/>
+          <rect x="8"  y="0" width="5" height="14" rx="1.5" fill="#fff"/>
+          <rect x="16" y="0" width="5" height="22" rx="1.5" fill="#A3E635"/>
+          <rect x="24" y="0" width="5" height="14" rx="1.5" fill="#A3E635"/>
+          <path d="M0 28 L30 28 M26.5 25 L30 28 L26.5 31" stroke="#A3E635" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        </g>
+      </svg>
+      <div>
+        <h1>VMFlow</h1>
+        <p class="muted">Device setup</p>
+      </div>
+    </div>
+
+    <div class="row" style="margin-top:10px">
+      <span class="icon" id="sb_icon">…</span>
+      <span id="sb_state" style="font-weight:600">Loading status…</span>
+      <span class="badge" id="sb_claim_badge" style="margin-left:auto;display:none">Not registered</span>
+    </div>
+
+    <dl class="uplink-details" id="sb_details" style="display:none"></dl>
+  </div>
+
+  <!-- ============ DYNAMIC VIEW MOUNT POINT ============ -->
+  <div id="view"></div>
+
+</div>
+
+<script>
+  /* ============================================================
+   * VMflow captive portal SPA — vanilla JS, no framework.
+   * Polls /api/v1/system/info every 2s and renders one of 7
+   * wizard states. Forms POST to /api/v1/{cellular,wifi}/configure
+   * and /api/v1/claim.
+   * ============================================================ */
+
+  /* ---------- State labels ----------
+   *
+   * "cellular_registering" = the modem is attaching to the mobile
+   * network (3GPP CEREG). This is NOT the device registration with
+   * the backend — that comes later in "ready_to_claim". Wording
+   * intentionally avoids "registering" to prevent confusion with
+   * the backend device registration. */
+  var STATE_LABELS = {
+    booting:              "Booting…",
+    offline:              "No uplink",
+    probing:              "Detecting mobile modem…",
+    cellular_config:      "SIM not configured",
+    cellular_registering: "Establishing mobile connection…",
+    wifi_connecting:      "WiFi connecting…",
+    ready_to_claim:       "Ready to register device",
+    claimed_connecting:   "Establishing connection…",
+    claimed:              "Online — registered"
+  };
+
+  /* ---------- Module state ---------- */
+  var lastInfoJSON = "";   /* JSON.stringify of last response — diff before re-render */
+  var lastInfo     = null;
+  var currentView  = "";   /* track currently-mounted view to avoid input-stealing re-renders */
+  var claimSubmittedAt = 0;
+  var claimRebooting   = false;
+  var wifiNetworks     = null;     /* cached scan results */
+  var wifiScanInFlight = false;
+  var selectedSsid     = null;
+
+  /* ---------- DOM helpers ---------- */
+  function el(id) { return document.getElementById(id); }
+  function escapeHtml(s) {
+    return String(s == null ? "" : s).replace(/[<>&"']/g, function (c) {
+      return ({"<":"&lt;",">":"&gt;","&":"&amp;","\"":"&quot;","'":"&#39;"})[c];
+    });
+  }
+  function show(node) { if (node) node.style.display = ""; }
+  function hide(node) { if (node) node.style.display = "none"; }
+
+  /* ---------- Signal bars (dBm → 0..4) ---------- */
+  function signalBars(dbm) {
+    var n = 0;
+    if      (dbm >= -65) n = 4;
+    else if (dbm >= -80) n = 3;
+    else if (dbm >= -95) n = 2;
+    else if (dbm >= -105) n = 1;
+    var html = '<span class="signal-bars" title="' + dbm + ' dBm">';
+    for (var i = 0; i < 4; i++) {
+      html += '<span class="' + (i < n ? "on" : "") + '"></span>';
+    }
+    html += '</span>';
+    return html;
+  }
+
+  /* ---------- Banner render ---------- */
+  function renderBanner(info) {
+    var variant = info.variant || "wifi";
+    var state   = info.wizard_state || "booting";
+    var label   = STATE_LABELS[state] || state;
+    var iconChar = variant === "cellular" ? "📡" : "📶";
+
+    el("sb_icon").textContent  = iconChar;
+    el("sb_state").textContent = label;
+
+    /* Claim badge */
+    var claimBadge = el("sb_claim_badge");
+    if (info.claim) {
+      claimBadge.style.display = "";
+      if (info.claim.claimed) {
+        claimBadge.className = "badge ok";
+        claimBadge.textContent = "Registered ✓";
+      } else if (info.claim.prov_code_set) {
+        claimBadge.className = "badge warn";
+        claimBadge.textContent = "Registering…";
+      } else {
+        claimBadge.className = "badge";
+        claimBadge.textContent = "Not registered";
+      }
+    } else {
+      hide(claimBadge);
+    }
+
+    /* Uplink details (signal/operator/IP) */
+    var details = el("sb_details");
+    var rows = [];
+    var u = info.uplink || {};
+    if (variant === "cellular" && u.cellular) {
+      var c = u.cellular;
+      var sigText = (c.rssi_dbm ? c.rssi_dbm + " dBm " : "") + signalBars(c.rssi_dbm || -113);
+      rows.push("<dt>Signal</dt><dd>" + sigText + "</dd>");
+      if (c.operator) {
+        /* Highlight NB-IoT in red — its 1.5–10 s RTT makes a TLS 1.2
+         * handshake to a Cloudflare-fronted endpoint exceed CF's 15 s
+         * edge timeout; claim will consistently fail on NB-IoT. */
+        var modeColour = (c.mode === "NB-IoT") ? "color:#F87171" : "";
+        rows.push("<dt>Operator</dt><dd>" + escapeHtml(c.operator) +
+                  " · <span style=\"" + modeColour + "\">" + escapeHtml(c.mode || "—") + "</span></dd>");
+      } else {
+        rows.push("<dt>Operator</dt><dd class=\"muted\">— searching —</dd>");
+      }
+      if (c.ip)       rows.push("<dt>IP</dt><dd>" + escapeHtml(c.ip) + "</dd>");
+    } else if (variant === "wifi" && u.wifi) {
+      var w = u.wifi;
+      rows.push("<dt>SSID</dt><dd>" + escapeHtml(w.ssid) + "</dd>");
+      if (w.rssi) rows.push("<dt>Signal</dt><dd>" + w.rssi + " dBm " + signalBars(w.rssi) + "</dd>");
+      if (w.ip)   rows.push("<dt>IP</dt><dd>" + escapeHtml(w.ip) + "</dd>");
+    }
+    if (rows.length) {
+      details.innerHTML = rows.join("");
+      show(details);
+    } else {
+      hide(details);
+    }
+  }
+
+  /* ---------- Form helpers ---------- */
+  function setError(target, msg) {
+    var node = document.querySelector(target + " .err-banner");
+    if (!node) return;
+    if (msg) {
+      node.textContent = msg;
+      node.classList.add("show");
+    } else {
+      node.classList.remove("show");
+      node.textContent = "";
+    }
+  }
+  function disableSubmit(target, disable) {
+    var btn = document.querySelector(target + " button[type=submit]");
+    if (btn) btn.disabled = !!disable;
+  }
+
+  /* ---------- POST helper ---------- */
+  function postJson(url, body) {
+    return fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    }).then(function (r) {
+      return r.json().catch(function () { return { error: "invalid response from device" }; });
+    });
+  }
+
+  /* ---------- View renders ---------- */
+  function viewLoading() {
+    return '<div class="panel center"><div class="spinner"></div>' +
+           '<p class="muted" style="margin-top:10px">Loading…</p></div>';
+  }
+
+  function viewProbing() {
+    return (
+      '<div class="panel center">' +
+        '<div class="spinner"></div>' +
+        '<h2 style="margin-top:14px">Detecting mobile modem…</h2>' +
+        '<p class="muted" style="margin-top:6px">Checking whether this device has a SIM card. Usually takes a few seconds.</p>' +
+        '<button id="skip_probe_btn" type="button" class="ghost" style="margin-top:18px" ' +
+                'onclick="skipProbe()">No SIM — set up via WiFi</button>' +
+      '</div>'
+    );
+  }
+
+  /* Called from the "No SIM — set up via WiFi" button in viewProbing. */
+  window.skipProbe = function() {
+    var btn = el("skip_probe_btn");
+    if (btn) { btn.disabled = true; btn.textContent = "Skipping…"; }
+    fetch("/api/v1/system/skip-probe", { method: "POST" })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
+      .then(function (res) {
+        if (!res.ok) {
+          if (btn) { btn.disabled = false; btn.textContent = "No SIM — set up via WiFi"; }
+          alert("Could not skip detection: " + (res.body && res.body.error ? res.body.error : "unknown error"));
+          return;
+        }
+        /* Server-side flag is now set; next /system/info poll will
+         * report a real wizard_state instead of "probing", and the
+         * router will switch us to wifi_and_claim. */
+      })
+      .catch(function () {
+        if (btn) { btn.disabled = false; btn.textContent = "No SIM — set up via WiFi"; }
+        alert("Network error while skipping detection.");
+      });
+  };
+
+  function viewCellularConfig() {
+    return (
+      '<div class="panel" id="form_cell">' +
+        '<h2>Configure mobile connection</h2>' +
+        '<p class="muted" style="margin-bottom:10px">SIM card detected. Enter the APN of your mobile carrier.</p>' +
+        '<form id="cell_form" autocomplete="off">' +
+          '<label class="first">APN</label>' +
+          '<input id="i_apn" name="apn" required placeholder="e.g. internet" autocapitalize="none" autocorrect="off">' +
+          '<div class="hint">Default for many carriers: <code>internet</code></div>' +
+
+          '<label>SIM PIN <span class="muted" style="font-weight:400">(optional)</span></label>' +
+          '<input id="i_pin" name="pin" inputmode="numeric" pattern="[0-9]*" maxlength="8" placeholder="leave empty if no PIN">' +
+
+          '<label>LTE mode</label>' +
+          '<select id="i_mode" name="lte_mode">' +
+            '<option value="3">Auto (LTE-M + NB-IoT)</option>' +
+            '<option value="1">LTE-M (Cat-M1)</option>' +
+            '<option value="2">NB-IoT</option>' +
+          '</select>' +
+
+          '<div class="err-banner"></div>' +
+          '<button type="submit">Connect</button>' +
+        '</form>' +
+      '</div>'
+    );
+  }
+
+  function viewCellularRegistering() {
+    return (
+      '<div class="panel center">' +
+        '<div class="spinner"></div>' +
+        '<h2 style="margin-top:14px">Establishing mobile connection…</h2>' +
+        '<p class="muted" style="margin-top:6px">The modem is attaching to the cellular network and obtaining an IP address. This can take up to 60 seconds.</p>' +
+      '</div>'
+    );
+  }
+
+  function viewWifiAndClaim() {
+    return (
+      '<div class="panel" id="form_wifi">' +
+        '<h2>WiFi + Device Registration</h2>' +
+        '<form id="wifi_form" autocomplete="off">' +
+
+          '<div class="wifi-header-row">' +
+            '<label class="first">WiFi network</label>' +
+            '<button type="button" class="scan-btn" id="scan_btn">Scan</button>' +
+          '</div>' +
+          '<div id="wifi_list" class="wifi-list"></div>' +
+          '<input id="i_ssid" name="ssid" required placeholder="Enter SSID manually or pick from list" autocapitalize="none" autocorrect="off">' +
+
+          '<label>Password</label>' +
+          '<input id="i_pwd" name="password" type="password" placeholder="leave empty for open networks">' +
+
+          '<label>Provisioning code</label>' +
+          '<input id="i_prov" name="prov_code" required placeholder="8 characters from the backend" maxlength="16" autocapitalize="characters" autocorrect="off">' +
+
+          '<label>Server URL</label>' +
+          '<input id="i_srv" name="srv_url" required value="https://supabase-test.kerl-handel.de" autocapitalize="none" autocorrect="off">' +
+
+          '<div class="err-banner"></div>' +
+          '<button type="submit">Connect WiFi + register</button>' +
+        '</form>' +
+      '</div>'
+    );
+  }
+
+  function viewClaim() {
+    /* NB-IoT warning. NB-IoT round-trips are 1.5–10 s; a TLS handshake
+     * to a Cloudflare-fronted endpoint typically needs 3 round-trips
+     * and CF has a hard 15 s edge timeout, so the claim will fail
+     * deterministically. We tell the user up front so they don't
+     * spend 5 minutes watching retries fail. */
+    var nbiotWarning = "";
+    if (lastInfo && lastInfo.uplink && lastInfo.uplink.cellular &&
+        lastInfo.uplink.cellular.mode === "NB-IoT") {
+      nbiotWarning =
+        '<div class="info-banner warn" style="margin-bottom:10px">' +
+          '<b>⚠ NB-IoT detected.</b><br>' +
+          '<span style="font-weight:400">NB-IoT round-trips are too slow ' +
+          'for TLS handshakes to Cloudflare-fronted endpoints — the ' +
+          'claim will likely fail. Try moving to a location with LTE-M ' +
+          'coverage, or set LTE mode to <b>LTE-M (Cat-M1)</b> instead ' +
+          'of Auto and reboot.</span>' +
+        '</div>';
+    }
+    return (
+      '<div class="panel" id="form_claim">' +
+        '<h2>Register device</h2>' +
+        '<p class="muted" style="margin-bottom:10px">Connection established. Enter the provisioning code to register this device with the backend.</p>' +
+        nbiotWarning +
+        '<form id="claim_form" autocomplete="off">' +
+
+          '<label class="first">Provisioning code</label>' +
+          '<input id="i_prov" name="prov_code" required placeholder="8 characters from the backend" maxlength="16" autocapitalize="characters" autocorrect="off">' +
+
+          '<label>Server URL</label>' +
+          '<input id="i_srv" name="srv_url" required value="https://supabase-test.kerl-handel.de" autocapitalize="none" autocorrect="off">' +
+
+          '<div class="err-banner"></div>' +
+          '<button type="submit">Register</button>' +
+        '</form>' +
+        '<div class="info-banner" id="claim_progress" style="display:none">' +
+          '<span class="spinner sm"></span><span id="claim_progress_text">Request sent…</span>' +
+        '</div>' +
+      '</div>'
+    );
+  }
+
+  function viewClaimed() {
+    return (
+      '<div class="panel center">' +
+        '<div style="font-size:48px;margin-bottom:8px">✓</div>' +
+        '<h2>Setup complete</h2>' +
+        '<p class="muted" style="margin-top:6px">The device is registered and ready.</p>' +
+        '<div class="info-banner warn" style="margin-top:14px;text-align:left">' +
+          '<strong>Heads up:</strong> the device WiFi is now password-protected ' +
+          '(was open during setup). To reconnect, look up this device under ' +
+          '<em>Devices</em> in the management UI and tap the Wi-Fi icon to see ' +
+          'the new SSID and password.' +
+        '</div>' +
+        '<div id="claimed_diag" style="margin-top:18px;text-align:left"></div>' +
+        '<button type="button" id="diag_copy" class="ghost" style="margin-top:10px">Copy diagnostics</button>' +
+      '</div>'
+    );
+  }
+
+  /* Shown right after a successful claim, while the device is rebooting
+   * and bringing the cellular link back up. This window is typically
+   * 10-30 s on Telekom.de sensor.net. We render a friendly progress
+   * panel so the user doesn't see "Setup complete" with empty signal/
+   * IP fields and conclude something's broken.
+   *
+   * The substatus line below the spinner is updated live by
+   * renderClaimedConnecting(info) — shows "Modem booting…" → "Connecting
+   * to operator…" → "Negotiating IP…" based on whatever we know from
+   * the latest /system/info response. */
+  /* Shown right after the user submits WiFi creds + prov_code (or
+   * cellular APN + prov_code), masking the brief window where the
+   * backend's wizard_state cycles through "wifi_connecting" →
+   * "ready_to_claim" → "claimed_connecting". Without this, the user
+   * would see the WiFi form re-mount, then the standalone Claim form
+   * blink, before finally landing on "Establishing connection…".
+   *
+   * Anchored to claimSubmittedAt — the same timestamp the existing
+   * stuck-warning logic uses. After 90 s without a claimed/connecting
+   * state, the router falls through to the regular form so the user
+   * can retry. */
+  function viewSubmitting() {
+    return (
+      '<div class="panel center">' +
+        '<div class="spinner"></div>' +
+        '<h2 style="margin-top:14px">Saving credentials &amp; registering device…</h2>' +
+        '<p class="muted" style="margin-top:6px">' +
+          'Connecting to the network and contacting the backend. This can take 30–60 seconds.' +
+        '</p>' +
+        '<p class="muted" style="margin-top:12px;font-size:12px">' +
+          'The device will reboot when registration completes. Your phone may briefly disconnect — ' +
+          'pick <b>VMflow</b> again from the WiFi menu if it doesn\'t reconnect automatically.' +
+        '</p>' +
+      '</div>'
+    );
+  }
+
+  function viewClaimedConnecting() {
+    return (
+      '<div class="panel center">' +
+        '<div style="font-size:48px;margin-bottom:8px">✓</div>' +
+        '<h2>Setup complete</h2>' +
+        '<p class="muted" style="margin-top:6px;margin-bottom:18px">' +
+          'Registration successful. The device is now establishing its connection.' +
+        '</p>' +
+        '<div class="spinner"></div>' +
+        '<p id="cc_substatus" class="muted" style="margin-top:14px">Establishing connection…</p>' +
+        '<p id="cc_hint" class="muted" style="margin-top:6px;font-size:12px">' +
+          'This usually takes 10-30 seconds.' +
+        '</p>' +
+        '<div class="info-banner warn" style="margin-top:18px;text-align:left">' +
+          '<strong>Important:</strong> when the device finishes restarting, its ' +
+          'WiFi will switch from open to password-protected. Your phone will be ' +
+          'disconnected. To reconnect, open the management UI on a different ' +
+          'device, find this unit under <em>Devices</em>, tap the Wi-Fi icon, ' +
+          'and use the new SSID + password shown there.' +
+        '</div>' +
+      '</div>'
+    );
+  }
+
+  /* Update the substatus + hint live while viewClaimedConnecting is mounted.
+   * Each /system/info poll re-runs this against the latest data. */
+  function renderClaimedConnecting(info) {
+    var sub = el("cc_substatus");
+    var hint = el("cc_hint");
+    if (!sub) return;
+
+    var u = (info.uplink || {});
+    var c = u.cellular || null;
+    var w = u.wifi || null;
+    var variant = info.variant || "wifi";
+
+    /* Progress hierarchy depends on uplink variant:
+     *
+     * Cellular:
+     *   1. no cellular block       → modem still booting / probing
+     *   2. operator empty / rssi 0 → modem coming up, not registered
+     *   3. operator known + rssi   → registering / IPCP in flight
+     *
+     * WiFi:
+     *   1. no wifi block / no ssid → driver coming up
+     *   2. ssid present, no IP     → connecting to AP
+     *   3. (state WIFI_UP → router unmounts this view)
+     */
+    var msg;
+    if (variant === "cellular") {
+      if (!c) {
+        msg = "Restarting modem…";
+      } else if (!c.operator || c.rssi_dbm === 0) {
+        msg = "Booting cellular modem…";
+      } else {
+        msg = "Connecting to " + escapeHtml(c.operator) + "…";
+      }
+    } else {
+      if (!w || !w.ssid) {
+        msg = "Restarting WiFi…";
+      } else {
+        msg = "Connecting to " + escapeHtml(w.ssid) + "…";
+      }
+    }
+    sub.textContent = msg;
+
+    /* After ~45 s without uplink, show a help hint instead of the
+     * generic "10-30 seconds" line. Anchor to a module-level start
+     * tick (set when this view mounts). */
+    if (hint && claimedConnectingStart) {
+      var elapsed = Date.now() - claimedConnectingStart;
+      if (elapsed > 45000) {
+        hint.innerHTML =
+          'Connection is taking unusually long.<br>' +
+          '<span style="font-size:12px">Check that the SIM is active and has signal at the device location. ' +
+          'You can also power-cycle the device.</span>';
+      }
+    }
+  }
+  var claimedConnectingStart = 0;
+
+  /* Renders the diagnostic block under the "Setup complete" view.
+   * Pure read of `info` — re-runs every poll while the claimed view is
+   * mounted, so RSSI / IP / uptime stay live. Click handler on the
+   * copy button is wired in renderClaimedDiagnostics on first render. */
+  function renderClaimedDiagnostics(info) {
+    var box = el("claimed_diag");
+    if (!box) return;
+    var c = (info.claim || {});
+    var d = (info.device || {});
+    var u = (info.uplink || {});
+
+    function row(label, value) {
+      if (!value && value !== 0) value = "—";
+      return '<dt>' + escapeHtml(label) + '</dt>' +
+             '<dd style="word-break:break-all;font-family:ui-monospace,monospace;font-size:12px">' +
+               escapeHtml(String(value)) +
+             '</dd>';
+    }
+
+    var rows = "";
+    rows += row("MAC address", d.mac);
+    rows += row("Device ID",   c.device_id);
+    rows += row("Company",     c.company_id);
+    rows += row("Server URL",  c.srv_url);
+    var mqtt = c.mqtt_host ? (c.mqtt_host + (c.mqtt_port ? ":" + c.mqtt_port : "")) : "";
+    rows += row("MQTT broker", mqtt);
+    rows += row("Firmware",    d.firmware + (d.build_date ? "  (" + d.build_date + ")" : ""));
+    var upMins = d.uptime_s ? Math.floor(d.uptime_s / 60) + " min " + (d.uptime_s % 60) + " s" : "";
+    rows += row("Uptime",      upMins);
+    if (u.cellular) {
+      rows += row("Operator",  u.cellular.operator + (u.cellular.mode ? "  ·  " + u.cellular.mode : ""));
+      rows += row("Signal",    (u.cellular.rssi_dbm ? u.cellular.rssi_dbm + " dBm" : ""));
+      rows += row("PPP IP",    u.cellular.ip);
+    } else if (u.wifi) {
+      rows += row("WiFi SSID", u.wifi.ssid);
+      rows += row("WiFi IP",   u.wifi.ip);
+      rows += row("WiFi RSSI", u.wifi.rssi ? u.wifi.rssi + " dBm" : "");
+    }
+
+    box.innerHTML = '<dl class="uplink-details" style="display:grid;border-top:none;padding-top:0">' + rows + '</dl>';
+
+    /* Wire the copy button once. Plain-text dump for pasting into a
+     * support ticket. */
+    var btn = el("diag_copy");
+    if (btn && !btn._wired) {
+      btn._wired = true;
+      btn.addEventListener("click", function () {
+        var text = "VMflow device diagnostics\n";
+        text += "MAC:        " + (d.mac        || "-") + "\n";
+        text += "Device ID:  " + (c.device_id  || "-") + "\n";
+        text += "Company:    " + (c.company_id || "-") + "\n";
+        text += "Server:     " + (c.srv_url    || "-") + "\n";
+        text += "MQTT:       " + (mqtt         || "-") + "\n";
+        text += "Firmware:   " + (d.firmware   || "-") + " (" + (d.build_date || "-") + ")\n";
+        text += "Uptime:     " + (upMins       || "-") + "\n";
+        if (u.cellular) {
+          text += "Operator:   " + (u.cellular.operator || "-") + " · " + (u.cellular.mode || "-") + "\n";
+          text += "Signal:     " + (u.cellular.rssi_dbm ? u.cellular.rssi_dbm + " dBm" : "-") + "\n";
+          text += "PPP IP:     " + (u.cellular.ip || "-") + "\n";
+        }
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(function () {
+            btn.textContent = "Copied ✓";
+            setTimeout(function () { btn.textContent = "Copy diagnostics"; }, 2000);
+          });
+        } else {
+          /* Fallback: select text in a temp textarea */
+          var ta = document.createElement("textarea");
+          ta.value = text; document.body.appendChild(ta);
+          ta.select(); document.execCommand("copy");
+          document.body.removeChild(ta);
+          btn.textContent = "Copied ✓";
+          setTimeout(function () { btn.textContent = "Copy diagnostics"; }, 2000);
+        }
+      });
+    }
+  }
+
+  /* ---------- WiFi scan handling ---------- */
+  function refreshWifiScan() {
+    if (wifiScanInFlight) return;
+    var listEl = el("wifi_list");
+    if (!listEl) return;
+    var scanBtn = el("scan_btn");
+    wifiScanInFlight = true;
+    if (scanBtn) scanBtn.disabled = true;
+    listEl.innerHTML = '<div class="scanning-msg"><span class="spinner sm"></span>Scanning…</div>';
+    fetch("/api/v1/wifi/scan").then(function (r) { return r.json(); }).then(function (j) {
+      wifiNetworks = (j && j.networks) || [];
+      renderWifiList();
+    }).catch(function () {
+      listEl.innerHTML = '<div class="scanning-msg err-text">Scan failed</div>';
+    }).then(function () {
+      wifiScanInFlight = false;
+      if (scanBtn) scanBtn.disabled = false;
+    });
+  }
+  function renderWifiList() {
+    var listEl = el("wifi_list");
+    if (!listEl || !wifiNetworks) return;
+    if (wifiNetworks.length === 0) {
+      listEl.innerHTML = "";
+      return;
+    }
+    var html = "";
+    wifiNetworks.forEach(function (n) {
+      var sel = (n.ssid === selectedSsid) ? " selected" : "";
+      html +=
+        '<div class="wifi-item' + sel + '" data-ssid="' + escapeHtml(n.ssid) + '">' +
+          '<span class="wifi-name">' + escapeHtml(n.ssid) + '</span>' +
+          '<span class="wifi-lock">' + (n.secure ? "🔒" : "") + " " + n.rssi + " dBm</span>" +
+        '</div>';
+    });
+    listEl.innerHTML = html;
+    Array.prototype.forEach.call(listEl.querySelectorAll(".wifi-item"), function (it) {
+      it.onclick = function () {
+        selectedSsid = it.dataset.ssid;
+        var ssidIn = el("i_ssid");
+        if (ssidIn) ssidIn.value = selectedSsid;
+        renderWifiList();
+      };
+    });
+  }
+
+  /* ---------- Form submit handlers ---------- */
+  function submitCellular(ev) {
+    ev.preventDefault();
+    setError("#form_cell", "");
+    disableSubmit("#form_cell", true);
+    var apn  = el("i_apn").value.trim();
+    var pin  = el("i_pin").value.trim();
+    var mode = parseInt(el("i_mode").value, 10) || 3;
+    if (!apn) {
+      setError("#form_cell", "APN is required.");
+      disableSubmit("#form_cell", false);
+      return;
+    }
+    postJson("/api/v1/cellular/configure", { apn: apn, pin: pin, lte_mode: mode })
+      .then(function (j) {
+        if (j && j.ok) {
+          /* leave button disabled — polling will replace the view when state advances to cellular_registering */
+        } else {
+          setError("#form_cell", (j && j.error) || "Failed to submit.");
+          disableSubmit("#form_cell", false);
+        }
+      })
+      .catch(function () {
+        setError("#form_cell", "Network error — please try again.");
+        disableSubmit("#form_cell", false);
+      });
+  }
+
+  function submitClaim(ev) {
+    ev.preventDefault();
+    setError("#form_claim", "");
+    disableSubmit("#form_claim", true);
+    var prov = el("i_prov").value.trim();
+    var srv  = el("i_srv").value.trim();
+    if (!prov || !srv) {
+      setError("#form_claim", "Provisioning code and server URL are required.");
+      disableSubmit("#form_claim", false);
+      return;
+    }
+    postJson("/api/v1/claim", { prov_code: prov, srv_url: srv })
+      .then(function (j) {
+        if (j && j.ok) {
+          claimSubmittedAt = Date.now();
+          var progress = el("claim_progress");
+          if (progress) {
+            show(progress);
+            /* Multi-line so the user knows the disconnect is expected.
+             * After successful claim, the device esp_restart()s — AP
+             * goes down for ~10-30s, phone's auto-join may not always
+             * trigger, so we tell them what to do. */
+            el("claim_progress_text").innerHTML =
+              "Registering device — this can take 30–60 seconds.<br>" +
+              "<span class=\"muted\">The cellular link is briefly torn down for the registration request, " +
+              "and the device will reboot afterwards. The WiFi will disconnect for a moment — " +
+              "if your phone doesn't reconnect automatically, pick <b>VMflow</b> from the WiFi menu again.</span>";
+          }
+        } else {
+          setError("#form_claim", (j && j.error) || "Failed to submit.");
+          disableSubmit("#form_claim", false);
+        }
+      })
+      .catch(function () {
+        setError("#form_claim", "Network error — please try again.");
+        disableSubmit("#form_claim", false);
+      });
+  }
+
+  function submitWifiAndClaim(ev) {
+    ev.preventDefault();
+    setError("#form_wifi", "");
+    disableSubmit("#form_wifi", true);
+    var ssid = el("i_ssid").value.trim();
+    var pwd  = el("i_pwd").value;
+    var prov = el("i_prov").value.trim();
+    var srv  = el("i_srv").value.trim();
+    if (!ssid || !prov || !srv) {
+      setError("#form_wifi", "SSID, provisioning code and server URL are required.");
+      disableSubmit("#form_wifi", false);
+      return;
+    }
+    postJson("/api/v1/wifi/configure", { ssid: ssid, password: pwd })
+      .then(function (j) {
+        if (!j || !j.ok) {
+          setError("#form_wifi", (j && j.error) || "WiFi configuration failed.");
+          disableSubmit("#form_wifi", false);
+          return null;   /* don't submit claim */
+        }
+        return postJson("/api/v1/claim", { prov_code: prov, srv_url: srv });
+      })
+      .then(function (j) {
+        if (j === null) return;   /* wifi step failed */
+        if (j && j.ok) {
+          claimSubmittedAt = Date.now();
+          /* leave disabled; polling will pick up state change */
+        } else {
+          setError("#form_wifi", (j && j.error) || "Registration failed.");
+          disableSubmit("#form_wifi", false);
+        }
+      })
+      .catch(function () {
+        setError("#form_wifi", "Network error — please try again.");
+        disableSubmit("#form_wifi", false);
+      });
+  }
+
+  /* ---------- View router ---------- */
+  function renderView(info) {
+    var state   = info.wizard_state;
+    var variant = info.variant;
+    var nextView;
+    /* Submission-in-flight gate: from the moment the user submitted
+     * a form (claimSubmittedAt set) until claim takes over via the
+     * "claimed_connecting" / "claimed" path, mask any intermediate
+     * form re-mounts (wifi_connecting → form, ready_to_claim → claim
+     * form). 90 s cap so a stuck submission falls back to the normal
+     * form for retry. */
+    var inflight = claimSubmittedAt && (Date.now() - claimSubmittedAt < 90000);
+
+    if (state === "claimed")                     nextView = "claimed";
+    else if (state === "claimed_connecting")     nextView = "claimed_connecting";
+    else if (state === "probing")                nextView = "probing";
+    else if (state === "cellular_config")        nextView = "cellular_config";
+    else if (state === "cellular_registering")   nextView = "cellular_registering";
+    else if (inflight)                           nextView = "submitting";
+    else if (state === "wifi_connecting")        nextView = (variant === "cellular") ? "loading" : "wifi_and_claim";
+    else if (state === "ready_to_claim")         nextView = "claim";
+    else                                          nextView = "loading";
+
+    /* Stuck-claim warning after 90 s — covers the worst case of
+     * reboot (~5 s) + cellular re-registration (~30-60 s) + AP back +
+     * phone auto-join. Anything longer than that and something's
+     * actually wrong (bad code, expired, server unreachable). */
+    if (currentView === "claim" && claimSubmittedAt && (Date.now() - claimSubmittedAt > 90000) && !info.claim.claimed) {
+      var pt = el("claim_progress_text");
+      if (pt) {
+        pt.innerHTML =
+          "Registration is taking unusually long.<br>" +
+          "<span class=\"muted\">Pick <b>VMflow</b> from the WiFi menu again and reload this page. " +
+          "If that doesn't help, check the provisioning code and server URL.</span>";
+      }
+    }
+
+    if (nextView === currentView) return;
+    currentView = nextView;
+    var view = el("view");
+    switch (nextView) {
+      case "loading":
+        view.innerHTML = viewLoading();
+        break;
+      case "probing":
+        view.innerHTML = viewProbing();
+        break;
+      case "cellular_config":
+        view.innerHTML = viewCellularConfig();
+        el("cell_form").onsubmit = submitCellular;
+        break;
+      case "cellular_registering":
+        view.innerHTML = viewCellularRegistering();
+        break;
+      case "wifi_and_claim":
+        view.innerHTML = viewWifiAndClaim();
+        el("wifi_form").onsubmit = submitWifiAndClaim;
+        el("scan_btn").onclick = refreshWifiScan;
+        refreshWifiScan();
+        break;
+      case "claim":
+        view.innerHTML = viewClaim();
+        el("claim_form").onsubmit = submitClaim;
+        break;
+      case "submitting":
+        view.innerHTML = viewSubmitting();
+        break;
+      case "claimed_connecting":
+        view.innerHTML = viewClaimedConnecting();
+        claimedConnectingStart = Date.now();
+        break;
+      case "claimed":
+        view.innerHTML = viewClaimed();
+        break;
+    }
+  }
+
+  /* ---------- Top-level render ---------- */
+  function render(info) {
+    renderBanner(info);
+    renderView(info);
+    /* Live-update the diagnostic block while the claimed view is
+     * mounted. View itself only changes on state transition, but the
+     * inner KV list refreshes every poll so RSSI / uptime / IP stay
+     * accurate. */
+    if (currentView === "claimed") {
+      renderClaimedDiagnostics(info);
+    } else if (currentView === "claimed_connecting") {
+      renderClaimedConnecting(info);
+    }
+  }
+
+  /* ---------- Polling loop ---------- */
+  function fetchInfo() {
+    fetch("/api/v1/system/info").then(function (r) { return r.json(); }).then(function (j) {
+      if (!j) return;
+      var ser = JSON.stringify(j);
+      if (ser !== lastInfoJSON) {
+        lastInfoJSON = ser;
+        lastInfo = j;
+        render(j);
+      } else if (lastInfo && currentView === "claim" && claimSubmittedAt) {
+        /* state didn't change but we're waiting on a claim — re-evaluate stuck warning */
+        renderView(lastInfo);
+      } else if (lastInfo && currentView === "claimed_connecting") {
+        /* json unchanged but we still want the 45 s "taking too long"
+         * hint to fire — re-render the substatus on every tick. */
+        renderClaimedConnecting(lastInfo);
+      }
+    }).catch(function () {
+      /* network error — likely user disconnected from SoftAP. Keep retrying silently. */
+    });
+  }
+
+  /* Boot */
+  fetchInfo();
+  setInterval(fetchInfo, 2000);
+</script>
+
+</body>
+</html>
