@@ -18,7 +18,6 @@ jobs:
       - name: Build Unsigned Archive
         run: |
           cd ios
-          # Build an archive of the project without signing
           xcodebuild -project VMflow.xcodeproj \
             -scheme VMflow \
             -configuration Release \
@@ -26,6 +25,11 @@ jobs:
             -archivePath VMflow.xcarchive \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGN_ENTITLEMENTS="" \
+            CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM="" \
+            PROVISIONING_PROFILE_SPECIFIER="" \
             clean archive
 
       - name: Package IPA
