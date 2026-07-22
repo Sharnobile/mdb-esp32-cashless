@@ -60,6 +60,14 @@
 #define PIN_SIM7080G_PWR        GPIO_NUM_14
 #define PIN_BUZZER_PWR          GPIO_NUM_12
 
+/* Board-ID strap: GPIO3 is unused on both the original mdb-slave-esp32s3
+ * PCB and this WROOM-U1 PCB per their schematics. Fitting a 10k pull-down
+ * to GND on GPIO3 on the WROOM-U1 board only (nothing to add on the
+ * original board — its floating pin reads HIGH via the internal pull-up
+ * below) lets a single firmware image tell the two boards apart at boot,
+ * instead of relying on whoever flashes it picking the right binary. */
+#define PIN_BOARD_ID            GPIO_NUM_3
+
 #define ADC_UNIT_THERMISTOR     ADC_UNIT_1
 #define ADC_CHANNEL_THERMISTOR  ADC_CHANNEL_6   // Define the ADC unit, channel, and attenuation (NTC Thermistor)
 
@@ -2915,7 +2923,29 @@ static void factory_reset_task(void *arg) {
     }
 }
 
+// True on the WROOM-U1 PCB (external 10k pull-down fitted on GPIO3),
+// false on the original mdb-slave-esp32s3 PCB (GPIO3 floats, so the
+// internal pull-up wins and it reads HIGH). See PIN_BOARD_ID above.
+static bool detect_board_variant(void) {
+    gpio_config_t id_cfg = {
+        .pin_bit_mask = (1ULL << PIN_BOARD_ID),
+        .mode         = GPIO_MODE_INPUT,
+        .pull_up_en   = GPIO_PULLUP_ENABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type    = GPIO_INTR_DISABLE,
+    };
+    gpio_config(&id_cfg);
+    vTaskDelay(pdMS_TO_TICKS(1)); // let the internal pull-up settle
+
+    bool is_wroom_u1 = (gpio_get_level(PIN_BOARD_ID) == 0);
+    ESP_LOGI(TAG, "Board detected: %s", is_wroom_u1 ? "WROOM-U1" : "original");
+    return is_wroom_u1;
+}
+
 void app_main(void) {
+
+    bool board_is_wroom_u1 = detect_board_variant();
+
 
     /* Silence the chatty IDF subsystems that drown out our own logs.
      * These tags were emitting D-level lines several times per second
@@ -2984,35 +3014,43 @@ void app_main(void) {
 
 	//---------------- UART1 - EVA DTS DEX/DDCMP ---------------//
 	//----------------------------------------------------------//
-	uart_config_t uart_config_1 = {
-			.baud_rate = 9600,
-			.data_bits = UART_DATA_8_BITS,
-			.parity = UART_PARITY_DISABLE,
-			.stop_bits = UART_STOP_BITS_1,
-			.flow_ctrl = UART_HW_FLOWCTRL_DISABLE };
+	// GPIO8/9 (PIN_DEX_RX/TX) carry DEX telemetry only on the original
+	// board. On WROOM-U1 those same GPIOs are wired to custom_input2/3
+	// screw terminals instead (no DEX reader on this board) — claiming
+	// them for UART1 there would prevent ever using them as digital
+	// inputs, so this whole block is skipped when detect_board_variant()
+	// found the WROOM-U1 pull-down.
+	if (!board_is_wroom_u1) {
+		uart_config_t uart_config_1 = {
+				.baud_rate = 9600,
+				.data_bits = UART_DATA_8_BITS,
+				.parity = UART_PARITY_DISABLE,
+				.stop_bits = UART_STOP_BITS_1,
+				.flow_ctrl = UART_HW_FLOWCTRL_DISABLE };
 
-	uart_param_config(UART_NUM_1, &uart_config_1);
-	uart_set_pin( UART_NUM_1, PIN_DEX_TX, PIN_DEX_RX, -1, -1);
-	uart_driver_install(UART_NUM_1, 256, 256, 0, NULL, 0);
+		uart_param_config(UART_NUM_1, &uart_config_1);
+		uart_set_pin( UART_NUM_1, PIN_DEX_TX, PIN_DEX_RX, -1, -1);
+		uart_driver_install(UART_NUM_1, 256, 256, 0, NULL, 0);
 
-    // ---
-    dexRingbuf = xRingbufferCreate(8 * 1024 /*8Kb*/, RINGBUF_TYPE_BYTEBUF);
+		// ---
+		dexRingbuf = xRingbufferCreate(8 * 1024 /*8Kb*/, RINGBUF_TYPE_BYTEBUF);
 
-    // DEX audit polled hourly. The backend compares consecutive snapshots
-    // against `sales` counts to detect any vend that escaped the MQTT
-    // pipeline (see dex_reconcile_gaps migration). 12h was too coarse to
-    // catch short outages; 1h trades flash + UART time for meaningful
-    // reconciliation resolution.
-    const double INTERVAL_1H_US = 60ULL * 60 * 1000000; // 1h in microseconds
+		// DEX audit polled hourly. The backend compares consecutive snapshots
+		// against `sales` counts to detect any vend that escaped the MQTT
+		// pipeline (see dex_reconcile_gaps migration). 12h was too coarse to
+		// catch short outages; 1h trades flash + UART time for meaningful
+		// reconciliation resolution.
+		const double INTERVAL_1H_US = 60ULL * 60 * 1000000; // 1h in microseconds
 
-	const esp_timer_create_args_t periodic_timer_args = {
-		.callback = &requestTelemetryData,
-		.name = "task_dex_1h"
-	};
+		const esp_timer_create_args_t periodic_timer_args = {
+			.callback = &requestTelemetryData,
+			.name = "task_dex_1h"
+		};
 
-	esp_timer_handle_t periodic_timer;
-	esp_timer_create(&periodic_timer_args, &periodic_timer);
-	esp_timer_start_periodic(periodic_timer, INTERVAL_1H_US);
+		esp_timer_handle_t periodic_timer;
+		esp_timer_create(&periodic_timer_args, &periodic_timer);
+		esp_timer_start_periodic(periodic_timer, INTERVAL_1H_US);
+	}
 
 	//-------------------- NETWORK STACK -----------------------//
 	//----------------------------------------------------------//

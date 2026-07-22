@@ -26,13 +26,13 @@ Per the schematic's IO legend:
 | 0 | Boot button | `PIN_BOOT_BTN` | matches, no change |
 | 1 | Relay 1 (J2) | — | **new, no driver yet** |
 | 2 | Relay 2 (J3) | — | **new, no driver yet** |
-| 3 | free | — | |
+| 3 | Board-ID strap | `PIN_BOARD_ID` | **repurposed, see below** |
 | 4 | MDB RX | `PIN_MDB_RX` | matches, no change |
 | 5 | MDB TX | `PIN_MDB_TX` | matches, no change |
 | 6 | Custom input 1 (J11) | — | **new, no driver yet** |
-| 7 | Thermistor (TH1) | — | **new, no driver yet (ADC)** |
-| 8 | Custom input 2 (J13) | `PIN_DEX_RX` ⚠️ | **conflict — see below** |
-| 9 | Custom input 3 (J14) | `PIN_DEX_TX` ⚠️ | **conflict — see below** |
+| 7 | Thermistor (TH1) | `ADC_CHANNEL_THERMISTOR` (ADC1_CH6) | already read at boot (logged only, not published yet) |
+| 8 | Custom input 2 (J13) | `PIN_DEX_RX` | **fixed — see below** |
+| 9 | Custom input 3 (J14) | `PIN_DEX_TX` | **fixed — see below** |
 | 10 | I2C SDA (J10) | `PIN_I2C_SDA` | matches, no change |
 | 11 | I2C SCL (J10) | `PIN_I2C_SCL` | matches, no change |
 | 12 | Buzzer (BZ1) | `PIN_BUZZER_PWR` | matches, no change |
@@ -45,20 +45,41 @@ Per the schematic's IO legend:
 | 39–42 | JTAG (J7) | — | ESP32-S3 default JTAG pins, no change |
 | 35,36,37,38,47,48 | free | — | |
 
-**DEX conflict**: this board has **no DEX/telemetry connector** — GPIO8/9
-are wired to two generic screw-terminal inputs (J13, J14) instead. The
-copied firmware still calls `uart_set_pin(UART_NUM_1, PIN_DEX_TX,
-PIN_DEX_RX, -1, -1)` on those same pins for DEX telemetry
-(`mdb-slave-esp32s3-wroom-u1.c`). Nothing reads `custom_input2/3` yet
-(no driver exists), so there's no active runtime clash today, but DEX
-support must be compiled out (or gated behind a board-variant Kconfig
-choice) before anyone builds a digital-input driver on those two pins,
-or before the `mdb-master-esp32s3` DEX-emitting test path is used against
-this board.
+### Automatic board detection (GPIO3)
+
+This board has **no DEX/telemetry connector** — GPIO8/9 are wired to two
+generic screw-terminal inputs (J13, J14) instead, not to a DEX reader.
+Rather than ship two firmware images and risk the wrong one landing on
+the wrong PCB, the firmware now detects which board it's running on at
+boot and self-configures:
+
+- `PIN_BOARD_ID` (GPIO3) is read with the internal pull-up enabled in
+  `detect_board_variant()` (`mdb-slave-esp32s3-wroom-u1.c`, called first
+  thing in `app_main`).
+- **Hardware action needed**: fit a **10kΩ pull-down from GPIO3 to GND**
+  on this board's schematic only (`kicad/mdb_slave_esp32s3-wroom-u1`).
+  Nothing to change on the original board — its GPIO3 is unused/floating,
+  so the internal pull-up reads it HIGH.
+  - Reads **LOW** → WROOM-U1 detected → DEX/UART1 init is skipped (GPIO8/9
+    stay free for a future custom-input driver).
+  - Reads **HIGH** → original board detected → DEX/UART1 init runs as before.
+- Once this pull-down is in place, the **same compiled firmware image**
+  is safe to flash onto either board — a flashing mix-up no longer
+  breaks pin assignments. The two directories (`mdb-slave-esp32s3` /
+  `mdb-slave-esp32s3-wroom-u1`) still exist separately mainly because of
+  the differing flash-size/PSRAM `sdkconfig` (see below); the detection
+  logic itself should eventually be backported into `mdb-slave-esp32s3`
+  too so a binary built from either tree is interchangeable.
+- Relay (GPIO1/2), 1-Wire (GPIO15/16) and custom-input (GPIO6/8/9)
+  drivers still don't exist — `board_is_wroom_u1` is available in
+  `app_main` for whoever adds them, to keep them from ever running on
+  the original board.
 
 `SIM7080G_*` pin defines and `modem.c`/`modem_https.c` are inherited from
-the copy but unused on this WiFi-only board — harmless no-op via the
-existing `modem_probe()` fallback, kept for parity rather than stripped out.
+the copy but unused on this WiFi-only board — already self-disabling via
+the existing `modem_probe()` fallback (it AT-probes the modem UART and
+falls back to WiFi-only if nothing answers), no board-ID check needed
+there.
 
 ## Before first flash
 
