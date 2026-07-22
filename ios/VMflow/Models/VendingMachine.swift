@@ -108,16 +108,18 @@ struct VendingMachine: Codable, Identifiable, Equatable {
     let embedded: UUID?
     let countryCode: String?
     let embeddeds: Embedded?
-    /// Additive settings fields — optional with a default so existing call
-    /// sites (previews) that construct `VendingMachine` directly keep
-    /// compiling unchanged.
-    let addressStreet: String? = nil
-    let addressHouseNumber: String? = nil
-    let addressPostalCode: String? = nil
-    let addressCity: String? = nil
-    let formattedAddress: String? = nil
-    let nayaxMachineId: String? = nil
-    let publicListing: Bool? = nil
+    /// Additive settings fields. Defaulted via the explicit init below (not
+    /// a stored-property default, since this struct has a custom init that
+    /// assigns every property — a property default plus an init assignment
+    /// would initialize the `let` twice) so existing call sites (previews)
+    /// that construct `VendingMachine` directly keep compiling unchanged.
+    let addressStreet: String?
+    let addressHouseNumber: String?
+    let addressPostalCode: String?
+    let addressCity: String?
+    let formattedAddress: String?
+    let nayaxMachineId: String?
+    let publicListing: Bool?
 
     enum CodingKeys: String, CodingKey {
         case id, name, embedded, embeddeds
