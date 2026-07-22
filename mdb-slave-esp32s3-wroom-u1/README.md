@@ -9,8 +9,10 @@ flashed or tested on real hardware** — the PCB layout is still in progress.
 ## Status
 
 - Board logic (MDB protocol, WiFi/MQTT, BLE, provisioning, sale queue) is
-  identical to `mdb-slave-esp32s3` — no cellular modem on this board, so
-  `network.c`'s existing "no modem → WiFi-only boot" path is used as-is.
+  identical to `mdb-slave-esp32s3` — **confirmed WiFi-only, no
+  GPS/LTE-M/NB-IoT on this board**, so `network.c`'s existing "no modem →
+  WiFi-only boot" path is used as-is and `modem.c`/`modem_https.c` stay
+  fully inert.
 - Pin assignments below are the authoritative table from the schematic's
   own IO legend (`kicad/mdb_slave_esp32s3-wroom-u1`, sheet notes), not the
   earlier script-extracted guess.
