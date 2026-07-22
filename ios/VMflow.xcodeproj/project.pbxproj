@@ -7,6 +7,13 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		3D346C2D0E4B5B071E1AEA64 /* MachineSettingsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFF5B6DAF8EA162A08025563 /* MachineSettingsSheet.swift */; };
+		7603082FDCB0EBC1482CD1F4 /* MachineAnalysisView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 823CE96E263285018039EBC2 /* MachineAnalysisView.swift */; };
+		884C52440308E59ED3C36F67 /* DeviceHealthSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AEE50E7876B73C9B063D034 /* DeviceHealthSheet.swift */; };
+		9E93530211081449934F2053 /* MachineAnalysisViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B7C409F8616C35BA6150095 /* MachineAnalysisViewModel.swift */; };
+		9A93A3DD8DEE7A9396AD8067 /* LabeledStepperField.swift in Sources */ = {isa = PBXBuildFile; fileRef = B11A08577B71951E307864CF /* LabeledStepperField.swift */; };
+		62804A2444C19D44764D647B /* SuppliersViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D817EB0E24B2B8E4258E98A /* SuppliersViewModel.swift */; };
+		3F5597C381D9342CEDA10A6F /* SuppliersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F46A2B4C9F0B860321B285A4 /* SuppliersView.swift */; };
 		009EBF498DA30943CF9B822D /* ReviewStepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C374A772F98B97BE6F2EE986 /* ReviewStepView.swift */; };
 		01DA0CBC6A7F8197F2EA4208 /* DealDetailSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 262B82892D49D5104059509A /* DealDetailSheet.swift */; };
 		03840B5283B50C3D3193477A /* MachinesSplitView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5AEF7E62775F83FFCD0149A /* MachinesSplitView.swift */; };
@@ -139,6 +146,10 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		CFF5B6DAF8EA162A08025563 /* MachineSettingsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MachineSettingsSheet.swift; sourceTree = "<group>"; };
+		823CE96E263285018039EBC2 /* MachineAnalysisView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MachineAnalysisView.swift; sourceTree = "<group>"; };
+		1AEE50E7876B73C9B063D034 /* DeviceHealthSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceHealthSheet.swift; sourceTree = "<group>"; };
+		3B7C409F8616C35BA6150095 /* MachineAnalysisViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MachineAnalysisViewModel.swift; sourceTree = "<group>"; };
 		01C39E8B27FCFB5B0EED36FA /* TrayListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrayListView.swift; sourceTree = "<group>"; };
 		045C58B5757C2E8C18819C83 /* DealsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DealsViewModel.swift; sourceTree = "<group>"; };
 		09910CF5FF28B2094BC5AEB1 /* Inbox.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Inbox.swift; sourceTree = "<group>"; };
@@ -206,6 +217,9 @@
 		9C98118B90638CE2F176B419 /* Deal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Deal.swift; sourceTree = "<group>"; };
 		9D17D5562BFC75116621B04A /* RefillWizardViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefillWizardViewModel.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F600000000EF02 /* ExpiryDateField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExpiryDateField.swift; sourceTree = "<group>"; };
+		B11A08577B71951E307864CF /* LabeledStepperField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabeledStepperField.swift; sourceTree = "<group>"; };
+		8D817EB0E24B2B8E4258E98A /* SuppliersViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuppliersViewModel.swift; sourceTree = "<group>"; };
+		F46A2B4C9F0B860321B285A4 /* SuppliersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuppliersView.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60718293A4B5C /* VMflow.Release.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = VMflow.Release.entitlements; sourceTree = "<group>"; };
 		A6908142D65605FE1D58C1AE /* Warehouse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Warehouse.swift; sourceTree = "<group>"; };
 		A8B6CB1492BFAA927C077A18 /* MachineListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MachineListView.swift; sourceTree = "<group>"; };
@@ -305,6 +319,7 @@
 				AC27FF5E0A1C34BCE4ACCDBE /* StatusBadge.swift */,
 				204427FECDDE3A1BB3CB316C /* StockBar.swift */,
 				A1B2C3D4E5F600000000EF02 /* ExpiryDateField.swift */,
+				B11A08577B71951E307864CF /* LabeledStepperField.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -363,6 +378,9 @@
 		50FA058BB16C4A1997C4B32E /* Machines */ = {
 			isa = PBXGroup;
 			children = (
+				CFF5B6DAF8EA162A08025563 /* MachineSettingsSheet.swift */,
+				823CE96E263285018039EBC2 /* MachineAnalysisView.swift */,
+				1AEE50E7876B73C9B063D034 /* DeviceHealthSheet.swift */,
 				C78B6E7FAFE28A4523530D02 /* MachineCard.swift */,
 				8F302EE40A7DDA1135B7A9D7 /* MachineDetailView.swift */,
 				A8B6CB1492BFAA927C077A18 /* MachineListView.swift */,
@@ -435,6 +453,7 @@
 			children = (
 				0C4757F332F815A5F5300AC8 /* SettingsView.swift */,
 				D5E67290C7704C799B4012AF /* DeleteAccountSheet.swift */,
+				F46A2B4C9F0B860321B285A4 /* SuppliersView.swift */,
 			);
 			path = Settings;
 			sourceTree = "<group>";
@@ -454,6 +473,7 @@
 		BA69BE2898BA7064DAC9A74C /* ViewModels */ = {
 			isa = PBXGroup;
 			children = (
+				3B7C409F8616C35BA6150095 /* MachineAnalysisViewModel.swift */,
 				BBEC3C69228B5189BCD8B513 /* CashBookViewModel.swift */,
 				16E021E42CD9C7C92936F706 /* DashboardViewModel.swift */,
 				045C58B5757C2E8C18819C83 /* DealsViewModel.swift */,
@@ -465,6 +485,7 @@
 				7E9A5023EED5804698A679E6 /* TrayViewModel.swift */,
 				84AF9FDF2E1ADB75E706F23A /* WarehouseViewModel.swift */,
 				82F533E0A6E11E3C77E48D43 /* PurchasePricesViewModel.swift */,
+				8D817EB0E24B2B8E4258E98A /* SuppliersViewModel.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -675,6 +696,8 @@
 				Base,
 				de,
 				en,
+				fr,
+				nl,
 			);
 			mainGroup = EE34BCFF9B4E3D9CEE17C3A1;
 			minimizedProjectReferenceProxies = 1;
@@ -777,6 +800,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				3D346C2D0E4B5B071E1AEA64 /* MachineSettingsSheet.swift in Sources */,
+				7603082FDCB0EBC1482CD1F4 /* MachineAnalysisView.swift in Sources */,
+				884C52440308E59ED3C36F67 /* DeviceHealthSheet.swift in Sources */,
+				9E93530211081449934F2053 /* MachineAnalysisViewModel.swift in Sources */,
 				A2A38FD8CE2FB51B55D2F755 /* AdaptiveRootView.swift in Sources */,
 				994DEA5B68106C882733FA3E /* AddServerView.swift in Sources */,
 				5C23B7000E2E6CB57DDFD0A2 /* AppDelegate.swift in Sources */,
@@ -865,6 +892,9 @@
 				7DD2B71154768AA698F1D5BB /* PurchasePricesViewModel.swift in Sources */,
 				836A2197542D4BCCB8D8C2A3 /* PurchasePricesSheet.swift in Sources */,
 				197F3264DB4FF1F030584AD6 /* FixtureURLProtocol.swift in Sources */,
+				9A93A3DD8DEE7A9396AD8067 /* LabeledStepperField.swift in Sources */,
+				62804A2444C19D44764D647B /* SuppliersViewModel.swift in Sources */,
+				3F5597C381D9342CEDA10A6F /* SuppliersView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -1,5 +1,4 @@
 import SwiftUI
-import UIKit
 
 // Shared date helpers for the purchase-price views (file-scoped to avoid clashing
 // with any app-wide formatter). DB dates are ISO "yyyy-MM-dd".
@@ -210,11 +209,7 @@ private struct PriceEditorView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var supplierName = ""
-    // Banking-style amount entry: held as integer cents, edited via CurrencyCentsField
-    // (a UITextField that always appends a typed digit / backspaces the last one,
-    // regardless of caret position) so it behaves the same whether the field starts
-    // empty or pre-seeded with a value.
-    @State private var cents: Int = 0
+    @State private var priceText: String = ""
     @State private var basis: PriceBasis = .net
     @State private var observedOn = Date()
     @State private var note = ""
@@ -222,7 +217,7 @@ private struct PriceEditorView: View {
     @State private var formError: String?
     @State private var saving = false
 
-    private var price: Double { Double(cents) / 100 }
+    private var price: Double { Double(priceText.replacingOccurrences(of: ",", with: ".")) ?? 0 }
 
     private var isEditing: Bool { if case .edit = mode { return true } else { return false } }
     private var needRateOverride: Bool { !isCreate && vm.resolvedRate == nil }
@@ -259,8 +254,11 @@ private struct PriceEditorView: View {
                 HStack(spacing: 6) {
                     Text(String(localized: "Price per unit")).foregroundStyle(.secondary)
                     Spacer(minLength: 12)
-                    CurrencyCentsField(cents: $cents)
+                    TextField("0,00", text: $priceText)
+                        .keyboardType(.decimalPad)
+                        .multilineTextAlignment(.trailing)
                         .frame(maxWidth: 140)
+                        .font(.body.monospacedDigit())
                     Text("€").foregroundStyle(.secondary)
                 }
                 Picker(String(localized: "Basis"), selection: $basis) {
@@ -303,7 +301,7 @@ private struct PriceEditorView: View {
     private func applySeed() {
         guard let s = seed else { return }
         supplierName = s.supplierName
-        cents = Int((s.price * 100).rounded())
+        priceText = String(format: "%.2f", s.price)
         basis = s.basis
         observedOn = s.observedOn
         note = s.note
@@ -350,6 +348,11 @@ private struct SupplierPickerView: View {
     @Binding var selected: String
     @Environment(\.dismiss) private var dismiss
     @State private var query = ""
+    // Explicit "+" alongside the typed "Add …" row below: the search field
+    // already doubles as an add-new field, but that isn't obvious before you've
+    // typed something, so this gives an unambiguous, always-visible way in.
+    @State private var showAddAlert = false
+    @State private var newSupplierName = ""
 
     private var filtered: [Supplier] {
         let q = query.trimmingCharacters(in: .whitespaces)
@@ -395,83 +398,27 @@ private struct SupplierPickerView: View {
         .navigationBarTitleDisplayMode(.inline)
         .searchable(text: $query, prompt: String(localized: "Search or add supplier"))
         .autocorrectionDisabled()
-    }
-}
-
-// MARK: - Banking-style currency field (cents, caret-independent)
-
-/// A right-aligned amount field bound to integer `cents`. Typing a digit always
-/// appends to the end and backspace always removes the last digit — independent of
-/// the caret — so it works identically for an empty or a pre-filled value. Shows a
-/// grey "0,00" when zero. The "€" is rendered separately by the caller.
-private struct CurrencyCentsField: UIViewRepresentable {
-    @Binding var cents: Int
-
-    func makeUIView(context: Context) -> UITextField {
-        let tf = UITextField()
-        tf.keyboardType = .numberPad
-        tf.textAlignment = .right
-        tf.delegate = context.coordinator
-        tf.text = context.coordinator.format(cents)
-        tf.textColor = cents == 0 ? .secondaryLabel : .label
-        tf.setContentCompressionResistancePriority(.required, for: .horizontal)
-        return tf
-    }
-
-    func updateUIView(_ tf: UITextField, context: Context) {
-        let formatted = context.coordinator.format(cents)
-        if tf.text != formatted {
-            tf.text = formatted
-            if tf.isFirstResponder { context.coordinator.moveCaretToEnd(tf) }
-        }
-        tf.textColor = cents == 0 ? .secondaryLabel : .label
-    }
-
-    func makeCoordinator() -> Coordinator { Coordinator(self) }
-
-    final class Coordinator: NSObject, UITextFieldDelegate {
-        var parent: CurrencyCentsField
-        private let fmt: NumberFormatter = {
-            let f = NumberFormatter()
-            f.numberStyle = .decimal
-            f.minimumFractionDigits = 2
-            f.maximumFractionDigits = 2
-            return f
-        }()
-        init(_ parent: CurrencyCentsField) { self.parent = parent }
-
-        func format(_ cents: Int) -> String {
-            fmt.string(from: NSNumber(value: Double(cents) / 100)) ?? "0,00"
-        }
-
-        /// Keep the caret pinned to the end (digits always append there).
-        func moveCaretToEnd(_ tf: UITextField) {
-            let end = tf.endOfDocument
-            tf.selectedTextRange = tf.textRange(from: end, to: end)
-        }
-
-        func textFieldDidBeginEditing(_ tf: UITextField) {
-            DispatchQueue.main.async { self.moveCaretToEnd(tf) }
-        }
-
-        func textField(_ tf: UITextField, shouldChangeCharactersIn range: NSRange,
-                       replacementString string: String) -> Bool {
-            var c = parent.cents
-            let currentLen = tf.text?.count ?? 0
-            let fullSelection = range.location == 0 && range.length == currentLen && currentLen > 0
-            if string.isEmpty {
-                c = range.length > 1 ? 0 : c / 10           // backspace / delete selection
-            } else {
-                if fullSelection { c = 0 }                  // replacing a select-all
-                for ch in string where ch.isNumber {
-                    if let d = ch.wholeNumberValue { c = min(c * 10 + d, 99_999_999) }
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    newSupplierName = query.trimmingCharacters(in: .whitespaces)
+                    showAddAlert = true
+                } label: {
+                    Image(systemName: "plus")
                 }
+                .accessibilityLabel(String(localized: "New Supplier"))
             }
-            parent.cents = c
-            tf.text = format(c)
-            tf.textColor = c == 0 ? .secondaryLabel : .label
-            DispatchQueue.main.async { self.moveCaretToEnd(tf) }  // caret stays at the end
-            return false                                    // we set the text ourselves
+        }
+        .alert(String(localized: "New Supplier"), isPresented: $showAddAlert) {
+            TextField(String(localized: "Supplier"), text: $newSupplierName)
+            Button(String(localized: "Cancel"), role: .cancel) {}
+            Button(String(localized: "Add")) {
+                let trimmed = newSupplierName.trimmingCharacters(in: .whitespaces)
+                guard !trimmed.isEmpty else { return }
+                selected = trimmed
+                dismiss()
+            }
         }
     }
 }
+

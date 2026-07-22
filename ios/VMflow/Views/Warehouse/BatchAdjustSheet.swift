@@ -40,6 +40,18 @@ struct BatchAdjustSheet: View {
         evaluateExpression(quantityText)
     }
 
+    /// "2026-06-01" → locale-aware short date (DD/MM/YYYY for fr/nl/de); falls back to raw.
+    private static let isoFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        f.locale = Locale(identifier: "en_US_POSIX")
+        return f
+    }()
+    private static func displayDate(_ s: String) -> String {
+        guard let d = isoFormatter.date(from: s) else { return s }
+        return d.formatted(.dateTime.day().month(.twoDigits).year())
+    }
+
     private var canSubmit: Bool {
         guard let q = parsedQuantity, q > 0, !isSubmitting else { return false }
         if direction == .remove { return q <= batch.quantity }
@@ -66,7 +78,7 @@ struct BatchAdjustSheet: View {
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                                 if let exp = batch.expirationDate {
-                                    Text(exp).font(.caption).foregroundStyle(.secondary)
+                                    Text(Self.displayDate(exp)).font(.caption).foregroundStyle(.secondary)
                                 }
                             }
                         }
@@ -115,11 +127,18 @@ struct BatchAdjustSheet: View {
                              : String(localized: "Quantity to add"))
                         Spacer()
                         TextField("e.g. 2*12", text: $quantityText)
-                            .keyboardType(.numbersAndPunctuation)
+                            .keyboardType(.decimalPad)
                             .multilineTextAlignment(.trailing)
                             .frame(maxWidth: 140)
                             .font(.body.monospacedDigit())
                             .focused($quantityFieldFocused)
+                            .toolbar {
+                                ToolbarItemGroup(placement: .keyboard) {
+                                    if quantityFieldFocused {
+                                        calculatorToolbar
+                                    }
+                                }
+                            }
 
                         if quantityText.contains(where: { "+-*/x×".contains($0) }),
                            let q = parsedQuantity, q > 0 {
@@ -131,7 +150,7 @@ struct BatchAdjustSheet: View {
                     if direction == .remove,
                        let q = parsedQuantity,
                        q > batch.quantity {
-                        Text("Only \(batch.quantity) available")
+                        Text(String(localized: "Only \(batch.quantity) available"))
                             .font(.caption)
                             .foregroundStyle(.red)
                     }
@@ -167,6 +186,39 @@ struct BatchAdjustSheet: View {
                     .disabled(!canSubmit)
                 }
             }
+        }
+    }
+
+    // MARK: - Calculator Toolbar (matches WithdrawalSheet pattern)
+
+    @ViewBuilder
+    private var calculatorToolbar: some View {
+        HStack(spacing: 8) {
+            ForEach(["×", "+", "-", "/"], id: \.self) { op in
+                Button {
+                    quantityText += op == "×" ? "*" : op
+                } label: {
+                    Text(op)
+                        .font(.title3.weight(.semibold).monospacedDigit())
+                        .frame(width: 44, height: 36)
+                        .background(Color(.systemGray5), in: RoundedRectangle(cornerRadius: 8))
+                }
+                .buttonStyle(.plain)
+            }
+            Spacer()
+            Button {
+                if let result = evaluateExpression(quantityText), result > 0 {
+                    quantityText = String(result)
+                }
+                quantityFieldFocused = false
+            } label: {
+                Text("=")
+                    .font(.title3.weight(.bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 44, height: 36)
+                    .background(.blue, in: RoundedRectangle(cornerRadius: 8))
+            }
+            .buttonStyle(.plain)
         }
     }
 

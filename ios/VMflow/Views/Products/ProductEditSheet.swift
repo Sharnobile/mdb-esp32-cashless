@@ -33,6 +33,9 @@ struct ProductEditSheet: View {
     @State private var selectedSuggestedImageUrl: String?
     @State private var selectedThumbnailUrl: String?
     @State private var searchTask: Task<Void, Never>?
+    /// Restrict suggestions to groceries. On by default — this is a vending
+    /// catalogue, and a plain web search returns the planet for "Mars".
+    @AppStorage("vmflow-image-search-food-only") private var foodOnlyImages = true
 
     // Barcode management
     @State private var barcodes: [ProductBarcode] = []
@@ -181,6 +184,9 @@ struct ProductEditSheet: View {
             .onChange(of: name) { _, _ in
                 triggerImageSearch()
             }
+            .onChange(of: foodOnlyImages) { _, _ in
+                triggerImageSearch()
+            }
             .task {
                 if let productId = product?.id {
                     isLoadingBarcodes = true
@@ -191,7 +197,7 @@ struct ProductEditSheet: View {
                 if product?.imagePath == nil, name.count >= 2 {
                     isSearchingImages = true
                     imageOffset = 0
-                    let page = await viewModel.searchImages(query: name)
+                    let page = await viewModel.searchImages(query: name, foodOnly: foodOnlyImages)
                     suggestedImages = page.images
                     hasMoreImages = page.hasMore
                     isSearchingImages = false
@@ -313,8 +319,28 @@ struct ProductEditSheet: View {
 
     // MARK: - Suggested Images
 
+    /// True while the name is long enough for the automatic lookup to run. Used
+    /// to keep the food toggle on screen even when a search comes back empty —
+    /// otherwise a too-narrow filter would hide its own off switch.
+    private var imageSearchApplicable: Bool {
+        product?.imagePath == nil
+            && name.trimmingCharacters(in: .whitespaces).count >= 2
+    }
+
     @ViewBuilder
     private var suggestedImagesSection: some View {
+        if imageSearchApplicable || isSearchingImages || !suggestedImages.isEmpty {
+            Toggle(isOn: $foodOnlyImages) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Food products only")
+                        .font(.subheadline)
+                    Text("Prefers grocery packshots over unrelated matches.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+
         if isSearchingImages {
             HStack(spacing: 8) {
                 ProgressView()
@@ -398,7 +424,7 @@ struct ProductEditSheet: View {
             guard !Task.isCancelled else { return }
             isSearchingImages = true
             imageOffset = 0
-            let page = await viewModel.searchImages(query: query)
+            let page = await viewModel.searchImages(query: query, foodOnly: foodOnlyImages)
             guard !Task.isCancelled else { return }
             suggestedImages = page.images
             hasMoreImages = page.hasMore
@@ -414,7 +440,7 @@ struct ProductEditSheet: View {
         Task {
             isLoadingMoreImages = true
             let nextOffset = imageOffset + 8
-            let page = await viewModel.searchImages(query: query, offset: nextOffset)
+            let page = await viewModel.searchImages(query: query, offset: nextOffset, foodOnly: foodOnlyImages)
             imageOffset = nextOffset
             let existing = Set(suggestedImages.map(\.image))
             suggestedImages.append(contentsOf: page.images.filter { !existing.contains($0.image) })
@@ -506,6 +532,66 @@ struct ProductEditSheet: View {
             pendingBarcodes.append((code: code, format: format))
         }
         showScanner = false
+
+        // Auto-fill the name from the barcode, same as typing it manually —
+        // setting `name` triggers the existing .onChange(of: name) photo
+        // search, so no separate image lookup is needed here. Never
+        // overwrites a name the user already typed.
+        if name.trimmingCharacters(in: .whitespaces).isEmpty,
+           let suggested = await lookupBarcodeProduct(code) {
+            name = suggested
+        }
+    }
+
+    /// Looks up a barcode against Open Food Facts and returns a suggested
+    /// product name combining its name and quantity (e.g. "Coca-Cola 330ml"),
+    /// or nil if the barcode isn't found or has no usable name.
+    private func lookupBarcodeProduct(_ code: String) async -> String? {
+        guard let url = URL(string: "https://world.openfoodfacts.org/api/v2/product/\(code).json?fields=product_name,quantity") else {
+            return nil
+        }
+        struct Response: Decodable {
+            let status: Int
+            let product: OFFProduct?
+            struct OFFProduct: Decodable {
+                let productName: String?
+                let quantity: String?
+                enum CodingKeys: String, CodingKey {
+                    case productName = "product_name"
+                    case quantity
+                }
+            }
+        }
+        do {
+            var request = URLRequest(url: url)
+            request.timeoutInterval = 8
+            let (data, _) = try await URLSession.shared.data(for: request)
+            let decoded = try JSONDecoder().decode(Response.self, from: data)
+            guard decoded.status == 1,
+                  let name = decoded.product?.productName?.trimmingCharacters(in: .whitespaces),
+                  !name.isEmpty else { return nil }
+            if let quantity = decoded.product?.quantity?.trimmingCharacters(in: .whitespaces), !quantity.isEmpty {
+                return "\(name) \(normalizeQuantityUnit(quantity))"
+            }
+            return name
+        } catch {
+            return nil
+        }
+    }
+
+    /// Open Food Facts quantities are free text ("500 ml", "1,5 l", "33cl"). Just
+    /// normalize the common spelled-out/abbreviated units; pass anything else through.
+    private func normalizeQuantityUnit(_ raw: String) -> String {
+        var q = raw
+        let replacements: [(String, String)] = [
+            ("milliliters", "ml"), ("millilitres", "ml"), ("milliliter", "ml"), ("millilitre", "ml"),
+            ("centiliters", "cl"), ("centilitres", "cl"), ("centiliter", "cl"), ("centilitre", "cl"),
+            ("liters", "L"), ("litres", "L"), ("liter", "L"), ("litre", "L"),
+        ]
+        for (pattern, unit) in replacements {
+            q = q.replacingOccurrences(of: pattern, with: unit, options: [.caseInsensitive])
+        }
+        return q
     }
 
     /// Simple heuristic to detect barcode format from the string length.

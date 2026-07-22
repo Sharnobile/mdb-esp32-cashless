@@ -183,6 +183,12 @@ struct MoreView: View {
                     }
 
                     NavigationLink {
+                        SuppliersView()
+                    } label: {
+                        Label(String(localized: "Suppliers"), systemImage: "truck.box.fill")
+                    }
+
+                    NavigationLink {
                         DealsView()
                     } label: {
                         Label("Deals", systemImage: "tag.fill")

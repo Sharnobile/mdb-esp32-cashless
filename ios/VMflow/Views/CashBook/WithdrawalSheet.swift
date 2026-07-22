@@ -153,7 +153,7 @@ struct WithdrawalSheet: View {
         Section("cash_book_counted_amount") {
             HStack(alignment: .firstTextBaseline) {
                 TextField("0,00", text: $countedText)
-                    .keyboardType(.numbersAndPunctuation)
+                    .keyboardType(.decimalPad)
                     .multilineTextAlignment(.trailing)
                     .font(.body.monospacedDigit())
                     .focused($countedFieldFocused)

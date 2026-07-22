@@ -15,7 +15,7 @@ const { t } = useI18n()
 const { organization, role } = useOrganization()
 const { products, categories, createProduct, updateProduct, uploadProductImage, deleteProductImage } = useProducts()
 const { barcodes: allBarcodes, addBarcode, removeBarcode } = useWarehouse()
-const { images: suggestedImages, searching: searchingImages, loadingMore: loadingMoreImages, hasMore: hasMoreImages, searchDebounced, loadMore: loadMoreImages, downloadImage: downloadSuggestedImage, clear: clearImageSearch } = useProductImageSearch()
+const { images: suggestedImages, searching: searchingImages, loadingMore: loadingMoreImages, hasMore: hasMoreImages, foodOnly, searchDebounced, loadMore: loadMoreImages, downloadImage: downloadSuggestedImage, clear: clearImageSearch } = useProductImageSearch()
 const { addPurchasePrice } = usePurchasePrices()
 
 const isAdmin = computed(() => role.value === 'admin')
@@ -98,6 +98,16 @@ watch(() => productForm.value.name, (name) => {
     searchDebounced(name)
   }
 })
+
+// The suggestions block (and with it the food-filter checkbox) stays up while
+// the product has no image and the name is long enough for a lookup, even if
+// the current filter returns nothing.
+const imageSearchVisible = computed(() =>
+  !imagePreview.value
+  && (searchingImages.value
+    || suggestedImages.value.length > 0
+    || (productForm.value.name?.trim().length ?? 0) >= 2),
+)
 
 function selectSuggestedImage(thumbnail: string, imageUrl: string) {
   imagePreview.value = thumbnail
@@ -305,8 +315,17 @@ async function submitProduct() {
           />
         </div>
         <!-- Image suggestions -->
-        <div v-if="!imagePreview && (searchingImages || suggestedImages.length > 0)" class="mt-2">
-          <p class="mb-1.5 text-xs text-muted-foreground">{{ searchingImages ? t('products.searchingImages') : t('products.imageSuggestions') }}</p>
+        <!-- Stays up even on an empty result set, otherwise a too-narrow filter
+             would hide its own off switch. -->
+        <div v-if="imageSearchVisible" class="mt-2">
+          <label class="mb-1.5 flex items-start gap-2 text-xs text-muted-foreground">
+            <input v-model="foodOnly" type="checkbox" class="mt-0.5 size-3.5 shrink-0 accent-primary" />
+            <span>
+              <span class="font-medium text-foreground">{{ t('products.foodOnlyImages') }}</span>
+              — {{ t('products.foodOnlyImagesHint') }}
+            </span>
+          </label>
+          <p v-if="searchingImages || suggestedImages.length > 0" class="mb-1.5 text-xs text-muted-foreground">{{ searchingImages ? t('products.searchingImages') : t('products.imageSuggestions') }}</p>
           <div v-if="searchingImages" class="flex items-center gap-2 text-xs text-muted-foreground">
             <svg class="size-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
           </div>

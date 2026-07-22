@@ -8,17 +8,93 @@ struct Embedded: Codable, Identifiable, Equatable {
     let subdomain: Int
     let macAddress: String?
     let firmwareVersion: String?
+    /// Additive fields for Device Health / MDB diagnostics — all optional with a
+    /// default so existing call sites (previews) that construct `Embedded`
+    /// directly keep compiling unchanged.
+    let firmwareBuildDate: Date? = nil
+    let mdbAddress: Int? = nil
+    /// Live MDB status snapshot published by the firmware. `nil` until the
+    /// device has reported at least once.
+    let mdbDiagnostics: MdbDiagnostics? = nil
+    let lastRestartReason: String? = nil
+    let lastRestartAt: Date? = nil
+    /// Timestamp the device last transitioned to "online" — start of the
+    /// current uptime run, distinct from `statusAt` (last status write of any
+    /// kind).
+    let onlineSince: Date? = nil
 
     enum CodingKeys: String, CodingKey {
         case id, status, subdomain
         case statusAt = "status_at"
         case macAddress = "mac_address"
         case firmwareVersion = "firmware_version"
+        case firmwareBuildDate = "firmware_build_date"
+        case mdbAddress = "mdb_address"
+        case mdbDiagnostics = "mdb_diagnostics"
+        case lastRestartReason = "last_restart_reason"
+        case lastRestartAt = "last_restart_at"
+        case onlineSince = "online_since"
     }
 
     /// Whether the device reported "online" status.
     var isOnline: Bool {
         status?.lowercased() == "online"
+    }
+}
+
+/// Live MDB status snapshot, published by the firmware into
+/// `embeddeds.mdb_diagnostics` (jsonb). Keys are camelCase because this side is
+/// authored by the JS/TS ingest pipeline (mqtt-webhook), not a Postgres column.
+struct MdbDiagnostics: Codable, Equatable {
+    let state: String?
+    let addr: String?
+    let vmcLevel: Int?
+    let polls: Int?
+    let chkErr: Int?
+    let lastCmd: String?
+    let updatedAt: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case state, addr, vmcLevel, polls, chkErr, lastCmd
+        case updatedAt = "updated_at"
+    }
+}
+
+/// One ESP32 reboot event. Maps to the `device_restarts` table.
+struct DeviceRestart: Codable, Identifiable, Equatable {
+    let id: UUID
+    let createdAt: Date
+    let reason: String
+    let uptimeSec: Int?
+    let firmwareVersion: String?
+    let hwReason: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, reason
+        case createdAt = "created_at"
+        case uptimeSec = "uptime_sec"
+        case firmwareVersion = "firmware_version"
+        case hwReason = "hw_reason"
+    }
+}
+
+/// One MDB state transition. Maps to the `mdb_log` table.
+struct MdbLogEntry: Codable, Identifiable, Equatable {
+    let id: UUID
+    let createdAt: Date
+    let state: String
+    let prevState: String?
+    let addr: String?
+    let polls: Int?
+    let chkErr: Int?
+    let lastCmd: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, state, addr, polls
+        case createdAt = "created_at"
+        case prevState = "prev_state"
+        case chkErr = "chk_err"
+        case lastCmd = "last_cmd"
     }
 }
 
@@ -32,12 +108,69 @@ struct VendingMachine: Codable, Identifiable, Equatable {
     let embedded: UUID?
     let countryCode: String?
     let embeddeds: Embedded?
+    /// Additive settings fields. Defaulted via the explicit init below (not
+    /// a stored-property default, since this struct has a custom init that
+    /// assigns every property — a property default plus an init assignment
+    /// would initialize the `let` twice) so existing call sites (previews)
+    /// that construct `VendingMachine` directly keep compiling unchanged.
+    let addressStreet: String?
+    let addressHouseNumber: String?
+    let addressPostalCode: String?
+    let addressCity: String?
+    let formattedAddress: String?
+    let nayaxMachineId: String?
+    let publicListing: Bool?
 
     enum CodingKeys: String, CodingKey {
         case id, name, embedded, embeddeds
         case locationLat = "location_lat"
         case locationLon = "location_lon"
         case countryCode = "country_code"
+        case addressStreet = "address_street"
+        case addressHouseNumber = "address_house_number"
+        case addressPostalCode = "address_postal_code"
+        case addressCity = "address_city"
+        case formattedAddress = "formatted_address"
+        case nayaxMachineId = "nayax_machine_id"
+        case publicListing = "public_listing"
+    }
+
+    /// Explicit memberwise initializer. `let` properties that carry a default
+    /// value at declaration (the additive fields below) are excluded from the
+    /// compiler-synthesized memberwise init, so callers that need to set them
+    /// explicitly (e.g. reconstructing after a save) need this instead.
+    /// Defaults are kept on the additive params so existing call sites that
+    /// only pass the original 7 fields keep compiling unchanged.
+    init(
+        id: UUID,
+        name: String?,
+        locationLat: Double?,
+        locationLon: Double?,
+        embedded: UUID?,
+        countryCode: String?,
+        embeddeds: Embedded?,
+        addressStreet: String? = nil,
+        addressHouseNumber: String? = nil,
+        addressPostalCode: String? = nil,
+        addressCity: String? = nil,
+        formattedAddress: String? = nil,
+        nayaxMachineId: String? = nil,
+        publicListing: Bool? = nil
+    ) {
+        self.id = id
+        self.name = name
+        self.locationLat = locationLat
+        self.locationLon = locationLon
+        self.embedded = embedded
+        self.countryCode = countryCode
+        self.embeddeds = embeddeds
+        self.addressStreet = addressStreet
+        self.addressHouseNumber = addressHouseNumber
+        self.addressPostalCode = addressPostalCode
+        self.addressCity = addressCity
+        self.formattedAddress = formattedAddress
+        self.nayaxMachineId = nayaxMachineId
+        self.publicListing = publicListing
     }
 
     /// Display name, falling back to "Unnamed Machine".

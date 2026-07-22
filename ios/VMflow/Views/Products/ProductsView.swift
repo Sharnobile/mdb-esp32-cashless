@@ -38,7 +38,6 @@ struct ProductsView: View {
 struct ProductsTabView: View {
     @ObservedObject var viewModel: ProductsViewModel
     @State private var showAddSheet = false
-    @State private var editingProduct: Product?
     @State private var detailProduct: Product?
 
     var body: some View {
@@ -82,27 +81,12 @@ struct ProductsTabView: View {
                 onDelete: nil
             )
         }
-        .sheet(item: $editingProduct) { product in
-            ProductEditSheet(
-                product: product,
-                categories: viewModel.categories,
-                viewModel: viewModel,
-                onSave: { name, price, categoryId, discontinued in
-                    await viewModel.updateProduct(id: product.id, name: name, sellprice: price, categoryId: categoryId, discontinued: discontinued)
-                    return product.id
-                },
-                onUploadImage: { productId, data in
-                    await viewModel.uploadProductImage(productId: productId, imageData: data)
-                },
-                onDeleteImage: { productId, path in
-                    await viewModel.deleteProductImage(productId: productId, imagePath: path)
-                },
-                onDelete: {
-                    await viewModel.deleteProduct(id: product.id)
-                }
-            )
-        }
-        .sheet(item: $detailProduct) { product in
+        // Tapping a row always opens the stats sheet; editing lives behind the
+        // pencil in that sheet's toolbar. It edits through its own view model,
+        // so refresh the list on dismiss to pick up renames/deletions.
+        .sheet(item: $detailProduct, onDismiss: {
+            Task { await viewModel.loadAll() }
+        }) { product in
             ProductDetailSheet(
                 productId: product.id,
                 fallbackName: product.name ?? "",
@@ -139,12 +123,11 @@ struct ProductsTabView: View {
             ForEach(viewModel.filteredProducts) { product in
                 ProductRow(
                     product: product,
-                    categoryName: viewModel.categoryName(for: product.category),
-                    onImageTap: { detailProduct = product }
+                    categoryName: viewModel.categoryName(for: product.category)
                 )
                 .contentShape(Rectangle())
                 .onTapGesture {
-                    editingProduct = product
+                    detailProduct = product
                 }
             }
             .onDelete { indexSet in
@@ -165,17 +148,10 @@ struct ProductsTabView: View {
 struct ProductRow: View {
     let product: Product
     let categoryName: String?
-    /// Tapping the product image opens the product detail (separate from the
-    /// row tap, which opens the edit sheet).
-    var onImageTap: () -> Void = {}
 
     var body: some View {
         HStack(spacing: 12) {
-            Button(action: onImageTap) {
-                ProductImage(imagePath: product.imagePath, size: 40)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.borderless)
+            ProductImage(imagePath: product.imagePath, size: 40)
 
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
@@ -219,8 +195,21 @@ struct CategoriesTabView: View {
     @ObservedObject var viewModel: ProductsViewModel
     @State private var showAddAlert = false
     @State private var newCategoryName = ""
-    @State private var editingCategory: ProductCategory?
-    @State private var editCategoryName = ""
+    @State private var selectedCategory: CategorySelection?
+
+    /// Navigation payload for pushing into a category's product list. `.unassigned`
+    /// isn't backed by a real `product_category` row — it's a synthetic bucket for
+    /// products with `category == nil`, purely so they're still browsable here.
+    enum CategorySelection: Identifiable, Hashable {
+        case category(ProductCategory)
+        case unassigned
+        var id: String {
+            switch self {
+            case .category(let c): return c.id.uuidString
+            case .unassigned: return "unassigned"
+            }
+        }
+    }
 
     var body: some View {
         Group {
@@ -252,22 +241,8 @@ struct CategoriesTabView: View {
         } message: {
             Text("Enter a name for the new category.")
         }
-        .alert("Edit Category", isPresented: .init(
-            get: { editingCategory != nil },
-            set: { if !$0 { editingCategory = nil } }
-        )) {
-            TextField("Category name", text: $editCategoryName)
-            Button("Cancel", role: .cancel) { editingCategory = nil }
-            Button("Save") {
-                guard let cat = editingCategory,
-                      !editCategoryName.trimmingCharacters(in: .whitespaces).isEmpty else { return }
-                Task {
-                    await viewModel.updateCategory(id: cat.id, name: editCategoryName.trimmingCharacters(in: .whitespaces))
-                    editingCategory = nil
-                }
-            }
-        } message: {
-            Text("Update the category name.")
+        .navigationDestination(item: $selectedCategory) { selection in
+            CategoryProductsView(selection: selection, viewModel: viewModel)
         }
     }
 
@@ -294,6 +269,11 @@ struct CategoriesTabView: View {
         .padding()
     }
 
+    /// Products with no category, so they're still findable somewhere in this tab.
+    private var unassignedCount: Int {
+        viewModel.products.filter { $0.category == nil }.count
+    }
+
     private var categoryList: some View {
         List {
             ForEach(viewModel.categories) { category in
@@ -312,8 +292,7 @@ struct CategoriesTabView: View {
                 }
                 .contentShape(Rectangle())
                 .onTapGesture {
-                    editCategoryName = category.name
-                    editingCategory = category
+                    selectedCategory = .category(category)
                 }
             }
             .onDelete { indexSet in
@@ -329,8 +308,122 @@ struct CategoriesTabView: View {
                     }
                 }
             }
+
+            if unassignedCount > 0 {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Unassigned")
+                            .font(.body)
+                            .foregroundStyle(.secondary)
+                        Text("\(unassignedCount) products")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundStyle(.quaternary)
+                }
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    selectedCategory = .unassigned
+                }
+            }
         }
         .listStyle(.plain)
+    }
+}
+
+// MARK: - Category Products (drill-down)
+
+/// Products within one category (or the synthetic "Unassigned" bucket). Tapping
+/// a product opens its stats, same as the Products tab. The pencil — only shown
+/// for a real category — renames it; there's nothing to rename for "Unassigned".
+private struct CategoryProductsView: View {
+    let selection: CategoriesTabView.CategorySelection
+    @ObservedObject var viewModel: ProductsViewModel
+    @State private var detailProduct: Product?
+    @State private var showEditAlert = false
+    @State private var editName = ""
+
+    /// Re-resolved from the live category list (not the value captured at
+    /// navigation time) so a rename is reflected immediately in this view's
+    /// own title and toolbar.
+    private var category: ProductCategory? {
+        guard case .category(let c) = selection else { return nil }
+        return viewModel.categories.first { $0.id == c.id } ?? c
+    }
+
+    /// `Product.category` and `category?.id` are both `UUID?`, so this one
+    /// comparison covers both a real category (matches its id) and Unassigned
+    /// (category is nil, matches products whose category is also nil).
+    private var products: [Product] {
+        viewModel.products.filter { $0.category == category?.id }
+    }
+
+    var body: some View {
+        Group {
+            if products.isEmpty {
+                VStack(spacing: 16) {
+                    Spacer()
+                    Image(systemName: "cube.box")
+                        .font(.system(size: 48))
+                        .foregroundStyle(.secondary)
+                    Text("No Products")
+                        .font(.title3.bold())
+                    Spacer()
+                }
+                .padding()
+            } else {
+                List {
+                    ForEach(products) { product in
+                        ProductRow(product: product, categoryName: nil)
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                detailProduct = product
+                            }
+                    }
+                }
+                .listStyle(.plain)
+            }
+        }
+        .navigationTitle(category?.name ?? String(localized: "Unassigned"))
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if let category {
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        editName = category.name
+                        showEditAlert = true
+                    } label: {
+                        Image(systemName: "pencil")
+                    }
+                    .accessibilityLabel(String(localized: "Edit Category"))
+                }
+            }
+        }
+        .alert(String(localized: "Edit Category"), isPresented: $showEditAlert) {
+            TextField(String(localized: "Category name"), text: $editName)
+            Button(String(localized: "Cancel"), role: .cancel) {}
+            Button(String(localized: "Save")) {
+                guard let category else { return }
+                let trimmed = editName.trimmingCharacters(in: .whitespaces)
+                guard !trimmed.isEmpty else { return }
+                Task { await viewModel.updateCategory(id: category.id, name: trimmed) }
+            }
+        } message: {
+            Text(String(localized: "Update the category name."))
+        }
+        .sheet(item: $detailProduct, onDismiss: {
+            Task { await viewModel.loadAll() }
+        }) { product in
+            ProductDetailSheet(
+                productId: product.id,
+                fallbackName: product.name ?? "",
+                fallbackImagePath: product.imagePath,
+                fallbackSellprice: product.sellprice
+            )
+        }
     }
 }
 

@@ -40,10 +40,17 @@ struct EntriesListSection: View {
                 Text(entry.createdAt, format: .dateTime.day().month(.twoDigits).hour().minute())
                     .font(.caption2).foregroundStyle(.tertiary)
                 Spacer()
-                Text(entry.description ?? "—")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                // The type badge above already conveys "Initial balance" in the
+                // user's language; the raw description column for these rows is
+                // a server-generated literal (historically German — see
+                // 20260722000000_cash_book_initial_description_neutral.sql) that
+                // would otherwise show up untranslated, so skip it here.
+                if entry.type != .initial {
+                    Text(entry.description ?? "—")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
             }
 
             // Optional subline: difference (counted vs expected)
@@ -66,7 +73,8 @@ struct EntriesListSection: View {
             if entry.type == .expense {
                 HStack(spacing: 6) {
                     if let cat = entry.category {
-                        Text(LocalizedStringKey("cash_book_category_\(cat)"))
+                        let key: String = "cash_book_category_\(cat)"
+                        Text(LocalizedStringKey(key))
                     }
                     if let ref = entry.receiptReference, !ref.isEmpty {
                         Text(verbatim: "· \(ref)")

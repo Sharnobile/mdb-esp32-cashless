@@ -50,6 +50,14 @@ final class WarehouseViewModel: ObservableObject {
     /// Empty means no expiry; parsed to `yyyy-MM-dd` at submit time.
     @Published var intakeExpirationText: String = ""
     @Published var isBookingIntake = false
+    /// Supplier for the batch being booked. Prefilled from the product's most
+    /// recent purchase price (see `prefillSupplier(for:)`) but editable — a
+    /// product's actual supplier can vary between deliveries, and tracking the
+    /// real one per batch matters for traceability (e.g. investigating a
+    /// quality issue back to a specific delivery).
+    @Published var intakeSupplierId: UUID?
+    @Published var intakeSupplierName: String = ""
+    @Published var suppliers: [Supplier] = []
 
     private let client = SupabaseService.shared.client
 
@@ -236,6 +244,7 @@ final class WarehouseViewModel: ObservableObject {
                 let createdAt: Date
                 let notes: String?
                 let products: TransProduct?
+                let suppliers: TransSupplier?
 
                 struct TransProduct: Codable {
                     let name: String?
@@ -246,9 +255,10 @@ final class WarehouseViewModel: ObservableObject {
                         case imagePath = "image_path"
                     }
                 }
+                struct TransSupplier: Codable { let name: String }
 
                 enum CodingKeys: String, CodingKey {
-                    case id, notes, products
+                    case id, notes, products, suppliers
                     case productId = "product_id"
                     case quantityChange = "quantity_change"
                     case createdAt = "created_at"
@@ -257,7 +267,7 @@ final class WarehouseViewModel: ObservableObject {
 
             let transactions: [TransactionWithProduct] = try await client
                 .from("warehouse_transactions")
-                .select("id, product_id, quantity_change, created_at, notes, products(name, image_path)")
+                .select("id, product_id, quantity_change, created_at, notes, products(name, image_path), suppliers(name)")
                 .eq("warehouse_id", value: warehouseId.uuidString)
                 .eq("transaction_type", value: "intake")
                 .order("created_at", ascending: false)
@@ -274,6 +284,7 @@ final class WarehouseViewModel: ObservableObject {
                     quantity: tx.quantityChange,
                     batchNumber: nil,
                     expirationDate: nil,
+                    supplierName: tx.suppliers?.name,
                     createdAt: tx.createdAt
                 )
             }
@@ -281,6 +292,78 @@ final class WarehouseViewModel: ObservableObject {
             // Ignore — SwiftUI cancels refreshable tasks routinely
         } catch {
             self.error = error.localizedDescription
+        }
+    }
+
+    // MARK: - Suppliers (intake form)
+
+    func loadSuppliersForIntake() async {
+        do {
+            suppliers = try await client.from("suppliers")
+                .select("id, name").order("name", ascending: true).execute().value
+        } catch is CancellationError {} catch { /* non-critical for the intake form */ }
+    }
+
+    /// Prefills the intake supplier from the product's most recently recorded
+    /// purchase price, if any — a convenience default the user can still change,
+    /// since the actual supplier of a given delivery can differ.
+    func prefillSupplier(for productId: UUID) async {
+        struct Row: Decodable {
+            let supplierId: UUID
+            let suppliers: SupplierName?
+            struct SupplierName: Decodable { let name: String }
+            enum CodingKeys: String, CodingKey { case supplierId = "supplier_id", suppliers }
+        }
+        do {
+            let rows: [Row] = try await client.from("product_purchase_prices")
+                .select("supplier_id, suppliers(name)")
+                .eq("product_id", value: productId.uuidString)
+                .order("observed_on", ascending: false)
+                .order("created_at", ascending: false)
+                .limit(1)
+                .execute().value
+            if let r = rows.first, let name = r.suppliers?.name {
+                intakeSupplierId = r.supplierId
+                intakeSupplierName = name
+            } else {
+                intakeSupplierId = nil
+                intakeSupplierName = ""
+            }
+        } catch {
+            intakeSupplierId = nil
+            intakeSupplierName = ""
+        }
+    }
+
+    /// Finds an existing supplier by case-insensitive name match, or creates one.
+    /// Used when the user types a name in the intake supplier picker that isn't
+    /// in the list yet.
+    func resolveOrCreateSupplier(named name: String) async -> Supplier? {
+        let trimmed = name.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return nil }
+        if let existing = suppliers.first(where: { $0.name.caseInsensitiveCompare(trimmed) == .orderedSame }) {
+            return existing
+        }
+        guard let warehouseId = selectedWarehouseId,
+              let companyId = warehouses.first(where: { $0.id == warehouseId })?.companyId else { return nil }
+        struct NewSupplier: Encodable { let name: String; let companyId: UUID
+            enum CodingKeys: String, CodingKey { case name; case companyId = "company_id" }
+        }
+        do {
+            let inserted: [Supplier] = try await client.from("suppliers")
+                .insert(NewSupplier(name: trimmed, companyId: companyId))
+                .select("id, name").execute().value
+            if let s = inserted.first {
+                suppliers.append(s)
+                suppliers.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+                return s
+            }
+            return nil
+        } catch {
+            // Likely a race with another client creating the same name concurrently
+            // (unique constraint) — re-fetch and match instead of failing outright.
+            await loadSuppliersForIntake()
+            return suppliers.first(where: { $0.name.caseInsensitiveCompare(trimmed) == .orderedSame })
         }
     }
 
@@ -295,8 +378,9 @@ final class WarehouseViewModel: ObservableObject {
         async let summariesTask: () = loadProductSummaries()
         async let intakesTask: () = loadRecentIntakes()
         async let productsTask: () = loadProducts()
+        async let suppliersTask: () = loadSuppliersForIntake()
 
-        _ = await (summariesTask, intakesTask, productsTask)
+        _ = await (summariesTask, intakesTask, productsTask, suppliersTask)
 
         isLoading = false
     }
@@ -337,7 +421,7 @@ final class WarehouseViewModel: ObservableObject {
 
     // MARK: - Book Intake
 
-    func bookIntake(productId: UUID, quantity: Int, batchNumber: String?, expirationDate: String?) async {
+    func bookIntake(productId: UUID, quantity: Int, batchNumber: String?, expirationDate: String?, supplierId: UUID? = nil) async {
         guard let warehouseId = selectedWarehouseId,
               let companyId = warehouses.first(where: { $0.id == warehouseId })?.companyId else { return }
 
@@ -352,7 +436,8 @@ final class WarehouseViewModel: ObservableObject {
                 quantity: quantity,
                 batchNumber: batchNumber,
                 expirationDate: expirationDate,
-                companyId: companyId
+                companyId: companyId,
+                supplierId: supplierId
             )
 
             let insertedBatches: [InsertedBatchResponse] = try await client
@@ -379,7 +464,8 @@ final class WarehouseViewModel: ObservableObject {
                 quantityBefore: nil,
                 quantityAfter: nil,
                 batchNumber: batchNumber,
-                expirationDate: expirationDate
+                expirationDate: expirationDate,
+                supplierId: supplierId
             )
 
             try await client
@@ -392,6 +478,8 @@ final class WarehouseViewModel: ObservableObject {
             intakeQuantity = 1
             intakeBatchNumber = ""
             intakeExpirationText = ""
+            intakeSupplierId = nil
+            intakeSupplierName = ""
 
             // 4. Reload data
             async let summariesTask: () = loadProductSummaries()
@@ -436,7 +524,7 @@ final class WarehouseViewModel: ObservableObject {
         do {
             let batches: [WarehouseStockBatch] = try await client
                 .from("warehouse_stock_batches")
-                .select("id, warehouse_id, product_id, quantity, batch_number, expiration_date")
+                .select("id, warehouse_id, product_id, quantity, batch_number, expiration_date, supplier_id")
                 .eq("warehouse_id", value: warehouseId.uuidString)
                 .eq("product_id", value: productId.uuidString)
                 .gt("quantity", value: 0)
@@ -483,18 +571,20 @@ final class WarehouseViewModel: ObservableObject {
                 let quantity: Int
                 let batchNumber: String?
                 let expirationDate: String?
+                let supplierId: UUID?
 
                 enum CodingKeys: String, CodingKey {
                     case quantity
                     case productId = "product_id"
                     case batchNumber = "batch_number"
                     case expirationDate = "expiration_date"
+                    case supplierId = "supplier_id"
                 }
             }
 
             let current: CurrentBatch = try await client
                 .from("warehouse_stock_batches")
-                .select("product_id, quantity, batch_number, expiration_date")
+                .select("product_id, quantity, batch_number, expiration_date, supplier_id")
                 .eq("id", value: batchId.uuidString)
                 .single()
                 .execute()
@@ -525,7 +615,8 @@ final class WarehouseViewModel: ObservableObject {
                 quantityBefore: quantityBefore,
                 quantityAfter: quantityAfter,
                 batchNumber: current.batchNumber,
-                expirationDate: current.expirationDate
+                expirationDate: current.expirationDate,
+                supplierId: current.supplierId
             )
 
             try await client

@@ -157,6 +157,88 @@ final class MachineDetailViewModel: ObservableObject {
         }
     }
 
+    // MARK: - Send Credit
+
+    /// Sends free credit to the machine's device via the `send-credit` edge
+    /// function (MQTT-published, XOR-encrypted like all device payloads). No
+    /// sale is recorded here — the device reports the actual vend over MQTT
+    /// when it happens, same as any coin/card payment.
+    func sendCredit(amount: Double) async -> Bool {
+        guard let embeddedId = machine.embedded else {
+            error = String(localized: "This machine has no linked device.")
+            return false
+        }
+        struct Body: Encodable {
+            let device_id: String
+            let amount: Double
+        }
+        struct Response: Decodable { let status: String? }
+        do {
+            let _: Response = try await client.functions.invoke(
+                "send-credit",
+                options: .init(body: Body(device_id: embeddedId.uuidString, amount: amount))
+            )
+            return true
+        } catch {
+            self.error = error.localizedDescription
+            return false
+        }
+    }
+
+    // MARK: - Settings
+
+    /// Persists machine settings edited via `MachineSettingsSheet` (location,
+    /// address, country, Nayax ID, public listing). Mirrors the web's
+    /// `updateMachineSettings` — a single update on `vendingMachine`.
+    func updateSettings(
+        locationLat: Double?, locationLon: Double?,
+        addressStreet: String?, addressHouseNumber: String?, addressPostalCode: String?,
+        addressCity: String?, formattedAddress: String?,
+        countryCode: String?, nayaxMachineId: String?, publicListing: Bool
+    ) async -> Bool {
+        struct Patch: Encodable {
+            let location_lat: Double?
+            let location_lon: Double?
+            let address_street: String?
+            let address_house_number: String?
+            let address_postal_code: String?
+            let address_city: String?
+            let formatted_address: String?
+            let country_code: String?
+            let nayax_machine_id: String?
+            let public_listing: Bool
+        }
+        do {
+            try await client
+                .from("vendingMachine")
+                .update(Patch(
+                    location_lat: locationLat, location_lon: locationLon,
+                    address_street: addressStreet, address_house_number: addressHouseNumber,
+                    address_postal_code: addressPostalCode, address_city: addressCity,
+                    formatted_address: formattedAddress, country_code: countryCode,
+                    nayax_machine_id: nayaxMachineId, public_listing: publicListing
+                ))
+                .eq("id", value: machine.id.uuidString)
+                .execute()
+
+            // VendingMachine has no mutating setters — memberwise-reconstruct it
+            // with the new values so the view reflects the save immediately.
+            machine = VendingMachine(
+                id: machine.id, name: machine.name,
+                locationLat: locationLat, locationLon: locationLon,
+                embedded: machine.embedded, countryCode: countryCode, embeddeds: machine.embeddeds,
+                addressStreet: addressStreet, addressHouseNumber: addressHouseNumber,
+                addressPostalCode: addressPostalCode, addressCity: addressCity,
+                formattedAddress: formattedAddress, nayaxMachineId: nayaxMachineId,
+                publicListing: publicListing
+            )
+            return true
+        } catch {
+            self.error = error.localizedDescription
+            return false
+        }
+    }
+
     // MARK: - Revenue Helpers
 
     /// Today's revenue for this machine.
@@ -172,8 +254,8 @@ final class MachineDetailViewModel: ObservableObject {
         let empty = trays.filter { $0.isEmpty }.count
         let low = trays.filter { $0.isBelowMinStock && !$0.isEmpty }.count
 
-        if empty > 0 { return "\(empty) empty, \(low) low" }
-        if low > 0 { return "\(low) low" }
-        return "All good"
+        if empty > 0 { return String(localized: "\(empty) empty, \(low) low") }
+        if low > 0 { return String(localized: "\(low) low") }
+        return String(localized: "All good")
     }
 }

@@ -206,13 +206,13 @@ struct ProductDetailSheet: View {
             kpiCard(
                 title: "Warehouse Stock",
                 value: "\(kpis.warehouseTotalQty)",
-                subtitle: kpis.warehouseCount == 1 ? "1 warehouse" : "\(kpis.warehouseCount) warehouses",
+                subtitle: String(localized: "\(kpis.warehouseCount) warehouse"),
                 color: .blue
             )
             kpiCard(
                 title: "Machine Stock",
                 value: "\(kpis.trayTotalStock)/\(kpis.trayTotalCapacity)",
-                subtitle: kpis.machineCount == 1 ? "1 machine" : "\(kpis.machineCount) machines",
+                subtitle: String(localized: "\(kpis.machineCount) machine"),
                 color: .green
             )
             kpiCard(
@@ -224,13 +224,13 @@ struct ProductDetailSheet: View {
             kpiCard(
                 title: "Velocity",
                 value: String(format: "%.1f", kpis.velocityUnitsPerDay),
-                subtitle: "units/day · \(kpis.velocityWindowDays)d",
+                subtitle: "\(String(localized: "units/day")) · \(String(localized: "\(kpis.velocityWindowDays)d"))",
                 color: .purple
             )
         }
     }
 
-    private func kpiCard(title: String, value: String, subtitle: String, color: Color) -> some View {
+    private func kpiCard(title: LocalizedStringKey, value: String, subtitle: String, color: Color) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
                 .font(.caption)
@@ -669,7 +669,7 @@ struct ProductDetailSheet: View {
                                         .font(.caption2)
                                         .foregroundStyle(.secondary)
                                     if let channel = sale.channel {
-                                        Text("· \(channel.capitalized)")
+                                        Text("· \(channelLabel(channel))")
                                             .font(.caption2)
                                             .foregroundStyle(channelColor(channel))
                                     }
@@ -697,6 +697,15 @@ struct ProductDetailSheet: View {
         }
     }
 
+    private func channelLabel(_ channel: String) -> String {
+        switch channel.lowercased() {
+        case "card": return String(localized: "channel_card")
+        case "cashless", "nfc": return String(localized: "channel_cashless")
+        case "cash": return String(localized: "channel_cash")
+        default: return channel.capitalized
+        }
+    }
+
     // MARK: - Transactions
 
     private var transactionSection: some View {
@@ -711,7 +720,7 @@ struct ProductDetailSheet: View {
                         HStack(alignment: .top, spacing: 8) {
                             VStack(alignment: .leading, spacing: 2) {
                                 HStack(spacing: 6) {
-                                    Text(tx.transactionType.capitalized)
+                                    Text(transactionLabel(tx.transactionType))
                                         .font(.caption2.weight(.semibold))
                                         .foregroundStyle(transactionTint(tx.transactionType))
                                         .padding(.horizontal, 6)
@@ -748,19 +757,33 @@ struct ProductDetailSheet: View {
         }
     }
 
+    /// `transaction_type` is a free-form DB column; these are the values
+    /// actually written by the app (see WarehouseViewModel.bookIntake /
+    /// AdjustReason, plus "incoming" as the web's legacy synonym for "intake").
+    private func transactionLabel(_ type: String) -> LocalizedStringKey {
+        switch type.lowercased() {
+        case "intake", "incoming": return "stock_history_intake"
+        case "outgoing_refill": return "stock_history_outgoing_refill"
+        case "adjustment_correction": return "stock_history_adjustment_correction"
+        case "adjustment_damage": return "stock_history_adjustment_damage"
+        case "adjustment_expired": return "stock_history_adjustment_expired"
+        case "adjustment_refill_return": return "stock_history_adjustment_refill_return"
+        default: return LocalizedStringKey(type.capitalized)
+        }
+    }
+
     private func transactionTint(_ type: String) -> Color {
         switch type.lowercased() {
-        case "intake": return .green
-        case "refill": return .blue
-        case "adjustment": return .orange
-        case "waste": return .red
+        case "intake", "incoming": return .green
+        case "outgoing_refill": return .blue
+        case "adjustment_correction", "adjustment_damage", "adjustment_expired", "adjustment_refill_return": return .orange
         default: return .secondary
         }
     }
 
     // MARK: - Section helpers
 
-    private func sectionHeader(_ title: String, systemImage: String? = nil) -> some View {
+    private func sectionHeader(_ title: LocalizedStringKey, systemImage: String? = nil) -> some View {
         HStack(spacing: 6) {
             if let systemImage {
                 Image(systemName: systemImage)
@@ -776,7 +799,7 @@ struct ProductDetailSheet: View {
         }
     }
 
-    private func emptyRow(_ text: String) -> some View {
+    private func emptyRow(_ text: LocalizedStringKey) -> some View {
         Text(text)
             .font(.caption)
             .foregroundStyle(.secondary)

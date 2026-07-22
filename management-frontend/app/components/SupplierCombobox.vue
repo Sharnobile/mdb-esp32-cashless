@@ -28,15 +28,18 @@ function onSearch(value: string | number | null | undefined) {
   searchQuery.value = value == null ? '' : String(value)
 }
 
-// Offer "create" when the typed text isn't an exact (case-insensitive) match of
-// an existing supplier. Rendered as a plain button (NOT a CommandItem) because
-// CommandItem filters by its mount-time textContent, which would hide a
-// dynamic-label create row as the query grows.
-const showCreate = computed(() => {
-  const q = searchQuery.value.trim()
+// True once the typed text is an exact (case-insensitive) match of an existing
+// supplier — no point offering to create a duplicate.
+const exactMatch = computed(() => {
+  const q = searchQuery.value.trim().toLowerCase()
   if (!q) return false
-  return !props.suppliers.some((s) => s.name.trim().toLowerCase() === q.toLowerCase())
+  return props.suppliers.some((s) => s.name.trim().toLowerCase() === q)
 })
+// There's an actual name to create (same condition the button used to be
+// entirely hidden behind). Rendered as a plain button (NOT a CommandItem)
+// because CommandItem filters by its mount-time textContent, which would hide
+// a dynamic-label create row as the query grows.
+const canCreate = computed(() => searchQuery.value.trim().length > 0 && !exactMatch.value)
 
 function pick(name: string) {
   const v = name.trim()
@@ -65,7 +68,7 @@ function pick(name: string) {
       <Command>
         <CommandInput :placeholder="placeholder" @update:model-value="onSearch" />
         <CommandList>
-          <CommandEmpty v-if="!showCreate">
+          <CommandEmpty v-if="!canCreate">
             <span class="text-muted-foreground text-sm">{{ t('common.noResults') }}</span>
           </CommandEmpty>
           <CommandGroup>
@@ -75,16 +78,20 @@ function pick(name: string) {
             </CommandItem>
           </CommandGroup>
           <!-- Create action: a plain button (NOT a CommandItem) so reka's
-               textContent-based filter can't hide it as the query grows. -->
+               textContent-based filter can't hide it as the query grows.
+               Shown as soon as the popover opens (disabled, as a hint) rather
+               than only after typing a non-matching name — otherwise nothing
+               here suggests you can add a new supplier at all. -->
           <button
-            v-if="showCreate"
+            v-if="!exactMatch"
             type="button"
             data-testid="create-supplier"
-            class="relative flex w-full cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm outline-none hover:bg-accent hover:text-accent-foreground"
-            @click="pick(searchQuery)"
+            :disabled="!canCreate"
+            class="relative flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm outline-none hover:bg-accent hover:text-accent-foreground disabled:cursor-default disabled:opacity-60 disabled:hover:bg-transparent"
+            @click="canCreate && pick(searchQuery)"
           >
             <Plus class="size-4 shrink-0" />
-            {{ t('purchasePrices.useSupplier', { name: searchQuery.trim() }) }}
+            {{ canCreate ? t('purchasePrices.useSupplier', { name: searchQuery.trim() }) : t('purchasePrices.typeToCreateHint') }}
           </button>
         </CommandList>
       </Command>

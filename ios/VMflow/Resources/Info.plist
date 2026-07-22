@@ -39,6 +39,8 @@
 	<string>VMflow uses the camera to scan QR codes and product barcodes.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>VMflow needs local network access to connect to the development server.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>VMflow uses your location to set a machine's position in its settings.</string>
 	<key>SUPABASE_ANON_KEY</key>
 	<string>$(SUPABASE_ANON_KEY)</string>
 	<key>SUPABASE_HOST</key>

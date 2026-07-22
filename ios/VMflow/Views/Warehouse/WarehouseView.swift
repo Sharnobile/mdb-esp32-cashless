@@ -382,6 +382,28 @@ struct WarehouseView: View {
                 }
             }
         }
+        .onChange(of: viewModel.intakeProductId) { _, newValue in
+            guard let productId = newValue else { return }
+            Task { await viewModel.prefillSupplier(for: productId) }
+        }
+
+        // Supplier picker — prefilled from the product's last purchase price,
+        // but editable per batch (the actual supplier of a delivery can differ).
+        NavigationLink {
+            IntakeSupplierPickerView(
+                suppliers: viewModel.suppliers,
+                selectedId: $viewModel.intakeSupplierId,
+                selectedName: $viewModel.intakeSupplierName,
+                resolveOrCreate: { name in await viewModel.resolveOrCreateSupplier(named: name) }
+            )
+        } label: {
+            HStack {
+                Text(String(localized: "Supplier"))
+                Spacer()
+                Text(viewModel.intakeSupplierName.isEmpty ? String(localized: "Optional") : viewModel.intakeSupplierName)
+                    .foregroundStyle(.secondary)
+            }
+        }
 
         // Barcode scan button
         Button {
@@ -553,7 +575,8 @@ struct WarehouseView: View {
             productId: productId,
             quantity: viewModel.intakeQuantity,
             batchNumber: batchNumber,
-            expirationDate: expirationDate
+            expirationDate: expirationDate,
+            supplierId: viewModel.intakeSupplierId
         )
 
         // Reset quantity field after successful booking
@@ -594,7 +617,7 @@ struct StockSummaryRow: View {
                 }
 
                 HStack(spacing: 8) {
-                    Text("\(summary.batchCount) batch\(summary.batchCount == 1 ? "" : "es")")
+                    Text(String(format: NSLocalizedString("warehouse_batch_count", comment: ""), summary.batchCount))
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
@@ -694,6 +717,11 @@ struct RecentIntakeRow: View {
                     Text(timeAgoText(entry.createdAt))
                         .font(.caption)
                         .foregroundStyle(.tertiary)
+                    if let supplier = entry.supplierName, !supplier.isEmpty {
+                        Text(verbatim: "· \(supplier)")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                    }
                 }
             }
 
@@ -754,6 +782,92 @@ struct IntakeProductPickerView: View {
         .searchable(text: $searchText, prompt: "Search products")
         .navigationTitle("Select Product")
         .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+// MARK: - Intake Supplier Picker
+
+/// Pick an existing supplier or type a new one, for the intake form. Mirrors
+/// `PurchasePricesSheet.SupplierPickerView`'s search/add interaction, but binds
+/// both the id (stored directly on the batch) and the name (for display), and
+/// creates the row immediately via `resolveOrCreate` rather than deferring
+/// creation to a server-side RPC — the intake flow inserts straight into
+/// `warehouse_stock_batches`, it doesn't go through `add_purchase_price`.
+struct IntakeSupplierPickerView: View {
+    let suppliers: [Supplier]
+    @Binding var selectedId: UUID?
+    @Binding var selectedName: String
+    let resolveOrCreate: (String) async -> Supplier?
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var query = ""
+
+    private var filtered: [Supplier] {
+        let q = query.trimmingCharacters(in: .whitespaces)
+        guard !q.isEmpty else { return suppliers }
+        return suppliers.filter { $0.name.localizedCaseInsensitiveContains(q) }
+    }
+    private var addCandidate: String? {
+        let q = query.trimmingCharacters(in: .whitespaces)
+        guard !q.isEmpty,
+              !suppliers.contains(where: { $0.name.caseInsensitiveCompare(q) == .orderedSame })
+        else { return nil }
+        return q
+    }
+
+    var body: some View {
+        List {
+            if selectedId != nil {
+                Section {
+                    Button(role: .destructive) {
+                        selectedId = nil
+                        selectedName = ""
+                        dismiss()
+                    } label: {
+                        Text(String(localized: "None"))
+                    }
+                }
+            }
+            if let new = addCandidate {
+                Section {
+                    Button {
+                        Task {
+                            if let s = await resolveOrCreate(new) {
+                                selectedId = s.id
+                                selectedName = s.name
+                            }
+                            dismiss()
+                        }
+                    } label: {
+                        Label(String(localized: "Add “\(new)”"), systemImage: "plus.circle.fill")
+                    }
+                }
+            }
+            Section(String(localized: "Suppliers")) {
+                if filtered.isEmpty && addCandidate == nil {
+                    Text(String(localized: "No suppliers yet.")).foregroundStyle(.secondary)
+                }
+                ForEach(filtered) { s in
+                    Button {
+                        selectedId = s.id
+                        selectedName = s.name
+                        dismiss()
+                    } label: {
+                        HStack {
+                            Text(s.name).foregroundStyle(.primary)
+                            Spacer()
+                            if s.id == selectedId {
+                                Image(systemName: "checkmark").foregroundStyle(.tint)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .navigationTitle(String(localized: "Supplier"))
+        .navigationBarTitleDisplayMode(.inline)
+        .searchable(text: $query, prompt: String(localized: "Search or add supplier"))
+        .autocorrectionDisabled()
     }
 }
 

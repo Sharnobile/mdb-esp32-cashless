@@ -47,7 +47,7 @@ struct TrayEditSheet: View {
             Form {
                 // Slot Number
                 Section("Slot") {
-                    Stepper("Slot Number: \(slotNumber)", value: $slotNumber, in: 0...999)
+                    LabeledStepperField(label: "Slot Number", value: $slotNumber, range: 0...999)
                 }
 
                 // Product
@@ -76,8 +76,8 @@ struct TrayEditSheet: View {
 
                 // Capacity & Stock
                 Section("Stock") {
-                    Stepper("Capacity: \(capacity)", value: $capacity, in: 1...999)
-                    Stepper("Current Stock: \(currentStock)", value: $currentStock, in: 0...capacity)
+                    LabeledStepperField(label: "Capacity", value: $capacity, range: 1...999)
+                    LabeledStepperField(label: "Current Stock", value: $currentStock, range: 0...capacity)
                     StockBar(
                         current: currentStock,
                         capacity: capacity,
@@ -114,8 +114,8 @@ struct TrayEditSheet: View {
 
                 // Thresholds
                 Section("Thresholds") {
-                    Stepper("Min Stock: \(minStock)", value: $minStock, in: 0...capacity)
-                    Stepper("Fill When Below: \(fillWhenBelow)", value: $fillWhenBelow, in: 0...capacity)
+                    LabeledStepperField(label: "Min Stock", value: $minStock, range: 0...capacity)
+                    LabeledStepperField(label: "Fill When Below", value: $fillWhenBelow, range: 0...capacity)
                 }
 
                 // Delete
@@ -183,8 +183,8 @@ struct BatchAddTraySheet: View {
         NavigationStack {
             Form {
                 Section("Range") {
-                    Stepper("Start Slot: \(startSlot)", value: $startSlot, in: 0...999)
-                    Stepper("Number of Slots: \(count)", value: $count, in: 1...50)
+                    LabeledStepperField(label: "Start Slot", value: $startSlot, range: 0...999)
+                    LabeledStepperField(label: "Number of Slots", value: $count, range: 1...50)
 
                     Text("Will create slots \(startSlot) through \(startSlot + count - 1)")
                         .font(.caption)
@@ -192,7 +192,7 @@ struct BatchAddTraySheet: View {
                 }
 
                 Section("Default Settings") {
-                    Stepper("Capacity: \(capacity)", value: $capacity, in: 1...999)
+                    LabeledStepperField(label: "Capacity", value: $capacity, range: 1...999)
                 }
             }
             .navigationTitle("Batch Add Trays")
