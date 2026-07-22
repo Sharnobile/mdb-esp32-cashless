@@ -288,9 +288,9 @@ final class MachineAnalysisViewModel: ObservableObject {
                     // `revenue_eur` is a Postgres `numeric` — PostgREST may
                     // serialize it as either a JSON number or a string
                     // depending on version; accept both defensively.
-                    if let d = try? c.decodeIfPresent(Double.self, forKey: .revenueEur), let d {
+                    if let d = (try? c.decodeIfPresent(Double.self, forKey: .revenueEur)) ?? nil {
                         revenueEur = d
-                    } else if let s = try? c.decodeIfPresent(String.self, forKey: .revenueEur), let s, let d = Double(s) {
+                    } else if let s = (try? c.decodeIfPresent(String.self, forKey: .revenueEur)) ?? nil, let d = Double(s) {
                         revenueEur = d
                     } else {
                         revenueEur = 0
@@ -309,9 +309,9 @@ final class MachineAnalysisViewModel: ObservableObject {
                 init(from decoder: Decoder) throws {
                     let c = try decoder.container(keyedBy: CodingKeys.self)
                     productId = try c.decode(UUID.self, forKey: .productId)
-                    if let d = try? c.decodeIfPresent(Double.self, forKey: .avgDailyUnits), let d {
+                    if let d = (try? c.decodeIfPresent(Double.self, forKey: .avgDailyUnits)) ?? nil {
                         avgDailyUnits = d
-                    } else if let s = try? c.decodeIfPresent(String.self, forKey: .avgDailyUnits), let s, let d = Double(s) {
+                    } else if let s = (try? c.decodeIfPresent(String.self, forKey: .avgDailyUnits)) ?? nil, let d = Double(s) {
                         avgDailyUnits = d
                     } else {
                         avgDailyUnits = 0
