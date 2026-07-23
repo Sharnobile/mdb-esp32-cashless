@@ -30,6 +30,8 @@
 #include <esp_adc/adc_cali_scheme.h>
 
 #include "led_strip.h"
+#include "onewire_bus.h"
+#include "ds18b20.h"
 
 #include "nimble.h"
 #include "webui_server.h"
@@ -71,6 +73,19 @@
 #define PIN_CUSTOM_INPUT2       GPIO_NUM_47
 #define PIN_CUSTOM_INPUT3       GPIO_NUM_48
 
+/* Relay outputs (J2/J3 on the WROOM-U1 board). These drive an external
+ * relay module's 3.3V control input — the ESP32 supplies no switched
+ * power itself. A relay module rated for the actual load (up to 220VAC)
+ * sits between this pin and whatever gets switched. */
+#define PIN_RELAY_1             GPIO_NUM_1
+#define PIN_RELAY_2             GPIO_NUM_2
+
+/* 1-Wire buses (J4, J5/J6 on the WROOM-U1 board). Bus-based rather than
+ * a fixed device type: onewire_new_device_iter() enumerates whatever ROM
+ * IDs are present, so mixed device families can share one physical bus. */
+#define PIN_ONEWIRE_1           GPIO_NUM_15
+#define PIN_ONEWIRE_2           GPIO_NUM_16
+
 /* Board-ID strap: GPIO3 is unused on both the original mdb-slave-esp32s3
  * PCB and this WROOM-U1 PCB per their schematics. Fitting a 10k pull-down
  * to GND on GPIO3 on the WROOM-U1 board only (nothing to add on the
@@ -111,6 +126,11 @@ EventGroupHandle_t xLedEventGroup;
 // reachable before pulling a pending sale off the queue.
 bool mqtt_started = false;
 static bool sntp_started = false;
+
+// Set once at boot by detect_board_variant(). Gates every WROOM-U1-only
+// peripheral (relay, 1-Wire, custom inputs) — those GPIOs are unused/
+// floating on the original board, so there's no hardware there to drive.
+static bool g_board_is_wroom_u1 = false;
 static bool ota_in_progress = false;
 SemaphoreHandle_t mqtt_publish_mutex = NULL;
 static esp_timer_handle_t mqtt_watchdog_timer = NULL;
@@ -435,6 +455,7 @@ void write_payload_9(uint8_t *mdb_payload, uint8_t length) {
 }
 
 void xorEncodeWithPasskey(uint8_t cmd, uint16_t itemPrice, uint16_t itemNumber, uint16_t paxCounter, uint8_t *payload);
+static void set_relay(uint8_t relay_num, bool on);
 uint8_t xorDecodeWithPasskey(uint16_t *itemPrice, uint16_t *itemNumber, uint8_t *payload);
 
 // Drain any remaining bytes from the MDB bus after a checksum error or
@@ -2150,6 +2171,24 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 		                    cashless_reset_todo = true;
 		                    publish_mdb_diag();
 		                    break;
+		                case 0x33: // Set relay 1 (WROOM-U1 only)
+		                    if (!g_board_is_wroom_u1) {
+		                        ESP_LOGW(TAG, "CONFIG: relay1 command ignored — not a WROOM-U1 board");
+		                    } else if (configParam == 0 || configParam == 1) {
+		                        set_relay(1, configParam == 1);
+		                    } else {
+		                        ESP_LOGE(TAG, "CONFIG: invalid relay1 state %u (must be 0 or 1)", configParam);
+		                    }
+		                    break;
+		                case 0x34: // Set relay 2 (WROOM-U1 only)
+		                    if (!g_board_is_wroom_u1) {
+		                        ESP_LOGW(TAG, "CONFIG: relay2 command ignored — not a WROOM-U1 board");
+		                    } else if (configParam == 0 || configParam == 1) {
+		                        set_relay(2, configParam == 1);
+		                    } else {
+		                        ESP_LOGE(TAG, "CONFIG: invalid relay2 state %u (must be 0 or 1)", configParam);
+		                    }
+		                    break;
 		                default:
 		                    ESP_LOGW(TAG, "CONFIG: unknown encrypted cmd 0x%02X", cmd);
 		                    break;
@@ -2953,9 +2992,184 @@ static bool detect_board_variant(void) {
     return is_wroom_u1;
 }
 
+//------------------------- Relay outputs (J2/J3) -------------------------//
+//--------------------------------------------------------------------------//
+// WROOM-U1 only — see PIN_RELAY_1/2 above for why these GPIOs are safe to
+// drive unconditionally on this board but must never be touched on the
+// original board (no relay hardware there to receive the signal).
+static void relay_init(void) {
+    gpio_config_t relay_cfg = {
+        .pin_bit_mask = (1ULL << PIN_RELAY_1) | (1ULL << PIN_RELAY_2),
+        .mode         = GPIO_MODE_OUTPUT,
+        .pull_up_en   = GPIO_PULLUP_DISABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type    = GPIO_INTR_DISABLE,
+    };
+    gpio_config(&relay_cfg);
+    gpio_set_level(PIN_RELAY_1, 0);
+    gpio_set_level(PIN_RELAY_2, 0);
+    ESP_LOGI(TAG, "Relay outputs initialised (both OFF)");
+}
+
+// relay_num: 1 or 2. on: true = energize the relay coil.
+static void set_relay(uint8_t relay_num, bool on) {
+    gpio_num_t pin = (relay_num == 1) ? PIN_RELAY_1 : PIN_RELAY_2;
+    gpio_set_level(pin, on ? 1 : 0);
+    ESP_LOGW(TAG, "Relay %u set to %s", relay_num, on ? "ON" : "OFF");
+}
+
+//------------------- Custom digital inputs (J11/J13/J14) ------------------//
+//--------------------------------------------------------------------------//
+// Generic edge-triggered inputs — the firmware doesn't know or care what's
+// wired to them (door contact, pushbutton, presence sensor, ...). It only
+// reports level transitions with a timestamp and how long the previous
+// level was held; interpreting that (e.g. "door left open past a
+// configurable threshold", unusual-hour alarms, notification routing) is
+// backend/app logic, tracked separately under "custom inputs management".
+typedef struct {
+    gpio_num_t pin;
+    uint8_t channel;      // 1/2/3 — matches J11/J13/J14 silkscreen numbering
+    int last_level;
+    time_t last_change_at;
+} custom_input_state_t;
+
+static custom_input_state_t custom_inputs[3] = {
+    { .pin = PIN_CUSTOM_INPUT1, .channel = 1 },
+    { .pin = PIN_CUSTOM_INPUT2, .channel = 2 },
+    { .pin = PIN_CUSTOM_INPUT3, .channel = 3 },
+};
+
+#define CUSTOM_INPUT_DEBOUNCE_MS  50
+#define CUSTOM_INPUT_POLL_MS      100
+
+static void publish_custom_input_event(uint8_t channel, int level, time_t ts, uint32_t prev_held_sec) {
+    if (!mqttClient) return;
+
+    char topic[128];
+    snprintf(topic, sizeof(topic), "/%s/%s/input", my_company_id, my_device_id);
+
+    char msg[128];
+    snprintf(msg, sizeof(msg),
+        "{\"channel\":%u,\"level\":%d,\"ts\":%lld,\"prevHeldSec\":%lu}",
+        channel, level, (long long) ts, (unsigned long) prev_held_sec);
+
+    // QoS 1: these events feed alarm/notification logic downstream, so a
+    // dropped transition could hide a real open/close — same durability
+    // requirement as the sale topic.
+    mqtt_publish_safe(mqttClient, topic, msg, 0, 1, 0);
+}
+
+static void custom_input_task(void *arg) {
+    gpio_config_t in_cfg = {
+        .pin_bit_mask = (1ULL << PIN_CUSTOM_INPUT1) | (1ULL << PIN_CUSTOM_INPUT2) | (1ULL << PIN_CUSTOM_INPUT3),
+        .mode         = GPIO_MODE_INPUT,
+        .pull_up_en   = GPIO_PULLUP_ENABLE,  // idle HIGH even if a variant is missing its external pull-up
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type    = GPIO_INTR_DISABLE,
+    };
+    gpio_config(&in_cfg);
+
+    time_t boot_time = time(NULL);
+    for (int i = 0; i < 3; i++) {
+        custom_inputs[i].last_level = gpio_get_level(custom_inputs[i].pin);
+        custom_inputs[i].last_change_at = boot_time;  // no event published for the boot-time read
+    }
+    ESP_LOGI(TAG, "Custom inputs initialised: ch1=%d ch2=%d ch3=%d",
+             custom_inputs[0].last_level, custom_inputs[1].last_level, custom_inputs[2].last_level);
+
+    while (1) {
+        for (int i = 0; i < 3; i++) {
+            int level = gpio_get_level(custom_inputs[i].pin);
+            if (level != custom_inputs[i].last_level) {
+                vTaskDelay(pdMS_TO_TICKS(CUSTOM_INPUT_DEBOUNCE_MS));
+                if (gpio_get_level(custom_inputs[i].pin) != level) {
+                    continue;  // bounced back within the debounce window, not a real transition
+                }
+
+                time_t now = time(NULL);
+                uint32_t prev_held_sec = (uint32_t)(now - custom_inputs[i].last_change_at);
+
+                custom_inputs[i].last_level = level;
+                custom_inputs[i].last_change_at = now;
+
+                ESP_LOGI(TAG, "Custom input %u: level -> %d (held previous %lu s)",
+                         custom_inputs[i].channel, level, (unsigned long) prev_held_sec);
+                publish_custom_input_event(custom_inputs[i].channel, level, now, prev_held_sec);
+            }
+        }
+        vTaskDelay(pdMS_TO_TICKS(CUSTOM_INPUT_POLL_MS));
+    }
+}
+
+//---------------------------- 1-Wire buses (J4/J5/J6) ----------------------//
+//--------------------------------------------------------------------------//
+// One-shot scan-and-read at boot, same scope as the NTC thermistor above
+// (logged only, not yet published — publishing/alarming is backend work).
+// Family-code dispatch means adding a second device type later (iButton,
+// EEPROM, ...) doesn't require touching the bus enumeration itself.
+static void onewire_bus_scan_and_read(gpio_num_t pin, uint8_t bus_num) {
+    onewire_bus_config_t bus_config = { .bus_gpio_num = pin };
+    onewire_bus_rmt_config_t rmt_config = { .max_rx_bytes = 10 };
+    onewire_bus_handle_t bus;
+
+    esp_err_t err = onewire_new_bus_rmt(&bus_config, &rmt_config, &bus);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "1-Wire bus %u (GPIO%d): init failed (%s)", bus_num, pin, esp_err_to_name(err));
+        return;
+    }
+
+    onewire_device_iter_handle_t iter = NULL;
+    if (onewire_new_device_iter(bus, &iter) != ESP_OK) {
+        ESP_LOGE(TAG, "1-Wire bus %u: failed to start device search", bus_num);
+        onewire_bus_del(bus);
+        return;
+    }
+
+    ESP_LOGI(TAG, "1-Wire bus %u (GPIO%d): scanning for devices...", bus_num, pin);
+    int found = 0;
+    onewire_device_t device;
+
+    while (onewire_device_iter_get_next(iter, &device) == ESP_OK) {
+        found++;
+        uint8_t family_code = (uint8_t)(device.address & 0xFF);
+
+        if (family_code == 0x28) {  // DS18B20 temperature sensor
+            ds18b20_config_t ds_cfg = {};  // reserved/empty config struct — nothing to set yet
+            ds18b20_device_handle_t ds18b20;
+
+            if (ds18b20_new_device(&device, &ds_cfg, &ds18b20) == ESP_OK) {
+                ds18b20_trigger_temperature_conversion(ds18b20);
+                float temp_c = 0;
+                if (ds18b20_get_temperature(ds18b20, &temp_c) == ESP_OK) {
+                    ESP_LOGI(TAG, "1-Wire bus %u: DS18B20 %016llX = %.2f C",
+                             bus_num, (unsigned long long) device.address, temp_c);
+                } else {
+                    ESP_LOGW(TAG, "1-Wire bus %u: DS18B20 %016llX read failed",
+                              bus_num, (unsigned long long) device.address);
+                }
+                ds18b20_del_device(ds18b20);
+            } else {
+                ESP_LOGW(TAG, "1-Wire bus %u: DS18B20 %016llX init failed",
+                          bus_num, (unsigned long long) device.address);
+            }
+        } else {
+            ESP_LOGI(TAG, "1-Wire bus %u: device %016llX (family 0x%02X) — no driver for this family yet",
+                     bus_num, (unsigned long long) device.address, family_code);
+        }
+    }
+    onewire_del_device_iter(iter);
+
+    if (found == 0) {
+        ESP_LOGI(TAG, "1-Wire bus %u: no devices found", bus_num);
+    }
+
+    onewire_bus_del(bus);
+}
+
 void app_main(void) {
 
     bool board_is_wroom_u1 = detect_board_variant();
+    g_board_is_wroom_u1 = board_is_wroom_u1;
 
 
     /* Silence the chatty IDF subsystems that drown out our own logs.
@@ -3022,6 +3236,21 @@ void app_main(void) {
 
     ESP_ERROR_CHECK(adc_oneshot_read(adc_handle, ADC_CHANNEL_THERMISTOR, &adc_raw_value));
     ESP_LOGI(TAG, "ADC Raw Data: %d", adc_raw_value);
+
+	//------------- Relay / custom inputs / 1-Wire (WROOM-U1) --------------//
+	//----------------------------------------------------------------------//
+	// All three are unwired on the original board (GPIO1/2/6/15/16/47/48
+	// are unused there) — only touch them when detect_board_variant()
+	// found the WROOM-U1 pull-down, same gating as the DEX/UART1 block
+	// below.
+	if (board_is_wroom_u1) {
+		relay_init();
+
+		xTaskCreate(custom_input_task, "custom_input", 4096, NULL, 5, NULL);
+
+		onewire_bus_scan_and_read(PIN_ONEWIRE_1, 1);
+		onewire_bus_scan_and_read(PIN_ONEWIRE_2, 2);
+	}
 
 	//---------------- UART1 - EVA DTS DEX/DDCMP ---------------//
 	//----------------------------------------------------------//
