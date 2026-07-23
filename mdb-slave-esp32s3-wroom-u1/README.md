@@ -102,12 +102,23 @@ there.
 
 ## Before first flash
 
-- Run `idf.py menuconfig` → **Serial Flasher Config** → set flash size to
-  **16 MB** (this board's module is 16MB flash / 2MB PSRAM vs. the original
-  board's 4MB config currently in `sdkconfig`).
-- Enable **Component config → ESP PSRAM** for the 2MB PSRAM (mode
-  Quad/Octal — confirm against the exact WROOM-1U-N16R2 datasheet page
-  before committing to a mode).
+- Done in `sdkconfig`: flash size set to **16 MB**, PSRAM enabled in
+  **Quad** mode (`CONFIG_SPIRAM_MODE_QUAD`). Confirmed against the
+  ESP32-S3 datasheet's Table 1-1 Series Comparison — the `R2` chip variant
+  behind WROOM-1U-**N16R2** is `ESP32-S3R2`, which is 2 MB PSRAM in
+  **Quad SPI**, not Octal (Octal is only on the R8/R8V/R16V variants).
+  ESP-IDF wasn't available in this environment to run `idf.py reconfigure`,
+  so only the two load-bearing options (`CONFIG_SPIRAM`,
+  `CONFIG_SPIRAM_MODE_QUAD`) plus `CONFIG_ESP32S3_SPIRAM_SUPPORT` were set
+  by hand — run `idf.py reconfigure` (or the first `idf.py build`) once
+  ESP-IDF is set up so the remaining PSRAM sub-options (size auto-detect,
+  speed, malloc integration, memtest) get filled in from their Kconfig
+  defaults, then spot-check them in `idf.py menuconfig` before flashing.
+- GPIO3 pull-down (board-ID strap): the earlier note here was based on a
+  misidentified pin — **pin 3 on the WROOM-1 module is `EN`, not GPIO3**.
+  GPIO3 is pin **15** on the module's own pin table. A 10kΩ pull-down from
+  GPIO3 (pin 15) to GND has since been added to the PCB and pushed to
+  `feature/esp32s3-wroom-u1-pcb`.
 - Confirm relay / 1-Wire / digital-input pins against the schematic, add
   the corresponding `PIN_*` defines and driver code before relying on
   those features.
