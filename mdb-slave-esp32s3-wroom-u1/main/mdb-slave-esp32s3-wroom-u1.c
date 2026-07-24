@@ -36,6 +36,7 @@
 #include "nimble.h"
 #include "webui_server.h"
 #include "sale_queue.h"
+#include "debug_log.h"
 #include "network.h"
 
 #include "esp_system.h"
@@ -96,6 +97,16 @@
 
 #define ADC_UNIT_THERMISTOR     ADC_UNIT_1
 #define ADC_CHANNEL_THERMISTOR  ADC_CHANNEL_6   // Define the ADC unit, channel, and attenuation (NTC Thermistor)
+
+/* TH1 = Murata NCP18XH103F03RB (10k @ 25C, B25/50 = 3380K per Murata
+ * catalog R44E). Divider per the committed schematic (kicad/mdb-slave-
+ * esp32s3, TH1/R15): +3V3 -> R15 (10k, fixed) -> ADC7 node -> TH1 -> GND.
+ * So Vadc rises with temperature (Rntc falls as it heats up). */
+#define NTC_R25_OHMS   10000.0f
+#define NTC_B_COEFF    3380.0f
+#define NTC_T25_KELVIN 298.15f
+#define NTC_DIVIDER_R15_OHMS 10000.0f
+#define NTC_VDD_MV     3300
 
 // Functions for scale factor conversion
 #define TO_SCALE_FACTOR(p, scale_to, dec_to) (p / scale_to / pow(10, -(dec_to) ))               // Converts to scale factor
@@ -2010,6 +2021,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 		ESP_LOGW(TAG, "MQTT: disconnected from broker");
         mqtt_started = false;
         sale_queue_on_disconnect();
+        debug_log_on_disconnect();
         xEventGroupClearBits(xLedEventGroup, BIT_EVT_INTERNET);
         xEventGroupSetBits(xLedEventGroup, BIT_EVT_TRIGGER);
 
@@ -2023,6 +2035,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 	case MQTT_EVENT_PUBLISHED:
 		ESP_LOGI(TAG, "MQTT: published, msg_id=%d", event->msg_id);
 		sale_queue_on_published(event->msg_id);
+		debug_log_on_published(event->msg_id);
 		break;
 	case MQTT_EVENT_DATA:
 
@@ -3016,6 +3029,7 @@ static void set_relay(uint8_t relay_num, bool on) {
     gpio_num_t pin = (relay_num == 1) ? PIN_RELAY_1 : PIN_RELAY_2;
     gpio_set_level(pin, on ? 1 : 0);
     ESP_LOGW(TAG, "Relay %u set to %s", relay_num, on ? "ON" : "OFF");
+    debug_log_append(DEBUG_LOG_RELAY, relay_num, on ? 1 : 0, 0);
 }
 
 //------------------- Custom digital inputs (J11/J13/J14) ------------------//
@@ -3095,6 +3109,7 @@ static void custom_input_task(void *arg) {
                 ESP_LOGI(TAG, "Custom input %u: level -> %d (held previous %lu s)",
                          custom_inputs[i].channel, level, (unsigned long) prev_held_sec);
                 publish_custom_input_event(custom_inputs[i].channel, level, now, prev_held_sec);
+                debug_log_append(DEBUG_LOG_INPUT, custom_inputs[i].channel, (uint8_t)level, (int32_t)prev_held_sec);
             }
         }
         vTaskDelay(pdMS_TO_TICKS(CUSTOM_INPUT_POLL_MS));
@@ -3103,11 +3118,17 @@ static void custom_input_task(void *arg) {
 
 //---------------------------- 1-Wire buses (J4/J5/J6) ----------------------//
 //--------------------------------------------------------------------------//
-// One-shot scan-and-read at boot, same scope as the NTC thermistor above
-// (logged only, not yet published — publishing/alarming is backend work).
+// Boot call (periodic_track=false) is a one-shot discovery scan, logged
+// only. The periodic 5-min timer (see periodic_sensor_timer_cb) re-calls
+// this with periodic_track=true, which additionally pushes a debug_log
+// entry per DS18B20 whenever its temperature has moved >=0.5C since the
+// last logged reading for that bus (or on the first periodic reading).
 // Family-code dispatch means adding a second device type later (iButton,
 // EEPROM, ...) doesn't require touching the bus enumeration itself.
-static void onewire_bus_scan_and_read(gpio_num_t pin, uint8_t bus_num) {
+#define ONEWIRE_LOG_DELTA_C 0.5f
+static float s_onewire_last_logged_c[2] = { NAN, NAN }; // indexed by bus_num-1
+
+static void onewire_bus_scan_and_read(gpio_num_t pin, uint8_t bus_num, bool periodic_track) {
     onewire_bus_config_t bus_config = { .bus_gpio_num = pin };
     onewire_bus_rmt_config_t rmt_config = { .max_rx_bytes = 10 };
     onewire_bus_handle_t bus;
@@ -3143,6 +3164,14 @@ static void onewire_bus_scan_and_read(gpio_num_t pin, uint8_t bus_num) {
                 if (ds18b20_get_temperature(ds18b20, &temp_c) == ESP_OK) {
                     ESP_LOGI(TAG, "1-Wire bus %u: DS18B20 %016llX = %.2f C",
                              bus_num, (unsigned long long) device.address, temp_c);
+
+                    if (periodic_track) {
+                        float *last = &s_onewire_last_logged_c[bus_num - 1];
+                        if (isnan(*last) || fabsf(temp_c - *last) >= ONEWIRE_LOG_DELTA_C) {
+                            *last = temp_c;
+                            debug_log_append(DEBUG_LOG_ONEWIRE, bus_num, 0, (int32_t)(temp_c * 1000));
+                        }
+                    }
                 } else {
                     ESP_LOGW(TAG, "1-Wire bus %u: DS18B20 %016llX read failed",
                               bus_num, (unsigned long long) device.address);
@@ -3164,6 +3193,65 @@ static void onewire_bus_scan_and_read(gpio_num_t pin, uint8_t bus_num) {
     }
 
     onewire_bus_del(bus);
+}
+
+//------------------------ NTC thermistor + periodic tracking --------------//
+//--------------------------------------------------------------------------//
+static adc_oneshot_unit_handle_t s_adc_handle = NULL;
+static adc_cali_handle_t s_adc_cali_handle = NULL;
+#define NTC_LOG_DELTA_C 0.5f
+static float s_ntc_last_logged_c = NAN;
+
+// Inverts the divider (+3V3 -> R15 -> ADC node -> TH1 -> GND) to get Rntc
+// from the measured node voltage, then the single-B-constant NTC equation
+// (Murata catalog R44E, section "Basic Characteristics") to get Celsius.
+static float ntc_mv_to_celsius(int adc_mv) {
+    float v = (float)adc_mv;
+    float v_source = (float)NTC_VDD_MV;
+    if (v <= 0.0f) v = 0.001f;
+    if (v >= v_source) v = v_source - 0.001f;
+
+    float r_ntc = NTC_DIVIDER_R15_OHMS * v / (v_source - v);
+    float inv_t = (1.0f / NTC_T25_KELVIN) + (1.0f / NTC_B_COEFF) * logf(r_ntc / NTC_R25_OHMS);
+    float temp_k = 1.0f / inv_t;
+    return temp_k - 273.15f;
+}
+
+static bool ntc_read_celsius(float *out_celsius) {
+    int raw;
+    if (adc_oneshot_read(s_adc_handle, ADC_CHANNEL_THERMISTOR, &raw) != ESP_OK) return false;
+
+    int mv;
+    if (s_adc_cali_handle && adc_cali_raw_to_voltage(s_adc_cali_handle, raw, &mv) == ESP_OK) {
+        // calibrated
+    } else {
+        // Fallback if the calibration scheme isn't supported on this chip
+        // revision: crude linear estimate over the DB_12 attenuation's
+        // approximate full-scale range. Less accurate but keeps the
+        // feature working rather than silently reporting nothing.
+        mv = (raw * NTC_VDD_MV) / 4095;
+    }
+    *out_celsius = ntc_mv_to_celsius(mv);
+    return true;
+}
+
+// esp_timer periodic callback (5 min). Re-reads the onboard NTC (both
+// board variants) and, on WROOM-U1 only, the 1-Wire buses — each gated by
+// its own >=0.5C delta filter so a stable temperature doesn't fill the
+// debug log with near-duplicate readings.
+static void periodic_sensor_timer_cb(void *arg) {
+    float temp_c;
+    if (ntc_read_celsius(&temp_c)) {
+        if (isnan(s_ntc_last_logged_c) || fabsf(temp_c - s_ntc_last_logged_c) >= NTC_LOG_DELTA_C) {
+            s_ntc_last_logged_c = temp_c;
+            debug_log_append(DEBUG_LOG_NTC, 0, 0, (int32_t)(temp_c * 1000));
+        }
+    }
+
+    if (g_board_is_wroom_u1) {
+        onewire_bus_scan_and_read(PIN_ONEWIRE_1, 1, true);
+        onewire_bus_scan_and_read(PIN_ONEWIRE_2, 2, true);
+    }
 }
 
 void app_main(void) {
@@ -3225,16 +3313,25 @@ void app_main(void) {
 
 	//--------------- ADC Init (NTC thermistor) ----------------//
 	//----------------------------------------------------------//
-    adc_oneshot_unit_handle_t adc_handle;
     adc_oneshot_unit_init_cfg_t init_config = { .unit_id = ADC_UNIT_THERMISTOR, };
-    ESP_ERROR_CHECK(adc_oneshot_new_unit(&init_config, &adc_handle));
+    ESP_ERROR_CHECK(adc_oneshot_new_unit(&init_config, &s_adc_handle));
 
     adc_oneshot_chan_cfg_t config = { .atten = ADC_ATTEN_DB_12, .bitwidth = ADC_BITWIDTH_DEFAULT, };
-    ESP_ERROR_CHECK(adc_oneshot_config_channel(adc_handle, ADC_CHANNEL_THERMISTOR, &config));
+    ESP_ERROR_CHECK(adc_oneshot_config_channel(s_adc_handle, ADC_CHANNEL_THERMISTOR, &config));
+
+    adc_cali_curve_fitting_config_t cali_config = {
+        .unit_id = ADC_UNIT_THERMISTOR,
+        .chan = ADC_CHANNEL_THERMISTOR,
+        .atten = ADC_ATTEN_DB_12,
+        .bitwidth = ADC_BITWIDTH_DEFAULT,
+    };
+    if (adc_cali_create_scheme_curve_fitting(&cali_config, &s_adc_cali_handle) != ESP_OK) {
+        ESP_LOGW(TAG, "ADC calibration unavailable — thermistor readings use an uncalibrated linear estimate");
+        s_adc_cali_handle = NULL;
+    }
 
     int adc_raw_value;
-
-    ESP_ERROR_CHECK(adc_oneshot_read(adc_handle, ADC_CHANNEL_THERMISTOR, &adc_raw_value));
+    ESP_ERROR_CHECK(adc_oneshot_read(s_adc_handle, ADC_CHANNEL_THERMISTOR, &adc_raw_value));
     ESP_LOGI(TAG, "ADC Raw Data: %d", adc_raw_value);
 
 	//------------- Relay / custom inputs / 1-Wire (WROOM-U1) --------------//
@@ -3248,8 +3345,8 @@ void app_main(void) {
 
 		xTaskCreate(custom_input_task, "custom_input", 4096, NULL, 5, NULL);
 
-		onewire_bus_scan_and_read(PIN_ONEWIRE_1, 1);
-		onewire_bus_scan_and_read(PIN_ONEWIRE_2, 2);
+		onewire_bus_scan_and_read(PIN_ONEWIRE_1, 1, false);
+		onewire_bus_scan_and_read(PIN_ONEWIRE_2, 2, false);
 	}
 
 	//---------------- UART1 - EVA DTS DEX/DDCMP ---------------//
@@ -3304,6 +3401,21 @@ void app_main(void) {
 	    ESP_LOGE(TAG, "NVS init failed: %s", esp_err_to_name(nvs_err));
 	} else {
 	    ESP_LOGI(TAG, "NVS initialised OK");
+	}
+
+	// Offline-safe debug log (relay/custom-input/1-Wire/NTC): needs NVS for
+	// its write/ack cursors, so it's initialised here rather than alongside
+	// relay_init()/custom_input_task above, which run before nvs_flash_init.
+	debug_log_init();
+
+	{
+		const esp_timer_create_args_t sensor_timer_args = {
+			.callback = &periodic_sensor_timer_cb,
+			.name = "sensor_5m"
+		};
+		esp_timer_handle_t sensor_timer;
+		esp_timer_create(&sensor_timer_args, &sensor_timer);
+		esp_timer_start_periodic(sensor_timer, 5ULL * 60 * 1000000); // 5min
 	}
 	//
 	esp_netif_init();
@@ -3538,6 +3650,7 @@ void app_main(void) {
 	 * vend. */
 	sale_queue_init();
 	sale_queue_start(mqttClient);
+	debug_log_start(mqttClient);
 
 	//--------------- Factory reset (BOOT button) --------------//
 	//----------------------------------------------------------//

@@ -21,6 +21,9 @@ flashed or tested on real hardware** — the PCB layout is still in progress.
   status below and "Board-specific drivers" for details). Everything
   board-specific is gated behind `detect_board_variant()` so the same
   firmware image stays safe to flash on either PCB.
+- Relay/custom-input/1-Wire/NTC events are buffered offline in a local
+  debug log (`debug_log.c`, custom `dbglog` flash partition) so a
+  connectivity gap doesn't lose them — see "Local debug log" below.
 
 ## Pin mapping vs. schematic
 
@@ -35,7 +38,7 @@ Per the schematic's IO legend:
 | 4 | MDB RX | `PIN_MDB_RX` | matches, no change |
 | 5 | MDB TX | `PIN_MDB_TX` | matches, no change |
 | 6 | Custom input 1 (J11) | `PIN_CUSTOM_INPUT1` | **driver done** — debounced, published on `/input` |
-| 7 | Thermistor (TH1) | `ADC_CHANNEL_THERMISTOR` (ADC1_CH6) | already read at boot (logged only, not published yet) |
+| 7 | Thermistor (TH1) | `ADC_CHANNEL_THERMISTOR` (ADC1_CH6) | **driver done** — real °C via NCP18XH103F03RB B-constant, tracked every 5min (see below) |
 | 8 | *(unused — was custom input 2)* | `PIN_DEX_RX` | freed up, see below |
 | 9 | *(unused — was custom input 3)* | `PIN_DEX_TX` | freed up, see below |
 | 10 | I2C SDA (J10) | `PIN_I2C_SDA` | matches, no change |
@@ -43,8 +46,8 @@ Per the schematic's IO legend:
 | 12 | Buzzer (BZ1) | `PIN_BUZZER_PWR` | matches, no change |
 | 13 | Pulse output (J8) | `PIN_PULSE_1` | matches, no change |
 | 14, 17, 18 | free | — | |
-| 15 | 1-Wire bus 1 (J4) | `PIN_ONEWIRE_1` | **driver done** — boot-time scan, logged only (see below) |
-| 16 | 1-Wire bus 2 (J5/J6) | `PIN_ONEWIRE_2` | **driver done** — boot-time scan, logged only (see below) |
+| 15 | 1-Wire bus 1 (J4) | `PIN_ONEWIRE_1` | **driver done** — boot scan + 5min DS18B20 tracking (see below) |
+| 16 | 1-Wire bus 2 (J5/J6) | `PIN_ONEWIRE_2` | **driver done** — boot scan + 5min DS18B20 tracking (see below) |
 | 21 | Status LED (D2, WS2812) | `PIN_MDB_LED` | matches, no change |
 | 47 | Custom input 2 (J13) | `PIN_CUSTOM_INPUT2` | **driver done** — debounced, published on `/input` |
 | 48 | Custom input 3 (J14) | `PIN_CUSTOM_INPUT3` | **driver done** — debounced, published on `/input` |
@@ -131,9 +134,48 @@ hardware on these pins.
   components (`onewire_bus_scan_and_read()`), dispatched by ROM family
   code so a bus can host mixed device types later without touching the
   enumeration logic. DS18B20 (family `0x28`) is triggered and read once
-  at boot; any other family code is logged as "no driver for this family
-  yet". Same scope as the NTC thermistor today — **boot-time log only,
-  nothing published over MQTT and no alarming/threshold logic**.
+  at boot (discovery only); any other family code is logged as "no
+  driver for this family yet". Periodic tracking (below) re-reads known
+  DS18B20s every 5 minutes.
+
+### Local debug log (relay / custom input / 1-Wire / NTC)
+
+Offline-safe buffer for diagnostic events, separate from the sales queue
+(`sale_queue.c`, unchanged and still the priority path for not losing
+sales during a connectivity gap). Implemented in `debug_log.c`/`.h`:
+
+- **Storage**: a dedicated raw flash partition (`dbglog`, ~800 KB, see
+  `partitions.csv`) holding a ring of fixed 16-byte records — not NVS,
+  because per-key NVS overhead and page-relocation cost stop being worth
+  it at this many small records. Two small NVS counters (write/ack
+  cursor) track ring position across reboots, the same role as
+  `sale_queue.c`'s `K_HEAD`/`K_TAIL`. Capacity is intentionally generous
+  (~51,200 records) but still bounded regardless of how much flash is
+  free — it's a bridge over connectivity gaps, not a permanent archive.
+- **What gets logged**: relay commands (every `set_relay()` call),
+  every debounced custom-input transition (alongside the existing
+  immediate `/input` publish — belt-and-suspenders so a missed publish
+  during an outage is replayed once reconnected), and periodic NTC/
+  DS18B20 temperature readings.
+- **NTC thermistor conversion**: TH1 is a Murata NCP18XH103F03RB
+  (10 kΩ @ 25°C, B25/50 = 3380K per the Murata NTC catalog). The divider
+  per the committed schematic (`kicad/mdb-slave-esp32s3`, TH1/R15) is
+  `+3V3 → R15 (10kΩ) → ADC7 node → TH1 → GND`. `ntc_mv_to_celsius()`
+  inverts the divider then applies the single-B-constant NTC equation.
+  ADC calibration uses `adc_cali_create_scheme_curve_fitting()` where
+  supported, falling back to an uncalibrated linear estimate otherwise.
+- **Periodic tracking**: a 5-minute `esp_timer` (`periodic_sensor_timer_cb`)
+  re-reads the NTC (both board variants) and, on WROOM-U1 only, both
+  1-Wire buses. Each sensor only logs when its reading has moved ≥0.5°C
+  since the last logged value (or on the first reading) — a stable
+  temperature doesn't fill the ring with near-duplicate entries.
+- **Publishing**: reuses the existing `/mdb-log` MQTT topic (same
+  pipeline as `publish_mdb_diag()` — no new topic, forwarder subscription,
+  or DB table needed) with an added `"type"` field (`relay`/`input`/
+  `onewire`/`ntc`) so the backend can tell the entries apart. A drain
+  task publishes the oldest un-acked record once MQTT is connected,
+  one at a time with PUBACK confirmation before advancing, mirroring
+  `sale_queue.c`'s drain loop.
 
 ## Before first flash
 
@@ -154,3 +196,10 @@ hardware on these pins.
 - Relay / custom-input / 1-Wire drivers are implemented (see
   "Board-specific drivers" above) — still needs a real board to confirm
   behavior, since none of this has been exercised outside `idf.py build`.
+- Partition table switched from the stock `partitions_two_ota_large.csv`
+  to a custom `partitions.csv` (`CONFIG_PARTITION_TABLE_CUSTOM=y`) to add
+  the `dbglog` partition for the local debug log above. Same nvs/otadata/
+  phy_init/ota_0/ota_1 layout as before — only ~3.7MB of the 16MB flash is
+  used even with `dbglog` added, so this isn't a tight fit. Not yet run
+  through a real `idf.py build` (the drivers/PSRAM commits before this one
+  were; this partition-table change and the debug log itself have not).
