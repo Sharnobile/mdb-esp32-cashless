@@ -3,7 +3,8 @@
 Firmware target for the new custom PCB in `kicad/mdb_slave_esp32s3-wroom-u1/`
 (branch `feature/esp32s3-wroom-u1-pcb`). This is a **copy of
 [`mdb-slave-esp32s3`](../mdb-slave-esp32s3)**, adapted so the existing MDB /
-WiFi / MQTT / provisioning logic runs unchanged on the new board. **Not yet
+WiFi / MQTT / provisioning logic runs unchanged on the new board. Builds
+clean with `idf.py build` (ESP-IDF v5.5.1, esp32s3 target). **Not yet
 flashed or tested on real hardware** — the PCB layout is still in progress.
 
 ## Status
@@ -16,6 +17,10 @@ flashed or tested on real hardware** — the PCB layout is still in progress.
 - Pin assignments below are the authoritative table from the schematic's
   own IO legend (`kicad/mdb_slave_esp32s3-wroom-u1`, sheet notes), not the
   earlier script-extracted guess.
+- Relay, custom-input, and 1-Wire drivers are implemented (see per-pin
+  status below and "Board-specific drivers" for details). Everything
+  board-specific is gated behind `detect_board_variant()` so the same
+  firmware image stays safe to flash on either PCB.
 
 ## Pin mapping vs. schematic
 
@@ -24,12 +29,12 @@ Per the schematic's IO legend:
 | GPIO | Function | Firmware define | Status |
 |---|---|---|---|
 | 0 | Boot button | `PIN_BOOT_BTN` | matches, no change |
-| 1 | Relay 1 (J2) | — | **new, no driver yet** |
-| 2 | Relay 2 (J3) | — | **new, no driver yet** |
+| 1 | Relay 1 (J2) | `PIN_RELAY_1` | **driver done** — output, MQTT config cmd `0x33` |
+| 2 | Relay 2 (J3) | `PIN_RELAY_2` | **driver done** — output, MQTT config cmd `0x34` |
 | 3 | Board-ID strap | `PIN_BOARD_ID` | **repurposed, see below** |
 | 4 | MDB RX | `PIN_MDB_RX` | matches, no change |
 | 5 | MDB TX | `PIN_MDB_TX` | matches, no change |
-| 6 | Custom input 1 (J11) | `PIN_CUSTOM_INPUT1` | **new, no driver yet** |
+| 6 | Custom input 1 (J11) | `PIN_CUSTOM_INPUT1` | **driver done** — debounced, published on `/input` |
 | 7 | Thermistor (TH1) | `ADC_CHANNEL_THERMISTOR` (ADC1_CH6) | already read at boot (logged only, not published yet) |
 | 8 | *(unused — was custom input 2)* | `PIN_DEX_RX` | freed up, see below |
 | 9 | *(unused — was custom input 3)* | `PIN_DEX_TX` | freed up, see below |
@@ -38,11 +43,11 @@ Per the schematic's IO legend:
 | 12 | Buzzer (BZ1) | `PIN_BUZZER_PWR` | matches, no change |
 | 13 | Pulse output (J8) | `PIN_PULSE_1` | matches, no change |
 | 14, 17, 18 | free | — | |
-| 15 | 1-Wire bus 1 (J4) | — | **new, no driver yet** |
-| 16 | 1-Wire bus 2 (J5/J6) | — | **new, no driver yet** |
+| 15 | 1-Wire bus 1 (J4) | `PIN_ONEWIRE_1` | **driver done** — boot-time scan, logged only (see below) |
+| 16 | 1-Wire bus 2 (J5/J6) | `PIN_ONEWIRE_2` | **driver done** — boot-time scan, logged only (see below) |
 | 21 | Status LED (D2, WS2812) | `PIN_MDB_LED` | matches, no change |
-| 47 | Custom input 2 (J13) | `PIN_CUSTOM_INPUT2` | **new, no driver yet** |
-| 48 | Custom input 3 (J14) | `PIN_CUSTOM_INPUT3` | **new, no driver yet** |
+| 47 | Custom input 2 (J13) | `PIN_CUSTOM_INPUT2` | **driver done** — debounced, published on `/input` |
+| 48 | Custom input 3 (J14) | `PIN_CUSTOM_INPUT3` | **driver done** — debounced, published on `/input` |
 | u0txd/u0rxd | UART debug (J9) | — | ESP-IDF console default, no change |
 | 39–42 | JTAG (J7) | — | ESP32-S3 default JTAG pins, no change |
 | 35,36,37,38 | free | — | |
@@ -100,6 +105,36 @@ the existing `modem_probe()` fallback (it AT-probes the modem UART and
 falls back to WiFi-only if nothing answers), no board-ID check needed
 there.
 
+### Board-specific drivers (relay / custom input / 1-Wire)
+
+All gated behind `g_board_is_wroom_u1` (from `detect_board_variant()`) so
+none of this ever runs on the original board, which has no matching
+hardware on these pins.
+
+- **Relays (GPIO1/2, `PIN_RELAY_1`/`PIN_RELAY_2`)**: plain digital
+  outputs, initialised OFF at boot (`relay_init()`). Driven via the
+  existing XOR-encrypted MQTT config command path — cmd `0x33` sets
+  relay 1, `0x34` sets relay 2 (`configParam` 0/1). Commands are ignored
+  with a warning log on the original board.
+- **Custom inputs (GPIO6/47/48, `PIN_CUSTOM_INPUT1/2/3`)**:
+  `custom_input_task` polls all three every `CUSTOM_INPUT_POLL_MS`
+  (100 ms), debounces each transition over `CUSTOM_INPUT_DEBOUNCE_MS`
+  (50 ms), and publishes `{channel, level, ts, prevHeldSec}` (QoS 1) to
+  `/{company_id}/{device_id}/input` on every confirmed level change. The
+  firmware stays device-agnostic — it doesn't know or care what's wired
+  to a given channel (door contact, pushbutton, presence sensor, ...).
+  Interpreting the events (open-too-long alarms, notification routing,
+  thresholds) is backend/app work, tracked separately under "custom
+  inputs management".
+- **1-Wire buses (GPIO15/16, `PIN_ONEWIRE_1`/`PIN_ONEWIRE_2`)**: RMT-based
+  bus scan via the `espressif/onewire_bus` + `espressif/ds18b20`
+  components (`onewire_bus_scan_and_read()`), dispatched by ROM family
+  code so a bus can host mixed device types later without touching the
+  enumeration logic. DS18B20 (family `0x28`) is triggered and read once
+  at boot; any other family code is logged as "no driver for this family
+  yet". Same scope as the NTC thermistor today — **boot-time log only,
+  nothing published over MQTT and no alarming/threshold logic**.
+
 ## Before first flash
 
 - Done in `sdkconfig`: flash size set to **16 MB**, PSRAM enabled in
@@ -107,18 +142,15 @@ there.
   ESP32-S3 datasheet's Table 1-1 Series Comparison — the `R2` chip variant
   behind WROOM-1U-**N16R2** is `ESP32-S3R2`, which is 2 MB PSRAM in
   **Quad SPI**, not Octal (Octal is only on the R8/R8V/R16V variants).
-  ESP-IDF wasn't available in this environment to run `idf.py reconfigure`,
-  so only the two load-bearing options (`CONFIG_SPIRAM`,
-  `CONFIG_SPIRAM_MODE_QUAD`) plus `CONFIG_ESP32S3_SPIRAM_SUPPORT` were set
-  by hand — run `idf.py reconfigure` (or the first `idf.py build`) once
-  ESP-IDF is set up so the remaining PSRAM sub-options (size auto-detect,
-  speed, malloc integration, memtest) get filled in from their Kconfig
-  defaults, then spot-check them in `idf.py menuconfig` before flashing.
+  Remaining PSRAM sub-options (size auto-detect, speed, malloc
+  integration, memtest) have since been filled in from their Kconfig
+  defaults by a real `idf.py build` (ESP-IDF v5.5.1) — spot-check them in
+  `idf.py menuconfig` before flashing if you change the PSRAM mode.
 - GPIO3 pull-down (board-ID strap): the earlier note here was based on a
   misidentified pin — **pin 3 on the WROOM-1 module is `EN`, not GPIO3**.
   GPIO3 is pin **15** on the module's own pin table. A 10kΩ pull-down from
   GPIO3 (pin 15) to GND has since been added to the PCB and pushed to
   `feature/esp32s3-wroom-u1-pcb`.
-- Confirm relay / 1-Wire / digital-input pins against the schematic, add
-  the corresponding `PIN_*` defines and driver code before relying on
-  those features.
+- Relay / custom-input / 1-Wire drivers are implemented (see
+  "Board-specific drivers" above) — still needs a real board to confirm
+  behavior, since none of this has been exercised outside `idf.py build`.
