@@ -38,6 +38,7 @@
 #include "sale_queue.h"
 #include "debug_log.h"
 #include "network.h"
+#include "oled_display.h"
 
 #include "esp_system.h"
 #include "esp_http_client.h"
@@ -205,6 +206,11 @@ typedef enum MACHINE_STATE {
 machine_state_t machine_state = INACTIVE_STATE; // Initial machine state
 
 led_strip_handle_t led_strip;
+
+// Last completed sale's price (scale-factor units, same as itemPrice in
+// vTaskMdbEvent), so the OLED status task can show it without reaching
+// into the MDB task's local state. Set at VEND_SUCCESS.
+static volatile uint16_t g_last_vend_price = 0;
 
 // MDB Control flags
 bool session_begin_todo = false;
@@ -906,6 +912,7 @@ void vTaskMdbEvent(void *pvParameters) {
 						}
 
 						ESP_LOGI( TAG, "VEND_SUCCESS price=%u item=%u", itemPrice, itemNumber);
+						g_last_vend_price = itemPrice;
 
 						// Clear vend data to prevent stale values if re-entered
 						itemPrice = 0;
@@ -3253,6 +3260,74 @@ static void periodic_sensor_timer_cb(void *arg) {
     }
 }
 
+static const char *machine_state_label(machine_state_t s) {
+    switch (s) {
+        case INACTIVE_STATE: return "INACTIF";
+        case DISABLED_STATE: return "DESACTIVE";
+        case ENABLED_STATE:  return "ACTIF";
+        case IDLE_STATE:     return "PRET";
+        case VEND_STATE:     return "VENTE...";
+        default:             return "?";
+    }
+}
+
+/* Refreshes the OLED status screen every 2s: MDB session state + last
+ * sale on the panel's yellow rows (0-1), connectivity/board/build info on
+ * the blue rows (2-7). Runs as its own low-priority task so a slow I2C
+ * write never delays MDB bus timing or network handling. */
+static void vTaskOledStatus(void *pvParameters) {
+    const esp_app_desc_t *app_desc = esp_app_get_description();
+    char line[OLED_DISPLAY_COLS + 1];
+
+    for (;;) {
+        snprintf(line, sizeof(line), "MDB: %s", machine_state_label(machine_state));
+        oled_display_set_line(0, line);
+
+        uint16_t last_price = g_last_vend_price;
+        if (last_price > 0) {
+            double price = FROM_SCALE_FACTOR(last_price, CONFIG_MDB_SCALE_FACTOR, CONFIG_MDB_DECIMAL_PLACES);
+            snprintf(line, sizeof(line), "Dernier: %.2f", price);
+        } else {
+            snprintf(line, sizeof(line), "En attente vente");
+        }
+        oled_display_set_line(1, line);
+
+        network_status_t net;
+        network_get_status(&net);
+
+        snprintf(line, sizeof(line), "Reseau: %s", net.uplink_up ? net.uplink_kind : "hors ligne");
+        oled_display_set_line(2, line);
+
+        if (net.uplink_up && strcmp(net.uplink_kind, "wifi") == 0) {
+            snprintf(line, sizeof(line), "SSID: %s", net.wifi_ssid);
+            oled_display_set_line(3, line);
+            snprintf(line, sizeof(line), "IP: %s", net.wifi_ip);
+            oled_display_set_line(4, line);
+        } else if (net.uplink_up && strcmp(net.uplink_kind, "cellular") == 0) {
+            snprintf(line, sizeof(line), "Op: %s", net.cellular_operator);
+            oled_display_set_line(3, line);
+            snprintf(line, sizeof(line), "IP: %s", net.cellular_ip);
+            oled_display_set_line(4, line);
+        } else {
+            oled_display_set_line(3, NULL);
+            oled_display_set_line(4, NULL);
+        }
+
+        snprintf(line, sizeof(line), "Carte: %s", g_board_is_wroom_u1 ? "WROOM-U1" : "originale");
+        oled_display_set_line(5, line);
+
+        uint32_t uptime_sec = (uint32_t)(esp_timer_get_time() / 1000000ULL);
+        snprintf(line, sizeof(line), "Uptime: %luh%02lum",
+                 (unsigned long)(uptime_sec / 3600), (unsigned long)((uptime_sec / 60) % 60));
+        oled_display_set_line(6, line);
+
+        snprintf(line, sizeof(line), "FW: %s", app_desc->version);
+        oled_display_set_line(7, line);
+
+        vTaskDelay(pdMS_TO_TICKS(2000));
+    }
+}
+
 void app_main(void) {
 
     bool board_is_wroom_u1 = detect_board_variant();
@@ -3309,6 +3384,13 @@ void app_main(void) {
     };
 
     ESP_ERROR_CHECK(led_strip_new_rmt_device(&strip_config, &rmt_config, &led_strip));
+
+	//---------------- OLED status display (SSD1306) -----------//
+	//----------------------------------------------------------//
+	// Shares PIN_I2C_SDA/PIN_I2C_SCL (GPIO10/11) with no other consumer —
+	// see oled_display.c. No-op at runtime if no display answers on the
+	// bus (header unpopulated on a given unit).
+	oled_display_init();
 
 	//--------------- ADC Init (NTC thermistor) ----------------//
 	//----------------------------------------------------------//
@@ -3695,4 +3777,6 @@ void app_main(void) {
 
     xTaskCreatePinnedToCore(vTaskBitEvent, "TaskBitEvent", 2048, NULL, 1, NULL, 0);
     xEventGroupSetBits(xLedEventGroup, BIT_EVT_TRIGGER);
+
+    xTaskCreatePinnedToCore(vTaskOledStatus, "TaskOledStatus", 3072, NULL, 1, NULL, 0);
 }

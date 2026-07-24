@@ -5,7 +5,8 @@ set(srcs "mdb-slave-esp32s3-wroom-u1.c"
         "debug_log.c"
         "modem.c"
         "modem_https.c"
-        "network.c")
+        "network.c"
+        "oled_display.c")
 
 idf_component_register(SRCS "${srcs}"
                     INCLUDE_DIRS "."
