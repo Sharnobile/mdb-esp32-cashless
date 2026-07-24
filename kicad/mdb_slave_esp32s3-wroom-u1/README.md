@@ -9,7 +9,7 @@ Base reference: [lucienkerl/mdb-esp32-cashless](https://github.com/lucienkerl/md
 ## Status
 
 - Schematic: **complete, ERC-clean** (0 errors, 0 warnings)
-- PCB layout: in progress (component placement / routing)
+- PCB layout: **not started** — components placed on one side of the board only, no routing yet
 - Revision: 1.0
 
 ## Overview
@@ -61,7 +61,7 @@ Three screw-terminal inputs with pull-up resistors.
 
 **Other**
 - TH1: NTC thermistor input
-- BZ1: buzzer with series resistor
+- BUZZER1: buzzer with series resistor
 - H1–H5: mounting holes
 
 ## Connectors summary
