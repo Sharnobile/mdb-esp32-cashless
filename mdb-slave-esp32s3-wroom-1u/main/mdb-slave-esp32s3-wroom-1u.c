@@ -3329,12 +3329,12 @@ static void vTaskOledStatus(void *pvParameters) {
         oled_display_set_line(2, line);
 
         if (net.uplink_up && strcmp(net.uplink_kind, "wifi") == 0) {
-            snprintf(line, sizeof(line), "SSID: %s", net.wifi_ssid);
+            snprintf(line, sizeof(line), "SSID: %.15s", net.wifi_ssid);
             oled_display_set_line(3, line);
             snprintf(line, sizeof(line), "IP: %s", net.wifi_ip);
             oled_display_set_line(4, line);
         } else if (net.uplink_up && strcmp(net.uplink_kind, "cellular") == 0) {
-            snprintf(line, sizeof(line), "Op: %s", net.cellular_operator);
+            snprintf(line, sizeof(line), "Op: %.17s", net.cellular_operator);
             oled_display_set_line(3, line);
             snprintf(line, sizeof(line), "IP: %s", net.cellular_ip);
             oled_display_set_line(4, line);
@@ -3357,11 +3357,11 @@ static void vTaskOledStatus(void *pvParameters) {
         char ow1_buf[8], ow2_buf[8];
         if (isnan(ow1_c)) { snprintf(ow1_buf, sizeof(ow1_buf), "--"); } else { snprintf(ow1_buf, sizeof(ow1_buf), "%.1fC", ow1_c); }
         if (isnan(ow2_c)) { snprintf(ow2_buf, sizeof(ow2_buf), "--"); } else { snprintf(ow2_buf, sizeof(ow2_buf), "%.1fC", ow2_c); }
-        snprintf(line, sizeof(line), "1W1:%s 1W2:%s", ow1_buf, ow2_buf);
+        snprintf(line, sizeof(line), "1W1:%.5s 1W2:%.5s", ow1_buf, ow2_buf);
         oled_display_set_line(6, line);
 
         uint32_t uptime_sec = (uint32_t)(esp_timer_get_time() / 1000000ULL);
-        snprintf(line, sizeof(line), "FW: %s/%luh%02lum", app_desc->version,
+        snprintf(line, sizeof(line), "FW: %.5s/%luh%02lum", app_desc->version,
                  (unsigned long)(uptime_sec / 3600), (unsigned long)((uptime_sec / 60) % 60));
         oled_display_set_line(7, line);
 
