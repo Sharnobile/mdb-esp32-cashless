@@ -3140,6 +3140,11 @@ static void custom_input_task(void *arg) {
 #define ONEWIRE_LOG_DELTA_C 0.5f
 static float s_onewire_last_logged_c[2] = { NAN, NAN }; // indexed by bus_num-1
 
+// Most recent reading per bus for the OLED status screen — updated on every
+// successful scan (boot or periodic), independent of the >=0.5C log-delta
+// filter above. NAN means "no DS18B20 currently found on this bus".
+static volatile float g_last_onewire_c[2] = { NAN, NAN };
+
 static void onewire_bus_scan_and_read(gpio_num_t pin, uint8_t bus_num, bool periodic_track) {
     onewire_bus_config_t bus_config = { .bus_gpio_num = pin };
     onewire_bus_rmt_config_t rmt_config = { .max_rx_bytes = 10 };
@@ -3160,6 +3165,7 @@ static void onewire_bus_scan_and_read(gpio_num_t pin, uint8_t bus_num, bool peri
 
     ESP_LOGI(TAG, "1-Wire bus %u (GPIO%d): scanning for devices...", bus_num, pin);
     int found = 0;
+    bool ds18b20_read_ok = false;
     onewire_device_t device;
 
     while (onewire_device_iter_get_next(iter, &device) == ESP_OK) {
@@ -3176,6 +3182,8 @@ static void onewire_bus_scan_and_read(gpio_num_t pin, uint8_t bus_num, bool peri
                 if (ds18b20_get_temperature(ds18b20, &temp_c) == ESP_OK) {
                     ESP_LOGI(TAG, "1-Wire bus %u: DS18B20 %016llX = %.2f C",
                              bus_num, (unsigned long long) device.address, temp_c);
+                    g_last_onewire_c[bus_num - 1] = temp_c;
+                    ds18b20_read_ok = true;
 
                     if (periodic_track) {
                         float *last = &s_onewire_last_logged_c[bus_num - 1];
@@ -3203,6 +3211,9 @@ static void onewire_bus_scan_and_read(gpio_num_t pin, uint8_t bus_num, bool peri
     if (found == 0) {
         ESP_LOGI(TAG, "1-Wire bus %u: no devices found", bus_num);
     }
+    if (!ds18b20_read_ok) {
+        g_last_onewire_c[bus_num - 1] = NAN; // no sensor currently readable on this bus
+    }
 
     onewire_bus_del(bus);
 }
@@ -3213,6 +3224,10 @@ static adc_oneshot_unit_handle_t s_adc_handle = NULL;
 static adc_cali_handle_t s_adc_cali_handle = NULL;
 #define NTC_LOG_DELTA_C 0.5f
 static float s_ntc_last_logged_c = NAN;
+
+// Most recent NTC reading for the OLED status screen — updated every 5 min
+// regardless of the log-delta filter above.
+static volatile float g_last_ntc_c = NAN;
 
 // Inverts the divider (+3V3 -> R15 -> ADC node -> TH1 -> GND) to get Rntc
 // from the measured node voltage, then the single-B-constant NTC equation
@@ -3254,6 +3269,7 @@ static bool ntc_read_celsius(float *out_celsius) {
 static void periodic_sensor_timer_cb(void *arg) {
     float temp_c;
     if (ntc_read_celsius(&temp_c)) {
+        g_last_ntc_c = temp_c;
         if (isnan(s_ntc_last_logged_c) || fabsf(temp_c - s_ntc_last_logged_c) >= NTC_LOG_DELTA_C) {
             s_ntc_last_logged_c = temp_c;
             debug_log_append(DEBUG_LOG_NTC, 0, 0, (int32_t)(temp_c * 1000));
@@ -3266,13 +3282,15 @@ static void periodic_sensor_timer_cb(void *arg) {
     }
 }
 
+// Kept to 5 chars max (only caller is the OLED row-0 line, which also has to
+// fit the board label alongside it in OLED_DISPLAY_COLS).
 static const char *machine_state_label(machine_state_t s) {
     switch (s) {
-        case INACTIVE_STATE: return "INACTIVE";
-        case DISABLED_STATE: return "DISABLED";
-        case ENABLED_STATE:  return "ENABLED";
+        case INACTIVE_STATE: return "INACT";
+        case DISABLED_STATE: return "DISAB";
+        case ENABLED_STATE:  return "ENABL";
         case IDLE_STATE:     return "READY";
-        case VEND_STATE:     return "VENDING...";
+        case VEND_STATE:     return "VEND";
         default:             return "?";
     }
 }
@@ -3286,7 +3304,16 @@ static void vTaskOledStatus(void *pvParameters) {
     char line[OLED_DISPLAY_COLS + 1];
 
     for (;;) {
-        snprintf(line, sizeof(line), "MDB: %s", machine_state_label(machine_state));
+        network_status_t net;
+        network_get_status(&net);
+
+        // Board label: WROOM-1U pin strap wins; otherwise the "original"
+        // board is either the LTE-capable variant (SIM7080G modem detected
+        // by network_init's modem_probe) or the plain WiFi-only one.
+        const char *board_label = g_board_is_wroom_1u ? "WROOM-1U"
+                                 : net.modem_present   ? "BASIC+LTE"
+                                                        : "BASIC";
+        snprintf(line, sizeof(line), "MDB: %s %s", machine_state_label(machine_state), board_label);
         oled_display_set_line(0, line);
 
         uint16_t last_price = g_last_vend_price;
@@ -3301,28 +3328,36 @@ static void vTaskOledStatus(void *pvParameters) {
         snprintf(line, sizeof(line), "Bus:%.9s E:%lu", mdb_last_cmd, (unsigned long)mdb_checksum_errors);
         oled_display_set_line(2, line);
 
-        network_status_t net;
-        network_get_status(&net);
-
-        snprintf(line, sizeof(line), "Network: %s", net.uplink_up ? net.uplink_kind : "offline");
-        oled_display_set_line(3, line);
-
         if (net.uplink_up && strcmp(net.uplink_kind, "wifi") == 0) {
             snprintf(line, sizeof(line), "SSID: %s", net.wifi_ssid);
-            oled_display_set_line(4, line);
+            oled_display_set_line(3, line);
             snprintf(line, sizeof(line), "IP: %s", net.wifi_ip);
-            oled_display_set_line(5, line);
+            oled_display_set_line(4, line);
         } else if (net.uplink_up && strcmp(net.uplink_kind, "cellular") == 0) {
             snprintf(line, sizeof(line), "Op: %s", net.cellular_operator);
-            oled_display_set_line(4, line);
+            oled_display_set_line(3, line);
             snprintf(line, sizeof(line), "IP: %s", net.cellular_ip);
-            oled_display_set_line(5, line);
+            oled_display_set_line(4, line);
         } else {
+            snprintf(line, sizeof(line), "Net: offline");
+            oled_display_set_line(3, line);
             oled_display_set_line(4, NULL);
-            oled_display_set_line(5, NULL);
         }
 
-        snprintf(line, sizeof(line), "Board: %s", g_board_is_wroom_1u ? "WROOM-1U" : "BASIC");
+        float ntc_c = g_last_ntc_c;
+        if (isnan(ntc_c)) {
+            snprintf(line, sizeof(line), "NTC: --");
+        } else {
+            snprintf(line, sizeof(line), "NTC: %.1fC", ntc_c);
+        }
+        oled_display_set_line(5, line);
+
+        float ow1_c = g_last_onewire_c[0];
+        float ow2_c = g_last_onewire_c[1];
+        char ow1_buf[8], ow2_buf[8];
+        if (isnan(ow1_c)) { snprintf(ow1_buf, sizeof(ow1_buf), "--"); } else { snprintf(ow1_buf, sizeof(ow1_buf), "%.1fC", ow1_c); }
+        if (isnan(ow2_c)) { snprintf(ow2_buf, sizeof(ow2_buf), "--"); } else { snprintf(ow2_buf, sizeof(ow2_buf), "%.1fC", ow2_c); }
+        snprintf(line, sizeof(line), "1W1:%s 1W2:%s", ow1_buf, ow2_buf);
         oled_display_set_line(6, line);
 
         uint32_t uptime_sec = (uint32_t)(esp_timer_get_time() / 1000000ULL);
