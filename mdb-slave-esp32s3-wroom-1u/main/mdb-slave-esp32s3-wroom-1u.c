@@ -62,7 +62,7 @@
 #define PIN_SIM7080G_PWR        GPIO_NUM_14
 #define PIN_BUZZER_PWR          GPIO_NUM_12
 
-/* Custom digital inputs (J11/J13/J14 on the WROOM-U1 board). GPIO6 was
+/* Custom digital inputs (J11/J13/J14 on the WROOM-1U board). GPIO6 was
  * already clear of both boards' PIN_* usage. GPIO47/48 were picked for
  * custom_input2/3 specifically to AVOID GPIO8/9 (clashes with
  * PIN_DEX_RX/TX on the original board) and GPIO17/18 (clashes with
@@ -73,22 +73,22 @@
 #define PIN_CUSTOM_INPUT2       GPIO_NUM_47
 #define PIN_CUSTOM_INPUT3       GPIO_NUM_48
 
-/* Relay outputs (J2/J3 on the WROOM-U1 board). These drive an external
+/* Relay outputs (J2/J3 on the WROOM-1U board). These drive an external
  * relay module's 3.3V control input — the ESP32 supplies no switched
  * power itself. A relay module rated for the actual load (up to 220VAC)
  * sits between this pin and whatever gets switched. */
 #define PIN_RELAY_1             GPIO_NUM_1
 #define PIN_RELAY_2             GPIO_NUM_2
 
-/* 1-Wire buses (J4, J5/J6 on the WROOM-U1 board). Bus-based rather than
+/* 1-Wire buses (J4, J5/J6 on the WROOM-1U board). Bus-based rather than
  * a fixed device type: onewire_new_device_iter() enumerates whatever ROM
  * IDs are present, so mixed device families can share one physical bus. */
 #define PIN_ONEWIRE_1           GPIO_NUM_15
 #define PIN_ONEWIRE_2           GPIO_NUM_16
 
 /* Board-ID strap: GPIO3 is unused on both the original mdb-slave-esp32s3
- * PCB and this WROOM-U1 PCB per their schematics. Fitting a 10k pull-down
- * to GND on GPIO3 on the WROOM-U1 board only (nothing to add on the
+ * PCB and this WROOM-1U PCB per their schematics. Fitting a 10k pull-down
+ * to GND on GPIO3 on the WROOM-1U board only (nothing to add on the
  * original board — its floating pin reads HIGH via the internal pull-up
  * below) lets a single firmware image tell the two boards apart at boot,
  * instead of relying on whoever flashes it picking the right binary. */
@@ -137,10 +137,10 @@ EventGroupHandle_t xLedEventGroup;
 bool mqtt_started = false;
 static bool sntp_started = false;
 
-// Set once at boot by detect_board_variant(). Gates every WROOM-U1-only
+// Set once at boot by detect_board_variant(). Gates every WROOM-1U-only
 // peripheral (relay, 1-Wire, custom inputs) — those GPIOs are unused/
 // floating on the original board, so there's no hardware there to drive.
-static bool g_board_is_wroom_u1 = false;
+static bool g_board_is_wroom_1u = false;
 static bool ota_in_progress = false;
 SemaphoreHandle_t mqtt_publish_mutex = NULL;
 static esp_timer_handle_t mqtt_watchdog_timer = NULL;
@@ -2183,18 +2183,18 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 		                    cashless_reset_todo = true;
 		                    publish_mdb_diag();
 		                    break;
-		                case 0x33: // Set relay 1 (WROOM-U1 only)
-		                    if (!g_board_is_wroom_u1) {
-		                        ESP_LOGW(TAG, "CONFIG: relay1 command ignored — not a WROOM-U1 board");
+		                case 0x33: // Set relay 1 (WROOM-1U only)
+		                    if (!g_board_is_wroom_1u) {
+		                        ESP_LOGW(TAG, "CONFIG: relay1 command ignored — not a WROOM-1U board");
 		                    } else if (configParam == 0 || configParam == 1) {
 		                        set_relay(1, configParam == 1);
 		                    } else {
 		                        ESP_LOGE(TAG, "CONFIG: invalid relay1 state %u (must be 0 or 1)", configParam);
 		                    }
 		                    break;
-		                case 0x34: // Set relay 2 (WROOM-U1 only)
-		                    if (!g_board_is_wroom_u1) {
-		                        ESP_LOGW(TAG, "CONFIG: relay2 command ignored — not a WROOM-U1 board");
+		                case 0x34: // Set relay 2 (WROOM-1U only)
+		                    if (!g_board_is_wroom_1u) {
+		                        ESP_LOGW(TAG, "CONFIG: relay2 command ignored — not a WROOM-1U board");
 		                    } else if (configParam == 0 || configParam == 1) {
 		                        set_relay(2, configParam == 1);
 		                    } else {
@@ -2985,7 +2985,7 @@ static void factory_reset_task(void *arg) {
     }
 }
 
-// True on the WROOM-U1 PCB (external 10k pull-down fitted on GPIO3),
+// True on the WROOM-1U PCB (external 10k pull-down fitted on GPIO3),
 // false on the original mdb-slave-esp32s3 PCB (GPIO3 floats, so the
 // internal pull-up wins and it reads HIGH). See PIN_BOARD_ID above.
 static bool detect_board_variant(void) {
@@ -2999,14 +2999,14 @@ static bool detect_board_variant(void) {
     gpio_config(&id_cfg);
     vTaskDelay(pdMS_TO_TICKS(1)); // let the internal pull-up settle
 
-    bool is_wroom_u1 = (gpio_get_level(PIN_BOARD_ID) == 0);
-    ESP_LOGI(TAG, "Board detected: %s", is_wroom_u1 ? "WROOM-U1" : "original");
-    return is_wroom_u1;
+    bool is_wroom_1u = (gpio_get_level(PIN_BOARD_ID) == 0);
+    ESP_LOGI(TAG, "Board detected: %s", is_wroom_1u ? "WROOM-1U" : "original");
+    return is_wroom_1u;
 }
 
 //------------------------- Relay outputs (J2/J3) -------------------------//
 //--------------------------------------------------------------------------//
-// WROOM-U1 only — see PIN_RELAY_1/2 above for why these GPIOs are safe to
+// WROOM-1U only — see PIN_RELAY_1/2 above for why these GPIOs are safe to
 // drive unconditionally on this board but must never be touched on the
 // original board (no relay hardware there to receive the signal).
 static void relay_init(void) {
@@ -3235,7 +3235,7 @@ static bool ntc_read_celsius(float *out_celsius) {
 }
 
 // esp_timer periodic callback (5 min). Re-reads the onboard NTC (both
-// board variants) and, on WROOM-U1 only, the 1-Wire buses — each gated by
+// board variants) and, on WROOM-1U only, the 1-Wire buses — each gated by
 // its own >=0.5C delta filter so a stable temperature doesn't fill the
 // debug log with near-duplicate readings.
 static void periodic_sensor_timer_cb(void *arg) {
@@ -3247,7 +3247,7 @@ static void periodic_sensor_timer_cb(void *arg) {
         }
     }
 
-    if (g_board_is_wroom_u1) {
+    if (g_board_is_wroom_1u) {
         onewire_bus_scan_and_read(PIN_ONEWIRE_1, 1, true);
         onewire_bus_scan_and_read(PIN_ONEWIRE_2, 2, true);
     }
@@ -3255,8 +3255,8 @@ static void periodic_sensor_timer_cb(void *arg) {
 
 void app_main(void) {
 
-    bool board_is_wroom_u1 = detect_board_variant();
-    g_board_is_wroom_u1 = board_is_wroom_u1;
+    bool board_is_wroom_1u = detect_board_variant();
+    g_board_is_wroom_1u = board_is_wroom_1u;
 
 
     /* Silence the chatty IDF subsystems that drown out our own logs.
@@ -3333,13 +3333,13 @@ void app_main(void) {
     ESP_ERROR_CHECK(adc_oneshot_read(s_adc_handle, ADC_CHANNEL_THERMISTOR, &adc_raw_value));
     ESP_LOGI(TAG, "ADC Raw Data: %d", adc_raw_value);
 
-	//------------- Relay / custom inputs / 1-Wire (WROOM-U1) --------------//
+	//------------- Relay / custom inputs / 1-Wire (WROOM-1U) --------------//
 	//----------------------------------------------------------------------//
 	// All three are unwired on the original board (GPIO1/2/6/15/16/47/48
 	// are unused there) — only touch them when detect_board_variant()
-	// found the WROOM-U1 pull-down, same gating as the DEX/UART1 block
+	// found the WROOM-1U pull-down, same gating as the DEX/UART1 block
 	// below.
-	if (board_is_wroom_u1) {
+	if (board_is_wroom_1u) {
 		relay_init();
 
 		xTaskCreate(custom_input_task, "custom_input", 4096, NULL, 5, NULL);
@@ -3351,12 +3351,12 @@ void app_main(void) {
 	//---------------- UART1 - EVA DTS DEX/DDCMP ---------------//
 	//----------------------------------------------------------//
 	// GPIO8/9 (PIN_DEX_RX/TX) carry DEX telemetry only on the original
-	// board. On WROOM-U1 those same GPIOs are wired to custom_input2/3
+	// board. On WROOM-1U those same GPIOs are wired to custom_input2/3
 	// screw terminals instead (no DEX reader on this board) — claiming
 	// them for UART1 there would prevent ever using them as digital
 	// inputs, so this whole block is skipped when detect_board_variant()
-	// found the WROOM-U1 pull-down.
-	if (!board_is_wroom_u1) {
+	// found the WROOM-1U pull-down.
+	if (!board_is_wroom_1u) {
 		uart_config_t uart_config_1 = {
 				.baud_rate = 9600,
 				.data_bits = UART_DATA_8_BITS,

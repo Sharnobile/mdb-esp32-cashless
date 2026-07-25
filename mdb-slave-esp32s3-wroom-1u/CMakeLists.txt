@@ -5,4 +5,4 @@
 cmake_minimum_required(VERSION 3.16)
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
-project(mdb-slave-esp32s3-wroom-u1)
+project(mdb-slave-esp32s3-wroom-1u)
