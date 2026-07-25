@@ -1,7 +1,7 @@
 # ESP32-S3-WROOM-1U Cashless Firmware (prep branch)
 
-Firmware target for the new custom PCB in `kicad/mdb_slave_esp32s3-wroom-u1/`
-(branch `feature/esp32s3-wroom-u1-pcb`). This is a **copy of
+Firmware target for the new custom PCB in `kicad/mdb_slave_esp32s3-wroom-1u/`
+(branch `feature/esp32s3-wroom-1u-pcb`). This is a **copy of
 [`mdb-slave-esp32s3`](../mdb-slave-esp32s3)**, adapted so the existing MDB /
 WiFi / MQTT / provisioning logic runs unchanged on the new board. Builds
 clean with `idf.py build` (ESP-IDF v5.5.1, esp32s3 target). **Not yet
@@ -15,7 +15,7 @@ flashed or tested on real hardware** — the PCB layout is still in progress.
   WiFi-only boot" path is used as-is and `modem.c`/`modem_https.c` stay
   fully inert.
 - Pin assignments below are the authoritative table from the schematic's
-  own IO legend (`kicad/mdb_slave_esp32s3-wroom-u1`, sheet notes), not the
+  own IO legend (`kicad/mdb_slave_esp32s3-wroom-1u`, sheet notes), not the
   earlier script-extracted guess.
 - Relay, custom-input, and 1-Wire drivers are implemented (see per-pin
   status below and "Board-specific drivers" for details). Everything
@@ -65,7 +65,7 @@ GPIO17/18 were considered and rejected — those collide instead with
 GPIO47/48 are free on every variant and aren't affected by
 Quad-vs-Octal PSRAM pin reservations (unlike GPIO35-37).
 
-**Done, verified against the schematic**: `feature/esp32s3-wroom-u1-pcb`
+**Done, verified against the schematic**: `feature/esp32s3-wroom-1u-pcb`
 commit `0fb67e0` reroutes J13/J14 (with their pull-up resistors) to
 GPIO47/48 and leaves GPIO8/9 as no-connect. Parsing the committed
 `.kicad_sch` confirms `io47`→R19→J13 and `io48`→R22→J14, matching
@@ -86,7 +86,7 @@ access to that board's own schematic to double check):
   `detect_board_variant()` (`mdb-slave-esp32s3-wroom-1u.c`, called first
   thing in `app_main`).
 - **Hardware action needed**: fit a **10kΩ pull-down from GPIO3 to GND**
-  on this board's schematic only (`kicad/mdb_slave_esp32s3-wroom-u1`).
+  on this board's schematic only (`kicad/mdb_slave_esp32s3-wroom-1u`).
   Nothing to change on the original board — its GPIO3 is unused/floating,
   so the internal pull-up reads it HIGH.
   - Reads **LOW** → WROOM-1U detected → DEX/UART1 init is skipped.
@@ -192,7 +192,7 @@ sales during a connectivity gap). Implemented in `debug_log.c`/`.h`:
   misidentified pin — **pin 3 on the WROOM-1 module is `EN`, not GPIO3**.
   GPIO3 is pin **15** on the module's own pin table. A 10kΩ pull-down from
   GPIO3 (pin 15) to GND has since been added to the PCB and pushed to
-  `feature/esp32s3-wroom-u1-pcb`.
+  `feature/esp32s3-wroom-1u-pcb`.
 - Relay / custom-input / 1-Wire drivers are implemented (see
   "Board-specific drivers" above) — still needs a real board to confirm
   behavior, since none of this has been exercised outside `idf.py build`.
