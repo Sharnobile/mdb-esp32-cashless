@@ -26,7 +26,7 @@
 static const char *TAG = "oled_display";
 
 /* Header is shared with the general-purpose I2C pins declared in
- * mdb-slave-esp32s3-wroom-u1.c (PIN_I2C_SDA/PIN_I2C_SCL, GPIO10/11) — kept
+ * mdb-slave-esp32s3-wroom-1u.c (PIN_I2C_SDA/PIN_I2C_SCL, GPIO10/11) — kept
  * as local defines here rather than a shared header, same as modem.c does
  * for the AXP2101's I2C pins. */
 #define OLED_I2C_PORT       I2C_NUM_0

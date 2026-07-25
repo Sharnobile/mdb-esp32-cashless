@@ -25,7 +25,7 @@ extern "C" {
 
 /*
  * Bring up the I2C bus and SSD1306 controller on PIN_I2C_SDA/PIN_I2C_SCL
- * (see mdb-slave-esp32s3-wroom-u1.c). Call once from app_main().
+ * (see mdb-slave-esp32s3-wroom-1u.c). Call once from app_main().
  *
  * If no display answers on the bus (header unpopulated), this logs a
  * warning and leaves the driver disabled; oled_display_set_line() then

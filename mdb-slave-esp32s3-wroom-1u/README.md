@@ -70,7 +70,7 @@ commit `0fb67e0` reroutes J13/J14 (with their pull-up resistors) to
 GPIO47/48 and leaves GPIO8/9 as no-connect. Parsing the committed
 `.kicad_sch` confirms `io47`→R19→J13 and `io48`→R22→J14, matching
 `PIN_CUSTOM_INPUT2`/`PIN_CUSTOM_INPUT3` in
-`mdb-slave-esp32s3-wroom-u1.c` exactly — no further firmware change
+`mdb-slave-esp32s3-wroom-1u.c` exactly — no further firmware change
 needed for this. Still not built/tested on a physical board.
 
 ### Automatic board detection (GPIO3) — kept as defense-in-depth
@@ -83,20 +83,20 @@ board that isn't visible from its firmware's `PIN_*` list alone (no
 access to that board's own schematic to double check):
 
 - `PIN_BOARD_ID` (GPIO3) is read with the internal pull-up enabled in
-  `detect_board_variant()` (`mdb-slave-esp32s3-wroom-u1.c`, called first
+  `detect_board_variant()` (`mdb-slave-esp32s3-wroom-1u.c`, called first
   thing in `app_main`).
 - **Hardware action needed**: fit a **10kΩ pull-down from GPIO3 to GND**
   on this board's schematic only (`kicad/mdb_slave_esp32s3-wroom-u1`).
   Nothing to change on the original board — its GPIO3 is unused/floating,
   so the internal pull-up reads it HIGH.
-  - Reads **LOW** → WROOM-U1 detected → DEX/UART1 init is skipped.
+  - Reads **LOW** → WROOM-1U detected → DEX/UART1 init is skipped.
   - Reads **HIGH** → original board detected → DEX/UART1 init runs as before.
 - Once the custom-input reroute above lands, GPIO8/9 are simply unused
-  on WROOM-U1 (same as the SIM7080G pins already are) — the board-ID
+  on WROOM-1U (same as the SIM7080G pins already are) — the board-ID
   check for DEX is no longer strictly load-bearing, but it's cheap
   insurance and stays in place for whichever driver gets written next
   (relay/1-Wire) to gate against the original board.
-- The two directories (`mdb-slave-esp32s3` / `mdb-slave-esp32s3-wroom-u1`)
+- The two directories (`mdb-slave-esp32s3` / `mdb-slave-esp32s3-wroom-1u`)
   still exist separately mainly because of the differing flash-size/PSRAM
   `sdkconfig` (see below); the detection logic itself should eventually
   be backported into `mdb-slave-esp32s3` too so a binary built from
@@ -110,7 +110,7 @@ there.
 
 ### Board-specific drivers (relay / custom input / 1-Wire)
 
-All gated behind `g_board_is_wroom_u1` (from `detect_board_variant()`) so
+All gated behind `g_board_is_wroom_1u` (from `detect_board_variant()`) so
 none of this ever runs on the original board, which has no matching
 hardware on these pins.
 
@@ -165,7 +165,7 @@ sales during a connectivity gap). Implemented in `debug_log.c`/`.h`:
   ADC calibration uses `adc_cali_create_scheme_curve_fitting()` where
   supported, falling back to an uncalibrated linear estimate otherwise.
 - **Periodic tracking**: a 5-minute `esp_timer` (`periodic_sensor_timer_cb`)
-  re-reads the NTC (both board variants) and, on WROOM-U1 only, both
+  re-reads the NTC (both board variants) and, on WROOM-1U only, both
   1-Wire buses. Each sensor only logs when its reading has moved ≥0.5°C
   since the last logged value (or on the first reading) — a stable
   temperature doesn't fill the ring with near-duplicate entries.

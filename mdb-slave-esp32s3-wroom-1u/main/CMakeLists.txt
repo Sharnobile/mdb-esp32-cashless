@@ -1,4 +1,4 @@
-set(srcs "mdb-slave-esp32s3-wroom-u1.c"
+set(srcs "mdb-slave-esp32s3-wroom-1u.c"
         "webui_server.c"
         "nimble.c"
         "sale_queue.c"
