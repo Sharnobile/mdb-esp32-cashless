@@ -27,13 +27,13 @@ yet.
 ### Automatic board detection (GPIO3 strap)
 
 GPIO8/9 (`PIN_DEX_RX`/`PIN_DEX_TX`) carry DEX/DDCMP telemetry on the
-original board, but are wired to `custom_input2`/`custom_input3` screw
-terminals on the WROOM-1U board. `detect_board_variant()` (top of
-`app_main`) reads GPIO3 once at boot to tell the boards apart:
+original board; WROOM-1U has no DEX reader hardware, so those GPIOs are
+simply free/unused there. `detect_board_variant()` (top of `app_main`)
+reads GPIO3 once at boot to tell the boards apart:
 
 - **GPIO3 reads HIGH** (internal pull-up wins, pin left floating) →
   original board → DEX/UART1 init runs, relay/custom-input/1-Wire/GPIO1,2,
-  6,15,16,47,48 stay untouched.
+  6,15,16,17,18 stay untouched.
 - **GPIO3 reads LOW** (external 10kΩ pull-down to GND, fitted on the
   WROOM-1U PCB) → WROOM-1U board → DEX/UART1 init is skipped, relay/
   custom-input/1-Wire drivers run instead.
@@ -49,11 +49,12 @@ board unchanged):
 | 2 | Relay 2 (J3) | `PIN_RELAY_2` | driver done — output, MQTT config cmd `0x34` |
 | 3 | Board-ID strap | `PIN_BOARD_ID` | see board detection above |
 | 6 | Custom input 1 (J11) | `PIN_CUSTOM_INPUT1` | driver done — debounced, published on `/input` |
-| 8, 9 | unused (freed from custom_input2/3) | `PIN_DEX_RX`/`PIN_DEX_TX` on original | DEX-only on original board |
+| 8, 9 | unused | `PIN_DEX_RX`/`PIN_DEX_TX` on original | DEX-only on original board, no DEX hardware on WROOM-1U |
 | 15 | 1-Wire bus 1 (J4) | `PIN_ONEWIRE_1` | driver done — boot scan + 5min DS18B20 tracking |
 | 16 | 1-Wire bus 2 (J5/J6) | `PIN_ONEWIRE_2` | driver done — boot scan + 5min DS18B20 tracking |
-| 47 | Custom input 2 (J13) | `PIN_CUSTOM_INPUT2` | driver done — debounced, published on `/input` |
-| 48 | Custom input 3 (J14) | `PIN_CUSTOM_INPUT3` | driver done — debounced, published on `/input` |
+| 17 | Custom input 2 (J13) | `PIN_CUSTOM_INPUT2` | driver done — debounced, published on `/input` |
+| 18 | Custom input 3 (J14) | `PIN_CUSTOM_INPUT3` | driver done — debounced, published on `/input` |
+| 46, 47, 48 | free | — | unused on this PCB revision |
 
 GPIO13 (`PIN_PULSE_1`) was dropped: dead code on both boards (never wired
 to a driver) and the pulse circuit has since been desoldered from the

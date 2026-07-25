@@ -63,15 +63,14 @@
 #define PIN_BUZZER_PWR          GPIO_NUM_12
 
 /* Custom digital inputs (J11/J13/J14 on the WROOM-1U board). GPIO6 was
- * already clear of both boards' PIN_* usage. GPIO47/48 were picked for
- * custom_input2/3 specifically to AVOID GPIO8/9 (clashes with
- * PIN_DEX_RX/TX on the original board) and GPIO17/18 (clashes with
- * PIN_SIM7080G_TX/RX on the basic-plus/cellular variant) — 47/48 are
- * free on every variant and unaffected by Quad-vs-Octal PSRAM pin
- * reservations (unlike GPIO35-37). No driver reads these yet. */
+ * already clear of both boards' PIN_* usage. custom_input2/3 moved from
+ * GPIO47/48 to GPIO17/18 per the latest WROOM-1U PCB revision — safe on
+ * this board specifically because it's WiFi-only (no SIM7080G populated,
+ * so there's nothing on this PCB using PIN_SIM7080G_TX/RX). GPIO46/47/48
+ * are free on this revision and unused. */
 #define PIN_CUSTOM_INPUT1       GPIO_NUM_6
-#define PIN_CUSTOM_INPUT2       GPIO_NUM_47
-#define PIN_CUSTOM_INPUT3       GPIO_NUM_48
+#define PIN_CUSTOM_INPUT2       GPIO_NUM_17
+#define PIN_CUSTOM_INPUT3       GPIO_NUM_18
 
 /* Relay outputs (J2/J3 on the WROOM-1U board). These drive an external
  * relay module's 3.3V control input — the ESP32 supplies no switched
@@ -3335,7 +3334,7 @@ void app_main(void) {
 
 	//------------- Relay / custom inputs / 1-Wire (WROOM-1U) --------------//
 	//----------------------------------------------------------------------//
-	// All three are unwired on the original board (GPIO1/2/6/15/16/47/48
+	// All three are unwired on the original board (GPIO1/2/6/15/16/17/18
 	// are unused there) — only touch them when detect_board_variant()
 	// found the WROOM-1U pull-down, same gating as the DEX/UART1 block
 	// below.
@@ -3351,11 +3350,9 @@ void app_main(void) {
 	//---------------- UART1 - EVA DTS DEX/DDCMP ---------------//
 	//----------------------------------------------------------//
 	// GPIO8/9 (PIN_DEX_RX/TX) carry DEX telemetry only on the original
-	// board. On WROOM-1U those same GPIOs are wired to custom_input2/3
-	// screw terminals instead (no DEX reader on this board) — claiming
-	// them for UART1 there would prevent ever using them as digital
-	// inputs, so this whole block is skipped when detect_board_variant()
-	// found the WROOM-1U pull-down.
+	// board. WROOM-1U has no DEX reader hardware at all — GPIO8/9 are
+	// simply free/unused on that board — so this whole block is skipped
+	// when detect_board_variant() found the WROOM-1U pull-down.
 	if (!board_is_wroom_1u) {
 		uart_config_t uart_config_1 = {
 				.baud_rate = 9600,
