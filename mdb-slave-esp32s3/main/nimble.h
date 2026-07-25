@@ -1,9 +1,9 @@
 #ifndef NIMBLE_H
 #define NIMBLE_H
 
-#define PAX_REPORT_INTERVAL_SEC     (60*60)         // 1 hora
-#define PAX_SCAN_DURATION_SEC       (7)             // 7 segundos
-#define PAX_SCAN_INTERVAL_US        (5*60*1000000)  // 5 minutos
+#define PAX_REPORT_INTERVAL_SEC     (60*60)                          // 1 hora
+#define PAX_SCAN_DURATION_SEC       CONFIG_PAX_SCAN_DURATION_SEC
+#define PAX_SCAN_INTERVAL_US        (CONFIG_PAX_SCAN_INTERVAL_SEC * 1000000)
 
 void ble_notify_send(char *notification, int notification_length);
 void ble_init(char *deviceName, void* ble_event_handler_, void* ble_pax_event_handler_);

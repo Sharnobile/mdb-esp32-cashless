@@ -85,6 +85,27 @@ menu "MDB Cashless Device"
 
 endmenu # MDB Cashless Device
 
+menu "PAX Counter (BLE Foot Traffic)"
+
+    config PAX_SCAN_DURATION_SEC
+        int "BLE scan duration (seconds)"
+        default 7
+        range 1 60
+        help
+            How long each periodic BLE scan runs for, in seconds. Phones
+            advertising nearby during this window are counted as foot
+            traffic and reported over MQTT.
+
+    config PAX_SCAN_INTERVAL_SEC
+        int "BLE scan interval (seconds)"
+        default 300
+        range 10 3600
+        help
+            How often a BLE scan is triggered, in seconds. Default is
+            300 seconds (5 minutes).
+
+endmenu # PAX Counter (BLE Foot Traffic)
+
 menu "SIM7080G"
 
     choice
