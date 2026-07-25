@@ -226,7 +226,7 @@
 		(property ki_fp_filters "TO-???* *_Diode_* *SingleDiode* D_*")
 		(path "/dea4549e-ab2d-48c9-a00b-a55ab289089c")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -564,7 +564,7 @@
 		(property ki_fp_filters "R_*")
 		(path "/db90c584-b233-4037-8cf8-64cf98d22a71")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -762,7 +762,7 @@
 		(property ki_fp_filters "R_*")
 		(path "/b0e2cb79-602a-407b-ad40-a5bddbef39a8")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -960,7 +960,7 @@
 		(property ki_fp_filters "R_*")
 		(path "/20e3835d-d271-41a1-ac03-a28090a8fdbd")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -1156,7 +1156,7 @@
 		(property ki_fp_filters "TerminalBlock*:*")
 		(path "/9b3cf5d0-362e-42c3-bd78-dcf14cceaa22")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -1507,7 +1507,7 @@
 		(property ki_fp_filters "SOT?23*")
 		(path "/2eab3672-60b9-4e6d-b929-bc09288ba7e5")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -1929,7 +1929,7 @@
 		(property ki_fp_filters "R_*")
 		(path "/286de30f-3ce3-4899-8562-31fa3db35040")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -2127,7 +2127,7 @@
 		(property ki_fp_filters "MountingHole*")
 		(path "/9edbabd2-3520-4e1e-a747-24c86f0e3350")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -2283,7 +2283,7 @@
 		(property ki_fp_filters "Choke_* *Coil* Inductor_* L_*")
 		(path "/f9003ce9-cd70-47c6-9c39-add4484fd325")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -2658,7 +2658,7 @@
 		(property ki_fp_filters "SOT?23*")
 		(path "/2fa0953c-c7c5-48e5-9074-6baf9161e79c")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -3078,7 +3078,7 @@
 		(property ki_fp_filters "TerminalBlock*:*")
 		(path "/36abd85a-3b06-45ba-b7d6-e17bfd96c2b0")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -3403,7 +3403,7 @@
 		(property ki_fp_filters "R_*")
 		(path "/77177c11-e522-47d3-9d86-63b04f3faa93")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -3605,7 +3605,7 @@
 		(property ki_fp_filters "TO-???* *_Diode_* *SingleDiode* D_*")
 		(path "/f27e3cd8-c74a-4541-a330-8ca5cdc817f4")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -3941,7 +3941,7 @@
 		(property ki_fp_filters "TerminalBlock*:*")
 		(path "/8ce069c4-ac3d-4c3d-b2f7-109087f53721")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -4254,7 +4254,7 @@
 		(property ki_fp_filters "Connector*:*_1x??_*")
 		(path "/d106990b-d4a9-4def-a68f-882a4c1ebafa")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -4592,7 +4592,7 @@
 		)
 		(path "/d7cd5f0b-b5fc-4980-870d-7f5d30ae9c69")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -4899,7 +4899,7 @@
 		(property ki_fp_filters "R_*")
 		(path "/93a85323-3cab-4479-b184-fb51753627a3")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -5097,7 +5097,7 @@
 		(property ki_fp_filters "TSOT?23*")
 		(path "/868ad90c-6da4-4bd2-8dd8-138edfc0452a")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -5681,7 +5681,7 @@
 		(property ki_fp_filters "C_*")
 		(path "/c3a72c76-8291-456b-a1cd-b616ebf3475f")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -5879,7 +5879,7 @@
 		(property ki_fp_filters "MountingHole*")
 		(path "/418ec10e-feba-4ffa-8d6c-2ee2525ad0bf")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -6035,7 +6035,7 @@
 		(property ki_fp_filters "R_*")
 		(path "/5fccc45a-2e65-4bde-b43d-3435f8c80105")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -6231,7 +6231,7 @@
 		(property ki_fp_filters "TerminalBlock*:*")
 		(path "/bfb04613-c51b-4293-a108-3db14ff22009")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -6544,7 +6544,7 @@
 		(property ki_fp_filters "C_*")
 		(path "/df1119d0-53bd-4b27-9389-b0acf49ff424")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -6742,7 +6742,7 @@
 		(property ki_fp_filters "C_*")
 		(path "/86a3cde1-911d-4e8e-bbfa-1d0371d3cc2b")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -6940,7 +6940,7 @@
 		(property ki_fp_filters "R_*")
 		(path "/95b9c9f4-9ea7-4a93-bdc8-999da2da8552")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -7138,7 +7138,7 @@
 		(property ki_fp_filters "R_*")
 		(path "/6ef22978-cd39-4140-a740-a46564cc6d53")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -7336,7 +7336,7 @@
 		(property ki_fp_filters "R_*")
 		(path "/7bacdf5c-e730-40ae-be0b-4f4a3f3f4582")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -7532,7 +7532,7 @@
 		(property ki_fp_filters "TerminalBlock*:*")
 		(path "/f1c1b16f-4cfb-41f0-b7b2-c31446dc04d3")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -8039,7 +8039,7 @@
 		(property ki_fp_filters "C_*")
 		(path "/885696c3-35f9-453e-9f59-c2e7d7502cb0")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -8267,7 +8267,7 @@
 		(property ki_fp_filters "D*SOD?323*")
 		(path "/1eb197bd-baa1-4819-a646-3cbbbb010a42")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -8593,7 +8593,7 @@
 		(property ki_fp_filters "DIP*W7.62mm*")
 		(path "/1cf507a9-b33e-44f5-8929-8d48e11258b8")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -8876,7 +8876,7 @@
 		(property ki_fp_filters "R_*")
 		(path "/ff736649-ceb0-4802-85ef-feeb621f2fa9")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -9256,7 +9256,7 @@
 		(property ki_fp_filters "C_*")
 		(path "/4c30f2f5-e7e0-43a7-9c1d-55eb0bc9afa2")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -9452,7 +9452,7 @@
 		(property ki_fp_filters "ESP32?S3?WROOM?1*")
 		(path "/c59acd5e-e5b3-46b9-b2bf-47594d05255a")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -10177,7 +10177,7 @@
 		(property ki_fp_filters "R_*")
 		(path "/09e9085e-dddc-4057-98f1-324ccae09519")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -10380,7 +10380,7 @@
 		)
 		(path "/35bebc3f-8fcc-48e0-8127-0e5736c80c49")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -10737,7 +10737,7 @@
 		(property ki_fp_filters "TerminalBlock*:*")
 		(path "/98fc87cf-37eb-42c4-ad44-96f3573b798b")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -11062,7 +11062,7 @@
 		(property ki_fp_filters "R_*")
 		(path "/fb2f310e-1927-40a8-b4cc-e2f9d94c4b2b")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -11260,7 +11260,7 @@
 		(property ki_fp_filters "R_*")
 		(path "/538c259c-b3ef-454a-96f0-b165bfd10aa9")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -11462,7 +11462,7 @@
 		(property ki_fp_filters "LED*WS2812*-2020_PLCC4*")
 		(path "/36b1820f-8290-4ce8-b429-321942927312")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -11798,7 +11798,7 @@
 		(property ki_fp_filters "R_*")
 		(path "/70d5b9bb-e43e-4ad6-a422-34b81ab1bc39")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -11996,7 +11996,7 @@
 		(property ki_fp_filters "Connector*:*_1x??_*")
 		(path "/bfb21ed5-06cb-48ed-a140-503908b807e1")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -12653,7 +12653,7 @@
 		(property ki_fp_filters "C_*")
 		(path "/37933e3e-cd2c-467b-93bd-59f455560b7d")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -12851,7 +12851,7 @@
 		(property ki_fp_filters "MountingHole*")
 		(path "/0e03c8fc-3459-4ea4-aa8b-bcf155f4326b")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -13005,7 +13005,7 @@
 		(property ki_fp_filters "TerminalBlock*:*")
 		(path "/fbb3fb57-c904-4b1f-87a8-5de115cc83da")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -13330,7 +13330,7 @@
 		(property ki_fp_filters "R_*")
 		(path "/80018a44-34bb-412d-b628-79e14696037c")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -13528,7 +13528,7 @@
 		(property ki_fp_filters "MountingHole*")
 		(path "/f597bfa4-a7ff-486c-a4ef-83601eeae730")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -13684,7 +13684,7 @@
 		(property ki_fp_filters "Connector*:*_1x??_*")
 		(path "/f15a14bc-7965-4e2c-bbff-4554bcd29fdb")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -14009,7 +14009,7 @@
 		(property ki_fp_filters "R_*")
 		(path "/dce2145c-328c-45f7-a349-12857a3b8a86")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -14207,7 +14207,7 @@
 		(property ki_fp_filters "R_*")
 		(path "/cabd43c3-2710-4bfb-b2a8-157c147420a6")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -14405,7 +14405,7 @@
 		(property ki_fp_filters "R_*")
 		(path "/2f177248-7396-432e-b279-5644465e621e")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -14633,7 +14633,7 @@
 		(property ki_fp_filters "D*SOD?323*")
 		(path "/209ef87f-857d-46ee-9da7-808aab74d961")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -14961,7 +14961,7 @@
 		(property ki_fp_filters "R_* RV_*")
 		(path "/95348844-a9a6-4953-be5d-4edc324b71a0")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -15163,7 +15163,7 @@
 		(property ki_fp_filters "TO-???* *_Diode_* *SingleDiode* D_*")
 		(path "/24a5016e-1040-4a82-86be-8da6f415d20a")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -15501,7 +15501,7 @@
 		(property ki_fp_filters "*polyfuse* *PTC*")
 		(path "/5a72e95b-868d-4e20-b5d0-b5e8e0a95d68")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -15699,7 +15699,7 @@
 		(property ki_fp_filters "Connector*:*_1x??_*")
 		(path "/0e8ffb47-b05f-4009-afef-deaf70d612ca")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -16225,7 +16225,7 @@
 		(property ki_fp_filters "R_*")
 		(path "/37e81270-44e8-460f-bfcd-c80966f99bb2")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -16449,7 +16449,7 @@
 		(property ki_fp_filters "SOT?23*")
 		(path "/433539da-d6fd-4d61-8b5f-65ec1453103e")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -16871,7 +16871,7 @@
 		(property ki_fp_filters "Connector*:*_2x??_*")
 		(path "/9cb0fd36-6aed-4058-a8dd-96161d37fa26")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -17481,7 +17481,7 @@
 		(property ki_fp_filters "R_*")
 		(path "/133753b2-23ab-474f-8ef5-07109905f7df")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -17679,7 +17679,7 @@
 		(property ki_fp_filters "R_*")
 		(path "/7614fc47-04e3-4a1f-a30a-3a3f0fb90536")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -17877,7 +17877,7 @@
 		(property ki_fp_filters "MountingHole*")
 		(path "/59f4bfc3-d62d-48c5-ac5f-28d6447f2de5")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -18033,7 +18033,7 @@
 		(property ki_fp_filters "R_*")
 		(path "/6f8abbe5-abe7-4e5e-928c-a284732899f6")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -18229,7 +18229,7 @@
 		(property ki_fp_filters "DIP*W7.62mm*")
 		(path "/90018369-f343-4a32-93b7-5ff650eaa256")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -18510,7 +18510,7 @@
 		(property ki_fp_filters "TerminalBlock*:*")
 		(path "/fc1f74d6-0bee-488b-b62e-4c5819736d8d")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -18839,7 +18839,7 @@
 		(property ki_fp_filters "USB*C*Receptacle*")
 		(path "/496bef3e-b3d1-4120-a8d8-7b2badd333f0")
 		(sheetname "/")
-		(sheetfile "mdb_slave_esp32s3-wroom-u1.kicad_sch")
+		(sheetfile "mdb_slave_esp32s3-wroom-1u.kicad_sch")
 		(units
 			(unit
 				(name "A")
@@ -19237,7 +19237,7 @@
 		(layer "Edge.Cuts")
 		(uuid "1c98d5fb-a215-4c2b-a095-7e4bd57ea2c9")
 	)
-	(gr_text "mdb-slave-esp32s3-wroom-u1"
+	(gr_text "mdb-slave-esp32s3-wroom-1u"
 		(at 366.51 139.58 0)
 		(layer "B.SilkS")
 		(uuid "794421ec-f826-4687-9b90-5855e4922e42")

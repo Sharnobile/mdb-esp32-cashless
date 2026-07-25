@@ -10553,7 +10553,7 @@
 			(uuid "39e6dfe5-62e0-4ca3-a5ff-c2ca1725d4c0")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "#PWR046")
 					(unit 1)
@@ -10679,7 +10679,7 @@
 			(uuid "6b9fe21e-5628-4d66-a8f4-58c9cd1de71d")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "R15")
 					(unit 1)
@@ -10758,7 +10758,7 @@
 			(uuid "3caea6f3-ff24-4272-8de6-862791fd94bf")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "#PWR032")
 					(unit 1)
@@ -10838,7 +10838,7 @@
 			(uuid "c2fceadf-9e0d-4e29-a5fd-96d7d7cea3c5")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "#PWR051")
 					(unit 1)
@@ -10958,7 +10958,7 @@
 			)
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "H5")
 					(unit 1)
@@ -11088,7 +11088,7 @@
 			(uuid "6010211b-10f7-43c6-8ec0-05af1a310626")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "J10")
 					(unit 1)
@@ -11166,7 +11166,7 @@
 			(uuid "c908b3ce-89a0-45e9-9fe9-5b69cd0c6ac5")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "#PWR049")
 					(unit 1)
@@ -11291,7 +11291,7 @@
 			(uuid "1edb9749-c23f-43ca-9ccd-2ad3580594b6")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "R12")
 					(unit 1)
@@ -11370,7 +11370,7 @@
 			(uuid "c394b33b-2cec-4a69-9ea5-60d370a590cc")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "#PWR025")
 					(unit 1)
@@ -11449,7 +11449,7 @@
 			(uuid "41f0e1c0-5940-47cc-a4b1-198bab4c4412")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "#PWR040")
 					(unit 1)
@@ -11527,7 +11527,7 @@
 			(uuid "034edd06-09be-4baf-9ce3-ee850f957c66")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "#PWR011")
 					(unit 1)
@@ -11605,7 +11605,7 @@
 			(uuid "c26c7484-51a7-42fe-9484-7357a2cd15c2")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "#PWR044")
 					(unit 1)
@@ -11682,7 +11682,7 @@
 			(uuid "b1fa73fa-7f28-418b-85db-d6b90dbdbae7")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "#PWR013")
 					(unit 1)
@@ -11815,7 +11815,7 @@
 			(uuid "40c7593d-a57b-4591-95ad-f6009a73aafd")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "U3")
 					(unit 1)
@@ -11961,7 +11961,7 @@
 			(uuid "546d9e9c-f63d-45c4-b561-ec8db81b9e9d")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "D6")
 					(unit 1)
@@ -12107,7 +12107,7 @@
 			(uuid "26d0c701-491c-41e7-8208-70b1cddf4417")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "D5")
 					(unit 1)
@@ -12233,7 +12233,7 @@
 			(uuid "81c062ba-9914-4d70-8d31-5cc774124870")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "R16")
 					(unit 1)
@@ -12312,7 +12312,7 @@
 			(uuid "a2cc3ad6-87cf-4329-a5c4-77e0745a57e4")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "#PWR034")
 					(unit 1)
@@ -12439,7 +12439,7 @@
 			(uuid "9e63012d-8a14-416b-afce-8b09114e7dc8")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "D3")
 					(unit 1)
@@ -12565,7 +12565,7 @@
 			(uuid "fb9e4bec-2b2d-44a9-9dca-3651fd749fb7")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "R21")
 					(unit 1)
@@ -12717,7 +12717,7 @@
 			(uuid "c31ec24d-5109-4874-9025-fa6f46d26210")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "Q1")
 					(unit 1)
@@ -12842,7 +12842,7 @@
 			(uuid "469602d3-6f27-4648-b3a6-a0db31d8abef")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "R11")
 					(unit 1)
@@ -12994,7 +12994,7 @@
 			(uuid "cca651e2-ab89-4e1c-8204-167b4bb2c92b")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "Q2")
 					(unit 1)
@@ -13072,7 +13072,7 @@
 			(uuid "59fc4899-ac0e-4208-ba91-938aba0b678d")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "#PWR027")
 					(unit 1)
@@ -13151,7 +13151,7 @@
 			(uuid "3389f9ef-e8d7-4919-9c72-b9edf5102bbf")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "#FLG03")
 					(unit 1)
@@ -13276,7 +13276,7 @@
 			(uuid "d92884b5-d970-48f1-9492-d55204cca201")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "SW1")
 					(unit 1)
@@ -13355,7 +13355,7 @@
 			(uuid "89a770f2-7537-43ae-a977-406a8e1afd9c")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "#PWR03")
 					(unit 1)
@@ -13484,7 +13484,7 @@
 			(uuid "84d63204-d4a2-4c7a-9fd6-ecc57e81a90c")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "J5")
 					(unit 1)
@@ -13615,7 +13615,7 @@
 			(uuid "313af928-8c38-411a-a338-6b00b71e4164")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "D2")
 					(unit 1)
@@ -13892,7 +13892,7 @@
 			(uuid "6942c823-a514-406c-b83c-8307c0168017")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "C4")
 					(unit 1)
@@ -14018,7 +14018,7 @@
 			(uuid "a97ad026-5a67-4363-b59a-957de44405a2")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "R14")
 					(unit 1)
@@ -14096,7 +14096,7 @@
 			(uuid "f1a65890-13ba-4cb8-a63b-5b04329c1c2f")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "#PWR05")
 					(unit 1)
@@ -14216,7 +14216,7 @@
 			)
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "H3")
 					(unit 1)
@@ -14368,7 +14368,7 @@
 			(uuid "93c637e8-28b7-461d-a918-02af46629cbc")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "Q3")
 					(unit 1)
@@ -14447,7 +14447,7 @@
 			(uuid "5112a05b-d53d-4706-9b26-a48faa9c0772")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "#PWR048")
 					(unit 1)
@@ -14526,7 +14526,7 @@
 			(uuid "0c65b5a4-a936-4a3a-a340-3ec0231b039d")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "#PWR023")
 					(unit 1)
@@ -14695,7 +14695,7 @@
 			(uuid "6376e7df-2bf9-4738-b20f-e6caaa13d32d")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "J1")
 					(unit 1)
@@ -14975,7 +14975,7 @@
 			(uuid "7db02b78-309a-4981-926b-4ab494e906ca")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "C6")
 					(unit 1)
@@ -15053,7 +15053,7 @@
 			(uuid "57b8f10d-a56f-45c6-89a7-a248ca5aa355")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "#PWR08")
 					(unit 1)
@@ -15131,7 +15131,7 @@
 			(uuid "a693060c-ff0e-4019-85c3-6aaa72c977c0")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "#PWR09")
 					(unit 1)
@@ -15210,7 +15210,7 @@
 			(uuid "a3ec23bc-1c72-42ec-844b-cc9fca39e6a5")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "#PWR021")
 					(unit 1)
@@ -15333,7 +15333,7 @@
 			(uuid "bd2c4300-825a-4113-9082-01395e7af6a4")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "R4")
 					(unit 1)
@@ -15411,7 +15411,7 @@
 			(uuid "6dcd049f-e09b-47ce-a311-8b621254bade")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "#PWR047")
 					(unit 1)
@@ -15531,7 +15531,7 @@
 			)
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "H4")
 					(unit 1)
@@ -15656,7 +15656,7 @@
 			(uuid "0d732093-2c6d-4aa4-9a24-fedfc324ffe3")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "F1")
 					(unit 1)
@@ -15780,7 +15780,7 @@
 			(uuid "c8485cc2-1a3f-4404-8591-c33bc1d40d3d")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "R1")
 					(unit 1)
@@ -15859,7 +15859,7 @@
 			(uuid "5ed28c62-e81e-405b-a320-ddb4854edc9c")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "#PWR015")
 					(unit 1)
@@ -15938,7 +15938,7 @@
 			(uuid "16610921-79b5-41a7-9c37-f0c93e33bd22")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "#PWR022")
 					(unit 1)
@@ -16017,7 +16017,7 @@
 			(uuid "8cd87849-0523-46a3-a46e-4d0769a0b8ed")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "#PWR028")
 					(unit 1)
@@ -16140,7 +16140,7 @@
 			(uuid "96f2e6fa-58f8-421f-972b-7f1231278810")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "R3")
 					(unit 1)
@@ -16265,7 +16265,7 @@
 			(uuid "fdbaf450-0d08-4669-add5-89200571688e")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "R17")
 					(unit 1)
@@ -16343,7 +16343,7 @@
 			(uuid "81f7d563-9274-4cfb-87f8-348d5b0465fb")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "#PWR06")
 					(unit 1)
@@ -16469,7 +16469,7 @@
 			(uuid "071d2bd6-b896-456c-bec2-b42785f0a160")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "R7")
 					(unit 1)
@@ -16545,7 +16545,7 @@
 			)
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "#SYM1")
 					(unit 1)
@@ -16670,7 +16670,7 @@
 			(uuid "ca150f44-a27f-460d-b523-fe3aa3bb21a7")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "R22")
 					(unit 1)
@@ -16795,7 +16795,7 @@
 			(uuid "50479184-7e50-43b9-9578-52ebe6b342b1")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "R19")
 					(unit 1)
@@ -16874,7 +16874,7 @@
 			(uuid "cf7dff45-c6fd-4ca2-9d2e-ae2ae17ec0d9")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "#PWR038")
 					(unit 1)
@@ -17000,7 +17000,7 @@
 			(uuid "3ec66279-8374-4829-87c4-3005eff9ede6")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "R20")
 					(unit 1)
@@ -17078,7 +17078,7 @@
 			(uuid "2271995a-ed45-41dd-b793-9ae8d9ea5425")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "#PWR07")
 					(unit 1)
@@ -17203,7 +17203,7 @@
 			(uuid "6ec10806-027d-4a22-841e-b6d084f942bb")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "R13")
 					(unit 1)
@@ -17282,7 +17282,7 @@
 			(uuid "1d590537-4f6a-42a3-a85a-039ef15bf7fa")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "#PWR031")
 					(unit 1)
@@ -17361,7 +17361,7 @@
 			(uuid "0c463b9f-c891-481f-a560-94091569b2e2")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "#PWR035")
 					(unit 1)
@@ -17496,7 +17496,7 @@
 			(uuid "1a67607f-90bc-4a8d-a87e-07db07024e14")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "U2")
 					(unit 1)
@@ -17622,7 +17622,7 @@
 			(uuid "eebf848c-3ba7-411a-984e-2f603c1878f7")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "C1")
 					(unit 1)
@@ -17902,7 +17902,7 @@
 			(uuid "ba033a8f-ddf3-477e-81a8-a24f2d3c0e30")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "C3")
 					(unit 1)
@@ -17980,7 +17980,7 @@
 			(uuid "8bf4ab24-98a0-47cd-9b1e-65db86b6a162")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "#PWR029")
 					(unit 1)
@@ -18104,7 +18104,7 @@
 			(uuid "260f07b4-bcd0-4641-8de9-7a611bf38c09")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "J2")
 					(unit 1)
@@ -18182,7 +18182,7 @@
 			(uuid "6dcfd8cb-c4fa-401a-a5ed-5725b6473409")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "#PWR037")
 					(unit 1)
@@ -18260,7 +18260,7 @@
 			(uuid "b468ff5b-31f4-446d-8336-a1f22b414ab3")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "#PWR036")
 					(unit 1)
@@ -18393,7 +18393,7 @@
 			(uuid "cc3c4fd3-e2d1-4a6a-846a-75f413ec2cd7")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "U4")
 					(unit 1)
@@ -18517,7 +18517,7 @@
 			(uuid "0de84036-5e3a-42c1-9ede-451580ba5fde")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "R23")
 					(unit 1)
@@ -18596,7 +18596,7 @@
 			(uuid "188d9670-28f0-458d-b990-880738fe8140")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "#PWR043")
 					(unit 1)
@@ -18722,7 +18722,7 @@
 			(uuid "b7e14e71-5d20-48d5-b918-cd6d4fc131db")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "TH1")
 					(unit 1)
@@ -18848,7 +18848,7 @@
 			(uuid "f1785691-f9be-4f3b-8916-b661606b56b1")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "R5")
 					(unit 1)
@@ -18974,7 +18974,7 @@
 			(uuid "1f6ac671-248c-4b79-a398-6f7839611b7a")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "J14")
 					(unit 1)
@@ -19103,7 +19103,7 @@
 			(uuid "c9e13935-4e2a-4f73-826d-a5a7ea4ff6f0")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "J6")
 					(unit 1)
@@ -19239,7 +19239,7 @@
 			(uuid "ed375185-0857-4a55-a723-526fe186b112")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "J12")
 					(unit 1)
@@ -19359,7 +19359,7 @@
 			)
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "H1")
 					(unit 1)
@@ -19485,7 +19485,7 @@
 			(uuid "05866882-e249-46fe-af5a-6c3624714793")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "R6")
 					(unit 1)
@@ -19565,7 +19565,7 @@
 			(uuid "1e4473c0-10b3-46af-a99b-2e7642096c54")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "#PWR02")
 					(unit 1)
@@ -19643,7 +19643,7 @@
 			(uuid "a6cf6aed-4cb3-4547-95e2-2c566d6de85f")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "#PWR017")
 					(unit 1)
@@ -19722,7 +19722,7 @@
 			(uuid "a6dd36e8-062f-4e99-a032-fef8cde4eda1")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "#PWR045")
 					(unit 1)
@@ -19800,7 +19800,7 @@
 			(uuid "144a450e-4f91-4ef2-af1c-4e9cb9dc89b3")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "#PWR016")
 					(unit 1)
@@ -19924,7 +19924,7 @@
 			(uuid "d1d11c28-3581-4718-8c6c-78eb770f1c27")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "J3")
 					(unit 1)
@@ -20051,7 +20051,7 @@
 			(uuid "f0d117c1-cb90-43cc-b4a8-e5496d6808df")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "J8")
 					(unit 1)
@@ -20129,7 +20129,7 @@
 			(uuid "3f62842b-7bd5-4df8-8341-92da27b16daf")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "#FLG02")
 					(unit 1)
@@ -20207,7 +20207,7 @@
 			(uuid "eb522355-44ce-4d71-a3b8-0cc39664f17f")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "#PWR01")
 					(unit 1)
@@ -20487,7 +20487,7 @@
 			(uuid "7cb007bc-61dd-40a7-8f07-36db1c978112")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "C5")
 					(unit 1)
@@ -20730,7 +20730,7 @@
 			(uuid "17b9b7b8-bb5a-46f9-a6a2-37ef0acf0b1c")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "U1")
 					(unit 1)
@@ -20809,7 +20809,7 @@
 			(uuid "acacd855-acab-467d-9258-65d2d01b0d23")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "#PWR042")
 					(unit 1)
@@ -20935,7 +20935,7 @@
 			(uuid "74954681-1a21-477a-8122-a73ce00b3001")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "R10")
 					(unit 1)
@@ -21013,7 +21013,7 @@
 			(uuid "5dc899e5-5abe-4525-9b6c-b91d8e2b7ed2")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "#FLG01")
 					(unit 1)
@@ -21092,7 +21092,7 @@
 			(uuid "9147068a-8df3-4fd4-ada3-22d30c6eb1b8")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "#PWR030")
 					(unit 1)
@@ -21222,7 +21222,7 @@
 			(uuid "04d4d26e-b973-4175-82a0-86bf4e3e7607")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "J9")
 					(unit 1)
@@ -21301,7 +21301,7 @@
 			(uuid "fd81ae51-0990-4086-a9a9-c301f0bdb1a3")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "#PWR024")
 					(unit 1)
@@ -21380,7 +21380,7 @@
 			(uuid "2702f056-5134-4f0d-a293-ad9d4daabb52")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "#PWR033")
 					(unit 1)
@@ -21545,7 +21545,7 @@
 			(uuid "d065255c-2879-449d-9734-5af022dcb016")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "BUZZER1")
 					(unit 1)
@@ -21623,7 +21623,7 @@
 			(uuid "9487c5ba-ab7c-4b3c-9ad2-a06804565f7b")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "#PWR010")
 					(unit 1)
@@ -21749,7 +21749,7 @@
 			(uuid "1c77d4f6-4293-4dce-9d28-5c9dfea9e43a")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "R9")
 					(unit 1)
@@ -21827,7 +21827,7 @@
 			(uuid "48536993-98f9-4bbe-abbf-28a7136189ce")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "#PWR04")
 					(unit 1)
@@ -21953,7 +21953,7 @@
 			(uuid "7e8396a6-b69b-41c8-95aa-277312504593")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "R18")
 					(unit 1)
@@ -22080,7 +22080,7 @@
 			(uuid "fe8b73f8-9af4-466d-9fed-91d8ac9e9603")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "D4")
 					(unit 1)
@@ -22204,7 +22204,7 @@
 			(uuid "0949f50b-22de-452a-82f7-c40946a3a838")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "C2")
 					(unit 1)
@@ -22282,7 +22282,7 @@
 			(uuid "bdf0c635-3d62-43dc-bb88-c1e2b883c17d")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "#PWR026")
 					(unit 1)
@@ -22361,7 +22361,7 @@
 			(uuid "57d6e268-7bc3-4752-a85c-e314262ceda3")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "#PWR020")
 					(unit 1)
@@ -22438,7 +22438,7 @@
 			(uuid "8f2fb612-e1a0-491a-ab08-575eb455708d")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "#PWR012")
 					(unit 1)
@@ -22574,7 +22574,7 @@
 			(uuid "51e5aa5a-7321-4110-ab03-cd86b66a1bae")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "J7")
 					(unit 1)
@@ -22700,7 +22700,7 @@
 			(uuid "247cc229-3498-49ab-b5a1-61df3452d741")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "J13")
 					(unit 1)
@@ -22778,7 +22778,7 @@
 			(uuid "be5768e4-b36f-41da-b34e-08d6c7c6789c")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "#PWR041")
 					(unit 1)
@@ -22902,7 +22902,7 @@
 			(uuid "bc16ee1f-074c-416a-9d8b-c183198679b5")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "D1")
 					(unit 1)
@@ -23022,7 +23022,7 @@
 			)
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "H2")
 					(unit 1)
@@ -23101,7 +23101,7 @@
 			(uuid "8fa70c27-1a2f-452f-8763-e288c5c1a8f0")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "#PWR039")
 					(unit 1)
@@ -23180,7 +23180,7 @@
 			(uuid "be9185ae-486b-42b7-b2f4-18b9d5066e91")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "#PWR019")
 					(unit 1)
@@ -23304,7 +23304,7 @@
 			(uuid "633b4c1c-09e9-47bd-97d7-d821cd9a0003")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "L1")
 					(unit 1)
@@ -23428,7 +23428,7 @@
 			(uuid "058c5ee0-3369-41b0-8f05-a38bf6450aa6")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "R2")
 					(unit 1)
@@ -23554,7 +23554,7 @@
 			(uuid "9b2cc129-19c7-41b1-be42-ae4c1f064c22")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "J11")
 					(unit 1)
@@ -23683,7 +23683,7 @@
 			(uuid "d9dfd715-fbc8-4c40-bce5-2cc0a6dba749")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "J4")
 					(unit 1)
@@ -23762,7 +23762,7 @@
 			(uuid "cef5fd29-4db3-4935-85d6-cbf7d487ddf8")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "#PWR050")
 					(unit 1)
@@ -23840,7 +23840,7 @@
 			(uuid "7c153eb4-278c-4492-bbd4-5ab44eee01f3")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "#PWR018")
 					(unit 1)
@@ -23919,7 +23919,7 @@
 			(uuid "58acdc1a-57db-4496-939f-371fe5e57b6d")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "#PWR014")
 					(unit 1)
@@ -24044,7 +24044,7 @@
 			(uuid "3681db14-c333-4bf9-ba07-29b09d5a494d")
 		)
 		(instances
-			(project "mdb_slave_esp32s3-wroom-u1"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/95980b25-0707-441d-ba83-7f6c6e1d1aaa"
 					(reference "R8")
 					(unit 1)

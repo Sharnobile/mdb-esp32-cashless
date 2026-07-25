@@ -524,7 +524,7 @@
     "pinned_symbol_libs": []
   },
   "meta": {
-    "filename": "mdb_slave_esp32s3-wroom-u1.kicad_pro",
+    "filename": "mdb_slave_esp32s3-wroom-1u.kicad_pro",
     "version": 3
   },
   "net_settings": {
@@ -867,8 +867,8 @@
     "subpart_id_separator": 0,
     "top_level_sheets": [
       {
-        "filename": "mdb_slave_esp32s3-wroom-u1.kicad_sch",
-        "name": "mdb_slave_esp32s3-wroom-u1",
+        "filename": "mdb_slave_esp32s3-wroom-1u.kicad_sch",
+        "name": "mdb_slave_esp32s3-wroom-1u",
         "uuid": "95980b25-0707-441d-ba83-7f6c6e1d1aaa"
       }
     ],
@@ -878,7 +878,7 @@
   "sheets": [
     [
       "95980b25-0707-441d-ba83-7f6c6e1d1aaa",
-      "mdb_slave_esp32s3-wroom-u1"
+      "mdb_slave_esp32s3-wroom-1u"
     ]
   ],
   "text_variables": {},
