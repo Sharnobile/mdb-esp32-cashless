@@ -174,6 +174,7 @@ static const char *type_name(uint8_t type) {
         case DEBUG_LOG_INPUT:   return "input";
         case DEBUG_LOG_ONEWIRE: return "onewire";
         case DEBUG_LOG_NTC:     return "ntc";
+        case DEBUG_LOG_PULSE:   return "pulse";
         default:                return "unknown";
     }
 }

@@ -56,9 +56,10 @@ board unchanged):
 | 18 | Custom input 3 (J14) | `PIN_CUSTOM_INPUT3` | driver done — debounced, published on `/input` |
 | 46, 47, 48 | free | — | unused on this PCB revision |
 
-GPIO13 (`PIN_PULSE_1`) was dropped: dead code on both boards (never wired
-to a driver) and the pulse circuit has since been desoldered from the
-WROOM-1U PCB revision.
+GPIO13 (`PIN_PULSE_1`, J8) exists only on the **original** board — the
+pulse circuit has been desoldered on the WROOM-1U PCB revision, so this
+pin is free/unused there. On the original board it's now a live input —
+see "Pulse input" under "Board-specific drivers" below.
 
 WiFi-only board, confirmed no GPS/LTE-M/NB-IoT — `network.c`'s existing
 "no modem → WiFi-only boot" path is used as-is, and `modem.c`/
@@ -72,10 +73,12 @@ firmware's current pin map). Not plug-and-play yet; see
 `kicad/mdb-slave-esp32s3-sim7080g/README.md` for the confirmed pin
 mapping and what's needed to reconcile them.
 
-### Board-specific drivers (relay / custom input / 1-Wire)
+### Board-specific drivers (relay / custom input / 1-Wire / pulse)
 
-All gated behind `g_board_is_wroom_1u` so none of this ever runs on the
-original board:
+Relay, custom-input, and 1-Wire are gated behind `g_board_is_wroom_1u` so
+none of them ever run on the original board; the pulse input is the
+mirror image — gated on `!board_is_wroom_1u` so it only runs on the
+original board, which is the only one with that circuit populated:
 
 - **Relays** (`PIN_RELAY_1`/`PIN_RELAY_2`): plain digital outputs,
   initialised OFF at boot (`relay_init()`). Driven via the existing
@@ -87,6 +90,17 @@ original board:
   `/{company_id}/{device_id}/input` on every confirmed level change.
   Device-agnostic — interpreting events (door-open alarms, notification
   routing) is backend/app work.
+- **Pulse input** (`PIN_PULSE_1`, original board only): legacy pre-MDB
+  vending "Pulse" signaling — some older coin/bill mechanisms report
+  credit as a train of edges instead of a serial protocol. `pulse_input_task`
+  counts rising edges in hardware via the ESP32-S3 PCNT peripheral (not
+  GPIO polling — pulse trains can be faster than a debounced poll loop
+  would reliably catch), draining the counter every 200ms and publishing
+  `{count, ts}` (QoS 1) to `/{company_id}/{device_id}/pulse` whenever the
+  count is non-zero. **Deliberately not decoded into vend credit yet** —
+  there's no confirmed pulse-value/timing spec for this connector, so
+  this is raw telemetry only for now; converting counts into actual
+  credit is follow-up work once the protocol is confirmed on hardware.
 - **1-Wire buses** (`PIN_ONEWIRE_1`/`PIN_ONEWIRE_2`): RMT-based bus scan
   via `espressif/onewire_bus` + `espressif/ds18b20`
   (`onewire_bus_scan_and_read()`), dispatched by ROM family code. DS18B20
@@ -105,7 +119,8 @@ Offline-safe diagnostic buffer, separate from the sales queue
   position across reboots (same role as `sale_queue.c`'s
   `K_HEAD`/`K_TAIL`).
 - **What gets logged**: relay commands, every debounced custom-input
-  transition, and periodic NTC/DS18B20 readings.
+  transition, periodic NTC/DS18B20 readings, and non-zero pulse-input
+  count windows (original board only).
 - **NTC thermistor conversion**: TH1 is a Murata NCP18XH103F03RB (10kΩ
   @ 25°C, B25/50 = 3380K). Divider per the schematic (`kicad/mdb-slave-
   esp32s3`, TH1/R15): `+3V3 → R15 (10kΩ) → ADC7 node → TH1 → GND`.

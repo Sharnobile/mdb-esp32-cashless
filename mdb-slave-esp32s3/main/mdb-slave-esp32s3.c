@@ -32,6 +32,7 @@
 #include "led_strip.h"
 #include "onewire_bus.h"
 #include "ds18b20.h"
+#include "driver/pulse_cnt.h"
 
 #include "nimble.h"
 #include "webui_server.h"
@@ -61,6 +62,15 @@
 #define PIN_SIM7080G_TX         GPIO_NUM_17
 #define PIN_SIM7080G_PWR        GPIO_NUM_14
 #define PIN_BUZZER_PWR          GPIO_NUM_12
+
+/* Pulse (J8) — original board only, desoldered on the WROOM-1U revision
+ * (see README). This is the legacy pre-MDB vending "Pulse" signaling some
+ * older coin/bill mechanisms use to report credit as a train of edges
+ * instead of a serial protocol. We don't have a confirmed pulse-value/
+ * timing spec for this connector, so for now this is raw edge counting
+ * only (via the PCNT peripheral, see pulse_input_task) — not decoded into
+ * vend credit. */
+#define PIN_PULSE_1             GPIO_NUM_13
 
 /* Custom digital inputs (J11/J13/J14 on the WROOM-1U board). GPIO6 was
  * already clear of both boards' PIN_* usage. custom_input2/3 moved from
@@ -3114,6 +3124,81 @@ static void custom_input_task(void *arg) {
     }
 }
 
+//------------------------------ Pulse input (J8) ---------------------------//
+//--------------------------------------------------------------------------//
+// Original board only (see PIN_PULSE_1). Raw hardware edge counting via the
+// PCNT peripheral — deliberately protocol-agnostic: we don't know this
+// legacy "Pulse" interface's pulse-value/timing spec yet, so this just
+// reports "N edges seen in the last PULSE_POLL_MS" as telemetry rather than
+// guessing at a pulses-to-credit conversion. Turning this into actual vend
+// credit is follow-up work once the protocol is confirmed on real hardware.
+#define PULSE_POLL_MS     200
+#define PULSE_GLITCH_NS   1000  // reject sub-1us electrical noise, not a protocol assumption
+
+static pcnt_unit_handle_t s_pulse_pcnt_unit = NULL;
+
+static void publish_pulse_event(uint32_t count, time_t ts) {
+    if (!mqttClient) return;
+
+    char topic[128];
+    snprintf(topic, sizeof(topic), "/%s/%s/pulse", my_company_id, my_device_id);
+
+    char msg[96];
+    snprintf(msg, sizeof(msg), "{\"count\":%lu,\"ts\":%lld}", (unsigned long) count, (long long) ts);
+
+    // QoS 1: same durability rationale as the custom-input/sale topics —
+    // a dropped pulse-count window would otherwise just vanish.
+    mqtt_publish_safe(mqttClient, topic, msg, 0, 1, 0);
+}
+
+static void pulse_input_task(void *arg) {
+    pcnt_unit_config_t unit_config = {
+        .low_limit  = -1,
+        .high_limit = 10000, // arbitrary safe ceiling well above any plausible burst; drained every 200ms
+    };
+    if (pcnt_new_unit(&unit_config, &s_pulse_pcnt_unit) != ESP_OK) {
+        ESP_LOGE(TAG, "Pulse input: PCNT unit init failed — feature disabled");
+        vTaskDelete(NULL);
+        return;
+    }
+
+    pcnt_glitch_filter_config_t filter_config = { .max_glitch_ns = PULSE_GLITCH_NS };
+    pcnt_unit_set_glitch_filter(s_pulse_pcnt_unit, &filter_config);
+
+    pcnt_chan_config_t chan_config = {
+        .edge_gpio_num  = PIN_PULSE_1,
+        .level_gpio_num = -1,
+    };
+    pcnt_channel_handle_t chan = NULL;
+    if (pcnt_new_channel(s_pulse_pcnt_unit, &chan_config, &chan) != ESP_OK) {
+        ESP_LOGE(TAG, "Pulse input: PCNT channel init failed — feature disabled");
+        vTaskDelete(NULL);
+        return;
+    }
+    // Count rising edges only; falling edge holds the count unchanged.
+    pcnt_channel_set_edge_action(chan, PCNT_CHANNEL_EDGE_ACTION_INCREASE, PCNT_CHANNEL_EDGE_ACTION_HOLD);
+
+    pcnt_unit_enable(s_pulse_pcnt_unit);
+    pcnt_unit_clear_count(s_pulse_pcnt_unit);
+    pcnt_unit_start(s_pulse_pcnt_unit);
+
+    ESP_LOGI(TAG, "Pulse input initialised on GPIO%d (raw edge counting, hardware PCNT)", PIN_PULSE_1);
+
+    while (1) {
+        vTaskDelay(pdMS_TO_TICKS(PULSE_POLL_MS));
+
+        int count = 0;
+        if (pcnt_unit_get_count(s_pulse_pcnt_unit, &count) == ESP_OK && count > 0) {
+            pcnt_unit_clear_count(s_pulse_pcnt_unit);
+
+            time_t now = time(NULL);
+            ESP_LOGI(TAG, "Pulse input: %d edge(s) in last %dms", count, PULSE_POLL_MS);
+            publish_pulse_event((uint32_t) count, now);
+            debug_log_append(DEBUG_LOG_PULSE, 1, 0, (int32_t) count);
+        }
+    }
+}
+
 //---------------------------- 1-Wire buses (J4/J5/J6) ----------------------//
 //--------------------------------------------------------------------------//
 // Boot call (periodic_track=false) is a one-shot discovery scan, logged
@@ -3383,6 +3468,14 @@ void app_main(void) {
 		esp_timer_handle_t periodic_timer;
 		esp_timer_create(&periodic_timer_args, &periodic_timer);
 		esp_timer_start_periodic(periodic_timer, INTERVAL_1H_US);
+	}
+
+	//---------------- Pulse input (J8, original board only) ---------------//
+	//----------------------------------------------------------------------//
+	// GPIO13 was desoldered on the WROOM-1U PCB revision — nothing to read
+	// there. Same gating as the DEX/UART1 block above.
+	if (!board_is_wroom_1u) {
+		xTaskCreate(pulse_input_task, "pulse_input", 3072, NULL, 5, NULL);
 	}
 
 	//-------------------- NETWORK STACK -----------------------//

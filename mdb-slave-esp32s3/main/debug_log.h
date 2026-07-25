@@ -19,6 +19,7 @@ typedef enum {
     DEBUG_LOG_INPUT   = 2,
     DEBUG_LOG_ONEWIRE = 3,
     DEBUG_LOG_NTC     = 4,
+    DEBUG_LOG_PULSE   = 5,
 } debug_log_type_t;
 
 // Call once, after nvs_flash_init() has succeeded (the ack/write cursors
