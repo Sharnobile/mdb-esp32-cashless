@@ -212,6 +212,11 @@ led_strip_handle_t led_strip;
 // into the MDB task's local state. Set at VEND_SUCCESS.
 static volatile uint16_t g_last_vend_price = 0;
 
+// Last completed sale's item/slot number (per MDB spec: manufacturer-defined
+// selection number in the VEND_SUCCESS itemNumber field), paired with
+// g_last_vend_price above. Set at VEND_SUCCESS.
+static volatile uint16_t g_last_vend_item = 0;
+
 // MDB Control flags
 bool session_begin_todo = false;
 bool session_cancel_todo = false;
@@ -913,6 +918,7 @@ void vTaskMdbEvent(void *pvParameters) {
 
 						ESP_LOGI( TAG, "VEND_SUCCESS price=%u item=%u", itemPrice, itemNumber);
 						g_last_vend_price = itemPrice;
+						g_last_vend_item = itemNumber;
 
 						// Clear vend data to prevent stale values if re-entered
 						itemPrice = 0;
@@ -3262,11 +3268,11 @@ static void periodic_sensor_timer_cb(void *arg) {
 
 static const char *machine_state_label(machine_state_t s) {
     switch (s) {
-        case INACTIVE_STATE: return "INACTIF";
-        case DISABLED_STATE: return "DESACTIVE";
-        case ENABLED_STATE:  return "ACTIF";
-        case IDLE_STATE:     return "PRET";
-        case VEND_STATE:     return "VENTE...";
+        case INACTIVE_STATE: return "INACTIVE";
+        case DISABLED_STATE: return "DISABLED";
+        case ENABLED_STATE:  return "ENABLED";
+        case IDLE_STATE:     return "READY";
+        case VEND_STATE:     return "VENDING...";
         default:             return "?";
     }
 }
@@ -3286,42 +3292,42 @@ static void vTaskOledStatus(void *pvParameters) {
         uint16_t last_price = g_last_vend_price;
         if (last_price > 0) {
             double price = FROM_SCALE_FACTOR(last_price, CONFIG_MDB_SCALE_FACTOR, CONFIG_MDB_DECIMAL_PLACES);
-            snprintf(line, sizeof(line), "Dernier: %.2f", price);
+            snprintf(line, sizeof(line), "Last: %.2f #%u", price, (unsigned)g_last_vend_item);
         } else {
-            snprintf(line, sizeof(line), "En attente vente");
+            snprintf(line, sizeof(line), "Waiting for sale");
         }
         oled_display_set_line(1, line);
+
+        snprintf(line, sizeof(line), "Bus:%.9s E:%lu", mdb_last_cmd, (unsigned long)mdb_checksum_errors);
+        oled_display_set_line(2, line);
 
         network_status_t net;
         network_get_status(&net);
 
-        snprintf(line, sizeof(line), "Reseau: %s", net.uplink_up ? net.uplink_kind : "hors ligne");
-        oled_display_set_line(2, line);
+        snprintf(line, sizeof(line), "Network: %s", net.uplink_up ? net.uplink_kind : "offline");
+        oled_display_set_line(3, line);
 
         if (net.uplink_up && strcmp(net.uplink_kind, "wifi") == 0) {
             snprintf(line, sizeof(line), "SSID: %s", net.wifi_ssid);
-            oled_display_set_line(3, line);
-            snprintf(line, sizeof(line), "IP: %s", net.wifi_ip);
             oled_display_set_line(4, line);
+            snprintf(line, sizeof(line), "IP: %s", net.wifi_ip);
+            oled_display_set_line(5, line);
         } else if (net.uplink_up && strcmp(net.uplink_kind, "cellular") == 0) {
             snprintf(line, sizeof(line), "Op: %s", net.cellular_operator);
-            oled_display_set_line(3, line);
-            snprintf(line, sizeof(line), "IP: %s", net.cellular_ip);
             oled_display_set_line(4, line);
+            snprintf(line, sizeof(line), "IP: %s", net.cellular_ip);
+            oled_display_set_line(5, line);
         } else {
-            oled_display_set_line(3, NULL);
             oled_display_set_line(4, NULL);
+            oled_display_set_line(5, NULL);
         }
 
-        snprintf(line, sizeof(line), "Carte: %s", g_board_is_wroom_u1 ? "WROOM-U1" : "originale");
-        oled_display_set_line(5, line);
-
-        uint32_t uptime_sec = (uint32_t)(esp_timer_get_time() / 1000000ULL);
-        snprintf(line, sizeof(line), "Uptime: %luh%02lum",
-                 (unsigned long)(uptime_sec / 3600), (unsigned long)((uptime_sec / 60) % 60));
+        snprintf(line, sizeof(line), "Board: %s", g_board_is_wroom_u1 ? "WROOM-U1" : "BASIC");
         oled_display_set_line(6, line);
 
-        snprintf(line, sizeof(line), "FW: %s", app_desc->version);
+        uint32_t uptime_sec = (uint32_t)(esp_timer_get_time() / 1000000ULL);
+        snprintf(line, sizeof(line), "FW: %s/%luh%02lum", app_desc->version,
+                 (unsigned long)(uptime_sec / 3600), (unsigned long)((uptime_sec / 60) % 60));
         oled_display_set_line(7, line);
 
         vTaskDelay(pdMS_TO_TICKS(2000));
