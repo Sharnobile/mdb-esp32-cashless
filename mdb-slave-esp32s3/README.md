@@ -73,7 +73,7 @@ firmware's current pin map). Not plug-and-play yet; see
 `kicad/mdb-slave-esp32s3-sim7080g/README.md` for the confirmed pin
 mapping and what's needed to reconcile them.
 
-### Board-specific drivers (relay / custom input / 1-Wire / pulse)
+### Board-specific drivers (relay / custom input / 1-Wire / pulse / buzzer)
 
 Relay, custom-input, and 1-Wire are gated behind `g_board_is_wroom_1u` so
 none of them ever run on the original board; the pulse input is the
@@ -101,6 +101,15 @@ original board, which is the only one with that circuit populated:
   there's no confirmed pulse-value/timing spec for this connector, so
   this is raw telemetry only for now; converting counts into actual
   credit is follow-up work once the protocol is confirmed on hardware.
+- **Buzzer** (`PIN_BUZZER_PWR`): WROOM-1U's buzzer is an MLT-8530
+  electro-magnetic transducer, which per its datasheet needs an
+  oscillating drive at its 2700Hz resonant frequency (50% duty square
+  wave) — a static DC level only produces a faint click as the diaphragm
+  moves once, not the audible beep the code intends. On credit-received
+  events (`BIT_EVT_BUZZER`), the original board keeps the old static
+  1-second ON/OFF drive unchanged (its buzzer circuit isn't confirmed to
+  be the same part); on WROOM-1U the same event now drives the pin via
+  LEDC at 2700Hz/50% duty for 1 second instead.
 - **1-Wire buses** (`PIN_ONEWIRE_1`/`PIN_ONEWIRE_2`): RMT-based bus scan
   via `espressif/onewire_bus` + `espressif/ds18b20`
   (`onewire_bus_scan_and_read()`), dispatched by ROM family code. DS18B20

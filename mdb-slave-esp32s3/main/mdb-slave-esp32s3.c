@@ -33,6 +33,7 @@
 #include "onewire_bus.h"
 #include "ds18b20.h"
 #include "driver/pulse_cnt.h"
+#include "driver/ledc.h"
 
 #include "nimble.h"
 #include "webui_server.h"
@@ -62,6 +63,20 @@
 #define PIN_SIM7080G_TX         GPIO_NUM_17
 #define PIN_SIM7080G_PWR        GPIO_NUM_14
 #define PIN_BUZZER_PWR          GPIO_NUM_12
+
+/* WROOM-1U's buzzer is an MLT-8530 electro-magnetic transducer — per its
+ * datasheet it needs an oscillating drive at its resonant frequency
+ * (2700Hz, 50% duty square wave) to produce proper output, not a static
+ * DC level (that only yields a faint click as the diaphragm moves once).
+ * Generated via LEDC rather than gpio_set_level; see the BIT_EVT_BUZZER
+ * handler in vTaskBitEvent(). The original board's buzzer circuit isn't
+ * confirmed to be the same part, so it keeps the old static ON/OFF drive
+ * unchanged. */
+#define BUZZER_LEDC_TIMER       LEDC_TIMER_0
+#define BUZZER_LEDC_CHANNEL     LEDC_CHANNEL_0
+#define BUZZER_LEDC_FREQ_HZ     2700
+#define BUZZER_LEDC_DUTY_RES    LEDC_TIMER_8_BIT
+#define BUZZER_LEDC_DUTY_50PCT  128  // ~50% of 2^8
 
 /* Pulse (J8) — original board only, desoldered on the WROOM-1U revision
  * (see README). This is the legacy pre-MDB vending "Pulse" signaling some
@@ -1743,9 +1758,20 @@ void vTaskBitEvent(void *pvParameters) {
 
         if(uxBits & BIT_EVT_BUZZER){
 
-            gpio_set_level(PIN_BUZZER_PWR, 1);
-            vTaskDelay(pdMS_TO_TICKS(1000));
-            gpio_set_level(PIN_BUZZER_PWR, 0);
+            if (g_board_is_wroom_1u) {
+                // MLT-8530: needs the 2700Hz resonant-frequency drive, not
+                // a static level — see BUZZER_LEDC_* above.
+                ledc_set_duty(LEDC_LOW_SPEED_MODE, BUZZER_LEDC_CHANNEL, BUZZER_LEDC_DUTY_50PCT);
+                ledc_update_duty(LEDC_LOW_SPEED_MODE, BUZZER_LEDC_CHANNEL);
+                vTaskDelay(pdMS_TO_TICKS(1000));
+                ledc_set_duty(LEDC_LOW_SPEED_MODE, BUZZER_LEDC_CHANNEL, 0);
+                ledc_update_duty(LEDC_LOW_SPEED_MODE, BUZZER_LEDC_CHANNEL);
+            } else {
+                // Original board: unchanged static ON/OFF drive.
+                gpio_set_level(PIN_BUZZER_PWR, 1);
+                vTaskDelay(pdMS_TO_TICKS(1000));
+                gpio_set_level(PIN_BUZZER_PWR, 0);
+            }
 
             xEventGroupClearBits(xLedEventGroup, BIT_EVT_BUZZER);
         }
@@ -3373,6 +3399,32 @@ void app_main(void) {
 	 * original LOW init here without affecting cellular bring-up. */
 	gpio_set_direction(PIN_BUZZER_PWR, GPIO_MODE_OUTPUT);
 	gpio_set_level(PIN_BUZZER_PWR, 0);
+
+	// WROOM-1U only: bind LEDC to the same pin so the buzzer can be driven
+	// with a proper 2700Hz square wave (see BUZZER_LEDC_* above). Idle
+	// duty is 0 (silent) until vTaskBitEvent's BIT_EVT_BUZZER handler
+	// raises it for a beep.
+	if (board_is_wroom_1u) {
+		ledc_timer_config_t buzzer_timer = {
+			.speed_mode      = LEDC_LOW_SPEED_MODE,
+			.duty_resolution = BUZZER_LEDC_DUTY_RES,
+			.timer_num       = BUZZER_LEDC_TIMER,
+			.freq_hz         = BUZZER_LEDC_FREQ_HZ,
+			.clk_cfg         = LEDC_AUTO_CLK,
+		};
+		ledc_timer_config(&buzzer_timer);
+
+		ledc_channel_config_t buzzer_channel = {
+			.gpio_num   = PIN_BUZZER_PWR,
+			.speed_mode = LEDC_LOW_SPEED_MODE,
+			.channel    = BUZZER_LEDC_CHANNEL,
+			.intr_type  = LEDC_INTR_DISABLE,
+			.timer_sel  = BUZZER_LEDC_TIMER,
+			.duty       = 0,
+			.hpoint     = 0,
+		};
+		ledc_channel_config(&buzzer_channel);
+	}
 
 	//---------------- Strip LED configuration -----------------//
 	//----------------------------------------------------------//
