@@ -63,6 +63,14 @@ WiFi-only board, confirmed no GPS/LTE-M/NB-IoT — `network.c`'s existing
 "no modem → WiFi-only boot" path is used as-is, and `modem.c`/
 `modem_https.c` stay fully inert via the existing `modem_probe()` fallback.
 
+**Cellular (SIM7080G) board note**: `modem.c`'s pins target the LilyGo
+T-SIM7080G-S3 devkit used for bring-up, not the custom
+`kicad/mdb-slave-esp32s3-sim7080g` PCB — the two use different, colliding
+GPIOs (that PCB's modem UART shares GPIO4/5 with the MDB bus in this
+firmware's current pin map). Not plug-and-play yet; see
+`kicad/mdb-slave-esp32s3-sim7080g/README.md` for the confirmed pin
+mapping and what's needed to reconcile them.
+
 ### Board-specific drivers (relay / custom input / 1-Wire)
 
 All gated behind `g_board_is_wroom_1u` so none of this ever runs on the
