@@ -136,7 +136,8 @@
     "cashBook": "Kasboek",
     "inbox": "Inbox",
     "mobileApp": "Mobiele app",
-    "deals": "Aanbiedingen"
+    "deals": "Aanbiedingen",
+    "purchaseList": "Bestellijst"
   },
   "auth": {
     "signIn": "Aanmelden",
@@ -1812,5 +1813,32 @@
       "tokenRequired": "Auth-token is verplicht",
       "configJsonInvalid": "Extra configuratie moet een JSON-object zijn"
     }
+  },
+  "purchaseList": {
+    "title": "Bestellijst",
+    "description": "Producten die niet op voorraad of onder de minimumvoorraad zijn, gegroepeerd per leverancier, klaar om te bestellen.",
+    "itemsToOrder": "Te bestellen artikelen",
+    "totalNet": "Totaal (netto)",
+    "totalGross": "Totaal (bruto)",
+    "emptyTitle": "Niets te bestellen",
+    "emptyDescription": "Alle producten zitten op of boven hun minimumvoorraad.",
+    "productCol": "Product",
+    "currentCol": "Huidig",
+    "minCol": "Min",
+    "qtyCol": "Bestelaantal",
+    "unitPriceCol": "Stukprijs",
+    "lineTotalCol": "Totaal",
+    "subtotalNet": "Subtotaal (netto)",
+    "subtotalGross": "Subtotaal (bruto)",
+    "customerNumber": "Klantnr.",
+    "exportPdf": "PDF exporteren",
+    "unassigned": "Geen leverancier toegewezen",
+    "unassignedTitle": "Geen inkoopprijs geregistreerd",
+    "unassignedDescription": "Deze producten zijn laag of niet op voorraad, maar er is geen inkoopprijs geregistreerd, dus er kon geen leverancier worden voorgesteld. Voeg een inkoopprijs toe aan het product om het in een leveranciersbestelling op te nemen.",
+    "goToProducts": "Naar Producten",
+    "pdfTitle": "Bestelling",
+    "pdfOrderer": "Besteld door: {org}",
+    "pdfCustomerNumber": "Klantnr.: {number}",
+    "pdfTotal": "Totaal: {amount}"
   }
 }

@@ -136,7 +136,8 @@
     "cashBook": "Caisse",
     "inbox": "Boîte de réception",
     "mobileApp": "Application mobile",
-    "deals": "Offres"
+    "deals": "Offres",
+    "purchaseList": "Liste d'achat"
   },
   "auth": {
     "signIn": "Se connecter",
@@ -1812,5 +1813,32 @@
       "tokenRequired": "Le jeton d'authentification est requis",
       "configJsonInvalid": "La configuration supplémentaire doit être un objet JSON"
     }
+  },
+  "purchaseList": {
+    "title": "Liste d'achat",
+    "description": "Produits en rupture ou sous le stock minimum, groupés par fournisseur, prêts à commander.",
+    "itemsToOrder": "Articles à commander",
+    "totalNet": "Total (HT)",
+    "totalGross": "Total (TTC)",
+    "emptyTitle": "Rien à commander",
+    "emptyDescription": "Tous les produits sont au-dessus de leur stock minimum.",
+    "productCol": "Produit",
+    "currentCol": "Actuel",
+    "minCol": "Min",
+    "qtyCol": "Qté à commander",
+    "unitPriceCol": "Prix unitaire",
+    "lineTotalCol": "Total",
+    "subtotalNet": "Sous-total (HT)",
+    "subtotalGross": "Sous-total (TTC)",
+    "customerNumber": "N° client",
+    "exportPdf": "Exporter en PDF",
+    "unassigned": "Aucun fournisseur assigné",
+    "unassignedTitle": "Aucun prix d'achat enregistré",
+    "unassignedDescription": "Ces produits sont en rupture ou proches de la rupture, mais aucun prix d'achat n'est enregistré, donc aucun fournisseur n'a pu être suggéré. Ajoutez un prix d'achat sur le produit pour l'inclure dans une commande fournisseur.",
+    "goToProducts": "Aller aux produits",
+    "pdfTitle": "Bon de commande",
+    "pdfOrderer": "Commandé par : {org}",
+    "pdfCustomerNumber": "N° client : {number}",
+    "pdfTotal": "Total : {amount}"
   }
 }
