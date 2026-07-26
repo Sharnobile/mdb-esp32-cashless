@@ -93,3 +93,48 @@ cron on the test box (weekly, Mon 04:00):
 ```cron
 # 0 4 * * 1 cd /path/to/mdb-esp32-cashless && ./scripts/sync-prod-to-test.sh --yes >> tmp/sync-test/cron.log 2>&1
 ```
+
+## generate-fake-sales.sh
+
+Bulk-inserts simulated sales ("mouvements de ventes") into `sales` for your
+**existing** machines/trays, spread over a past date range — for making a test
+or demo instance look like it has real activity. Run it **on the box whose
+`Docker/` stack you want to seed**, from the repo root.
+
+### Prerequisites
+- The stack is up: `(cd Docker && docker compose up -d)`
+- `docker` on PATH (uses `docker compose exec -T db psql`, no host `psql` needed)
+
+### Run
+```bash
+./scripts/generate-fake-sales.sh                              # 200 sales, last 30 days, all machines
+./scripts/generate-fake-sales.sh --count 500 --days 90         # more sales, longer history
+./scripts/generate-fake-sales.sh --company <uuid>               # restrict to one company
+./scripts/generate-fake-sales.sh --machine <uuid>               # restrict to one machine
+./scripts/generate-fake-sales.sh --adjust-stock                 # also decrement machine_trays.current_stock
+./scripts/generate-fake-sales.sh --dry-run
+./scripts/generate-fake-sales.sh --yes                          # skip the confirmation prompt
+```
+
+Picks random existing `machine_trays` rows that already have a product
+assigned, jitters the price ±10% around that product's real `sellprice`, and
+spreads `created_at` uniformly across the requested day range. By default it
+does **not** touch `current_stock` (backdated fake sales shouldn't move
+today's real stock) — the normal `insert_manual_sale` stock-skip mechanism is
+reused for this (see `20260602120000_manual_sale_skip_stock.sql`).
+
+### Undo
+Every run prints the path to a `tmp/fake-sales/<timestamp>.ids` file listing
+exactly the sale ids it inserted:
+```bash
+./scripts/generate-fake-sales.sh --undo tmp/fake-sales/20260726-160608.ids
+```
+This only deletes those rows — it does **not** restore stock, even if the
+original run used `--adjust-stock` (reconcile that by hand if needed).
+
+### Safety
+- Only ever targets this box's own compose `db` service (`docker compose exec`)
+  — never a remote DB, never prod.
+- Fails clearly (no rows inserted) if `--company`/`--machine` matches no
+  `machine_trays` with a product assigned.
+- Prompts before writing unless `--yes` is passed.
