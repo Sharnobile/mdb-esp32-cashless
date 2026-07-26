@@ -35,6 +35,30 @@
         }
       }
     },
+    "%@ has %lld product(s). Remove products from this category first.": {
+      "extractionState": "manual",
+      "comment": "Error shown when trying to delete a category that still has products assigned to it",
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ contient encore %lld produit(s). Retirez d'abord les produits de cette catégorie."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ enthält noch %lld Produkt(e). Entferne zuerst die Produkte aus dieser Kategorie."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ heeft nog %lld product(en). Verwijder eerst de producten uit deze categorie."
+          }
+        }
+      }
+    },
     "-%@ short": {
       "localizations": {
         "fr": {
@@ -47,6 +71,150 @@
           "stringUnit": {
             "state": "translated",
             "value": "-%@ tekort"
+          }
+        }
+      }
+    },
+    "Delete Category": {
+      "extractionState": "manual",
+      "comment": "Confirmation dialog title before deleting a category",
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Supprimer la catégorie"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kategorie löschen"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Categorie verwijderen"
+          }
+        }
+      }
+    },
+    "Delete Notification": {
+      "extractionState": "manual",
+      "comment": "Confirmation dialog title before deleting an inbox notification",
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Supprimer la notification"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Benachrichtigung löschen"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Melding verwijderen"
+          }
+        }
+      }
+    },
+    "Delete Purchase Price": {
+      "extractionState": "manual",
+      "comment": "Confirmation dialog title before deleting a recorded purchase price",
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Supprimer le prix d'achat"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Einkaufspreis löschen"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inkoopprijs verwijderen"
+          }
+        }
+      }
+    },
+    "Delete Server": {
+      "extractionState": "manual",
+      "comment": "Confirmation dialog title before deleting a saved server",
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Supprimer le serveur"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Server löschen"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Server verwijderen"
+          }
+        }
+      }
+    },
+    "Delete Supplier": {
+      "extractionState": "manual",
+      "comment": "Confirmation dialog title before deleting a supplier",
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Supprimer le fournisseur"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lieferant löschen"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Leverancier verwijderen"
+          }
+        }
+      }
+    },
+    "Edit": {
+      "extractionState": "manual",
+      "comment": "Edit server action",
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Modifier"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bearbeiten"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bewerken"
           }
         }
       }
