@@ -326,7 +326,8 @@
     "cashBook": "Kassenbuch",
     "inbox": "Posteingang",
     "mobileApp": "Mobile App",
-    "deals": "Angebote"
+    "deals": "Angebote",
+    "purchaseList": "Bestellliste"
   },
   "auth": {
     "signIn": "Anmelden",
@@ -2009,5 +2010,32 @@
       "tokenRequired": "Auth-Token ist erforderlich",
       "configJsonInvalid": "Zusätzliche Config muss ein JSON-Objekt sein"
     }
+  },
+  "purchaseList": {
+    "title": "Bestellliste",
+    "description": "Produkte, die ausverkauft oder unter dem Mindestbestand sind, gruppiert nach Lieferant, bestellfertig.",
+    "itemsToOrder": "Zu bestellende Artikel",
+    "totalNet": "Gesamt (netto)",
+    "totalGross": "Gesamt (brutto)",
+    "emptyTitle": "Nichts zu bestellen",
+    "emptyDescription": "Alle Produkte sind auf oder über ihrem Mindestbestand.",
+    "productCol": "Produkt",
+    "currentCol": "Aktuell",
+    "minCol": "Min",
+    "qtyCol": "Bestellmenge",
+    "unitPriceCol": "Einzelpreis",
+    "lineTotalCol": "Summe",
+    "subtotalNet": "Zwischensumme (netto)",
+    "subtotalGross": "Zwischensumme (brutto)",
+    "customerNumber": "Kundennr.",
+    "exportPdf": "PDF exportieren",
+    "unassigned": "Kein Lieferant zugeordnet",
+    "unassignedTitle": "Kein Einkaufspreis hinterlegt",
+    "unassignedDescription": "Diese Produkte sind knapp oder ausverkauft, aber es ist kein Einkaufspreis hinterlegt — daher konnte kein Lieferant vorgeschlagen werden. Einkaufspreis am Produkt hinterlegen, um es in eine Lieferantenbestellung aufzunehmen.",
+    "goToProducts": "Zu Produkte",
+    "pdfTitle": "Bestellung",
+    "pdfOrderer": "Besteller: {org}",
+    "pdfCustomerNumber": "Kundennr.: {number}",
+    "pdfTotal": "Gesamt: {amount}"
   }
 }

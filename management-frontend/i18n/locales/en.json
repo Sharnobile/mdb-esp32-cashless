@@ -326,7 +326,8 @@
     "cashBook": "Cash Book",
     "inbox": "Inbox",
     "mobileApp": "Mobile App",
-    "deals": "Deals"
+    "deals": "Deals",
+    "purchaseList": "Purchase List"
   },
   "auth": {
     "signIn": "Sign in",
@@ -2009,5 +2010,32 @@
       "tokenRequired": "Auth token is required",
       "configJsonInvalid": "Extra config must be a JSON object"
     }
+  },
+  "purchaseList": {
+    "title": "Purchase List",
+    "description": "Out-of-stock and below-minimum products, grouped by supplier, ready to order.",
+    "itemsToOrder": "Items to order",
+    "totalNet": "Total (net)",
+    "totalGross": "Total (gross)",
+    "emptyTitle": "Nothing to order",
+    "emptyDescription": "All products are at or above their minimum stock level.",
+    "productCol": "Product",
+    "currentCol": "Current",
+    "minCol": "Min",
+    "qtyCol": "Order qty",
+    "unitPriceCol": "Unit price",
+    "lineTotalCol": "Total",
+    "subtotalNet": "Subtotal (net)",
+    "subtotalGross": "Subtotal (gross)",
+    "customerNumber": "Customer #",
+    "exportPdf": "Export PDF",
+    "unassigned": "No supplier assigned",
+    "unassignedTitle": "No purchase price on file",
+    "unassignedDescription": "These products are low or out of stock but have no recorded purchase price, so no supplier could be suggested. Add a purchase price on the product to include it in a supplier order.",
+    "goToProducts": "Go to Products",
+    "pdfTitle": "Purchase Order",
+    "pdfOrderer": "Ordered by: {org}",
+    "pdfCustomerNumber": "Customer #: {number}",
+    "pdfTotal": "Total: {amount}"
   }
 }
