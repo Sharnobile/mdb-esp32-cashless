@@ -75,6 +75,30 @@
         }
       }
     },
+    "Critical / expired": {
+      "extractionState": "manual",
+      "comment": "Expiration filter option: products that are critical or already expired",
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Critique / expiré"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kritisch / abgelaufen"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kritiek / verlopen"
+          }
+        }
+      }
+    },
     "Delete Category": {
       "extractionState": "manual",
       "comment": "Confirmation dialog title before deleting a category",
@@ -215,6 +239,126 @@
           "stringUnit": {
             "state": "translated",
             "value": "Bewerken"
+          }
+        }
+      }
+    },
+    "Expiring soon": {
+      "extractionState": "manual",
+      "comment": "Expiration filter option: products expiring soon",
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Expire bientôt"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Läuft bald ab"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verloopt binnenkort"
+          }
+        }
+      }
+    },
+    "Filter": {
+      "extractionState": "manual",
+      "comment": "Label for the warehouse stock list's filter menu button",
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Filtrer"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Filter"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Filter"
+          }
+        }
+      }
+    },
+    "Reset filters": {
+      "extractionState": "manual",
+      "comment": "Button to reset the warehouse stock list filters to their defaults",
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Réinitialiser les filtres"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Filter zurücksetzen"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Filters resetten"
+          }
+        }
+      }
+    },
+    "Show archived": {
+      "extractionState": "manual",
+      "comment": "Toggle to include archived products in the warehouse stock list",
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Afficher les archivés"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Archivierte anzeigen"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gearchiveerd tonen"
+          }
+        }
+      }
+    },
+    "Show out of stock": {
+      "extractionState": "manual",
+      "comment": "Toggle to include out-of-stock products in the warehouse stock list",
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Afficher les ruptures de stock"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nicht auf Lager anzeigen"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Niet op voorraad tonen"
           }
         }
       }
