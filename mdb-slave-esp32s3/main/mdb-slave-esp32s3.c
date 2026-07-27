@@ -40,6 +40,7 @@
 #include "sale_queue.h"
 #include "debug_log.h"
 #include "network.h"
+#include "oled_display.h"
 
 #include "esp_system.h"
 #include "esp_http_client.h"
@@ -229,6 +230,16 @@ typedef enum MACHINE_STATE {
 machine_state_t machine_state = INACTIVE_STATE; // Initial machine state
 
 led_strip_handle_t led_strip;
+
+// Last completed sale's price (scale-factor units, same as itemPrice in
+// vTaskMdbEvent), so the OLED status task can show it without reaching
+// into the MDB task's local state. Set at VEND_SUCCESS.
+static volatile uint16_t g_last_vend_price = 0;
+
+// Last completed sale's item/slot number (per MDB spec: manufacturer-defined
+// selection number in the VEND_SUCCESS itemNumber field), paired with
+// g_last_vend_price above. Set at VEND_SUCCESS.
+static volatile uint16_t g_last_vend_item = 0;
 
 // MDB Control flags
 bool session_begin_todo = false;
@@ -930,6 +941,8 @@ void vTaskMdbEvent(void *pvParameters) {
 						}
 
 						ESP_LOGI( TAG, "VEND_SUCCESS price=%u item=%u", itemPrice, itemNumber);
+						g_last_vend_price = itemPrice;
+						g_last_vend_item = itemNumber;
 
 						// Clear vend data to prevent stale values if re-entered
 						itemPrice = 0;
@@ -3237,6 +3250,11 @@ static void pulse_input_task(void *arg) {
 #define ONEWIRE_LOG_DELTA_C 0.5f
 static float s_onewire_last_logged_c[2] = { NAN, NAN }; // indexed by bus_num-1
 
+// Most recent reading per bus for the OLED status screen — updated on every
+// successful scan (boot or periodic), independent of the >=0.5C log-delta
+// filter above. NAN means "no DS18B20 currently found on this bus".
+static volatile float g_last_onewire_c[2] = { NAN, NAN };
+
 static void onewire_bus_scan_and_read(gpio_num_t pin, uint8_t bus_num, bool periodic_track) {
     onewire_bus_config_t bus_config = { .bus_gpio_num = pin };
     onewire_bus_rmt_config_t rmt_config = { .max_rx_bytes = 10 };
@@ -3257,6 +3275,7 @@ static void onewire_bus_scan_and_read(gpio_num_t pin, uint8_t bus_num, bool peri
 
     ESP_LOGI(TAG, "1-Wire bus %u (GPIO%d): scanning for devices...", bus_num, pin);
     int found = 0;
+    bool ds18b20_read_ok = false;
     onewire_device_t device;
 
     while (onewire_device_iter_get_next(iter, &device) == ESP_OK) {
@@ -3273,6 +3292,9 @@ static void onewire_bus_scan_and_read(gpio_num_t pin, uint8_t bus_num, bool peri
                 if (ds18b20_get_temperature(ds18b20, &temp_c) == ESP_OK) {
                     ESP_LOGI(TAG, "1-Wire bus %u: DS18B20 %016llX = %.2f C",
                              bus_num, (unsigned long long) device.address, temp_c);
+
+                    g_last_onewire_c[bus_num - 1] = temp_c;
+                    ds18b20_read_ok = true;
 
                     if (periodic_track) {
                         float *last = &s_onewire_last_logged_c[bus_num - 1];
@@ -3301,6 +3323,10 @@ static void onewire_bus_scan_and_read(gpio_num_t pin, uint8_t bus_num, bool peri
         ESP_LOGI(TAG, "1-Wire bus %u: no devices found", bus_num);
     }
 
+    if (!ds18b20_read_ok) {
+        g_last_onewire_c[bus_num - 1] = NAN; // no sensor currently readable on this bus
+    }
+
     onewire_bus_del(bus);
 }
 
@@ -3310,6 +3336,10 @@ static adc_oneshot_unit_handle_t s_adc_handle = NULL;
 static adc_cali_handle_t s_adc_cali_handle = NULL;
 #define NTC_LOG_DELTA_C 0.5f
 static float s_ntc_last_logged_c = NAN;
+
+// Most recent NTC reading for the OLED status screen — updated every 5 min
+// regardless of the log-delta filter above.
+static volatile float g_last_ntc_c = NAN;
 
 // Inverts the divider (+3V3 -> R15 -> ADC node -> TH1 -> GND) to get Rntc
 // from the measured node voltage, then the single-B-constant NTC equation
@@ -3351,6 +3381,7 @@ static bool ntc_read_celsius(float *out_celsius) {
 static void periodic_sensor_timer_cb(void *arg) {
     float temp_c;
     if (ntc_read_celsius(&temp_c)) {
+        g_last_ntc_c = temp_c;
         if (isnan(s_ntc_last_logged_c) || fabsf(temp_c - s_ntc_last_logged_c) >= NTC_LOG_DELTA_C) {
             s_ntc_last_logged_c = temp_c;
             debug_log_append(DEBUG_LOG_NTC, 0, 0, (int32_t)(temp_c * 1000));
@@ -3360,6 +3391,93 @@ static void periodic_sensor_timer_cb(void *arg) {
     if (g_board_is_wroom_1u) {
         onewire_bus_scan_and_read(PIN_ONEWIRE_1, 1, true);
         onewire_bus_scan_and_read(PIN_ONEWIRE_2, 2, true);
+    }
+}
+
+// Kept to 5 chars max (only caller is the OLED row-0 line, which also has to
+// fit the board label alongside it in OLED_DISPLAY_COLS).
+static const char *machine_state_label(machine_state_t s) {
+    switch (s) {
+        case INACTIVE_STATE: return "INACT";
+        case DISABLED_STATE: return "DISAB";
+        case ENABLED_STATE:  return "ENABL";
+        case IDLE_STATE:     return "READY";
+        case VEND_STATE:     return "VEND";
+        default:             return "?";
+    }
+}
+
+/* Refreshes the OLED status screen every 2s: MDB session state + last
+ * sale on the panel's yellow rows (0-1), connectivity/board/build info on
+ * the blue rows (2-7). Runs as its own low-priority task so a slow I2C
+ * write never delays MDB bus timing or network handling. */
+static void vTaskOledStatus(void *pvParameters) {
+    const esp_app_desc_t *app_desc = esp_app_get_description();
+    char line[OLED_DISPLAY_COLS + 1];
+
+    for (;;) {
+        network_status_t net;
+        network_get_status(&net);
+
+        // Board label: WROOM-1U pin strap wins; otherwise the "original"
+        // board is either the LTE-capable variant (SIM7080G modem detected
+        // by network_init's modem_probe) or the plain WiFi-only one.
+        const char *board_label = g_board_is_wroom_1u ? "WROOM-1U"
+                                 : net.modem_present   ? "BASIC+LTE"
+                                                        : "BASIC";
+        snprintf(line, sizeof(line), "MDB: %s %s", machine_state_label(machine_state), board_label);
+        oled_display_set_line(0, line);
+
+        uint16_t last_price = g_last_vend_price;
+        if (last_price > 0) {
+            double price = FROM_SCALE_FACTOR(last_price, CONFIG_MDB_SCALE_FACTOR, CONFIG_MDB_DECIMAL_PLACES);
+            snprintf(line, sizeof(line), "Last: %.2f #%u", price, (unsigned)g_last_vend_item);
+        } else {
+            snprintf(line, sizeof(line), "Waiting for sale");
+        }
+        oled_display_set_line(1, line);
+
+        snprintf(line, sizeof(line), "Bus:%.9s E:%lu", mdb_last_cmd, (unsigned long)mdb_checksum_errors);
+        oled_display_set_line(2, line);
+
+        if (net.uplink_up && strcmp(net.uplink_kind, "wifi") == 0) {
+            snprintf(line, sizeof(line), "SSID: %.15s", net.wifi_ssid);
+            oled_display_set_line(3, line);
+            snprintf(line, sizeof(line), "IP: %s", net.wifi_ip);
+            oled_display_set_line(4, line);
+        } else if (net.uplink_up && strcmp(net.uplink_kind, "cellular") == 0) {
+            snprintf(line, sizeof(line), "Op: %.17s", net.cellular_operator);
+            oled_display_set_line(3, line);
+            snprintf(line, sizeof(line), "IP: %s", net.cellular_ip);
+            oled_display_set_line(4, line);
+        } else {
+            snprintf(line, sizeof(line), "Net: offline");
+            oled_display_set_line(3, line);
+            oled_display_set_line(4, NULL);
+        }
+
+        float ntc_c = g_last_ntc_c;
+        if (isnan(ntc_c)) {
+            snprintf(line, sizeof(line), "NTC: --");
+        } else {
+            snprintf(line, sizeof(line), "NTC: %.1fC", ntc_c);
+        }
+        oled_display_set_line(5, line);
+
+        float ow1_c = g_last_onewire_c[0];
+        float ow2_c = g_last_onewire_c[1];
+        char ow1_buf[8], ow2_buf[8];
+        if (isnan(ow1_c)) { snprintf(ow1_buf, sizeof(ow1_buf), "--"); } else { snprintf(ow1_buf, sizeof(ow1_buf), "%.1fC", ow1_c); }
+        if (isnan(ow2_c)) { snprintf(ow2_buf, sizeof(ow2_buf), "--"); } else { snprintf(ow2_buf, sizeof(ow2_buf), "%.1fC", ow2_c); }
+        snprintf(line, sizeof(line), "1W1:%.5s 1W2:%.5s", ow1_buf, ow2_buf);
+        oled_display_set_line(6, line);
+
+        uint32_t uptime_sec = (uint32_t)(esp_timer_get_time() / 1000000ULL);
+        snprintf(line, sizeof(line), "FW: %.5s/%luh%02lum", app_desc->version,
+                 (unsigned long)(uptime_sec / 3600), (unsigned long)((uptime_sec / 60) % 60));
+        oled_display_set_line(7, line);
+
+        vTaskDelay(pdMS_TO_TICKS(2000));
     }
 }
 
@@ -3445,6 +3563,13 @@ void app_main(void) {
     };
 
     ESP_ERROR_CHECK(led_strip_new_rmt_device(&strip_config, &rmt_config, &led_strip));
+
+	//---------------- OLED status display (SSD1306) -----------//
+	//----------------------------------------------------------//
+	// Shares PIN_I2C_SDA/PIN_I2C_SCL (GPIO10/11) with no other consumer —
+	// see oled_display.c. No-op at runtime if no display answers on the
+	// bus (header unpopulated on a given unit).
+	oled_display_init();
 
 	//--------------- ADC Init (NTC thermistor) ----------------//
 	//----------------------------------------------------------//
@@ -3837,4 +3962,6 @@ void app_main(void) {
 
     xTaskCreatePinnedToCore(vTaskBitEvent, "TaskBitEvent", 2048, NULL, 1, NULL, 0);
     xEventGroupSetBits(xLedEventGroup, BIT_EVT_TRIGGER);
+
+    xTaskCreatePinnedToCore(vTaskOledStatus, "TaskOledStatus", 3072, NULL, 1, NULL, 0);
 }
