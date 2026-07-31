@@ -9,12 +9,13 @@ Base reference: [lucienkerl/mdb-esp32-cashless](https://github.com/lucienkerl/md
 ## Status
 
 - Schematic: **complete, ERC-clean** (0 errors, 0 warnings)
-- PCB layout: **not started** — components placed on one side of the board only, no routing yet
-- Revision: 1.0
+- PCB layout: **complete, fully routed** — 4-layer board, 123.2 × 38.5 mm
+- Revision: **1.2**
+- Fabrication-ready: Gerbers, drill files, BOM, and CPL (pick-and-place) generated for JLCPCB, PCBWay, Elecrow, FusionPCB, and a generic fab profile
 
 ## Overview
 
-The board sits between the vending machine's MDB bus and a cashless payment terminal / telemetry stack. It reads and drives the machine's MDB peripherals, exposes auxiliary sensor and actuator interfaces (1-Wire, I2C, relays, pulse, generic I/O), and connects to WiFi for backend communication.
+The board sits between the vending machine's MDB bus and a cashless payment terminal / telemetry stack. It reads and drives the machine's MDB peripherals, exposes auxiliary sensor and actuator interfaces (1-Wire, I2C, relays, custom digital inputs), and connects to WiFi for backend communication.
 
 Key design decisions:
 
@@ -26,68 +27,73 @@ Key design decisions:
 ## Functional blocks
 
 **MCU — U1**
-ESP32-S3-WROOM-1U-N16R2, with reset/boot circuit (SW1, pull-ups R1/R2, decoupling C1). Onboard WS2812B RGB status LED (D2).
+ESP32-S3-WROOM-1U-N16R2, with EN/BOOT reset circuit (buttons B1/B2, pull-ups R1/R2/R10, decoupling C1–C3). Onboard WS2812B-compatible RGB status LED (LED1, driven by GPIO21).
 
 **Power**
-- F1: PTC resettable fuse (1.1A / 33V) on the incoming MDB-side supply
-- U2: AP63203QWU-7 buck converter, output 3.3V
-- C3 (10µF input), C4 (bootstrap), C5/C6 (2×22µF output), L1 (3.3µH inductor)
-- Switching loop (U2–L1–output) kept as compact as possible — primary EMI concern
+- F2: PTC resettable fuse on the incoming MDB-side supply
+- U8: AP63203QWU-7 buck converter, input 3.8V–32V, output 3.3V
+- C6 (10µF input), C7 (100nF bootstrap), C8/C9 (2×22µF output), L1 (3.3µH inductor)
+- Switching loop (U8–L1–output) kept as compact as possible — primary EMI concern
 
-**USB-C — J1**
-USB 2.0 receptacle for programming/debug, with D1 Schottky diode against VBUS backfeed and R3/R4 CC pull-downs.
+**USB-C — USBC1**
+USB 2.0 receptacle for programming/debug, with D6 Schottky diode against VBUS backfeed and R21/R22 CC pull-downs.
 
-**MDB interface — J12**
-2×3 Molex-style connector. Galvanically isolated via U3/U4 (TLP785 optocouplers) on TX and RX, with D5/D6 and associated pull-up/series resistors.
+**MDB interface — H1**
+2×3 connector. Galvanically isolated via U5/U6 (TLP785 optocouplers) on TX (GPIO4) and RX (GPIO5), with D2/D4 and associated pull-up/series resistors.
 
-**Relay outputs — J2, J3**
-Two independent outputs, each driven by an MMBT3904 transistor (Q1/Q2) with a Schottky flyback diode (D3/D4) and base resistor.
+**Relay outputs — P7, P8**
+Two independent outputs, each driven by an MMBT3904 transistor with a Schottky flyback diode:
+- P8: Relay #1, driven by Q2 (GPIO1)
+- P7: Relay #2, driven by Q3 (GPIO2)
 
-**Pulse output — J8**
-MMBT3904 (Q3) driver stage for a single pulse-type output.
+**1-Wire buses — P4, P5, P6**
+Two 1-Wire interfaces plus a spare/parallel header, each with a pull-up resistor:
+- P4: bus #1 (GPIO15)
+- P5: bus #2 (GPIO16)
+- P6: spare header on bus #1 (GPIO15)
 
-**1-Wire buses — J4, J5, J6**
-Two (plus a spare header) 1-Wire interfaces with pull-up resistors, for temperature or other 1-Wire sensors.
+**Custom digital inputs — P1, P2, P3**
+Three screw-terminal inputs with pull-up resistors: P1 (GPIO6), P2 (GPIO17), P3 (GPIO18).
 
-**I2C — J10**
-JST PH 1×4 connector with pull-ups, for external I2C peripherals.
-
-**Generic digital inputs — J11, J13, J14**
-Three screw-terminal inputs with pull-up resistors.
+**I2C — J3**
+JST XH 1×4 connector with pull-ups, SCL on GPIO11, SDA on GPIO10.
 
 **Debug / programming**
-- J9: UART header (4-pin)
-- J7: JTAG header (6-pin)
+- J1: UART debug header (1×6) — EN, TXD, RXD, IO0, GND, +3V3
+- J2: JTAG header (1×6) — MTMS, MTDI, MTDO, MTCk, GND, +3V3
 
 **Other**
-- TH1: NTC thermistor input
-- BUZZER1: buzzer with series resistor
-- H1–H5: mounting holes
+- TH1: NTC thermistor input (GPIO7)
+- BUZZER1: buzzer, driven by GPIO12 through Q1
+- H2–H5: mounting holes
+- GPIO3: reserved for firmware-based PCB/board detection
 
 ## Connectors summary
 
 | Ref | Function | Type |
 |---|---|---|
-| J1 | USB-C (program/debug) | USB2.0 16P receptacle |
-| J2, J3 | Relay outputs (×2) | 2-pin screw terminal |
-| J4, J5, J6 | 1-Wire buses | 3-pin screw terminal |
-| J7 | JTAG | 1×6 pin header |
-| J8 | Pulse output | 1×3 pin header (JST) |
-| J9 | UART debug | 1×4 pin header |
-| J10 | I2C | 1×4 JST PH |
-| J11, J13, J14 | Generic digital input (×3) | 3-pin screw terminal |
-| J12 | MDB bus | 2×3 connector, isolated |
+| USBC1 | USB-C (program/debug) | USB2.0 16P receptacle |
+| J1 | UART debug | 1×6 pin header |
+| J2 | JTAG | 1×6 pin header |
+| J3 | I2C | 1×4 JST XH |
+| P1, P2, P3 | Custom digital inputs (×3) | 3-pin screw terminal, 5.08mm |
+| P4, P5, P6 | 1-Wire buses (bus #1, bus #2, bus #1 spare) | 3-pin screw terminal, 5.08mm |
+| P7 | Relay #2 output | 2-pin screw terminal, 5.08mm |
+| P8 | Relay #1 output | 2-pin screw terminal, 5.08mm |
+| H1 | MDB bus | 2×3 connector, isolated |
 
 ## Repository structure
 
 ```
-/schematic      KiCad schematic (.kicad_sch)
-/pcb            KiCad PCB layout (.kicad_pcb) — in progress
-/gerbers        Fabrication output (once layout is finalized)
-/bom            Bill of materials (LCSC references)
+mdb_slave_esp32s3-wroom-1u/
+├── mdb_slave_esp32s3-wroom-1u.kicad_pro   KiCad project
+├── mdb_slave_esp32s3-wroom-1u.kicad_sch   Schematic
+├── mdb_slave_esp32s3-wroom-1u.kicad_pcb   PCB layout (routed, rev 1.2)
+├── gerber_to_order/                       Fabrication Gerbers per vendor (generated locally, not versioned)
+└── production/                            BOM, CPL, netlist, fabrication zip (generated locally, not versioned)
 ```
 
-*(adjust to match actual repo layout)*
+Only the `.kicad_pro` / `.kicad_sch` / `.kicad_pcb` files and this README are version-controlled — see `.gitignore`.
 
 ## Tools
 
