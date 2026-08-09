@@ -8,10 +8,15 @@ Base reference: [lucienkerl/mdb-esp32-cashless](https://github.com/lucienkerl/md
 
 ## Status
 
-- Schematic: **complete, ERC-clean** (0 errors, 0 warnings)
-- PCB layout: **complete, fully routed** — 4-layer board, 123.2 × 38.5 mm
-- Revision: **1.2**
-- Fabrication-ready: Gerbers, drill files, BOM, and CPL (pick-and-place) generated for JLCPCB, PCBWay, Elecrow, FusionPCB, and a generic fab profile
+- Schematic: complete — ERC has 4 minor housekeeping items left (floating power symbols / an
+  unconnected test pad, no real connectivity impact)
+- PCB layout: routed, 4-layer board, 149.8 × 38.5 mm — **PCB/schematic re-sync pending**
+  (run *Update PCB from Schematic* before generating final fabrication files; a handful of
+  references were renumbered when the rev1.3 relay driver stage was added and the board hasn't
+  been re-synced yet)
+- Revision: **1.3**
+- Gerbers in `gerber_to_order/` (JLCPCB, PCBWay) reflect the pre-re-sync board — regenerate
+  after the PCB update above before ordering
 
 ## Overview
 
@@ -38,22 +43,24 @@ ESP32-S3-WROOM-1U-N16R2, with EN/BOOT reset circuit (buttons B1/B2, pull-ups R1/
 **USB-C — USBC1**
 USB 2.0 receptacle for programming/debug, with D6 Schottky diode against VBUS backfeed and R21/R22 CC pull-downs.
 
-**MDB interface — H1**
-2×3 connector. Galvanically isolated via U5/U6 (TLP785 optocouplers) on TX (GPIO4) and RX (GPIO5), with D2/D4 and associated pull-up/series resistors.
+**MDB interface — H7**
+2×3 connector. Galvanically isolated via U2/U3 (TLP785 optocouplers, DIP-4) on TX (GPIO4) and RX (GPIO5), with D2/D3 and associated pull-up/series resistors. F1 is the PTC resettable fuse on the incoming MDB-side supply.
 
-**Relay outputs — P7, P8**
-Two independent outputs, each driven by an MMBT3904 transistor with a Schottky flyback diode:
-- P8: Relay #1, driven by Q2 (GPIO1)
-- P7: Relay #2, driven by Q3 (GPIO2)
+**Relay outputs — P10, P11** *(rev1.3)*
+Two 15A-class SPDT relays (K2, K3 — SRD-03VDC-SL-C, 3V coil on the +3V3 rail), each output exposed as a 3-pin COM/NO/NC screw terminal. Each coil is driven low-side by an MMBT3904 transistor (Q2/Q3) with a 1N4148WS flyback diode (D4/D5), itself switched through a TLP785 optocoupler (U5/U4, SMD-4) for GPIO isolation:
+- P11: Relay #1 — K2 / Q2 / U5, driven from GPIO1
+- P10: Relay #2 — K3 / Q3 / U4, driven from GPIO2
 
-**1-Wire buses — P4, P5, P6**
+⚠️ Known open point: with the current TLP785 pull-up/pull-down arrangement, drive logic is inverted (GPIO low, or floating at boot, = relay energized; GPIO high = relay de-energized). Confirm this matches firmware expectations, or flip the pull-up/pull-down before ordering if a fail-safe de-energized default is required.
+
+**1-Wire buses — P7, P8, P9**
 Two 1-Wire interfaces plus a spare/parallel header, each with a pull-up resistor:
-- P4: bus #1 (GPIO15)
-- P5: bus #2 (GPIO16)
-- P6: spare header on bus #1 (GPIO15)
+- P7: bus #1 (GPIO15)
+- P8: bus #2 (GPIO16)
+- P9: spare header on bus #1 (GPIO15)
 
-**Custom digital inputs — P1, P2, P3**
-Three screw-terminal inputs with pull-up resistors: P1 (GPIO6), P2 (GPIO17), P3 (GPIO18).
+**Custom digital inputs — P4, P5, P6**
+Three screw-terminal inputs with pull-up resistors: P4 (GPIO6), P5 (GPIO17), P6 (GPIO18).
 
 **I2C — J3**
 JST XH 1×4 connector with pull-ups, SCL on GPIO11, SDA on GPIO10.
@@ -65,7 +72,8 @@ JST XH 1×4 connector with pull-ups, SCL on GPIO11, SDA on GPIO10.
 **Other**
 - TH1: NTC thermistor input (GPIO7)
 - BUZZER1: buzzer, driven by GPIO12 through Q1
-- H2–H5: mounting holes
+- H1–H4: mounting holes
+- H8–H12: test/probe pads (added in rev1.3, e.g. H10 taps the WS2812B LED1 data-out, H11/H12 the buzzer driver)
 - GPIO3: reserved for firmware-based PCB/board detection
 
 ## Connectors summary
@@ -76,11 +84,11 @@ JST XH 1×4 connector with pull-ups, SCL on GPIO11, SDA on GPIO10.
 | J1 | UART debug | 1×6 pin header |
 | J2 | JTAG | 1×6 pin header |
 | J3 | I2C | 1×4 JST XH |
-| P1, P2, P3 | Custom digital inputs (×3) | 3-pin screw terminal, 5.08mm |
-| P4, P5, P6 | 1-Wire buses (bus #1, bus #2, bus #1 spare) | 3-pin screw terminal, 5.08mm |
-| P7 | Relay #2 output | 2-pin screw terminal, 5.08mm |
-| P8 | Relay #1 output | 2-pin screw terminal, 5.08mm |
-| H1 | MDB bus | 2×3 connector, isolated |
+| P4, P5, P6 | Custom digital inputs (×3) | 3-pin screw terminal, 5.08mm |
+| P7, P8, P9 | 1-Wire buses (bus #1, bus #2, bus #1 spare) | 3-pin screw terminal, 5.08mm |
+| P10 | Relay #2 output (COM/NO/NC) | 3-pin screw terminal, 5.08mm |
+| P11 | Relay #1 output (COM/NO/NC) | 3-pin screw terminal, 5.08mm |
+| H7 | MDB bus | 2×3 connector, isolated |
 
 ## Repository structure
 
@@ -88,12 +96,13 @@ JST XH 1×4 connector with pull-ups, SCL on GPIO11, SDA on GPIO10.
 mdb_slave_esp32s3-wroom-1u/
 ├── mdb_slave_esp32s3-wroom-1u.kicad_pro   KiCad project
 ├── mdb_slave_esp32s3-wroom-1u.kicad_sch   Schematic
-├── mdb_slave_esp32s3-wroom-1u.kicad_pcb   PCB layout (routed, rev 1.2)
-├── gerber_to_order/                       Fabrication Gerbers per vendor (generated locally, not versioned)
-└── production/                            BOM, CPL, netlist, fabrication zip (generated locally, not versioned)
+├── mdb_slave_esp32s3-wroom-1u.kicad_pcb   PCB layout (routed, rev 1.3)
+├── gerber_to_order/                       Fabrication Gerbers per vendor (JLCPCB, PCBWay) — versioned
+└── production/                            BOM, CPL, netlist (generated locally, not versioned)
 ```
 
-Only the `.kicad_pro` / `.kicad_sch` / `.kicad_pcb` files and this README are version-controlled — see `.gitignore`.
+The `.kicad_pro` / `.kicad_sch` / `.kicad_pcb` files, this README, and `gerber_to_order/` are
+version-controlled — see `.gitignore`.
 
 ## Tools
 
