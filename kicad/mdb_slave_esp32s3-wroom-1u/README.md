@@ -10,13 +10,11 @@ Base reference: [lucienkerl/mdb-esp32-cashless](https://github.com/lucienkerl/md
 
 - Schematic: complete — ERC has 4 minor housekeeping items left (floating power symbols / an
   unconnected test pad, no real connectivity impact)
-- PCB layout: routed, 4-layer board, 149.8 × 38.5 mm — **PCB/schematic re-sync pending**
-  (run *Update PCB from Schematic* before generating final fabrication files; a handful of
-  references were renumbered when the rev1.3 relay driver stage was added and the board hasn't
-  been re-synced yet)
-- Revision: **1.3**
-- Gerbers in `gerber_to_order/` (JLCPCB, PCBWay) reflect the pre-re-sync board — regenerate
-  after the PCB update above before ordering
+- PCB layout: routed, 4-layer board, 149.8 × 38.5 mm — schematic and PCB are in sync (all
+  references renumbered and re-synced in rev1.4, including the previously-orphaned 1-Wire
+  pull-up R4)
+- Revision: **1.4**
+- Gerbers in `gerber_to_order/` (JLCPCB, PCBWay) reflect the current board
 
 ## Overview
 
@@ -36,31 +34,31 @@ ESP32-S3-WROOM-1U-N16R2, with EN/BOOT reset circuit (buttons B1/B2, pull-ups R1/
 
 **Power**
 - F2: PTC resettable fuse on the incoming MDB-side supply
-- U8: AP63203QWU-7 buck converter, input 3.8V–32V, output 3.3V
+- U8: AP63201WU-7 buck converter, input 3.8V–32V, output 3.3V — **adjustable-output part** (rev1.4, replaces the fixed-output AP63203QWU-7), set by an external feedback divider: R23 (196kΩ, top) / R24 (62kΩ, bottom), with C19 (100pF) as feed-forward capacitor across R23
 - C6 (10µF input), C7 (100nF bootstrap), C8/C9 (2×22µF output), L1 (3.3µH inductor)
 - Switching loop (U8–L1–output) kept as compact as possible — primary EMI concern
 
 **USB-C — USBC1**
 USB 2.0 receptacle for programming/debug, with D6 Schottky diode against VBUS backfeed and R21/R22 CC pull-downs.
 
-**MDB interface — H7**
-2×3 connector. Galvanically isolated via U2/U3 (TLP785 optocouplers, DIP-4) on TX (GPIO4) and RX (GPIO5), with D2/D3 and associated pull-up/series resistors. F1 is the PTC resettable fuse on the incoming MDB-side supply.
+**MDB interface — H1**
+2×3 connector. Galvanically isolated via U5/U6 (TLP785 optocouplers, DIP-4) on TX (GPIO4) and RX (GPIO5), with D2/D3 and associated pull-up/series resistors. F1 is the PTC resettable fuse on the incoming MDB-side supply.
 
-**Relay outputs — P10, P11** *(rev1.3)*
-Two 15A-class SPDT relays (K2, K3 — SRD-03VDC-SL-C, 3V coil on the +3V3 rail), each output exposed as a 3-pin COM/NO/NC screw terminal. Each coil is driven low-side by an MMBT3904 transistor (Q2/Q3) with a 1N4148WS flyback diode (D4/D5), itself switched through a TLP785 optocoupler (U5/U4, SMD-4) for GPIO isolation:
-- P11: Relay #1 — K2 / Q2 / U5, driven from GPIO1
-- P10: Relay #2 — K3 / Q3 / U4, driven from GPIO2
+**Relay outputs — P8, P9** *(added rev1.3)*
+Two 15A-class SPDT relays (K2, K3 — SRD-03VDC-SL-C, 3V coil on the +3V3 rail), each output exposed as a 3-pin COM/NO/NC screw terminal. Each coil is driven low-side by an MMBT3904 transistor (Q2/Q3) with a 1N4148WS flyback diode (D4/D5), itself switched through a TLP785 optocoupler (U3/U4, SMD-4) for GPIO isolation:
+- P8: Relay #1 — K2 / Q2 / U3, driven from GPIO1
+- P9: Relay #2 — K3 / Q3 / U4, driven from GPIO2
 
 ⚠️ Known open point: with the current TLP785 pull-up/pull-down arrangement, drive logic is inverted (GPIO low, or floating at boot, = relay energized; GPIO high = relay de-energized). Confirm this matches firmware expectations, or flip the pull-up/pull-down before ordering if a fail-safe de-energized default is required.
 
-**1-Wire buses — P7, P8, P9**
+**1-Wire buses — P4, P5, P6**
 Two 1-Wire interfaces plus a spare/parallel header, each with a pull-up resistor:
-- P7: bus #1 (GPIO15)
-- P8: bus #2 (GPIO16)
-- P9: spare header on bus #1 (GPIO15)
+- P6: bus #1 (GPIO15)
+- P5: bus #2 (GPIO16)
+- P4: spare header on bus #1 (GPIO15)
 
-**Custom digital inputs — P4, P5, P6**
-Three screw-terminal inputs with pull-up resistors: P4 (GPIO6), P5 (GPIO17), P6 (GPIO18).
+**Custom digital inputs — P1, P2, P3**
+Three screw-terminal inputs with pull-up resistors: P1 (GPIO6), P2 (GPIO17), P3 (GPIO18).
 
 **I2C — J3**
 JST XH 1×4 connector with pull-ups, SCL on GPIO11, SDA on GPIO10.
@@ -72,8 +70,8 @@ JST XH 1×4 connector with pull-ups, SCL on GPIO11, SDA on GPIO10.
 **Other**
 - TH1: NTC thermistor input (GPIO7)
 - BUZZER1: buzzer, driven by GPIO12 through Q1
-- H1–H4: mounting holes
-- H8–H12: test/probe pads (added in rev1.3, e.g. H10 taps the WS2812B LED1 data-out, H11/H12 the buzzer driver)
+- H2–H5: mounting holes
+- H6–H10: test/probe pads (H8 taps the WS2812B LED1 data-out, H10 the buzzer driver)
 - GPIO3: reserved for firmware-based PCB/board detection
 
 ## Connectors summary
@@ -84,11 +82,11 @@ JST XH 1×4 connector with pull-ups, SCL on GPIO11, SDA on GPIO10.
 | J1 | UART debug | 1×6 pin header |
 | J2 | JTAG | 1×6 pin header |
 | J3 | I2C | 1×4 JST XH |
-| P4, P5, P6 | Custom digital inputs (×3) | 3-pin screw terminal, 5.08mm |
-| P7, P8, P9 | 1-Wire buses (bus #1, bus #2, bus #1 spare) | 3-pin screw terminal, 5.08mm |
-| P10 | Relay #2 output (COM/NO/NC) | 3-pin screw terminal, 5.08mm |
-| P11 | Relay #1 output (COM/NO/NC) | 3-pin screw terminal, 5.08mm |
-| H7 | MDB bus | 2×3 connector, isolated |
+| P1, P2, P3 | Custom digital inputs (×3) | 3-pin screw terminal, 5.08mm |
+| P4, P5, P6 | 1-Wire buses (bus #1 spare, bus #2, bus #1) | 3-pin screw terminal, 5.08mm |
+| P8 | Relay #1 output (COM/NO/NC) | 3-pin screw terminal, 5.08mm |
+| P9 | Relay #2 output (COM/NO/NC) | 3-pin screw terminal, 5.08mm |
+| H1 | MDB bus | 2×3 connector, isolated |
 
 ## Repository structure
 
@@ -96,7 +94,7 @@ JST XH 1×4 connector with pull-ups, SCL on GPIO11, SDA on GPIO10.
 mdb_slave_esp32s3-wroom-1u/
 ├── mdb_slave_esp32s3-wroom-1u.kicad_pro   KiCad project
 ├── mdb_slave_esp32s3-wroom-1u.kicad_sch   Schematic
-├── mdb_slave_esp32s3-wroom-1u.kicad_pcb   PCB layout (routed, rev 1.3)
+├── mdb_slave_esp32s3-wroom-1u.kicad_pcb   PCB layout (routed, rev 1.4)
 ├── gerber_to_order/                       Fabrication Gerbers per vendor (JLCPCB, PCBWay) — versioned
 └── production/                            BOM, CPL, netlist (generated locally, not versioned)
 ```
