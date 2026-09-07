@@ -1778,6 +1778,36 @@ void vTaskBitEvent(void *pvParameters) {
     }
 }
 
+/* Boot chime — WROOM-1U only (needs the LEDC/MLT-8530 tone path, see
+ * BUZZER_LEDC_* above). Three ascending notes kept close to the buzzer's
+ * 2700Hz resonance so all three stay reasonably audible (this transducer
+ * loses volume fast away from resonance, unlike a wideband speaker).
+ * Played once at boot, right after ledc_channel_config() in app_main() —
+ * before vTaskBitEvent exists, so it's driven directly rather than via
+ * BIT_EVT_BUZZER. Restores BUZZER_LEDC_FREQ_HZ afterwards so the normal
+ * credit-received beep is unaffected. */
+typedef struct { uint32_t freq_hz; uint32_t duration_ms; } buzzer_note_t;
+
+static const buzzer_note_t BOOT_CHIME[] = {
+    { 2200, 90 },
+    { 2700, 90 },
+    { 3200, 140 },
+};
+
+static void play_boot_chime(void) {
+    for (size_t i = 0; i < sizeof(BOOT_CHIME) / sizeof(BOOT_CHIME[0]); i++) {
+        ledc_set_freq(LEDC_LOW_SPEED_MODE, BUZZER_LEDC_TIMER, BOOT_CHIME[i].freq_hz);
+        ledc_set_duty(LEDC_LOW_SPEED_MODE, BUZZER_LEDC_CHANNEL, BUZZER_LEDC_DUTY_50PCT);
+        ledc_update_duty(LEDC_LOW_SPEED_MODE, BUZZER_LEDC_CHANNEL);
+        vTaskDelay(pdMS_TO_TICKS(BOOT_CHIME[i].duration_ms));
+        ledc_set_duty(LEDC_LOW_SPEED_MODE, BUZZER_LEDC_CHANNEL, 0);
+        ledc_update_duty(LEDC_LOW_SPEED_MODE, BUZZER_LEDC_CHANNEL);
+        vTaskDelay(pdMS_TO_TICKS(25));
+    }
+    // Restore the resonant frequency the BIT_EVT_BUZZER handler expects.
+    ledc_set_freq(LEDC_LOW_SPEED_MODE, BUZZER_LEDC_TIMER, BUZZER_LEDC_FREQ_HZ);
+}
+
 void ble_pax_event_handler(uint16_t devices_count){
 
     uint8_t payload[19];
@@ -3424,6 +3454,8 @@ void app_main(void) {
 			.hpoint     = 0,
 		};
 		ledc_channel_config(&buzzer_channel);
+
+		play_boot_chime();
 	}
 
 	//---------------- Strip LED configuration -----------------//
