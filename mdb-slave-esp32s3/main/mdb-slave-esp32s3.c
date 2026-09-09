@@ -167,6 +167,12 @@ static bool sntp_started = false;
 // floating on the original board, so there's no hardware there to drive.
 static bool g_board_is_wroom_1u = false;
 static bool ota_in_progress = false;
+
+// WROOM-1U I/O snapshot: current relay outputs + the last 1-Wire scan result,
+// published to /{company}/{device}/io on a timer and immediately on any
+// relay/custom-input change so the management UI can show + drive them.
+static uint8_t g_relay_state[2] = { 0, 0 };
+static void publish_io_snapshot(void);
 SemaphoreHandle_t mqtt_publish_mutex = NULL;
 static esp_timer_handle_t mqtt_watchdog_timer = NULL;
 static TickType_t mqtt_last_connected_tick = 0;
@@ -2132,6 +2138,10 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 		ESP_LOGI(TAG, "MQTT: publishing '%s' to '%s'", status_msg, topic_);
 		esp_mqtt_client_publish(mqttClient, topic_, status_msg, 0, 1, 1);
 
+		// Seed the management UI's I/O panel immediately (WROOM-1U only) —
+		// otherwise it stays blank until the first 60s sensor tick.
+		publish_io_snapshot();
+
         // Publish restart info once after first connect (if we have a reason to report)
         if (!restart_info_published && pending_restart_reason) {
             char restart_topic[128];
@@ -3183,6 +3193,10 @@ static void set_relay(uint8_t relay_num, bool on) {
     gpio_set_level(pin, on ? 1 : 0);
     ESP_LOGW(TAG, "Relay %u set to %s", relay_num, on ? "ON" : "OFF");
     debug_log_append(DEBUG_LOG_RELAY, relay_num, on ? 1 : 0, 0);
+    if (relay_num == 1 || relay_num == 2) {
+        g_relay_state[relay_num - 1] = on ? 1 : 0;
+        publish_io_snapshot();  // let the UI confirm the command took effect
+    }
 }
 
 //------------------- Custom digital inputs (J11/J13/J14) ------------------//
@@ -3263,6 +3277,7 @@ static void custom_input_task(void *arg) {
                          custom_inputs[i].channel, level, (unsigned long) prev_held_sec);
                 publish_custom_input_event(custom_inputs[i].channel, level, now, prev_held_sec);
                 debug_log_append(DEBUG_LOG_INPUT, custom_inputs[i].channel, (uint8_t)level, (int32_t)prev_held_sec);
+                publish_io_snapshot();  // refresh the UI's live input badges
             }
         }
         vTaskDelay(pdMS_TO_TICKS(CUSTOM_INPUT_POLL_MS));
@@ -3356,7 +3371,36 @@ static void pulse_input_task(void *arg) {
 #define ONEWIRE_LOG_DELTA_C 0.5f
 static float s_onewire_last_logged_c[2] = { NAN, NAN }; // indexed by bus_num-1
 
+// Latest full 1-Wire inventory, refreshed by each scan and serialised into the
+// /io snapshot. INT32_MIN in milli_c = device seen but no temperature reading
+// (non-DS18B20 family, or a failed read).
+#define IO_MAX_SENSORS 8
+typedef struct {
+    uint8_t  bus;
+    uint8_t  family;
+    uint64_t rom;
+    int32_t  milli_c;
+} io_sensor_t;
+static io_sensor_t g_io_sensors[IO_MAX_SENSORS];
+static uint8_t     g_io_sensor_count = 0;
+
+static void io_sensor_record(uint8_t bus, uint8_t family, uint64_t rom, int32_t milli_c) {
+    for (uint8_t i = 0; i < g_io_sensor_count; i++) {
+        if (g_io_sensors[i].rom == rom) {   // already listed this scan — update in place
+            g_io_sensors[i].bus = bus;
+            g_io_sensors[i].family = family;
+            g_io_sensors[i].milli_c = milli_c;
+            return;
+        }
+    }
+    if (g_io_sensor_count < IO_MAX_SENSORS) {
+        g_io_sensors[g_io_sensor_count++] = (io_sensor_t){ bus, family, rom, milli_c };
+    }
+}
+
 static void onewire_bus_scan_and_read(gpio_num_t pin, uint8_t bus_num, bool periodic_track) {
+    if (bus_num == 1) g_io_sensor_count = 0;  // start of a fresh scan pass
+
     onewire_bus_config_t bus_config = { .bus_gpio_num = pin };
     onewire_bus_rmt_config_t rmt_config = { .max_rx_bytes = 10 };
     onewire_bus_handle_t bus;
@@ -3392,6 +3436,7 @@ static void onewire_bus_scan_and_read(gpio_num_t pin, uint8_t bus_num, bool peri
                 if (ds18b20_get_temperature(ds18b20, &temp_c) == ESP_OK) {
                     ESP_LOGI(TAG, "1-Wire bus %u: DS18B20 %016llX = %.2f C",
                              bus_num, (unsigned long long) device.address, temp_c);
+                    io_sensor_record(bus_num, family_code, device.address, (int32_t)(temp_c * 1000));
 
                     if (periodic_track) {
                         float *last = &s_onewire_last_logged_c[bus_num - 1];
@@ -3403,6 +3448,7 @@ static void onewire_bus_scan_and_read(gpio_num_t pin, uint8_t bus_num, bool peri
                 } else {
                     ESP_LOGW(TAG, "1-Wire bus %u: DS18B20 %016llX read failed",
                               bus_num, (unsigned long long) device.address);
+                    io_sensor_record(bus_num, family_code, device.address, INT32_MIN);
                 }
                 ds18b20_del_device(ds18b20);
             } else {
@@ -3412,6 +3458,7 @@ static void onewire_bus_scan_and_read(gpio_num_t pin, uint8_t bus_num, bool peri
         } else {
             ESP_LOGI(TAG, "1-Wire bus %u: device %016llX (family 0x%02X) — no driver for this family yet",
                      bus_num, (unsigned long long) device.address, family_code);
+            io_sensor_record(bus_num, family_code, device.address, INT32_MIN);
         }
     }
     onewire_del_device_iter(iter);
@@ -3421,6 +3468,38 @@ static void onewire_bus_scan_and_read(gpio_num_t pin, uint8_t bus_num, bool peri
     }
 
     onewire_bus_del(bus);
+}
+
+// WROOM-1U I/O snapshot -> /{company}/{device}/io. Published on a timer and
+// immediately after any relay/custom-input change. Consumed by mqtt-webhook,
+// which upserts device_sensors and writes embeddeds.io_state for the
+// management UI's "Santé de l'appareil" panel.
+static void publish_io_snapshot(void) {
+    if (!g_board_is_wroom_1u || !mqttClient || !mqtt_started) return;
+
+    char topic[128];
+    snprintf(topic, sizeof(topic), "/%s/%s/io", my_company_id, my_device_id);
+
+    char msg[512];
+    int n = snprintf(msg, sizeof(msg),
+        "{\"relays\":[%u,%u],\"inputs\":[%d,%d,%d],\"sensors\":[",
+        g_relay_state[0], g_relay_state[1],
+        custom_inputs[0].last_level, custom_inputs[1].last_level, custom_inputs[2].last_level);
+
+    for (uint8_t i = 0; i < g_io_sensor_count && n > 0 && n < (int)sizeof(msg); i++) {
+        const io_sensor_t *s = &g_io_sensors[i];
+        n += (s->milli_c == INT32_MIN)
+            ? snprintf(msg + n, sizeof(msg) - n,
+                "%s{\"bus\":%u,\"rom\":\"%016llX\",\"fam\":%u,\"c\":null}",
+                i ? "," : "", s->bus, (unsigned long long) s->rom, s->family)
+            : snprintf(msg + n, sizeof(msg) - n,
+                "%s{\"bus\":%u,\"rom\":\"%016llX\",\"fam\":%u,\"c\":%ld}",
+                i ? "," : "", s->bus, (unsigned long long) s->rom, s->family, (long) s->milli_c);
+    }
+    if (n > 0 && n < (int)sizeof(msg))
+        snprintf(msg + n, sizeof(msg) - n, "]}");
+
+    mqtt_publish_safe(mqttClient, topic, msg, 0, 1, 0);
 }
 
 //------------------------ NTC thermistor + periodic tracking --------------//
@@ -3463,10 +3542,11 @@ static bool ntc_read_celsius(float *out_celsius) {
     return true;
 }
 
-// esp_timer periodic callback (5 min). Re-reads the onboard NTC (both
-// board variants) and, on WROOM-1U only, the 1-Wire buses — each gated by
-// its own >=0.5C delta filter so a stable temperature doesn't fill the
-// debug log with near-duplicate readings.
+// esp_timer periodic callback. Re-reads the onboard NTC (both board variants)
+// and, on WROOM-1U only, the 1-Wire buses + publishes the /io snapshot. The
+// debug_log writes are still gated by a >=0.5C delta filter so a stable
+// temperature doesn't fill the ring with near-duplicate readings; the /io
+// snapshot is sent every tick regardless (small, QoS1, UI wants it fresh).
 static void periodic_sensor_timer_cb(void *arg) {
     float temp_c;
     if (ntc_read_celsius(&temp_c)) {
@@ -3479,6 +3559,7 @@ static void periodic_sensor_timer_cb(void *arg) {
     if (g_board_is_wroom_1u) {
         onewire_bus_scan_and_read(PIN_ONEWIRE_1, 1, true);
         onewire_bus_scan_and_read(PIN_ONEWIRE_2, 2, true);
+        publish_io_snapshot();  // relays + inputs + fresh 1-Wire inventory
     }
 }
 
@@ -3677,7 +3758,7 @@ void app_main(void) {
 		};
 		esp_timer_handle_t sensor_timer;
 		esp_timer_create(&sensor_timer_args, &sensor_timer);
-		esp_timer_start_periodic(sensor_timer, 5ULL * 60 * 1000000); // 5min
+		esp_timer_start_periodic(sensor_timer, 60ULL * 1000000); // 60s — drives the /io snapshot cadence
 	}
 	//
 	esp_netif_init();
