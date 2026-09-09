@@ -305,13 +305,36 @@
   };
 
   /* Called from the "Réinitialiser cet appareil" button in viewClaimed.
-   * Wipes all provisioning + WiFi state on the device and reboots it.
-   * No response handling — the ESP32 reboots ~800 ms after replying. */
+   * Two-step inline confirm (window.confirm() is suppressed inside most
+   * OS captive-portal webviews): first click arms, second click within
+   * 6 s fires. Wipes all provisioning + WiFi state on the device and
+   * reboots it. No response handling — the ESP32 reboots ~800 ms after
+   * replying, which tears down this connection. */
+  var resetArmed = false;
+  var resetArmTimer = 0;
   window.resetDevice = function () {
-    if (!confirm("Effacer tous les réglages (enregistrement serveur, WiFi, APN) et redémarrer l'appareil ?")) return;
     var b = el("reset_btn");
-    if (b) { b.disabled = true; b.textContent = "Réinitialisation…"; }
     var p = el("reset_progress");
+
+    if (!resetArmed) {
+      resetArmed = true;
+      if (b) b.textContent = "Confirmer : tout effacer et redémarrer";
+      if (p) {
+        p.style.display = "";
+        p.textContent = "Touche à nouveau le bouton pour confirmer (annulation dans 6 s).";
+      }
+      clearTimeout(resetArmTimer);
+      resetArmTimer = setTimeout(function () {
+        resetArmed = false;
+        if (b) b.textContent = "Réinitialiser cet appareil";
+        if (p) p.style.display = "none";
+      }, 6000);
+      return;
+    }
+
+    clearTimeout(resetArmTimer);
+    resetArmed = false;
+    if (b) { b.disabled = true; b.textContent = "Réinitialisation…"; }
     if (p) {
       p.style.display = "";
       p.textContent =
@@ -443,7 +466,7 @@
         '</div>' +
         '<div id="claimed_diag" style="margin-top:18px;text-align:left"></div>' +
         '<button type="button" id="diag_copy" class="ghost" style="margin-top:10px">Copy diagnostics</button>' +
-        '<button type="button" id="reset_btn" class="ghost" ' +
+        '<button type="button" id="reset_btn" class="ghost" onclick="resetDevice()" ' +
                 'style="margin-top:10px;color:#F87171;border-color:#7F1D1D">' +
           'Réinitialiser cet appareil' +
         '</button>' +
@@ -872,8 +895,6 @@
         break;
       case "claimed":
         view.innerHTML = viewClaimed();
-        var rb = el("reset_btn");
-        if (rb) rb.onclick = window.resetDevice;
         break;
     }
   }
