@@ -5,6 +5,8 @@ import { mqttPublish } from '../_shared/mqtt-publish.ts'
 const CMD_RESTART = 0x30
 const CMD_MDB_ADDRESS = 0x31
 const CMD_MDB_RESET = 0x32
+const CMD_RELAY_1 = 0x33   // WROOM-1U only — param 1 = energize, 0 = release
+const CMD_RELAY_2 = 0x34
 
 /**
  * Build a 19-byte XOR-encrypted config payload.
@@ -77,6 +79,25 @@ Deno.serve(async (req) => {
     // MDB soft reset — device announces "Just Reset" on next POLL, VMC re-runs SETUP
     if (config.mdb_reset === true) {
       configActions.push({ cmd: CMD_MDB_RESET, param: 0, label: 'mdb_reset' })
+    }
+
+    // WROOM-1U relays — no DB update; the device echoes the resulting state
+    // back on the /io topic. Ignored with a warning on the original board.
+    if (config.relay_1 !== undefined) {
+      if (typeof config.relay_1 !== 'boolean') {
+        return new Response(JSON.stringify({ error: 'relay_1 must be a boolean' }), {
+          status: 400, headers: { 'Content-Type': 'application/json' },
+        })
+      }
+      configActions.push({ cmd: CMD_RELAY_1, param: config.relay_1 ? 1 : 0, label: 'relay_1' })
+    }
+    if (config.relay_2 !== undefined) {
+      if (typeof config.relay_2 !== 'boolean') {
+        return new Response(JSON.stringify({ error: 'relay_2 must be a boolean' }), {
+          status: 400, headers: { 'Content-Type': 'application/json' },
+        })
+      }
+      configActions.push({ cmd: CMD_RELAY_2, param: config.relay_2 ? 1 : 0, label: 'relay_2' })
     }
 
     if (configActions.length === 0) {
@@ -171,7 +192,7 @@ Deno.serve(async (req) => {
 
     // ── Activity log (best-effort) ──────────────────────────────────────────
     const configSummary = Object.fromEntries(
-      configActions.map(a => [a.label, a.param || true])
+      configActions.map(a => [a.label, a.label.startsWith('relay_') ? a.param === 1 : (a.param || true)])
     )
     try {
       await adminClient.from('activity_log').insert({

@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge'
 import { useInsights, sortedRecommendations, priorityVariant, recommendationTypeLabel } from '@/composables/useInsights'
 import { suppressedReasonParts, buildSalesFeedDays } from '~/composables/useSuppressedSales'
 import { useDeviceRestarts, reasonLabel, reasonVariant, formatUptime } from '@/composables/useDeviceRestarts'
+import { useDeviceSensors, sensorFamilyLabel, formatRom } from '@/composables/useDeviceSensors'
 import { timeAgo, formatCurrency, formatDate, formatTime, formatDateTime } from '@/lib/utils'
 import MachineSettingsModal from '~/components/MachineSettingsModal.vue'
 import MachineAnalysisPanel from '~/components/analysis/MachineAnalysisPanel.vue'
@@ -40,6 +41,7 @@ const { fetchUnassignedEmbeddeds, swapDevice } = useMachines()
 const { logs: mdbLogs, loading: mdbLogsLoading, hasMore: mdbHasMore, fetchLogs: fetchMdbLogs, fetchMore: fetchMoreMdbLogs, subscribe: subscribeMdbLog, stateLabel, stateVariant } = useMdbLog()
 const { entries: stockHistoryEntries, loading: stockHistoryLoading, fetchHistory: fetchStockHistory, reset: resetStockHistory } = useStockHistory()
 const { restarts, loading: restartsLoading, hasMore: restartsHasMore, fetchRestarts, fetchMore: fetchMoreRestarts, subscribe: subscribeRestarts } = useDeviceRestarts()
+const { sensors: deviceSensors, fetchSensors, updateSensorName, subscribe: subscribeSensors } = useDeviceSensors()
 const { rows: suppressedRows, loading: suppressedLoading, hasMore: suppressedHasMore, fetchRows: fetchSuppressed, fetchMore: fetchMoreSuppressed, restore: restoreSuppressed } = useSuppressedSales()
 const { onResume } = useAppResume()
 
@@ -196,7 +198,7 @@ const errorMsg = ref('')
 async function fetchMachine() {
   const { data, error } = await supabase
     .from('vendingMachine')
-    .select('id, name, location_lat, location_lon, embedded, country_code, public_listing, address_street, address_house_number, address_postal_code, address_city, formatted_address, nayax_machine_id, embeddeds(id, status, status_at, subdomain, mac_address, firmware_version, firmware_build_date, mdb_address, mdb_diagnostics, last_restart_reason, last_restart_at, online_since, softap_password)')
+    .select('id, name, location_lat, location_lon, embedded, country_code, public_listing, address_street, address_house_number, address_postal_code, address_city, formatted_address, nayax_machine_id, embeddeds(id, status, status_at, subdomain, mac_address, firmware_version, firmware_build_date, mdb_address, mdb_diagnostics, last_restart_reason, last_restart_at, online_since, softap_password, io_state)')
     .eq('id', route.params.id)
     .single()
   if (error) {
@@ -295,6 +297,9 @@ onMounted(async () => {
               if (payload.new.mdb_diagnostics !== undefined) {
                 machine.value.embeddeds.mdb_diagnostics = payload.new.mdb_diagnostics
               }
+              if (payload.new.io_state !== undefined) {
+                machine.value.embeddeds.io_state = payload.new.io_state
+              }
             }
           }
         )
@@ -306,6 +311,11 @@ onMounted(async () => {
       fetchMdbLogs(machine.value?.embeddeds.id)
       const unsubMdbLog = subscribeMdbLog(machine.value?.embeddeds.id)
       onUnmounted(unsubMdbLog)
+
+      // WROOM-1U I/O panel: 1-Wire sensors + relay/input state
+      fetchSensors(machine.value.embeddeds.id)
+      const unsubSensors = subscribeSensors(machine.value.embeddeds.id)
+      onUnmounted(unsubSensors)
 
       // Fetch suppressed (brownout dedup) sales audit rows
       fetchSuppressed(machine.value?.embeddeds.id)
@@ -637,6 +647,56 @@ async function setMdbAddress(address: 1 | 2) {
     mdbAddressError.value = err instanceof Error ? err.message : t('machineDetail.failedToUpdateMdb')
   } finally {
     mdbAddressLoading.value = false
+  }
+}
+
+// ── WROOM-1U I/O panel ─────────────────────────────────────────────────────
+const relayLoading = ref<[boolean, boolean]>([false, false])
+const relayError = ref('')
+
+const relayStates = computed<[number, number]>(() => {
+  const r = (machine.value?.embeddeds?.io_state as any)?.relays
+  return [Array.isArray(r) ? (r[0] ?? 0) : 0, Array.isArray(r) ? (r[1] ?? 0) : 0]
+})
+const inputStates = computed<number[]>(() => {
+  const i = (machine.value?.embeddeds?.io_state as any)?.inputs
+  return Array.isArray(i) ? i : []
+})
+const ioUpdatedAt = computed<string | null>(() => (machine.value?.embeddeds?.io_state as any)?.updated_at ?? null)
+const hasIoPanel = computed(() => !!(machine.value?.embeddeds?.io_state) || deviceSensors.value.length > 0)
+
+async function toggleRelay(relayNum: 1 | 2, on: boolean) {
+  if (!machine.value?.embeddeds?.id) return
+  relayError.value = ''
+  relayLoading.value[relayNum - 1] = true
+  try {
+    const session = useSupabaseSession()
+    const token = session.value?.access_token
+    if (!token) throw new Error('Not authenticated')
+
+    await $fetch('/functions/v1/send-device-config', {
+      baseURL: useRuntimeConfig().public.supabase.url,
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: { device_id: machine.value.embeddeds.id, config: { [`relay_${relayNum}`]: on } },
+    })
+
+    // Optimistic — the device confirms via the next /io snapshot.
+    const io = ((machine.value.embeddeds as any).io_state ??= { relays: [0, 0], inputs: [] })
+    if (!Array.isArray(io.relays)) io.relays = [0, 0]
+    io.relays[relayNum - 1] = on ? 1 : 0
+  } catch (err: unknown) {
+    relayError.value = err instanceof Error ? err.message : t('machineDetail.toggleRelayFailed')
+  } finally {
+    relayLoading.value[relayNum - 1] = false
+  }
+}
+
+async function renameSensor(id: string, name: string) {
+  try {
+    await updateSensorName(id, name)
+  } catch {
+    relayError.value = t('machineDetail.toggleRelayFailed')
   }
 }
 
@@ -2296,6 +2356,84 @@ async function handleAddSale() {
                   </button>
                 </div>
               </div>
+
+              <!-- ── WROOM-1U I/O panel ─────────────────────────────────── -->
+              <template v-if="hasIoPanel">
+                <!-- Relays -->
+                <div class="rounded-xl border bg-card p-4 sm:p-6">
+                  <h2 class="mb-3 text-sm font-medium">{{ t('machineDetail.relays') }}</h2>
+                  <div class="space-y-2">
+                    <div v-for="n in 2" :key="n" class="flex items-center justify-between rounded-lg border px-3 py-2">
+                      <div class="flex items-center gap-2.5">
+                        <span
+                          class="inline-block h-2.5 w-2.5 rounded-full"
+                          :class="relayStates[n - 1] ? 'bg-green-500' : 'bg-muted-foreground/40'"
+                        />
+                        <span class="text-sm">{{ t('machineDetail.relay') }} {{ n }}</span>
+                        <Badge :variant="relayStates[n - 1] ? 'default' : 'outline'">
+                          {{ relayStates[n - 1] ? t('machineDetail.relayOn') : t('machineDetail.relayOff') }}
+                        </Badge>
+                      </div>
+                      <button
+                        v-if="isAdmin"
+                        class="rounded-md border px-3 py-1 text-xs font-medium hover:bg-muted transition-colors disabled:opacity-50"
+                        :disabled="relayLoading[n - 1]"
+                        @click="toggleRelay(n as 1 | 2, !relayStates[n - 1])"
+                      >
+                        {{ relayLoading[n - 1] ? t('common.loading') : (relayStates[n - 1] ? t('machineDetail.relayOff') : t('machineDetail.relayOn')) }}
+                      </button>
+                    </div>
+                  </div>
+                  <p v-if="relayError" class="mt-2 text-xs text-red-500">{{ relayError }}</p>
+                  <p v-if="ioUpdatedAt" class="mt-2 text-xs text-muted-foreground">
+                    {{ t('machineDetail.sensorLastSeen') }} {{ timeAgo(ioUpdatedAt) }}
+                  </p>
+                </div>
+
+                <!-- 1-Wire sensors -->
+                <div class="rounded-xl border bg-card p-4 sm:p-6">
+                  <h2 class="mb-3 text-sm font-medium">{{ t('machineDetail.oneWireSensors') }}</h2>
+                  <div v-if="deviceSensors.length === 0" class="text-sm text-muted-foreground">
+                    {{ t('machineDetail.noSensors') }}
+                  </div>
+                  <div v-else class="divide-y rounded-lg border">
+                    <div v-for="s in deviceSensors" :key="s.id" class="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-3 py-2.5">
+                      <div class="flex min-w-0 flex-1 flex-col">
+                        <input
+                          :value="s.name ?? ''"
+                          :placeholder="t('machineDetail.assignName')"
+                          :disabled="!isAdmin"
+                          class="w-full rounded border-none bg-transparent p-0 text-sm font-medium placeholder:font-normal placeholder:text-muted-foreground focus:outline-none focus:ring-0"
+                          @change="renameSensor(s.id, ($event.target as HTMLInputElement).value)"
+                          @keydown.enter="($event.target as HTMLInputElement).blur()"
+                        />
+                        <span class="font-mono text-[11px] text-muted-foreground">{{ formatRom(s.rom) }}</span>
+                      </div>
+                      <Badge variant="outline">{{ sensorFamilyLabel(s.family) }}</Badge>
+                      <span class="text-xs text-muted-foreground">{{ t('machineDetail.busShort') }}{{ s.bus }}</span>
+                      <span class="w-16 text-right text-sm font-semibold tabular-nums">
+                        {{ s.last_celsius != null ? `${s.last_celsius.toFixed(1)}°C` : '—' }}
+                      </span>
+                      <span v-if="s.last_seen" class="w-full text-[11px] text-muted-foreground sm:w-auto">
+                        {{ t('machineDetail.sensorLastSeen') }} {{ timeAgo(s.last_seen) }}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Custom inputs -->
+                <div v-if="inputStates.length > 0" class="rounded-xl border bg-card p-4 sm:p-6">
+                  <h2 class="mb-3 text-sm font-medium">{{ t('machineDetail.customInputs') }}</h2>
+                  <div class="flex flex-wrap gap-2">
+                    <div v-for="(lvl, i) in inputStates" :key="i" class="flex items-center gap-2 rounded-lg border px-3 py-2">
+                      <span class="text-sm">{{ i + 1 }}</span>
+                      <Badge :variant="lvl ? 'outline' : 'default'">
+                        {{ lvl ? t('machineDetail.high') : t('machineDetail.low') }}
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+              </template>
             </TabsContent>
 
           </Tabs>

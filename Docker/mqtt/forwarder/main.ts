@@ -22,6 +22,7 @@ const topics = [
   "/+/+/mdb-log",
   "/+/+/restart",
   "/+/+/dex",
+  "/+/+/io",
 ];
 
 // Topic prefixes that we deliberately drop without forwarding.

@@ -71,7 +71,7 @@ Deno.serve(async (req) => {
     const { topic, payload: payloadB64 } = body;
 
     // Parse topic: /{company_id}/{device_id}/{event_type}
-    const match = topic.match(/^\/([^/]+)\/([^/]+)\/(sale|status|paxcounter|mdb-log|restart|dex)$/);
+    const match = topic.match(/^\/([^/]+)\/([^/]+)\/(sale|status|paxcounter|mdb-log|restart|dex|io)$/);
     if (!match) {
       return new Response(JSON.stringify({ error: 'invalid topic' }), { status: 400 });
     }
@@ -171,6 +171,80 @@ Deno.serve(async (req) => {
 
       if (error) throw error;
       return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    }
+
+    // WROOM-1U I/O snapshot: plain JSON, no encryption
+    // Payload: {"relays":[0,1],"inputs":[1,0,1],
+    //           "sensors":[{"bus":1,"rom":"F2000000CA146228","fam":40,"c":22875}]}
+    // `c` is milli-degrees C, or null when the device has no reading.
+    if (eventType === 'io') {
+      const ioBytes = decodeBase64(payloadB64);
+      let io: Record<string, unknown>;
+      try {
+        io = JSON.parse(new TextDecoder().decode(ioBytes));
+      } catch {
+        return new Response(JSON.stringify({ error: 'invalid JSON in io payload' }), {
+          status: 400, headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
+      const { data: deviceRow } = await adminClient
+        .from('embeddeds')
+        .select('id, status')
+        .eq('id', deviceId)
+        .maybeSingle();
+      if (!deviceRow) {
+        return new Response(JSON.stringify({ error: 'device not found' }), {
+          status: 404, headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
+      const nowIso = new Date().toISOString();
+
+      const ioUpdate: Record<string, unknown> = {
+        io_state: {
+          relays: Array.isArray(io.relays) ? io.relays : [],
+          inputs: Array.isArray(io.inputs) ? io.inputs : [],
+          updated_at: nowIso,
+        },
+        status_at: nowIso,
+      };
+      if (deviceRow.status !== 'online') {
+        ioUpdate.status = 'online';
+        ioUpdate.online_since = nowIso;
+      }
+
+      const { error: ioErr } = await adminClient
+        .from('embeddeds')
+        .update(ioUpdate)
+        .eq('id', deviceId);
+      if (ioErr) throw ioErr;
+
+      // Upsert each discovered 1-Wire sensor. `name` is intentionally absent
+      // from the payload so ON CONFLICT never overwrites the user's label.
+      const sensors = Array.isArray(io.sensors) ? io.sensors : [];
+      if (sensors.length > 0) {
+        const rows = sensors
+          .filter((s: any) => s && typeof s.rom === 'string')
+          .map((s: any) => ({
+            embedded_id: deviceId,
+            bus: Number(s.bus) || 0,
+            rom: String(s.rom),
+            family: Number(s.fam) || 0,
+            last_celsius: (s.c === null || s.c === undefined) ? null : Number(s.c) / 1000,
+            last_seen: nowIso,
+          }));
+        if (rows.length > 0) {
+          const { error: sErr } = await adminClient
+            .from('device_sensors')
+            .upsert(rows, { onConflict: 'embedded_id,rom' });
+          if (sErr) throw sErr;
+        }
+      }
+
+      return new Response(JSON.stringify({ ok: true, sensors: sensors.length }), {
+        status: 200, headers: { 'Content-Type': 'application/json' },
+      });
     }
 
     // MDB diagnostics: plain JSON, no encryption
