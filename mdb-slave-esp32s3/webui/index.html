@@ -304,6 +304,23 @@
       });
   };
 
+  /* Called from the "Réinitialiser cet appareil" button in viewClaimed.
+   * Wipes all provisioning + WiFi state on the device and reboots it.
+   * No response handling — the ESP32 reboots ~800 ms after replying. */
+  window.resetDevice = function () {
+    if (!confirm("Effacer tous les réglages (enregistrement serveur, WiFi, APN) et redémarrer l'appareil ?")) return;
+    var b = el("reset_btn");
+    if (b) { b.disabled = true; b.textContent = "Réinitialisation…"; }
+    var p = el("reset_progress");
+    if (p) {
+      p.style.display = "";
+      p.textContent =
+        "L'appareil efface sa configuration et redémarre. Le Wi-Fi va se couper — " +
+        "reconnecte-toi au réseau VMflow-XXXX (ouvert) dans une quinzaine de secondes.";
+    }
+    postJson("/api/v1/system/reset", {}).catch(function () {});
+  };
+
   function viewCellularConfig() {
     return (
       '<div class="panel" id="form_cell">' +
@@ -426,6 +443,11 @@
         '</div>' +
         '<div id="claimed_diag" style="margin-top:18px;text-align:left"></div>' +
         '<button type="button" id="diag_copy" class="ghost" style="margin-top:10px">Copy diagnostics</button>' +
+        '<button type="button" id="reset_btn" class="ghost" ' +
+                'style="margin-top:10px;color:#F87171;border-color:#7F1D1D">' +
+          'Réinitialiser cet appareil' +
+        '</button>' +
+        '<div class="info-banner" id="reset_progress" style="display:none;margin-top:10px"></div>' +
       '</div>'
     );
   }
@@ -850,6 +872,8 @@
         break;
       case "claimed":
         view.innerHTML = viewClaimed();
+        var rb = el("reset_btn");
+        if (rb) rb.onclick = window.resetDevice;
         break;
     }
   }

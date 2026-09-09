@@ -6,6 +6,7 @@
 #include "esp_http_server.h"
 #include "esp_timer.h"
 #include "esp_app_desc.h"
+#include "esp_system.h"
 #include "nvs_flash.h"
 #include "cJSON.h"
 #include <esp_log.h>
@@ -268,6 +269,29 @@ static esp_err_t skip_probe_handler(httpd_req_t *req) {
     return send_ok(req);
 }
 
+/* Deferred wipe: give the {"ok":true} response ~800 ms to leave the
+ * socket, then erase all NVS + WiFi state and reboot. Mirrors the
+ * BOOT-button factory_reset_task in mdb-slave-esp32s3.c. */
+static void deferred_factory_reset_task(void *arg) {
+    (void)arg;
+    vTaskDelay(pdMS_TO_TICKS(800));
+    ESP_LOGW(TAG, "PORTAL RESET: erasing NVS and restarting");
+    nvs_flash_erase();
+    esp_wifi_restore();
+    vTaskDelay(pdMS_TO_TICKS(200));
+    esp_restart();
+}
+
+/* POST /api/v1/system/reset — wipe all provisioning + WiFi state and
+ * reboot. The device comes back unclaimed with an open SoftAP, exactly
+ * as if the BOOT button had been held for 5 s. Used from the captive
+ * portal's "Setup complete" view to decommission a device without
+ * physical access. */
+static esp_err_t system_reset_handler(httpd_req_t *req) {
+    xTaskCreate(deferred_factory_reset_task, "portal_rst", 4096, NULL, 5, NULL);
+    return send_ok(req);
+}
+
 /* POST /api/v1/cellular/configure  body: {apn, pin, lte_mode}
  *   apn: required string
  *   pin: optional string (empty = no PIN)
@@ -525,9 +549,9 @@ void start_rest_server(void) {
     if (rest_server != NULL) return;
 
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-    /* Allow more handler slots than the default 8 — we register seven
+    /* Allow more handler slots than the default 8 — we register eight
      * exact API URIs plus a clutch of captive-portal probe paths. */
-    config.max_uri_handlers = 16;
+    config.max_uri_handlers = 18;
     httpd_start(&rest_server, &config);
 
     static const httpd_uri_t uris[] = {
@@ -538,6 +562,7 @@ void start_rest_server(void) {
         { .uri = "/api/v1/cellular/configure", .method = HTTP_POST, .handler = cellular_configure_handler },
         { .uri = "/api/v1/wifi/configure",     .method = HTTP_POST, .handler = wifi_configure_handler     },
         { .uri = "/api/v1/claim",              .method = HTTP_POST, .handler = claim_handler              },
+        { .uri = "/api/v1/system/reset",       .method = HTTP_POST, .handler = system_reset_handler       },
 
         /* OS captive-portal probe paths.
          *
