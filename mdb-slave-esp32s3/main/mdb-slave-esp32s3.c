@@ -98,10 +98,11 @@
 #define PIN_CUSTOM_INPUT2       GPIO_NUM_17
 #define PIN_CUSTOM_INPUT3       GPIO_NUM_18
 
-/* Relay outputs (J2/J3 on the WROOM-1U board). These drive an external
- * relay module's 3.3V control input — the ESP32 supplies no switched
- * power itself. A relay module rated for the actual load (up to 220VAC)
- * sits between this pin and whatever gets switched. */
+/* Relay outputs (J2/J3 on the WROOM-1U board). The relay driver stage is
+ * populated on the PCB itself and is wired ACTIVE-LOW: GPIO HIGH = relay
+ * OFF (coil de-energised), GPIO LOW = relay ON. Do not "correct" this back
+ * to active-high — it matches how the board is physically built. The relay
+ * contacts are rated for the actual load (up to 220VAC). */
 #define PIN_RELAY_1             GPIO_NUM_1
 #define PIN_RELAY_2             GPIO_NUM_2
 
@@ -3174,23 +3175,32 @@ static bool detect_board_variant(void) {
 // drive unconditionally on this board but must never be touched on the
 // original board (no relay hardware there to receive the signal).
 static void relay_init(void) {
+    // Active-low wiring (see PIN_RELAY_1/2): HIGH = OFF, LOW = ON. Latch the
+    // output register HIGH *before* switching the pins to output so bring-up
+    // never produces a low pulse that would briefly close a relay; keep the
+    // internal pull-up so the pin also reads OFF during the window where it
+    // is still an input (ROM bootloader -> app_main).
+    gpio_set_level(PIN_RELAY_1, 1);
+    gpio_set_level(PIN_RELAY_2, 1);
     gpio_config_t relay_cfg = {
         .pin_bit_mask = (1ULL << PIN_RELAY_1) | (1ULL << PIN_RELAY_2),
         .mode         = GPIO_MODE_OUTPUT,
-        .pull_up_en   = GPIO_PULLUP_DISABLE,
+        .pull_up_en   = GPIO_PULLUP_ENABLE,
         .pull_down_en = GPIO_PULLDOWN_DISABLE,
         .intr_type    = GPIO_INTR_DISABLE,
     };
     gpio_config(&relay_cfg);
-    gpio_set_level(PIN_RELAY_1, 0);
-    gpio_set_level(PIN_RELAY_2, 0);
-    ESP_LOGI(TAG, "Relay outputs initialised (both OFF)");
+    gpio_set_level(PIN_RELAY_1, 1);
+    gpio_set_level(PIN_RELAY_2, 1);
+    ESP_LOGI(TAG, "Relay outputs initialised (both OFF, active-low wiring)");
 }
 
 // relay_num: 1 or 2. on: true = energize the relay coil.
+// Wiring is active-low (HIGH = OFF, LOW = ON); g_relay_state[] below still
+// tracks the logical state so /io and debug_log stay polarity-agnostic.
 static void set_relay(uint8_t relay_num, bool on) {
     gpio_num_t pin = (relay_num == 1) ? PIN_RELAY_1 : PIN_RELAY_2;
-    gpio_set_level(pin, on ? 1 : 0);
+    gpio_set_level(pin, on ? 0 : 1);
     ESP_LOGW(TAG, "Relay %u set to %s", relay_num, on ? "ON" : "OFF");
     debug_log_append(DEBUG_LOG_RELAY, relay_num, on ? 1 : 0, 0);
     if (relay_num == 1 || relay_num == 2) {
