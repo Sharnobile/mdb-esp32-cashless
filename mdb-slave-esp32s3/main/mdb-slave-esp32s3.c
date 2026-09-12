@@ -3578,6 +3578,14 @@ void app_main(void) {
     bool board_is_wroom_1u = detect_board_variant();
     g_board_is_wroom_1u = board_is_wroom_1u;
 
+    // Force the relay outputs safe (OFF) as close to reset as firmware can
+    // get, before the boot chime / LED strip / ADC init below add ~400ms of
+    // GPIO1/2 floating with nothing driving or pulling them. Split out from
+    // the rest of the WROOM-1U block further down on purpose — everything
+    // else there (custom inputs, 1-Wire scan) is fine to wait.
+    if (board_is_wroom_1u) {
+        relay_init();
+    }
 
     /* Silence the chatty IDF subsystems that drown out our own logs.
      * These tags were emitting D-level lines several times per second
@@ -3686,10 +3694,9 @@ void app_main(void) {
 	// All three are unwired on the original board (GPIO1/2/6/15/16/17/18
 	// are unused there) — only touch them when detect_board_variant()
 	// found the WROOM-1U pull-down, same gating as the DEX/UART1 block
-	// below.
+	// below. relay_init() itself already ran at the very top of app_main()
+	// (see above) — it doesn't wait for this block.
 	if (board_is_wroom_1u) {
-		relay_init();
-
 		xTaskCreate(custom_input_task, "custom_input", 4096, NULL, 5, NULL);
 
 		onewire_bus_scan_and_read(PIN_ONEWIRE_1, 1, false);
