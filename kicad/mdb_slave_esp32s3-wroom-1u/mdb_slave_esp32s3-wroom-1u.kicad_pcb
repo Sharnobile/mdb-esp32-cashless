@@ -15513,7 +15513,7 @@
 				)
 			)
 		)
-		(property "Value" "10KΩ"
+		(property "Value" "1KΩ"
 			(at 0 1.43 0)
 			(layer "F.Fab")
 			(uuid "fb0936a7-80de-4794-b71b-c6127675fd4a")
@@ -15536,7 +15536,7 @@
 				)
 			)
 		)
-		(property "Description" "100mW Thick Film Resistors 75V ±100ppm/℃ ±1% 1kΩ 0603 Chip Resistor - Surface Mount ROHS"
+		(property "Description" "100mW Thick Film Resistors 75V ±100ppm/℃ ±1% 1kΩ 0603 Chip Resistor - Surface Mount ROHS "
 			(at 0 0 0)
 			(layer "F.Fab")
 			(hide yes)
@@ -15548,7 +15548,7 @@
 				)
 			)
 		)
-		(property "MFR.Part #" "0603WAF1002T5E"
+		(property "MFR.Part #" "RC0603JR-071KL "
 			(at 0 0 180)
 			(unlocked yes)
 			(layer "F.Fab")
@@ -15561,7 +15561,7 @@
 				)
 			)
 		)
-		(property "LCSC" "C25804"
+		(property "LCSC" "C14676"
 			(at 0 0 180)
 			(unlocked yes)
 			(layer "F.Fab")
@@ -19053,7 +19053,7 @@
 				)
 			)
 		)
-		(property "Value" "10KΩ"
+		(property "Value" "1KΩ"
 			(at 0 1.43 90)
 			(layer "F.Fab")
 			(uuid "ed79ff50-5f4d-4943-b27c-a93bbc3b7340")
@@ -19076,7 +19076,7 @@
 				)
 			)
 		)
-		(property "Description" "100mW Thick Film Resistors 75V ±100ppm/℃ ±1% 1kΩ 0603 Chip Resistor - Surface Mount ROHS"
+		(property "Description" "100mW Thick Film Resistors 75V ±100ppm/℃ ±1% 1kΩ 0603 Chip Resistor - Surface Mount ROHS "
 			(at 0 0 90)
 			(layer "F.Fab")
 			(hide yes)
@@ -19088,7 +19088,7 @@
 				)
 			)
 		)
-		(property "MFR.Part #" "0603WAF1002T5E"
+		(property "MFR.Part #" "RC0603JR-071KL"
 			(at 0 0 90)
 			(unlocked yes)
 			(layer "F.Fab")
@@ -19101,7 +19101,7 @@
 				)
 			)
 		)
-		(property "LCSC" "C25804"
+		(property "LCSC" "C14676"
 			(at 0 0 90)
 			(unlocked yes)
 			(layer "F.Fab")
@@ -33550,8 +33550,8 @@
 			(justify left bottom mirror)
 		)
 	)
-	(gr_text "REV 1.4"
-		(at 70.75 126.25 180)
+	(gr_text "REV 1.4.1"
+		(at 69.5 126.25 180)
 		(layer "B.SilkS")
 		(uuid "7eb523f6-a772-419e-9e45-b55b33adc271")
 		(effects

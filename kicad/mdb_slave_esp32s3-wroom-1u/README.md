@@ -13,7 +13,7 @@ Base reference: [lucienkerl/mdb-esp32-cashless](https://github.com/lucienkerl/md
 - PCB layout: routed, 4-layer board, 149.8 × 38.5 mm — schematic and PCB are in sync (all
   references renumbered and re-synced in rev1.4, including the previously-orphaned 1-Wire
   pull-up R4)
-- Revision: **1.4**
+- Revision: **1.4.1** (R26/R28 changed from 10KΩ to 1KΩ)
 - Gerbers in `gerber_to_order/` (JLCPCB, PCBWay) reflect the current board
 
 ## Overview
@@ -94,7 +94,7 @@ JST XH 1×4 connector with pull-ups, SCL on GPIO11, SDA on GPIO10.
 mdb_slave_esp32s3-wroom-1u/
 ├── mdb_slave_esp32s3-wroom-1u.kicad_pro   KiCad project
 ├── mdb_slave_esp32s3-wroom-1u.kicad_sch   Schematic
-├── mdb_slave_esp32s3-wroom-1u.kicad_pcb   PCB layout (routed, rev 1.4)
+├── mdb_slave_esp32s3-wroom-1u.kicad_pcb   PCB layout (routed, rev 1.4.1)
 ├── gerber_to_order/                       Fabrication Gerbers per vendor (JLCPCB, PCBWay) — versioned
 └── production/                            BOM, CPL, netlist (generated locally, not versioned)
 ```

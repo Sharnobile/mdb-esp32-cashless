@@ -6460,7 +6460,7 @@
 		)
 		(uuid "20e709e0-2725-40ba-a779-71fa1978bc22")
 	)
-	(text "RELAY 1\n"
+	(text "RELAY 2"
 		(exclude_from_sim no)
 		(at 151.892 212.852 0)
 		(effects
@@ -6488,7 +6488,7 @@
 	)
 	(text "1-WIRE"
 		(exclude_from_sim no)
-		(at 134.874 157.988 0)
+		(at 134.874 159.766 0)
 		(effects
 			(font
 				(size 3 3)
@@ -6524,6 +6524,19 @@
 			)
 		)
 		(uuid "4e25a758-bb92-4d0b-bdf0-116605d9816b")
+	)
+	(text "Rev. 1.4.1"
+		(exclude_from_sim no)
+		(at 311.404 248.412 0)
+		(effects
+			(font
+				(size 3 3)
+				(thickness 0.6)
+				(bold yes)
+				(italic yes)
+			)
+		)
+		(uuid "545fab99-f691-4925-b3b6-5bc2e7ffe495")
 	)
 	(text "UART DEBUG"
 		(exclude_from_sim no)
@@ -6590,7 +6603,7 @@
 		)
 		(uuid "94d75d4f-4363-481d-88e8-48912c5fdef0")
 	)
-	(text "RELAY 2\n"
+	(text "RELAY 1"
 		(exclude_from_sim no)
 		(at 306.832 162.052 0)
 		(effects
@@ -6754,7 +6767,7 @@
 		(uuid "29ebad3a-389a-4a01-8f42-a402de83b03d")
 	)
 	(junction
-		(at 104.14 184.15)
+		(at 104.14 187.96)
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "2af14a21-8e80-4607-94b4-f57d01beab72")
@@ -6856,7 +6869,7 @@
 		(uuid "6ea374ce-5353-47c8-8281-f8496bc2b2e7")
 	)
 	(junction
-		(at 165.1 184.15)
+		(at 165.1 187.96)
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "6f92fb9f-b551-4ac3-85c9-ea1a5ece58c4")
@@ -6916,7 +6929,7 @@
 		(uuid "93098ba4-a3b0-486c-bd10-5479ca96c8a5")
 	)
 	(junction
-		(at 124.46 184.15)
+		(at 124.46 187.96)
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "9418acca-04f7-40f6-bc90-de52784bde8a")
@@ -6952,7 +6965,7 @@
 		(uuid "a65084df-c266-4b84-8a47-756123e8a317")
 	)
 	(junction
-		(at 93.98 184.15)
+		(at 93.98 187.96)
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "b09a4042-6d37-43dd-a48b-b25c3c0b721f")
@@ -7006,7 +7019,7 @@
 		(uuid "e6ff48b2-ea34-416a-b138-a567b866ba67")
 	)
 	(junction
-		(at 134.62 184.15)
+		(at 134.62 187.96)
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "eeace451-6eac-4e69-961a-5967d26f7a9d")
@@ -7018,7 +7031,7 @@
 		(uuid "ef4643e9-db3f-4462-b097-d7db95932cd4")
 	)
 	(junction
-		(at 154.94 184.15)
+		(at 154.94 187.96)
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "f0526733-010d-4820-b734-06ca15873814")
@@ -7121,7 +7134,7 @@
 	)
 	(wire
 		(pts
-			(xy 127 176.53) (xy 127 175.26)
+			(xy 127 180.34) (xy 127 179.07)
 		)
 		(stroke
 			(width 0)
@@ -7141,7 +7154,7 @@
 	)
 	(wire
 		(pts
-			(xy 134.62 176.53) (xy 134.62 184.15)
+			(xy 134.62 180.34) (xy 134.62 187.96)
 		)
 		(stroke
 			(width 0)
@@ -7311,7 +7324,7 @@
 	)
 	(wire
 		(pts
-			(xy 154.94 175.26) (xy 154.94 184.15)
+			(xy 154.94 179.07) (xy 154.94 187.96)
 		)
 		(stroke
 			(width 0)
@@ -7461,7 +7474,7 @@
 	)
 	(wire
 		(pts
-			(xy 121.92 175.26) (xy 121.92 177.8)
+			(xy 121.92 179.07) (xy 121.92 181.61)
 		)
 		(stroke
 			(width 0)
@@ -7831,7 +7844,7 @@
 	)
 	(wire
 		(pts
-			(xy 154.94 184.15) (xy 156.21 184.15)
+			(xy 154.94 187.96) (xy 156.21 187.96)
 		)
 		(stroke
 			(width 0)
@@ -7891,7 +7904,7 @@
 	)
 	(wire
 		(pts
-			(xy 104.14 176.53) (xy 96.52 176.53)
+			(xy 104.14 180.34) (xy 96.52 180.34)
 		)
 		(stroke
 			(width 0)
@@ -8151,7 +8164,7 @@
 	)
 	(wire
 		(pts
-			(xy 133.35 184.15) (xy 134.62 184.15)
+			(xy 133.35 187.96) (xy 134.62 187.96)
 		)
 		(stroke
 			(width 0)
@@ -8171,7 +8184,7 @@
 	)
 	(wire
 		(pts
-			(xy 165.1 176.53) (xy 165.1 184.15)
+			(xy 165.1 180.34) (xy 165.1 187.96)
 		)
 		(stroke
 			(width 0)
@@ -8311,7 +8324,7 @@
 	)
 	(wire
 		(pts
-			(xy 93.98 175.26) (xy 93.98 184.15)
+			(xy 93.98 179.07) (xy 93.98 187.96)
 		)
 		(stroke
 			(width 0)
@@ -8521,7 +8534,7 @@
 	)
 	(wire
 		(pts
-			(xy 96.52 176.53) (xy 96.52 175.26)
+			(xy 96.52 180.34) (xy 96.52 179.07)
 		)
 		(stroke
 			(width 0)
@@ -8561,7 +8574,7 @@
 	)
 	(wire
 		(pts
-			(xy 124.46 186.69) (xy 124.46 184.15)
+			(xy 124.46 190.5) (xy 124.46 187.96)
 		)
 		(stroke
 			(width 0)
@@ -8601,7 +8614,7 @@
 	)
 	(wire
 		(pts
-			(xy 134.62 176.53) (xy 127 176.53)
+			(xy 134.62 180.34) (xy 127 180.34)
 		)
 		(stroke
 			(width 0)
@@ -8611,7 +8624,7 @@
 	)
 	(wire
 		(pts
-			(xy 104.14 176.53) (xy 104.14 184.15)
+			(xy 104.14 180.34) (xy 104.14 187.96)
 		)
 		(stroke
 			(width 0)
@@ -8791,7 +8804,7 @@
 	)
 	(wire
 		(pts
-			(xy 134.62 184.15) (xy 137.16 184.15)
+			(xy 134.62 187.96) (xy 137.16 187.96)
 		)
 		(stroke
 			(width 0)
@@ -9141,7 +9154,7 @@
 	)
 	(wire
 		(pts
-			(xy 165.1 176.53) (xy 157.48 176.53)
+			(xy 165.1 180.34) (xy 157.48 180.34)
 		)
 		(stroke
 			(width 0)
@@ -9351,7 +9364,7 @@
 	)
 	(wire
 		(pts
-			(xy 124.46 175.26) (xy 124.46 184.15)
+			(xy 124.46 179.07) (xy 124.46 187.96)
 		)
 		(stroke
 			(width 0)
@@ -9411,7 +9424,7 @@
 	)
 	(wire
 		(pts
-			(xy 104.14 184.15) (xy 106.68 184.15)
+			(xy 104.14 187.96) (xy 106.68 187.96)
 		)
 		(stroke
 			(width 0)
@@ -9491,7 +9504,7 @@
 	)
 	(wire
 		(pts
-			(xy 157.48 176.53) (xy 157.48 175.26)
+			(xy 157.48 180.34) (xy 157.48 179.07)
 		)
 		(stroke
 			(width 0)
@@ -9501,7 +9514,7 @@
 	)
 	(wire
 		(pts
-			(xy 91.44 175.26) (xy 91.44 177.8)
+			(xy 91.44 179.07) (xy 91.44 181.61)
 		)
 		(stroke
 			(width 0)
@@ -9631,7 +9644,7 @@
 	)
 	(wire
 		(pts
-			(xy 154.94 184.15) (xy 154.94 186.69)
+			(xy 154.94 187.96) (xy 154.94 190.5)
 		)
 		(stroke
 			(width 0)
@@ -9661,7 +9674,7 @@
 	)
 	(wire
 		(pts
-			(xy 102.87 184.15) (xy 104.14 184.15)
+			(xy 102.87 187.96) (xy 104.14 187.96)
 		)
 		(stroke
 			(width 0)
@@ -9711,7 +9724,7 @@
 	)
 	(wire
 		(pts
-			(xy 165.1 184.15) (xy 167.64 184.15)
+			(xy 165.1 187.96) (xy 167.64 187.96)
 		)
 		(stroke
 			(width 0)
@@ -9721,7 +9734,7 @@
 	)
 	(wire
 		(pts
-			(xy 152.4 175.26) (xy 152.4 177.8)
+			(xy 152.4 179.07) (xy 152.4 181.61)
 		)
 		(stroke
 			(width 0)
@@ -9831,7 +9844,7 @@
 	)
 	(wire
 		(pts
-			(xy 163.83 184.15) (xy 165.1 184.15)
+			(xy 163.83 187.96) (xy 165.1 187.96)
 		)
 		(stroke
 			(width 0)
@@ -10001,7 +10014,7 @@
 	)
 	(wire
 		(pts
-			(xy 93.98 186.69) (xy 93.98 184.15)
+			(xy 93.98 190.5) (xy 93.98 187.96)
 		)
 		(stroke
 			(width 0)
@@ -10331,7 +10344,7 @@
 	)
 	(wire
 		(pts
-			(xy 93.98 184.15) (xy 95.25 184.15)
+			(xy 93.98 187.96) (xy 95.25 187.96)
 		)
 		(stroke
 			(width 0)
@@ -10471,7 +10484,7 @@
 	)
 	(wire
 		(pts
-			(xy 124.46 184.15) (xy 125.73 184.15)
+			(xy 124.46 187.96) (xy 125.73 187.96)
 		)
 		(stroke
 			(width 0)
@@ -11346,7 +11359,7 @@
 	)
 	(global_label "GPIO15"
 		(shape input)
-		(at 167.64 184.15 0)
+		(at 167.64 187.96 0)
 		(fields_autoplaced yes)
 		(effects
 			(font
@@ -11356,7 +11369,7 @@
 		)
 		(uuid "a3197825-9275-4250-afcb-ee8248e08167")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 177.5195 184.15 0)
+			(at 177.5195 187.96 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -11442,7 +11455,7 @@
 	)
 	(global_label "GPIO15"
 		(shape input)
-		(at 106.68 184.15 0)
+		(at 106.68 187.96 0)
 		(fields_autoplaced yes)
 		(effects
 			(font
@@ -11452,7 +11465,7 @@
 		)
 		(uuid "b781fd21-9631-4477-8c15-f48155fe8538")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 116.5595 184.15 0)
+			(at 116.5595 187.96 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -11610,7 +11623,7 @@
 	)
 	(global_label "GPIO16"
 		(shape input)
-		(at 137.16 184.15 0)
+		(at 137.16 187.96 0)
 		(fields_autoplaced yes)
 		(effects
 			(font
@@ -11620,7 +11633,7 @@
 		)
 		(uuid "ee83222c-9ae4-44d0-a952-607f45fd2099")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 147.0395 184.15 0)
+			(at 147.0395 187.96 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -11813,7 +11826,7 @@
 			(uuid "cbededb7-3da7-457a-b09f-f4fd43edcb09")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "P3")
 					(unit 1)
@@ -11969,7 +11982,7 @@
 			(uuid "36684edc-8314-42b3-8151-37effdd7dfbf")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "USBC1")
 					(unit 1)
@@ -12046,7 +12059,7 @@
 			(uuid "907a1ca7-2c91-4179-9f1c-a8791a3275ca")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "#PWR061")
 					(unit 1)
@@ -12056,7 +12069,7 @@
 	)
 	(symbol
 		(lib_id "power:+3V3")
-		(at 124.46 186.69 180)
+		(at 124.46 190.5 180)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -12067,7 +12080,7 @@
 		(fields_autoplaced yes)
 		(uuid "07ec5437-d216-4c6b-ac09-fcf4ef4620de")
 		(property "Reference" "#PWR016"
-			(at 124.46 182.88 0)
+			(at 124.46 186.69 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -12078,7 +12091,7 @@
 			)
 		)
 		(property "Value" "+3V3"
-			(at 124.46 191.77 0)
+			(at 124.46 195.58 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -12088,7 +12101,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 124.46 186.69 0)
+			(at 124.46 190.5 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -12099,7 +12112,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 124.46 186.69 0)
+			(at 124.46 190.5 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -12110,7 +12123,7 @@
 			)
 		)
 		(property "Description" "Power symbol creates a global label with name \"+3V3\""
-			(at 124.46 186.69 0)
+			(at 124.46 190.5 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -12124,7 +12137,7 @@
 			(uuid "fba6ccee-fe06-4460-bf76-ab3eaaf4fb35")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "#PWR016")
 					(unit 1)
@@ -12202,7 +12215,7 @@
 			(uuid "c7262693-068b-49eb-8d09-2381e4fddea5")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "#PWR010")
 					(unit 1)
@@ -12279,7 +12292,7 @@
 			(uuid "9df775b6-5be3-4550-afa4-3940f7a72418")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "#PWR03")
 					(unit 1)
@@ -12357,7 +12370,7 @@
 			(uuid "fc8308a3-a619-43f9-a05a-5c0320282a4e")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "#PWR033")
 					(unit 1)
@@ -12458,7 +12471,7 @@
 			(uuid "09c65e79-7736-4acb-a40d-c0d0b96b41e3")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "C7")
 					(unit 1)
@@ -12535,7 +12548,7 @@
 			(uuid "b1cc7927-7687-414c-bf86-a4e29aa18a93")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "#PWR031")
 					(unit 1)
@@ -12642,7 +12655,7 @@
 			(uuid "939cc944-d541-4d98-b360-396a3fc29e11")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "Q2")
 					(unit 1)
@@ -12743,7 +12756,7 @@
 			(uuid "5b4ee675-35b0-4084-b5ce-1c639344ec9b")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "R20")
 					(unit 1)
@@ -12753,7 +12766,7 @@
 	)
 	(symbol
 		(lib_id "Device:R")
-		(at 99.06 184.15 90)
+		(at 99.06 187.96 90)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -12763,7 +12776,7 @@
 		(dnp no)
 		(uuid "146bff40-dd4c-44ad-8af9-754da4d65fed")
 		(property "Reference" "R4"
-			(at 99.314 186.69 90)
+			(at 99.314 190.5 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -12773,7 +12786,7 @@
 			)
 		)
 		(property "Value" "4.7KΩ"
-			(at 99.06 184.15 90)
+			(at 99.06 187.96 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -12783,7 +12796,7 @@
 			)
 		)
 		(property "Footprint" "Resistor_SMD:R_0603_1608Metric"
-			(at 99.06 185.928 90)
+			(at 99.06 189.738 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -12794,7 +12807,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 99.06 184.15 0)
+			(at 99.06 187.96 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -12805,7 +12818,7 @@
 			)
 		)
 		(property "Description" "100mW Thick Film Resistors 75V ±100ppm/℃ ±1% 1kΩ 0603 Chip Resistor - Surface Mount ROHS"
-			(at 99.06 184.15 0)
+			(at 99.06 187.96 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -12816,7 +12829,7 @@
 			)
 		)
 		(property "Sim.Device" ""
-			(at 99.06 184.15 0)
+			(at 99.06 187.96 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -12827,7 +12840,7 @@
 			)
 		)
 		(property "Sim.Pins" ""
-			(at 99.06 184.15 0)
+			(at 99.06 187.96 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -12838,7 +12851,7 @@
 			)
 		)
 		(property "PARTNO" ""
-			(at 99.06 184.15 0)
+			(at 99.06 187.96 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -12849,7 +12862,7 @@
 			)
 		)
 		(property "LCSC" "C23162"
-			(at 99.06 184.15 0)
+			(at 99.06 187.96 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -12860,7 +12873,7 @@
 			)
 		)
 		(property "MFR.Part #" "0603WAF4701T5E"
-			(at 99.06 184.15 90)
+			(at 99.06 187.96 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -12877,7 +12890,7 @@
 			(uuid "134b4129-ad76-4d44-ad31-ab4821375eed")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "R4")
 					(unit 1)
@@ -12955,7 +12968,7 @@
 			(uuid "cf5c9458-7849-4e2e-a8e1-a13c844c0ed1")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "#PWR035")
 					(unit 1)
@@ -13056,7 +13069,7 @@
 			(uuid "5e56d672-0193-4130-8a7b-4c77e965a836")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "C12")
 					(unit 1)
@@ -13132,7 +13145,7 @@
 			)
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "H2")
 					(unit 1)
@@ -13235,7 +13248,7 @@
 			(uuid "3ef9e31e-986a-42d6-aa12-754424f61f26")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "F2")
 					(unit 1)
@@ -13312,7 +13325,7 @@
 			(uuid "4a762d72-f448-45e0-84b7-4fa0529d5a85")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "#PWR054")
 					(unit 1)
@@ -13388,7 +13401,7 @@
 			)
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "H5")
 					(unit 1)
@@ -13509,7 +13522,7 @@
 			(uuid "7a965ede-8160-4727-be93-1cb00f050288")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "BUZZER1")
 					(unit 1)
@@ -13588,7 +13601,7 @@
 			(uuid "9d9d1025-0f9b-4caa-b6b5-b6da1befd5b8")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "#PWR05")
 					(unit 1)
@@ -13665,7 +13678,7 @@
 			(uuid "318a7e4b-7bdc-4d49-be0b-5192c075d1c0")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "#PWR011")
 					(unit 1)
@@ -13743,7 +13756,7 @@
 			(uuid "52e978c6-9ec1-4324-b52d-50b9c55d4cbe")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "#+3V01")
 					(unit 1)
@@ -13877,7 +13890,7 @@
 			(uuid "e0d73a45-fd03-4878-8ba4-b4db0ce43e41")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "R19")
 					(unit 1)
@@ -13954,7 +13967,7 @@
 			(uuid "6cefe4c2-3058-44d9-a64f-5274fb2ac66e")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "#PWR020")
 					(unit 1)
@@ -14079,7 +14092,7 @@
 			(uuid "44a2ace8-5fb4-4d38-8f4e-97c9ed13d3f1")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "D1")
 					(unit 1)
@@ -14202,7 +14215,7 @@
 			(uuid "99a4184b-adf9-46b4-8474-fd1460d18b44")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "K2")
 					(unit 1)
@@ -14278,7 +14291,7 @@
 			(uuid "c414234e-ca5b-41b9-a1c2-9b9ce22a09fa")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "#PWR029")
 					(unit 1)
@@ -14393,7 +14406,7 @@
 			(uuid "68ee6673-4529-40ab-8b68-19a36f4c2187")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "B2")
 					(unit 1)
@@ -14472,7 +14485,7 @@
 			(uuid "3833e719-1ce8-4003-9cff-13d82bc1b72b")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "H8")
 					(unit 1)
@@ -14606,7 +14619,7 @@
 			(uuid "b89b569b-a0f3-4985-a754-9cd1b42eebc8")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "R3")
 					(unit 1)
@@ -14684,7 +14697,7 @@
 			(uuid "45be09cb-890e-457d-8d6a-6744f449d119")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "#PWR027")
 					(unit 1)
@@ -14760,7 +14773,7 @@
 			(uuid "fd95ed67-5694-42d7-861c-e641e7575e93")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "#PWR032")
 					(unit 1)
@@ -14861,7 +14874,7 @@
 			(uuid "b9015703-5872-4683-8b0d-ba3b6fd2654a")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "R27")
 					(unit 1)
@@ -14938,7 +14951,7 @@
 			(uuid "38097b77-ccbe-4777-b81e-0e0c5a5068e6")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "#PWR02")
 					(unit 1)
@@ -14948,7 +14961,7 @@
 	)
 	(symbol
 		(lib_id "globral_library:WJ500V-5.08-3P-14-00A")
-		(at 93.98 170.18 0)
+		(at 93.98 173.99 0)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -14958,7 +14971,7 @@
 		(dnp no)
 		(uuid "4396dfb7-8c1c-469f-bc36-3396ee4f2011")
 		(property "Reference" "P4"
-			(at 92.964 160.274 0)
+			(at 92.964 164.084 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -14969,7 +14982,7 @@
 			)
 		)
 		(property "Value" "WJ500V-5.08-3P-14-00A"
-			(at 82.55 162.306 0)
+			(at 82.55 166.116 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -14980,7 +14993,7 @@
 			)
 		)
 		(property "Footprint" "Global Libraries:CONN-TH_3P-P5.00_WJ500V-5.08-3P_C72334"
-			(at 93.98 170.18 0)
+			(at 93.98 173.99 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -14991,7 +15004,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 93.98 170.18 0)
+			(at 93.98 173.99 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -15002,7 +15015,7 @@
 			)
 		)
 		(property "Description" ""
-			(at 93.98 170.18 0)
+			(at 93.98 173.99 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -15013,7 +15026,7 @@
 			)
 		)
 		(property "MFR.Part #" "WJ500V-5.08-03P-14-00A"
-			(at 93.98 170.18 0)
+			(at 93.98 173.99 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -15024,7 +15037,7 @@
 			)
 		)
 		(property "Manufacturer" "KANGNEX(康奈克斯电气)"
-			(at 93.98 170.18 0)
+			(at 93.98 173.99 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -15035,7 +15048,7 @@
 			)
 		)
 		(property "LCSC" "C72334"
-			(at 93.98 170.18 0)
+			(at 93.98 173.99 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -15055,7 +15068,7 @@
 			(uuid "4ce8a7e5-54c1-4425-9c2d-c8c62644dba1")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "P4")
 					(unit 1)
@@ -15133,7 +15146,7 @@
 			(uuid "75fa5df9-8df1-4719-8496-5e1002d3ba92")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "#PWR045")
 					(unit 1)
@@ -15210,7 +15223,7 @@
 			(uuid "dae1c944-d933-402b-a08b-899c0f64f289")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "#PWR049")
 					(unit 1)
@@ -15324,7 +15337,7 @@
 			(uuid "661dac44-d189-4fed-9a05-30a7430f997e")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "J1")
 					(unit 1)
@@ -15400,7 +15413,7 @@
 			(uuid "76fabb01-b19d-48d4-b2f4-4010ed4f34a6")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "#PWR041")
 					(unit 1)
@@ -15478,7 +15491,7 @@
 			(uuid "f886d4be-5d1c-4499-a6fb-36aff52e89ee")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "#PWR040")
 					(unit 1)
@@ -15554,7 +15567,7 @@
 			(uuid "d0d8f249-a979-47d0-8464-a169f2d20e9b")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "#PWR039")
 					(unit 1)
@@ -15564,7 +15577,7 @@
 	)
 	(symbol
 		(lib_id "globral_library:WJ500V-5.08-3P-14-00A")
-		(at 154.94 170.18 0)
+		(at 154.94 173.99 0)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -15574,7 +15587,7 @@
 		(dnp no)
 		(uuid "575b5ab3-84f4-4a43-9e67-393d6dcf7e9f")
 		(property "Reference" "P6"
-			(at 153.924 160.274 0)
+			(at 153.924 164.084 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -15585,7 +15598,7 @@
 			)
 		)
 		(property "Value" "WJ500V-5.08-3P-14-00A"
-			(at 143.51 162.306 0)
+			(at 143.51 166.116 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -15596,7 +15609,7 @@
 			)
 		)
 		(property "Footprint" "Global Libraries:CONN-TH_3P-P5.00_WJ500V-5.08-3P_C72334"
-			(at 154.94 170.18 0)
+			(at 154.94 173.99 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -15607,7 +15620,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 154.94 170.18 0)
+			(at 154.94 173.99 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -15618,7 +15631,7 @@
 			)
 		)
 		(property "Description" ""
-			(at 154.94 170.18 0)
+			(at 154.94 173.99 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -15629,7 +15642,7 @@
 			)
 		)
 		(property "MFR.Part #" "WJ500V-5.08-03P-14-00A"
-			(at 154.94 170.18 0)
+			(at 154.94 173.99 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -15640,7 +15653,7 @@
 			)
 		)
 		(property "Manufacturer" "KANGNEX(康奈克斯电气)"
-			(at 154.94 170.18 0)
+			(at 154.94 173.99 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -15651,7 +15664,7 @@
 			)
 		)
 		(property "LCSC" "C72334"
-			(at 154.94 170.18 0)
+			(at 154.94 173.99 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -15671,7 +15684,7 @@
 			(uuid "21a74e91-5006-4f38-a31c-51824f63fcec")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "P6")
 					(unit 1)
@@ -15750,7 +15763,7 @@
 			(uuid "8ce1eef9-1c11-4753-bc73-c57d376252f9")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "#PWR013")
 					(unit 1)
@@ -15884,7 +15897,7 @@
 			(uuid "01494d2b-cc05-4dcf-b67b-cd44fe18897e")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "R8")
 					(unit 1)
@@ -15894,7 +15907,7 @@
 	)
 	(symbol
 		(lib_id "Device:R")
-		(at 160.02 184.15 90)
+		(at 160.02 187.96 90)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -15904,7 +15917,7 @@
 		(dnp no)
 		(uuid "5c1ad6ac-5afd-453f-b384-c4f44c82bbd9")
 		(property "Reference" "R11"
-			(at 160.274 186.69 90)
+			(at 160.274 190.5 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -15914,7 +15927,7 @@
 			)
 		)
 		(property "Value" "4.7KΩ"
-			(at 160.02 184.15 90)
+			(at 160.02 187.96 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -15924,7 +15937,7 @@
 			)
 		)
 		(property "Footprint" "Resistor_SMD:R_0603_1608Metric"
-			(at 160.02 185.928 90)
+			(at 160.02 189.738 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -15935,7 +15948,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 160.02 184.15 0)
+			(at 160.02 187.96 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -15946,7 +15959,7 @@
 			)
 		)
 		(property "Description" "100mW Thick Film Resistors 75V ±100ppm/℃ ±1% 1kΩ 0603 Chip Resistor - Surface Mount ROHS"
-			(at 160.02 184.15 0)
+			(at 160.02 187.96 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -15957,7 +15970,7 @@
 			)
 		)
 		(property "Sim.Device" ""
-			(at 160.02 184.15 0)
+			(at 160.02 187.96 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -15968,7 +15981,7 @@
 			)
 		)
 		(property "Sim.Pins" ""
-			(at 160.02 184.15 0)
+			(at 160.02 187.96 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -15979,7 +15992,7 @@
 			)
 		)
 		(property "PARTNO" ""
-			(at 160.02 184.15 0)
+			(at 160.02 187.96 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -15990,7 +16003,7 @@
 			)
 		)
 		(property "LCSC" "C23162"
-			(at 160.02 184.15 0)
+			(at 160.02 187.96 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -16001,7 +16014,7 @@
 			)
 		)
 		(property "MFR.Part #" "0603WAF4701T5E"
-			(at 160.02 184.15 90)
+			(at 160.02 187.96 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -16018,7 +16031,7 @@
 			(uuid "741dddc2-1857-4f2d-a43a-cdecd99109fa")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "R11")
 					(unit 1)
@@ -16094,7 +16107,7 @@
 			(uuid "821577a7-cf2f-41d0-98ad-bc7ce26df5a9")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "#PWR066")
 					(unit 1)
@@ -16201,7 +16214,7 @@
 			(uuid "13bb5206-069e-4737-b7ef-c040b79aebb1")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "Q3")
 					(unit 1)
@@ -16302,7 +16315,7 @@
 			(uuid "f6a563e2-5bf1-427c-bf90-0b1dc185fec8")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "D6")
 					(unit 1)
@@ -16312,7 +16325,7 @@
 	)
 	(symbol
 		(lib_id "power:+3V3")
-		(at 154.94 186.69 180)
+		(at 154.94 190.5 180)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -16323,7 +16336,7 @@
 		(fields_autoplaced yes)
 		(uuid "60c524d4-4f48-4a03-a7da-c014287bf994")
 		(property "Reference" "#PWR022"
-			(at 154.94 182.88 0)
+			(at 154.94 186.69 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -16334,7 +16347,7 @@
 			)
 		)
 		(property "Value" "+3V3"
-			(at 154.94 191.77 0)
+			(at 154.94 195.58 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -16344,7 +16357,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 154.94 186.69 0)
+			(at 154.94 190.5 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -16355,7 +16368,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 154.94 186.69 0)
+			(at 154.94 190.5 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -16366,7 +16379,7 @@
 			)
 		)
 		(property "Description" "Power symbol creates a global label with name \"+3V3\""
-			(at 154.94 186.69 0)
+			(at 154.94 190.5 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -16380,7 +16393,7 @@
 			(uuid "3a7b6c51-66e4-44cb-b00c-792cc30e319a")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "#PWR022")
 					(unit 1)
@@ -16481,7 +16494,7 @@
 			(uuid "81a742bc-b524-474a-90cb-d1fbdf567c6d")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "R13")
 					(unit 1)
@@ -16591,7 +16604,7 @@
 			(uuid "df6317c0-87ec-40ea-abcf-9489c9be8e81")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "R6")
 					(unit 1)
@@ -16620,7 +16633,7 @@
 				)
 			)
 		)
-		(property "Value" "10KΩ"
+		(property "Value" "1KΩ"
 			(at 330.2 195.58 90)
 			(show_name no)
 			(do_not_autoplace no)
@@ -16663,7 +16676,7 @@
 				)
 			)
 		)
-		(property "MFR.Part #" "0603WAF1002T5E"
+		(property "MFR.Part #" "RC0603JR-071KL"
 			(at 330.2 195.58 0)
 			(hide yes)
 			(show_name no)
@@ -16674,7 +16687,7 @@
 				)
 			)
 		)
-		(property "LCSC" "C25804"
+		(property "LCSC" "C14676"
 			(at 330.2 195.58 0)
 			(hide yes)
 			(show_name no)
@@ -16692,7 +16705,7 @@
 			(uuid "a5f8e88a-06f4-4ef9-b163-6806771982ec")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "R26")
 					(unit 1)
@@ -16803,7 +16816,7 @@
 			(uuid "40b3092c-b091-4839-8425-ab87368adcdf")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "U4")
 					(unit 1)
@@ -16879,7 +16892,7 @@
 			)
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "H4")
 					(unit 1)
@@ -17002,7 +17015,7 @@
 			(uuid "6b8a2de9-821f-4b6c-afbf-a50f320ce3ed")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "D4")
 					(unit 1)
@@ -17103,7 +17116,7 @@
 			(uuid "f16e77ff-9711-4a59-ba1d-3e233d80bbbd")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "R24")
 					(unit 1)
@@ -17214,7 +17227,7 @@
 			(uuid "17fea906-e656-417a-be04-d9a2bc8da6f5")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "U6")
 					(unit 1)
@@ -17293,7 +17306,7 @@
 			(uuid "20c235c9-110b-4a21-ac56-8dfb44c9b9df")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "H10")
 					(unit 1)
@@ -17369,7 +17382,7 @@
 			(uuid "0e53b65d-1d61-4591-9c80-f6bc8eb629a0")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "#PWR08")
 					(unit 1)
@@ -17473,7 +17486,7 @@
 			(uuid "854b8329-b91d-4dfb-b407-f3d62d49f890")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "TH1")
 					(unit 1)
@@ -17576,7 +17589,7 @@
 			(uuid "4c80786f-c0dc-4e80-bef0-c95f5a3a5434")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "C3")
 					(unit 1)
@@ -17653,7 +17666,7 @@
 			(uuid "7747b83b-1c06-4fc4-b17f-3bbb23071a0f")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "#PWR04")
 					(unit 1)
@@ -17754,7 +17767,7 @@
 			(uuid "6708f46b-8045-4e50-b776-c7877ededdbc")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "R18")
 					(unit 1)
@@ -17831,7 +17844,7 @@
 			(uuid "9aff9dcb-a2dc-400c-961e-d8b188bbd43d")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "#PWR062")
 					(unit 1)
@@ -17939,7 +17952,7 @@
 			(uuid "f73f1029-e397-4c4c-bad1-7bbc7c24d4ab")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "J3")
 					(unit 1)
@@ -18018,7 +18031,7 @@
 			(uuid "1be3ebb5-1080-4ea9-aec0-ecedbe958a36")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "H9")
 					(unit 1)
@@ -18119,7 +18132,7 @@
 			(uuid "3a4b1c11-7d37-4b82-bce3-dd4e49732f10")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "C19")
 					(unit 1)
@@ -18244,7 +18257,7 @@
 			(uuid "b185c1e9-d86c-40bf-9af3-cbe79f744189")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "D5")
 					(unit 1)
@@ -18358,7 +18371,7 @@
 			(uuid "1ce77148-3a69-42e6-b4e7-891fcdd390ec")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "J2")
 					(unit 1)
@@ -18459,7 +18472,7 @@
 			(uuid "4ced9c1a-d3af-4554-b568-47f07158c2d8")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "R1")
 					(unit 1)
@@ -18576,7 +18589,7 @@
 			(uuid "18de8e0b-ed8b-47b2-97fe-2c12a219f205")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "P8")
 					(unit 1)
@@ -18653,7 +18666,7 @@
 			(uuid "c839a1b8-b2b0-4306-9487-a3637880c506")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "#PWR038")
 					(unit 1)
@@ -18787,7 +18800,7 @@
 			(uuid "335f0fbf-e464-45d6-be8b-db4146e1f459")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "R9")
 					(unit 1)
@@ -18901,7 +18914,7 @@
 			(uuid "52e46976-562e-4f16-8baa-8ff899f70e9d")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "U8")
 					(unit 1)
@@ -19024,7 +19037,7 @@
 			(uuid "fcf21717-5aeb-47c9-a564-9079d48249d4")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "K3")
 					(unit 1)
@@ -19100,7 +19113,7 @@
 			(uuid "e515a29b-1681-4568-9945-7b90682979aa")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "#PWR042")
 					(unit 1)
@@ -19178,7 +19191,7 @@
 			(uuid "0767416f-9bff-4cc6-b5f9-2b537148b6d1")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "#PWR019")
 					(unit 1)
@@ -19282,7 +19295,7 @@
 			(uuid "dfe0fe89-9b47-4689-90c8-308a7e905369")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "C4")
 					(unit 1)
@@ -19292,7 +19305,7 @@
 	)
 	(symbol
 		(lib_id "power:GND")
-		(at 152.4 177.8 0)
+		(at 152.4 181.61 0)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -19302,7 +19315,7 @@
 		(dnp no)
 		(uuid "9b7168bd-e048-41c9-9021-cac35f5f02db")
 		(property "Reference" "#PWR021"
-			(at 152.4 184.15 0)
+			(at 152.4 187.96 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -19313,7 +19326,7 @@
 			)
 		)
 		(property "Value" "GND"
-			(at 149.606 179.578 90)
+			(at 149.606 183.388 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -19323,7 +19336,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 152.4 177.8 0)
+			(at 152.4 181.61 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -19334,7 +19347,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 152.4 177.8 0)
+			(at 152.4 181.61 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -19345,7 +19358,7 @@
 			)
 		)
 		(property "Description" ""
-			(at 152.4 177.8 0)
+			(at 152.4 181.61 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -19358,7 +19371,7 @@
 			(uuid "5f77bcc8-b1e7-4d45-8941-cce19c462c19")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "#PWR021")
 					(unit 1)
@@ -19469,7 +19482,7 @@
 			(uuid "e7a8bff8-f766-4e81-a392-cb9ef4e8f5bc")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "U3")
 					(unit 1)
@@ -19546,7 +19559,7 @@
 			(uuid "25f187bf-f3f5-4ef0-a167-71e171ba241c")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "#PWR065")
 					(unit 1)
@@ -19671,7 +19684,7 @@
 			(uuid "90258740-9fc0-4901-8967-1a4dc574fe3a")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "D3")
 					(unit 1)
@@ -19747,7 +19760,7 @@
 			(uuid "726d3ce5-e467-425a-9d2f-77245447c1b1")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "#PWR063")
 					(unit 1)
@@ -19824,7 +19837,7 @@
 			(uuid "653ce399-39c2-412d-8148-51a9d0c17441")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "#PWR034")
 					(unit 1)
@@ -19903,7 +19916,7 @@
 			(uuid "c6b5cbf9-b9dc-4230-9d1f-89fc979fd43f")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "#PWR014")
 					(unit 1)
@@ -20006,7 +20019,7 @@
 			(uuid "b79e7231-1df4-466c-89b1-88a003501ec3")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "C6")
 					(unit 1)
@@ -20084,7 +20097,7 @@
 			(uuid "1df8a589-e643-45b7-9136-f5307bc8e347")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "#PWR018")
 					(unit 1)
@@ -20161,7 +20174,7 @@
 			(uuid "a14b2e36-1892-4055-9b61-de82985a9f90")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "#PWR07")
 					(unit 1)
@@ -20262,7 +20275,7 @@
 			(uuid "2dc66579-174b-4063-bcad-6add02048e90")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "R10")
 					(unit 1)
@@ -20396,7 +20409,7 @@
 			(uuid "e333c747-dbd0-4042-a4e4-484438fc4796")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "R15")
 					(unit 1)
@@ -20472,7 +20485,7 @@
 			(uuid "c669fcaf-8c47-4559-a182-79cfa13f60e3")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "#PWR036")
 					(unit 1)
@@ -20606,7 +20619,7 @@
 			(uuid "f4fa8f84-f57e-4284-b2b4-1322302507ea")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "R16")
 					(unit 1)
@@ -20723,7 +20736,7 @@
 			(uuid "fa769a8a-6140-4efa-bc0f-4fa1ca8283e3")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "P2")
 					(unit 1)
@@ -20838,7 +20851,7 @@
 			(uuid "13444848-902a-4333-beae-2a607e06497a")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "B1")
 					(unit 1)
@@ -20940,7 +20953,7 @@
 			(uuid "3a166003-dad0-4141-b0a7-135ccca929e0")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "L1")
 					(unit 1)
@@ -21041,7 +21054,7 @@
 			(uuid "3085df3d-4ece-4671-8c29-490dbad4a462")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "R21")
 					(unit 1)
@@ -21142,7 +21155,7 @@
 			(uuid "b36a1673-d404-47cb-bfca-ef80b6e19c60")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "R17")
 					(unit 1)
@@ -21218,7 +21231,7 @@
 			(uuid "99bb7fa5-67fc-4bf1-991a-eac067357651")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "#PWR057")
 					(unit 1)
@@ -21294,7 +21307,7 @@
 			)
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "H3")
 					(unit 1)
@@ -21419,7 +21432,7 @@
 			(uuid "d3f9992e-64b8-4748-bd6a-32ba65194816")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "H1")
 					(unit 1)
@@ -21520,7 +21533,7 @@
 			(uuid "2333a7a9-98ae-48eb-8ed3-cc68212c8c15")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "C8")
 					(unit 1)
@@ -21597,7 +21610,7 @@
 			(uuid "6e441434-2fdb-4ddb-a0ba-5d70accdbfc2")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "#PWR044")
 					(unit 1)
@@ -21673,7 +21686,7 @@
 			(uuid "0f724c4a-d31e-4f22-a0c4-0389f8460576")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "#PWR06")
 					(unit 1)
@@ -21683,7 +21696,7 @@
 	)
 	(symbol
 		(lib_id "power:GND")
-		(at 91.44 177.8 0)
+		(at 91.44 181.61 0)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -21693,7 +21706,7 @@
 		(dnp no)
 		(uuid "b94b1deb-f1cc-41b4-b751-12ad13616c72")
 		(property "Reference" "#PWR09"
-			(at 91.44 184.15 0)
+			(at 91.44 187.96 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -21704,7 +21717,7 @@
 			)
 		)
 		(property "Value" "GND"
-			(at 88.646 179.578 90)
+			(at 88.646 183.388 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -21714,7 +21727,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 91.44 177.8 0)
+			(at 91.44 181.61 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -21725,7 +21738,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 91.44 177.8 0)
+			(at 91.44 181.61 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -21736,7 +21749,7 @@
 			)
 		)
 		(property "Description" ""
-			(at 91.44 177.8 0)
+			(at 91.44 181.61 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -21749,7 +21762,7 @@
 			(uuid "883bb245-7338-4133-8583-15cc4c4e1d23")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "#PWR09")
 					(unit 1)
@@ -21825,7 +21838,7 @@
 			(uuid "8b6c08fb-58e0-4912-9138-a564d0a7adf7")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "#PWR052")
 					(unit 1)
@@ -21959,7 +21972,7 @@
 			(uuid "4f546d3e-68de-4006-9173-12869b75b8d7")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "R12")
 					(unit 1)
@@ -22037,7 +22050,7 @@
 			(uuid "3fb24d2a-4fd5-4f0e-903c-b91635994e96")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "#PWR01")
 					(unit 1)
@@ -22114,7 +22127,7 @@
 			(uuid "5f5387c6-17f8-4166-ae91-3f8c01c88d8b")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "#PWR055")
 					(unit 1)
@@ -22218,7 +22231,7 @@
 			(uuid "dafc495c-beb2-4b7a-ad6a-a4370b336847")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "C1")
 					(unit 1)
@@ -22295,7 +22308,7 @@
 			(uuid "89b93731-6527-4857-9297-0b363f04b098")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "#PWR025")
 					(unit 1)
@@ -22305,7 +22318,7 @@
 	)
 	(symbol
 		(lib_id "power:GND")
-		(at 121.92 177.8 0)
+		(at 121.92 181.61 0)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -22315,7 +22328,7 @@
 		(dnp no)
 		(uuid "c7b322a0-23ff-45f2-a5ed-ca9bd3794eaf")
 		(property "Reference" "#PWR015"
-			(at 121.92 184.15 0)
+			(at 121.92 187.96 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -22326,7 +22339,7 @@
 			)
 		)
 		(property "Value" "GND"
-			(at 119.126 179.578 90)
+			(at 119.126 183.388 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -22336,7 +22349,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 121.92 177.8 0)
+			(at 121.92 181.61 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -22347,7 +22360,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 121.92 177.8 0)
+			(at 121.92 181.61 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -22358,7 +22371,7 @@
 			)
 		)
 		(property "Description" ""
-			(at 121.92 177.8 0)
+			(at 121.92 181.61 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -22371,7 +22384,7 @@
 			(uuid "36df72b9-e461-4717-8247-730367600261")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "#PWR015")
 					(unit 1)
@@ -22472,7 +22485,7 @@
 			(uuid "bd6ceee5-d068-4c21-a181-2b02212c58de")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "C9")
 					(unit 1)
@@ -22573,7 +22586,7 @@
 			(uuid "1514ff9f-12a2-4b62-81ad-278abf0d3f1d")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "R2")
 					(unit 1)
@@ -22583,7 +22596,7 @@
 	)
 	(symbol
 		(lib_id "Device:R")
-		(at 129.54 184.15 90)
+		(at 129.54 187.96 90)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -22593,7 +22606,7 @@
 		(dnp no)
 		(uuid "cad8fa15-036e-4ac0-bc5f-8997d3461451")
 		(property "Reference" "R7"
-			(at 129.794 186.69 90)
+			(at 129.794 190.5 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -22603,7 +22616,7 @@
 			)
 		)
 		(property "Value" "4.7KΩ"
-			(at 129.54 184.15 90)
+			(at 129.54 187.96 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -22613,7 +22626,7 @@
 			)
 		)
 		(property "Footprint" "Resistor_SMD:R_0603_1608Metric"
-			(at 129.54 185.928 90)
+			(at 129.54 189.738 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -22624,7 +22637,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 129.54 184.15 0)
+			(at 129.54 187.96 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -22635,7 +22648,7 @@
 			)
 		)
 		(property "Description" "100mW Thick Film Resistors 75V ±100ppm/℃ ±1% 1kΩ 0603 Chip Resistor - Surface Mount ROHS"
-			(at 129.54 184.15 0)
+			(at 129.54 187.96 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -22646,7 +22659,7 @@
 			)
 		)
 		(property "Sim.Device" ""
-			(at 129.54 184.15 0)
+			(at 129.54 187.96 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -22657,7 +22670,7 @@
 			)
 		)
 		(property "Sim.Pins" ""
-			(at 129.54 184.15 0)
+			(at 129.54 187.96 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -22668,7 +22681,7 @@
 			)
 		)
 		(property "PARTNO" ""
-			(at 129.54 184.15 0)
+			(at 129.54 187.96 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -22679,7 +22692,7 @@
 			)
 		)
 		(property "LCSC" "C23162"
-			(at 129.54 184.15 0)
+			(at 129.54 187.96 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -22690,7 +22703,7 @@
 			)
 		)
 		(property "MFR.Part #" "0603WAF4701T5E"
-			(at 129.54 184.15 90)
+			(at 129.54 187.96 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -22707,7 +22720,7 @@
 			(uuid "8cdbe7fb-1499-403a-9ba3-e1538c0e7a8e")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "R7")
 					(unit 1)
@@ -22808,7 +22821,7 @@
 			(uuid "c1a85518-94a3-478e-a732-77195b18439b")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "C2")
 					(unit 1)
@@ -22885,7 +22898,7 @@
 			(uuid "22b6455e-d8c7-4303-a562-8b6b9a9c5f7b")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "#PWR050")
 					(unit 1)
@@ -22986,7 +22999,7 @@
 			(uuid "863d4eb3-0671-4b06-a9ea-a7e3c61c9070")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "R29")
 					(unit 1)
@@ -22996,7 +23009,7 @@
 	)
 	(symbol
 		(lib_id "globral_library:WJ500V-5.08-3P-14-00A")
-		(at 124.46 170.18 0)
+		(at 124.46 173.99 0)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -23006,7 +23019,7 @@
 		(dnp no)
 		(uuid "ced29b7b-ab03-4c9f-b143-619062fad557")
 		(property "Reference" "P5"
-			(at 123.444 160.274 0)
+			(at 123.444 164.084 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -23017,7 +23030,7 @@
 			)
 		)
 		(property "Value" "WJ500V-5.08-3P-14-00A"
-			(at 113.03 162.306 0)
+			(at 113.03 166.116 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -23028,7 +23041,7 @@
 			)
 		)
 		(property "Footprint" "Global Libraries:CONN-TH_3P-P5.00_WJ500V-5.08-3P_C72334"
-			(at 124.46 170.18 0)
+			(at 124.46 173.99 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -23039,7 +23052,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 124.46 170.18 0)
+			(at 124.46 173.99 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -23050,7 +23063,7 @@
 			)
 		)
 		(property "Description" ""
-			(at 124.46 170.18 0)
+			(at 124.46 173.99 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -23061,7 +23074,7 @@
 			)
 		)
 		(property "MFR.Part #" "WJ500V-5.08-03P-14-00A"
-			(at 124.46 170.18 0)
+			(at 124.46 173.99 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -23072,7 +23085,7 @@
 			)
 		)
 		(property "Manufacturer" "KANGNEX(康奈克斯电气)"
-			(at 124.46 170.18 0)
+			(at 124.46 173.99 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -23083,7 +23096,7 @@
 			)
 		)
 		(property "LCSC" "C72334"
-			(at 124.46 170.18 0)
+			(at 124.46 173.99 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -23103,7 +23116,7 @@
 			(uuid "202adc8a-edfa-428d-88b6-37f6418aaef5")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "P5")
 					(unit 1)
@@ -23237,7 +23250,7 @@
 			(uuid "ec3a3e3f-99e7-4189-8e3a-50b9d327ed9a")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "R14")
 					(unit 1)
@@ -23313,7 +23326,7 @@
 			(uuid "01554ac1-dd4c-465d-9633-3b957671b3a3")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "#PWR048")
 					(unit 1)
@@ -23390,7 +23403,7 @@
 			(uuid "8b4f1460-1816-4f03-b221-a060dcaa5696")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "#PWR017")
 					(unit 1)
@@ -23491,7 +23504,7 @@
 			(uuid "f87793c8-bb83-4876-8fb6-9383a6eff56c")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "R23")
 					(unit 1)
@@ -23602,7 +23615,7 @@
 			(uuid "0577e532-c257-4dcb-bfe4-936cfb33ab9d")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "U5")
 					(unit 1)
@@ -23719,7 +23732,7 @@
 			(uuid "4c58e63d-c695-4e44-87c5-e458baa300d8")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "P9")
 					(unit 1)
@@ -23796,7 +23809,7 @@
 			(uuid "47a6a47b-ad7a-4438-9e91-ffbb3d85435f")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "#PWR046")
 					(unit 1)
@@ -23873,7 +23886,7 @@
 			(uuid "9ec5dfd7-2718-46f2-91e5-044def13e15d")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "#PWR023")
 					(unit 1)
@@ -23949,7 +23962,7 @@
 			(uuid "26f2cf8a-14cb-4773-ba19-0c740bf15735")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "#PWR043")
 					(unit 1)
@@ -24056,7 +24069,7 @@
 			(uuid "b32b9f54-3460-4346-ae5b-d734e79a1b9a")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "Q1")
 					(unit 1)
@@ -24133,7 +24146,7 @@
 			(uuid "1ea9c62c-9adf-4013-9f56-48931a71a5eb")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "#PWR028")
 					(unit 1)
@@ -24236,7 +24249,7 @@
 			(uuid "e546edbf-53b7-498d-aad2-c4d7a53304c9")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "C10")
 					(unit 1)
@@ -24312,7 +24325,7 @@
 			(uuid "2270a1df-dc82-40c4-9bf7-c2b457a09e79")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "#PWR030")
 					(unit 1)
@@ -24391,7 +24404,7 @@
 			(uuid "d6dfcfaf-357b-4d4d-bf1f-5dcc8745f63d")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "H7")
 					(unit 1)
@@ -24509,7 +24522,7 @@
 			(uuid "f59cbb57-9dad-4709-82a5-a96af57dd50b")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "LED1")
 					(unit 1)
@@ -24613,7 +24626,7 @@
 			(uuid "8d126529-75d6-48bd-86b5-3dd0c7ed9d60")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "C5")
 					(unit 1)
@@ -24730,7 +24743,7 @@
 			(uuid "9cad8da0-eadd-48e2-a036-c2035bb00077")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "P1")
 					(unit 1)
@@ -24807,7 +24820,7 @@
 			(uuid "34b96f82-7f41-4743-9b18-f662dee7c43b")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "#PWR051")
 					(unit 1)
@@ -24884,7 +24897,7 @@
 			(uuid "33bf8124-823b-48f0-a518-e8566cf6b65a")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "#PWR024")
 					(unit 1)
@@ -24962,7 +24975,7 @@
 			(uuid "0721fabd-badc-47f2-868d-40f1bfbe9422")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "#PWR056")
 					(unit 1)
@@ -25039,7 +25052,7 @@
 			(uuid "55f33e34-7f26-4a1b-9eff-8ae25b541902")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "#PWR064")
 					(unit 1)
@@ -25143,7 +25156,7 @@
 			(uuid "f23b20e2-694d-42a6-acf7-dbcaa62423a7")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "C11")
 					(unit 1)
@@ -25172,7 +25185,7 @@
 				)
 			)
 		)
-		(property "Value" "10KΩ"
+		(property "Value" "1KΩ"
 			(at 175.26 246.38 90)
 			(show_name no)
 			(do_not_autoplace no)
@@ -25215,7 +25228,7 @@
 				)
 			)
 		)
-		(property "MFR.Part #" "0603WAF1002T5E"
+		(property "MFR.Part #" "RC0603JR-071KL"
 			(at 175.26 246.38 0)
 			(hide yes)
 			(show_name no)
@@ -25226,7 +25239,7 @@
 				)
 			)
 		)
-		(property "LCSC" "C25804"
+		(property "LCSC" "C14676"
 			(at 175.26 246.38 0)
 			(hide yes)
 			(show_name no)
@@ -25244,7 +25257,7 @@
 			(uuid "43f3695c-0681-4e1b-8bf8-ca165a6d21a9")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "R28")
 					(unit 1)
@@ -25368,7 +25381,7 @@
 			(uuid "06f34803-2306-4493-9a2f-20ffb52f1061")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "D2")
 					(unit 1)
@@ -25478,7 +25491,7 @@
 			(uuid "83328e27-f7b4-4f38-83e4-bd926dfd0ba9")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "R5")
 					(unit 1)
@@ -25579,7 +25592,7 @@
 			(uuid "a3ff32e6-f3da-4b42-a352-caf3f3cb6a46")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "R22")
 					(unit 1)
@@ -25589,7 +25602,7 @@
 	)
 	(symbol
 		(lib_id "power:+3V3")
-		(at 93.98 186.69 180)
+		(at 93.98 190.5 180)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -25600,7 +25613,7 @@
 		(fields_autoplaced yes)
 		(uuid "f68418c9-dae0-43e2-8e84-03504eac1c93")
 		(property "Reference" "#PWR012"
-			(at 93.98 182.88 0)
+			(at 93.98 186.69 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -25611,7 +25624,7 @@
 			)
 		)
 		(property "Value" "+3V3"
-			(at 93.98 191.77 0)
+			(at 93.98 195.58 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -25621,7 +25634,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 93.98 186.69 0)
+			(at 93.98 190.5 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -25632,7 +25645,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 93.98 186.69 0)
+			(at 93.98 190.5 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -25643,7 +25656,7 @@
 			)
 		)
 		(property "Description" "Power symbol creates a global label with name \"+3V3\""
-			(at 93.98 186.69 0)
+			(at 93.98 190.5 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -25657,7 +25670,7 @@
 			(uuid "c35eae57-f432-46b3-819c-c63e4288fea3")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "#PWR012")
 					(unit 1)
@@ -25735,7 +25748,7 @@
 			(uuid "104d3073-b1fe-4af3-b677-e3380a9d5cbb")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "#PWR053")
 					(unit 1)
@@ -25813,7 +25826,7 @@
 			(uuid "bc3edb94-6106-413c-b989-cecfab9d59e1")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "#PWR047")
 					(unit 1)
@@ -25891,7 +25904,7 @@
 			(uuid "43332c77-fb6e-4826-85de-6d293d39aa21")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "#PWR037")
 					(unit 1)
@@ -25971,7 +25984,7 @@
 			(uuid "a0bc14a4-16a4-4a0f-b06b-6c7b284865aa")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "H6")
 					(unit 1)
@@ -26191,7 +26204,7 @@
 			(uuid "a0a89d7d-8a33-4652-9835-36673b5ecc0c")
 		)
 		(instances
-			(project "mdb_slave_sharnobile"
+			(project "mdb_slave_esp32s3-wroom-1u"
 				(path "/70967d1e-cd16-4777-98df-d4c4654a5662"
 					(reference "U1")
 					(unit 1)
