@@ -130,9 +130,9 @@ for x, y in PCB_HOLES:                                    # board standoffs + in
 for x, y in SCREW_BOSSES:                                 # lid screw bosses + inserts
     base = insert_cut(base.fuse(boss_shape(x, y, 0, H)), x, y, H)
 
-# Mounting ears (short ends): 10 x 4.5 slot (M4 screw) + 2 zip-tie slots + tunnel.
-# The tunnel runs inside the ear, above a closed 0.6 mm skin, so the bottom face and
-# the first layer stay flat apart from the slots themselves.
+# Mounting ears (short ends): solid plate, 10 x 4.5 slot (M4 screw) + 2 zip-tie slots.
+# No zip-tie tunnel: a hollow ear squeezes when the M4 screw is tightened, and the tie
+# simply goes down one slot and back up the other.
 EAR_T, EAR_L = 4.0, 20.0
 for sgn, xw in ((-1, OX0), (1, OX1)):
     xc = xw + sgn * EAR_L / 2
@@ -142,7 +142,6 @@ for sgn, xw in ((-1, OX0), (1, OX1)):
                   .fuse([cyl(xc, -2.75, 2.25, -1, EAR_T + 1), cyl(xc, 2.75, 2.25, -1, EAR_T + 1)]))
     for y in (-11.0, 11.0):
         ear = ear.cut(box(xc - 4.5, xc + 4.5, y - 1.6, y + 1.6, -1, EAR_T + 1))
-    ear = ear.cut(box(xc - 4.7, xc + 4.7, -12.6, 12.6, 0.6, 2.4))        # zip-tie tunnel
     base = base.fuse(ear)
 
 cuts = []

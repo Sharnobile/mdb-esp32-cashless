@@ -56,9 +56,8 @@ four standoffs with M2.5 heat inserts in this variant.
 ## Mounting
 
 Two 4 mm thick ears. Each has a 10 × 4.5 mm slot for an M4 screw and two 9 × 3.2 mm
-zip-tie slots, linked by a 1.8 mm tunnel inside the ear. The tunnel sits on a closed
-0.6 mm skin, so the bottom face is flat and the first layer is continuous apart from
-the slots.
+zip-tie slots. The ears are solid underneath and sit flat on the print bed, so the
+screw clamps solid plastic.
 
 ## Hardware
 
@@ -73,7 +72,7 @@ Starting point:
 - PETG, 0.4 mm nozzle, 0.2 mm layers, 3 perimeters, 20 % infill, no supports.
 - No web between two openings is thinner than 1 mm, so nothing drops out at 0.4 mm.
 - Base flat on its bottom face. Lid as exported: outer face on the bed.
-- The wall windows and the zip-tie tunnels need short bridges (15.6 mm maximum).
+- The wall windows need short bridges (15.6 mm maximum).
   Check them in the slicer preview.
 
 ## Regenerating
