@@ -31,8 +31,10 @@ For a version with optional lid screws, see [`../screw-clips`](../screw-clips).
 
 - **USB-C:** 12.8 × 7.2 mm window in the west wall, flush with the connector.
 - **MDB (Mini-Fit 2×3):** 15.6 × 12.5 mm window in the south wall.
-- **Terminal blocks:** one 4.8 × 8.4 mm wire window per pole (30 poles on the south,
-  north and east walls), plus a Ø4.8 hole in the lid above each terminal screw.
+- **Terminal blocks:** one 4.0 × 8.4 mm wire window per pole (30 poles on the south,
+  north and east walls), plus a Ø4 hole in the lid above each terminal screw. The poles
+  sit 5.08 mm apart, so 4.0 mm leaves 1.08 mm webs between neighbouring openings: two
+  lines with a 0.4 mm nozzle (`TERM_W` in the script).
 - **LED D0 (WS2812B):** Ø4 hole in the lid.
 - **Antenna:** 3 × 2 mm slot at the top of the north wall, under the lid, close to the
   ESP32 U.FL connector.
@@ -51,7 +53,9 @@ through its window with a small screwdriver and lift that side of the lid.
 ## Mounting
 
 Two 4 mm thick ears. Each has a 10 × 4.5 mm slot for an M4 screw and two 9 × 3.2 mm
-zip-tie slots, linked by a 1.8 mm tunnel under the ear.
+zip-tie slots, linked by a 1.8 mm tunnel inside the ear. The tunnel sits on a closed
+0.6 mm skin, so the bottom face is flat and the first layer is continuous apart from
+the slots.
 
 ## Hardware
 
@@ -64,9 +68,10 @@ zip-tie slots, linked by a 1.8 mm tunnel under the ear.
 
 Starting point:
 - PETG, 0.4 mm nozzle, 0.2 mm layers, 3 perimeters, 20 % infill, no supports.
+- No web between two openings is thinner than 1 mm, so nothing drops out at 0.4 mm.
 - Base flat on its bottom face. Lid as exported: outer face on the bed.
-- The wall windows need short bridges (15.6 mm maximum). Check them in the slicer
-  preview.
+- The wall windows and the zip-tie tunnels need short bridges (15.6 mm maximum).
+  Check them in the slicer preview.
 
 ## Regenerating
 
