@@ -108,6 +108,31 @@ def wall_window(side, a0, a1, z0, z1, r=0.8):
     return _fillet(box(X0 - WALL - 1, X0 + 1, a0, a1, z0, z1), r, "x")
 
 
+def wall_prism(side, pts):
+    """Through-hole in a wall with a polygon profile, pts = [(a, z), ...] as in wall_window."""
+    if side in "NS":
+        y = (Y0 - WALL - 1) if side == "S" else (Y1 - 1)
+        poly = [V(a, y, z) for a, z in pts]
+        d = V(0, WALL + 2, 0)
+    else:
+        x = (X0 - WALL - 1) if side == "W" else (X1 - 1)
+        poly = [V(x, a, z) for a, z in pts]
+        d = V(WALL + 2, 0, 0)
+    return Part.Face(Part.makePolygon(poly + poly[:1])).extrude(d)
+
+
+def peaked_window(side, a0, a1, z0, z1):
+    """Window with a 45 degree pointed roof above z1: prints without support or bridging."""
+    ac, w = (a0 + a1) / 2, (a1 - a0) / 2
+    return wall_prism(side, [(a0, z0), (a1, z0), (a1, z1), (ac, z1 + w), (a0, z1)])
+
+
+def chamfered_window(side, a0, a1, z0, z1, c):
+    """Window with 45 degree chamfered corners (c = leg length): the top bridge shrinks by 2c."""
+    return wall_prism(side, [(a0 + c, z0), (a1 - c, z0), (a1, z0 + c), (a1, z1 - c),
+                             (a1 - c, z1), (a0 + c, z1), (a0, z1 - c), (a0, z0 + c)])
+
+
 def insert_cut(shape, x, y, top, diam=INSERT_BORE):
     bore = cyl(x, y, diam / 2, top - INSERT_DEPTH, top + 0.1)
     lead = Part.makeCone(diam / 2, diam / 2 + 0.4, 0.4, V(x, y, top - 0.4))
@@ -145,25 +170,32 @@ for sgn, xw in ((-1, OX0), (1, OX1)):
     base = base.fuse(ear)
 
 cuts = []
-# USB-C: 12.8 x 7.2, room for an overmoulded plug
-cuts.append(wall_window("W", USB_C[0] - 6.4, USB_C[0] + 6.4,
-                        PCB_Z + USB_C[1] - 3.6, PCB_Z + USB_C[1] + 3.6, 2.4))
-# MDB Mini-Fit 2x3 (plug + latch)
-cuts.append(wall_window("S", MDB[0] - 0.8, MDB[1] + 0.8, PCB_Z + PCB_T + 0.3, PCB_Z + MDB[3] + 2.0, 1.0))
-# Terminal block wire entries (one window per pole)
+# USB-C: 12.8 x 7.2, room for an overmoulded plug. 45 degree corner chamfers instead of
+# r2.4 fillets: same clearance on the diagonal (2.4 * (2 - sqrt2) = 1.4), and the top
+# bridge shrinks to 10 mm with no curved overhang.
+USB_CHAMFER = 1.4
+cuts.append(chamfered_window("W", USB_C[0] - 6.4, USB_C[0] + 6.4,
+                             PCB_Z + USB_C[1] - 3.6, PCB_Z + USB_C[1] + 3.6, USB_CHAMFER))
+# MDB Mini-Fit 2x3 (plug + latch): slot open to the wall rim, so there is no 15.6 mm bridge.
+# MDB_TAB_Z is the old window top (2 mm above the header); a tab on the lid fills the slot
+# from there up.
+MDB_TAB_Z = PCB_Z + MDB[3] + 2.0
+cuts.append(wall_window("S", MDB[0] - 0.8, MDB[1] + 0.8, PCB_Z + PCB_T + 0.3, H + 3.0, 1.0))
+# Terminal block wire entries (one window per pole), 45 degree pointed roof
 for (px, py), side in TERMINALS:
     a = px if side in "NS" else py
-    cuts.append(wall_window(side, a - TERM_W / 2, a + TERM_W / 2, PCB_Z + WIRE_Z[0], PCB_Z + WIRE_Z[1], 1.0))
+    cuts.append(peaked_window(side, a - TERM_W / 2, a + TERM_W / 2, PCB_Z + WIRE_Z[0], PCB_Z + WIRE_Z[1]))
 # Antenna: 3 x 2 mm slot at the top of the north wall, under the lid
 cuts.append(box(ANTENNA_X - 1.5, ANTENNA_X + 1.5, Y1 - 1, Y1 + WALL + 1, H - 2.0, H + 1))
 # UART debug wires: 8 x 2 mm slot at the top of the north wall, above J1
 cuts.append(box(UART_X - UART_W / 2, UART_X + UART_W / 2, Y1 - 1, Y1 + WALL + 1, H - 2.0, H + 1))
-# Low ventilation: 1.6 x 3.4 vertical slots below the board, north and south walls
+# Low ventilation: 1.6 x 3.4 vertical slots below the board, north and south walls,
+# 45 degree pointed roof (apex at board level)
 for x in [i * 5.0 for i in range(-14, 15)]:
     if any(abs(x - bx) < 5 for bx, _ in SCREW_BOSSES):
         continue
     for side in "NS":
-        cuts.append(wall_window(side, x - 0.8, x + 0.8, FLOOR + 0.8, PCB_Z - 0.8, 0.7))
+        cuts.append(peaked_window(side, x - 0.8, x + 0.8, FLOOR + 0.8, PCB_Z - 0.8))
 # Clip windows
 CLIP_W, CLIP_Z0, CLIP_Z1 = 8.0, H - 8.0, H - 5.6
 for x in CLIP_X:
@@ -186,6 +218,8 @@ for x in CLIP_X:                                  # lip relief around the clip t
     for yw in (Y0, Y1):
         lip = lip.cut(box(x - CLIP_W / 2 - 1.0, x + CLIP_W / 2 + 1.0, yw - 3, yw + 3, H - LIP_D - 1, H + 1))
 lid = lid.fuse(lip)
+# MDB filler tab: closes the open MDB slot above the plug, FIT clearance to the slot sides
+lid = lid.fuse(box(MDB[0] - 0.8 + FIT, MDB[1] + 0.8 - FIT, OY0, Y0 + FIT + 0.01, MDB_TAB_Z, H + 0.01))
 
 # Clips: 8 x 1.2 mm tab, ~8 mm free length, 0.6 mm ramped catch.
 CLIP_T, BUMP = 1.2, 0.6
