@@ -11,6 +11,7 @@ so its outer face lies on the print bed. Geometry checks (solid validity, overla
 between parts, collisions with the board) are printed to stdout.
 """
 import json
+import math
 import os
 
 import FreeCAD as App
@@ -108,19 +109,38 @@ def wall_window(side, a0, a1, z0, z1, r=0.8):
     return _fillet(box(X0 - WALL - 1, X0 + 1, a0, a1, z0, z1), r, "x")
 
 
+def wall_prism(side, pts):
+    """Through-cut in a wall from a closed (a, z) outline. a = x (north/south walls) or y (east/west walls)."""
+    if side in "NS":
+        y = Y0 - WALL - 1 if side == "S" else Y1 - 1
+        return Part.Face(Part.makePolygon([V(a, y, z) for a, z in pts])).extrude(V(0, WALL + 2, 0))
+    x = X1 - 1 if side == "E" else X0 - WALL - 1
+    return Part.Face(Part.makePolygon([V(x, a, z) for a, z in pts])).extrude(V(WALL + 2, 0, 0))
+
+
 def roof_window(side, a0, a1, z0, z1, flat=0.0):
     """Wall window with a 45 deg roof above z1, `flat` wide at the top (0 = pointed).
     Prints without supports: the roof is self-supporting and the top bridge is `flat` long."""
     c = (a1 - a0 - flat) / 2
     top = [(a1 - c, z1 + c)] + ([(a0 + c, z1 + c)] if flat > 0 else [])
-    pts = [(a0, z0), (a1, z0), (a1, z1)] + top + [(a0, z1), (a0, z0)]
-    if side in "NS":
-        y = Y0 - WALL - 1 if side == "S" else Y1 - 1
-        face = Part.Face(Part.makePolygon([V(a, y, z) for a, z in pts]))
-        return face.extrude(V(0, WALL + 2, 0))
-    x = X1 - 1 if side == "E" else X0 - WALL - 1
-    face = Part.Face(Part.makePolygon([V(x, a, z) for a, z in pts]))
-    return face.extrude(V(WALL + 2, 0, 0))
+    return wall_prism(side, [(a0, z0), (a1, z0), (a1, z1)] + top + [(a0, z1), (a0, z0)])
+
+
+def hex_field(x0, x1, y0, y1, af=3.0, web=1.2):
+    """Honeycomb of hexagonal holes through the lid, centred in the x0..x1 / y0..y1 zone.
+    af = across flats; holes in a row are `web` apart, odd rows are shifted half a pitch."""
+    p, r = af + web, af / math.sqrt(3)
+    dy = p * math.sqrt(3) / 2
+    nx, ny = int((x1 - x0 - af) // p) + 1, int((y1 - y0 - 2 * r) // dy) + 1
+    ox, oy = (x0 + x1 - (nx - 1) * p) / 2, (y0 + y1 - (ny - 1) * dy) / 2
+    holes = []
+    for j in range(ny):
+        for i in range(nx - j % 2):
+            cx, cy = ox + (i + 0.5 * (j % 2)) * p, oy + j * dy
+            pts = [V(cx + r * math.cos(math.radians(90 + 60 * k)), cy + r * math.sin(math.radians(90 + 60 * k)), H - 1)
+                   for k in range(7)]
+            holes.append(Part.Face(Part.makePolygon(pts)).extrude(V(0, 0, LID + 2)))
+    return holes
 
 
 def arch_window(side, a0, a1, z0, z1):
@@ -187,13 +207,15 @@ for (px, py), side in TERMINALS:
 cuts.append(box(ANTENNA_X - 1.5, ANTENNA_X + 1.5, Y1 - 1, Y1 + WALL + 1, H - 2.0, H + 1))
 # UART debug wires: 8 x 2 mm slot at the top of the north wall, above J1
 cuts.append(box(UART_X - UART_W / 2, UART_X + UART_W / 2, Y1 - 1, Y1 + WALL + 1, H - 2.0, H + 1))
-# Low ventilation: 1.6 x 3.4 vertical slots below the board, north and south walls,
-# pointed 45 deg top (peak 0.8 mm higher, still below the board)
+# Low ventilation: row of 3.4 mm diamonds below the board, north and south walls.
+# 45 deg sides print without supports; 5 mm pitch leaves 1.1 mm webs.
+VENT_D, VENT_Z = 3.4, (FLOOR + PCB_Z) / 2
 for x in [i * 5.0 for i in range(-14, 15)]:
     if any(abs(x - bx) < 5 for bx, _ in SCREW_BOSSES):
         continue
     for side in "NS":
-        cuts.append(roof_window(side, x - 0.8, x + 0.8, FLOOR + 0.8, PCB_Z - 0.8))
+        cuts.append(wall_prism(side, [(x, VENT_Z - VENT_D / 2), (x + VENT_D / 2, VENT_Z), (x, VENT_Z + VENT_D / 2),
+                                      (x - VENT_D / 2, VENT_Z), (x, VENT_Z - VENT_D / 2)]))
 # Clip notches: blind pockets in the inner wall face, CLIP_POCKET deep (outer skin stays closed)
 CLIP_W, CLIP_Z0, CLIP_Z1 = 8.0, H - 8.0, H - 5.6
 CLIP_POCKET = 1.2
@@ -240,9 +262,8 @@ for (px, py), side in TERMINALS:                  # screwdriver access to termin
     lid_cuts.append(cyl(px, py, TERM_W / 2, H - 1, H + LID + 1))
 for x, y in LEDS:                                 # LED window
     lid_cuts.append(cyl(x, y, 2.0, H - 1, H + LID + 1))
-# High ventilation: 1.6 x 12 slots above the relays and the centre area
-for x in [46.0 + i * 3.2 for i in range(6)] + [-24.0 + i * 3.2 for i in range(8)]:
-    lid_cuts.append(box(x - 0.8, x + 0.8, -6.0, 6.0, H - 1, H + LID + 1))
+# High ventilation: honeycomb above the relays and the centre area (open area ~ the old 1.6 mm slots)
+lid_cuts += hex_field(45.2, 62.8, -7.5, 7.5) + hex_field(-24.8, -0.8, -7.5, 7.5)
 for c in lid_cuts:
     lid = lid.cut(c)
 lid = lid.removeSplitter()
