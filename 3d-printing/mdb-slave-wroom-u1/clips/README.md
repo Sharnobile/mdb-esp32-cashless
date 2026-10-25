@@ -40,7 +40,7 @@ For a version with optional lid screws, see [`../screw-clips`](../screw-clips).
   ESP32 U.FL connector.
 - **UART debug:** 8 × 2 mm slot at the top of the north wall, under the lid, above
   the J1 header (EN/TXD/RXD/IO0). Lets debug wires out with the lid closed.
-- **Ventilation:** 1.6 × 3.4 mm slots below the board in the long walls, and
+- **Ventilation:** 1.6 × 3.4 mm slots with a pointed 45° top below the board in the long walls, and
   1.6 × 12 mm slots in the lid above the relays and the centre area. Air flows in at
   the bottom and out at the top.
 
@@ -69,8 +69,8 @@ Starting point:
 - PETG, 0.4 mm nozzle, 0.2 mm layers, 3 perimeters, 20 % infill, no supports.
 - No web between two openings is thinner than 1 mm, so nothing drops out at 0.4 mm.
 - Base flat on its bottom face. Lid as exported: outer face on the bed.
-- The wall windows need short bridges (15.6 mm maximum).
-  Check them in the slicer preview.
+- The wall windows have 45° tops, so they need no supports. The only bridge is
+  6.8 mm, above USB-C. Check it in the slicer preview.
 
 ## Regenerating
 

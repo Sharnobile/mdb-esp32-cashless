@@ -30,9 +30,11 @@ four standoffs with M2.5 heat inserts in this variant.
 
 ## Openings
 
-- **USB-C:** 12.8 × 7.2 mm window in the west wall, flush with the connector.
-- **MDB (Mini-Fit 2×3):** 15.6 × 12.5 mm window in the south wall.
-- **Terminal blocks:** one 4.0 × 8.4 mm wire window per pole (30 poles on the south,
+- **USB-C:** 12.8 × 7.2 mm window in the west wall, flush with the connector, with
+  45° chamfers above it so the top bridge is only 6.8 mm.
+- **MDB (Mini-Fit 2×3):** 15.6 mm wide window in the south wall, open up to the rim.
+  A tab on the lid closes it 2 mm above the header, which leaves room for the plug latch.
+- **Terminal blocks:** one 4.0 × 8.4 mm wire window with a pointed 45° top per pole (30 poles on the south,
   north and east walls), plus a Ø4 hole in the lid above each terminal screw. The poles
   sit 5.08 mm apart, so 4.0 mm leaves 1.08 mm webs between neighbouring openings: two
   lines with a 0.4 mm nozzle (`TERM_W` in the script).
@@ -41,7 +43,7 @@ four standoffs with M2.5 heat inserts in this variant.
   ESP32 U.FL connector.
 - **UART debug:** 8 × 2 mm slot at the top of the north wall, under the lid, above
   the J1 header (EN/TXD/RXD/IO0). Lets debug wires out with the lid closed.
-- **Ventilation:** 1.6 × 3.4 mm slots below the board in the long walls, and
+- **Ventilation:** 1.6 × 3.4 mm slots with a pointed 45° top below the board in the long walls, and
   1.6 × 12 mm slots in the lid above the relays and the centre area. Air flows in at
   the bottom and out at the top.
 
@@ -72,8 +74,8 @@ Starting point:
 - PETG, 0.4 mm nozzle, 0.2 mm layers, 3 perimeters, 20 % infill, no supports.
 - No web between two openings is thinner than 1 mm, so nothing drops out at 0.4 mm.
 - Base flat on its bottom face. Lid as exported: outer face on the bed.
-- The wall windows need short bridges (15.6 mm maximum).
-  Check them in the slicer preview.
+- The wall windows have 45° tops, so they need no supports. The only bridge is
+  6.8 mm, above USB-C. Check it in the slicer preview.
 
 ## Regenerating
 

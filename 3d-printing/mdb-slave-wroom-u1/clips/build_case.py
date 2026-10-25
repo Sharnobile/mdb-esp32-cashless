@@ -108,6 +108,21 @@ def wall_window(side, a0, a1, z0, z1, r=0.8):
     return _fillet(box(X0 - WALL - 1, X0 + 1, a0, a1, z0, z1), r, "x")
 
 
+def roof_window(side, a0, a1, z0, z1, flat=0.0):
+    """Wall window with a 45 deg roof above z1, `flat` wide at the top (0 = pointed).
+    Prints without supports: the roof is self-supporting and the top bridge is `flat` long."""
+    c = (a1 - a0 - flat) / 2
+    top = [(a1 - c, z1 + c)] + ([(a0 + c, z1 + c)] if flat > 0 else [])
+    pts = [(a0, z0), (a1, z0), (a1, z1)] + top + [(a0, z1), (a0, z0)]
+    if side in "NS":
+        y = Y0 - WALL - 1 if side == "S" else Y1 - 1
+        face = Part.Face(Part.makePolygon([V(a, y, z) for a, z in pts]))
+        return face.extrude(V(0, WALL + 2, 0))
+    x = X1 - 1 if side == "E" else X0 - WALL - 1
+    face = Part.Face(Part.makePolygon([V(x, a, z) for a, z in pts]))
+    return face.extrude(V(WALL + 2, 0, 0))
+
+
 def insert_cut(shape, x, y, top, diam=INSERT_BORE):
     bore = cyl(x, y, diam / 2, top - INSERT_DEPTH, top + 0.1)
     lead = Part.makeCone(diam / 2, diam / 2 + 0.4, 0.4, V(x, y, top - 0.4))
@@ -145,25 +160,27 @@ for sgn, xw in ((-1, OX0), (1, OX1)):
     base = base.fuse(ear)
 
 cuts = []
-# USB-C: 12.8 x 7.2, room for an overmoulded plug
-cuts.append(wall_window("W", USB_C[0] - 6.4, USB_C[0] + 6.4,
-                        PCB_Z + USB_C[1] - 3.6, PCB_Z + USB_C[1] + 3.6, 2.4))
-# MDB Mini-Fit 2x3 (plug + latch)
-cuts.append(wall_window("S", MDB[0] - 0.8, MDB[1] + 0.8, PCB_Z + PCB_T + 0.3, PCB_Z + MDB[3] + 2.0, 1.0))
-# Terminal block wire entries (one window per pole)
+# USB-C: 12.8 x 7.2, room for an overmoulded plug, 45 deg chamfers above it (6.8 mm bridge)
+cuts.append(roof_window("W", USB_C[0] - 6.4, USB_C[0] + 6.4,
+                        PCB_Z + USB_C[1] - 3.6, PCB_Z + USB_C[1] + 3.6, flat=6.8))
+# MDB Mini-Fit 2x3 (plug + latch): open up to the rim, a lid tab closes it above MDB_Z1
+MDB_Z1 = PCB_Z + MDB[3] + 2.0
+cuts.append(wall_window("S", MDB[0] - 0.8, MDB[1] + 0.8, PCB_Z + PCB_T + 0.3, H + 1, 1.0))
+# Terminal block wire entries (one window per pole), pointed 45 deg top
 for (px, py), side in TERMINALS:
     a = px if side in "NS" else py
-    cuts.append(wall_window(side, a - TERM_W / 2, a + TERM_W / 2, PCB_Z + WIRE_Z[0], PCB_Z + WIRE_Z[1], 1.0))
+    cuts.append(roof_window(side, a - TERM_W / 2, a + TERM_W / 2, PCB_Z + WIRE_Z[0], PCB_Z + WIRE_Z[1]))
 # Antenna: 3 x 2 mm slot at the top of the north wall, under the lid
 cuts.append(box(ANTENNA_X - 1.5, ANTENNA_X + 1.5, Y1 - 1, Y1 + WALL + 1, H - 2.0, H + 1))
 # UART debug wires: 8 x 2 mm slot at the top of the north wall, above J1
 cuts.append(box(UART_X - UART_W / 2, UART_X + UART_W / 2, Y1 - 1, Y1 + WALL + 1, H - 2.0, H + 1))
-# Low ventilation: 1.6 x 3.4 vertical slots below the board, north and south walls
+# Low ventilation: 1.6 x 3.4 vertical slots below the board, north and south walls,
+# pointed 45 deg top (peak 0.8 mm higher, still below the board)
 for x in [i * 5.0 for i in range(-14, 15)]:
     if any(abs(x - bx) < 5 for bx, _ in SCREW_BOSSES):
         continue
     for side in "NS":
-        cuts.append(wall_window(side, x - 0.8, x + 0.8, FLOOR + 0.8, PCB_Z - 0.8, 0.7))
+        cuts.append(roof_window(side, x - 0.8, x + 0.8, FLOOR + 0.8, PCB_Z - 0.8))
 # Clip windows
 CLIP_W, CLIP_Z0, CLIP_Z1 = 8.0, H - 8.0, H - 5.6
 for x in CLIP_X:
@@ -186,6 +203,8 @@ for x in CLIP_X:                                  # lip relief around the clip t
     for yw in (Y0, Y1):
         lip = lip.cut(box(x - CLIP_W / 2 - 1.0, x + CLIP_W / 2 + 1.0, yw - 3, yw + 3, H - LIP_D - 1, H + 1))
 lid = lid.fuse(lip)
+# MDB filler tab: closes the south wall window above the plug and its latch
+lid = lid.fuse(box(MDB[0] - 0.8 + FIT, MDB[1] + 0.8 - FIT, Y0 - WALL, Y0 + FIT + LIP_T, MDB_Z1, H + 0.01))
 
 # Clips: 8 x 1.2 mm tab, ~8 mm free length, 0.6 mm ramped catch.
 CLIP_T, BUMP = 1.2, 0.6
@@ -243,6 +262,11 @@ for name, part in (("base", base), ("lid", lid)):
 checks["base_lid_overlap_mm3"] = round(base.common(lid).Volume, 3)
 checks["pcb_collisions"] = collisions
 checks["base_height_mm"] = round(H, 2)
+# MDB lid tab vs header top (the 2 mm left above it are for the plug latch, not modelled)
+checks["mdb_tab_header_gap_mm"] = round(MDB_Z1 - max(
+    s.BoundBox.ZMax for _, s in pcb_solids
+    if s.BoundBox.XMax > MDB[0] and s.BoundBox.XMin < MDB[1] and s.BoundBox.YMin < Y0 + 5), 2)
+assert checks["mdb_tab_header_gap_mm"] > 1.5, checks["mdb_tab_header_gap_mm"]
 if SCREW_BOSSES:
     # Clip windows must stay reachable from outside: no screw boss in front of them.
     checks["clip_boss_min_gap_mm"] = round(min(
