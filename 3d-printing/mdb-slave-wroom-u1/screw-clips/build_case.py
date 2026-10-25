@@ -123,6 +123,19 @@ def roof_window(side, a0, a1, z0, z1, flat=0.0):
     return face.extrude(V(WALL + 2, 0, 0))
 
 
+def arch_window(side, a0, a1, z0, z1):
+    """Wall window with a semicircular top ending at z1 (fits a round cable, short arch bridge)."""
+    r = (a1 - a0) / 2
+    zc = z1 - r
+    if side in "NS":
+        y = Y0 - WALL - 1 if side == "S" else Y1 - 1
+        return box(a0, a1, y, y + WALL + 2, z0, zc).fuse(
+            Part.makeCylinder(r, WALL + 2, V(a0 + r, y, zc), V(0, 1, 0)))
+    x = X1 - 1 if side == "E" else X0 - WALL - 1
+    return box(x, x + WALL + 2, a0, a1, z0, zc).fuse(
+        Part.makeCylinder(r, WALL + 2, V(x, a0 + r, zc), V(1, 0, 0)))
+
+
 def insert_cut(shape, x, y, top, diam=INSERT_BORE):
     bore = cyl(x, y, diam / 2, top - INSERT_DEPTH, top + 0.1)
     lead = Part.makeCone(diam / 2, diam / 2 + 0.4, 0.4, V(x, y, top - 0.4))
@@ -166,10 +179,10 @@ cuts.append(roof_window("W", USB_C[0] - 6.4, USB_C[0] + 6.4,
 # MDB Mini-Fit 2x3 (plug + latch): open up to the rim, a lid tab closes it above MDB_Z1
 MDB_Z1 = PCB_Z + MDB[3] + 2.0
 cuts.append(wall_window("S", MDB[0] - 0.8, MDB[1] + 0.8, PCB_Z + PCB_T + 0.3, H + 1, 1.0))
-# Terminal block wire entries (one window per pole), pointed 45 deg top
+# Terminal block wire entries (one window per pole), round top for the round cable
 for (px, py), side in TERMINALS:
     a = px if side in "NS" else py
-    cuts.append(roof_window(side, a - TERM_W / 2, a + TERM_W / 2, PCB_Z + WIRE_Z[0], PCB_Z + WIRE_Z[1]))
+    cuts.append(arch_window(side, a - TERM_W / 2, a + TERM_W / 2, PCB_Z + WIRE_Z[0], PCB_Z + WIRE_Z[1]))
 # Antenna: 3 x 2 mm slot at the top of the north wall, under the lid
 cuts.append(box(ANTENNA_X - 1.5, ANTENNA_X + 1.5, Y1 - 1, Y1 + WALL + 1, H - 2.0, H + 1))
 # UART debug wires: 8 x 2 mm slot at the top of the north wall, above J1
@@ -181,11 +194,12 @@ for x in [i * 5.0 for i in range(-14, 15)]:
         continue
     for side in "NS":
         cuts.append(roof_window(side, x - 0.8, x + 0.8, FLOOR + 0.8, PCB_Z - 0.8))
-# Clip windows
+# Clip notches: blind pockets in the inner wall face, CLIP_POCKET deep (outer skin stays closed)
 CLIP_W, CLIP_Z0, CLIP_Z1 = 8.0, H - 8.0, H - 5.6
+CLIP_POCKET = 1.2
 for x in CLIP_X:
-    for side in "NS":
-        cuts.append(wall_window(side, x - CLIP_W / 2 - 0.4, x + CLIP_W / 2 + 0.4, CLIP_Z0, CLIP_Z1, 0.4))
+    cuts.append(box(x - CLIP_W / 2 - 0.4, x + CLIP_W / 2 + 0.4, Y0 - CLIP_POCKET, Y0 + 1, CLIP_Z0, CLIP_Z1))
+    cuts.append(box(x - CLIP_W / 2 - 0.4, x + CLIP_W / 2 + 0.4, Y1 - 1, Y1 + CLIP_POCKET, CLIP_Z0, CLIP_Z1))
 for c in cuts:
     base = base.cut(c)
 base = base.removeSplitter()
@@ -206,8 +220,8 @@ lid = lid.fuse(lip)
 # MDB filler tab: closes the south wall window above the plug and its latch
 lid = lid.fuse(box(MDB[0] - 0.8 + FIT, MDB[1] + 0.8 - FIT, Y0 - WALL, Y0 + FIT + LIP_T, MDB_Z1, H + 0.01))
 
-# Clips: 8 x 1.2 mm tab, ~8 mm free length, 0.6 mm ramped catch.
-CLIP_T, BUMP = 1.2, 0.6
+# Clips: 8 x 1.2 mm tab, ~8 mm free length, 0.8 mm ramped catch (0.6 held too loosely).
+CLIP_T, BUMP = 1.2, 0.8
 for x in CLIP_X:
     for sgn, yw in ((-1, Y0), (1, Y1)):
         y_out = yw - sgn * FIT
@@ -267,11 +281,9 @@ checks["mdb_tab_header_gap_mm"] = round(MDB_Z1 - max(
     s.BoundBox.ZMax for _, s in pcb_solids
     if s.BoundBox.XMax > MDB[0] and s.BoundBox.XMin < MDB[1] and s.BoundBox.YMin < Y0 + 5), 2)
 assert checks["mdb_tab_header_gap_mm"] > 1.5, checks["mdb_tab_header_gap_mm"]
-if SCREW_BOSSES:
-    # Clip windows must stay reachable from outside: no screw boss in front of them.
-    checks["clip_boss_min_gap_mm"] = round(min(
-        abs(cx - bx) - (CLIP_W / 2 + 0.4) - 3.4 for cx in CLIP_X for bx, _ in SCREW_BOSSES), 2)
-    assert checks["clip_boss_min_gap_mm"] > 0.5, checks["clip_boss_min_gap_mm"]
+# Catch must stay inside its pocket: wall face to catch tip vs pocket depth
+checks["clip_pocket_margin_mm"] = round(CLIP_POCKET - (BUMP - FIT), 2)
+assert checks["clip_pocket_margin_mm"] > 0.2, checks["clip_pocket_margin_mm"]
 
 
 # ---------------------------------------------------------------- export

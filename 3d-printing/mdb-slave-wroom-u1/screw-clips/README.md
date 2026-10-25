@@ -34,7 +34,7 @@ four standoffs with M2.5 heat inserts in this variant.
   45° chamfers above it so the top bridge is only 6.8 mm.
 - **MDB (Mini-Fit 2×3):** 15.6 mm wide window in the south wall, open up to the rim.
   A tab on the lid closes it 2 mm above the header, which leaves room for the plug latch.
-- **Terminal blocks:** one 4.0 × 8.4 mm wire window with a pointed 45° top per pole (30 poles on the south,
+- **Terminal blocks:** one 4.0 × 7.4 mm wire window with a round top per pole (30 poles on the south,
   north and east walls), plus a Ø4 hole in the lid above each terminal screw. The poles
   sit 5.08 mm apart, so 4.0 mm leaves 1.08 mm webs between neighbouring openings: two
   lines with a 0.4 mm nozzle (`TERM_W` in the script).
@@ -49,9 +49,9 @@ four standoffs with M2.5 heat inserts in this variant.
 
 ## Closing
 
-- **Clips:** 4 tabs (8 × 1.2 mm, 0.6 mm catch) snap into windows in the north and
-  south walls. To open, push each catch inwards through its window with a small
-  screwdriver.
+- **Clips:** 4 tabs (8 × 1.2 mm, 0.8 mm catch) snap into 1.2 mm deep blind notches
+  in the inner face of the north and south walls; the outside of the wall stays closed.
+  To open, flex the long walls outwards and lift the lid.
 - **Screws (optional):** 4 external bosses with M2.5 × 5 × Ø3.5 heat inserts. Use
   M2.5 × 8 pan-head screws.
 
@@ -74,7 +74,7 @@ Starting point:
 - PETG, 0.4 mm nozzle, 0.2 mm layers, 3 perimeters, 20 % infill, no supports.
 - No web between two openings is thinner than 1 mm, so nothing drops out at 0.4 mm.
 - Base flat on its bottom face. Lid as exported: outer face on the bed.
-- The wall windows have 45° tops, so they need no supports. The only bridge is
+- The wall windows have 45° or round tops, so they need no supports. The longest bridge is
   6.8 mm, above USB-C. Check it in the slicer preview.
 
 ## Regenerating
