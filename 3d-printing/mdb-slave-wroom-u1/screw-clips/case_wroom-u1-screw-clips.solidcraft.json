@@ -739,14 +739,6 @@
   {
    "command": "parameters.add",
    "params": {
-    "name": "clip_pocket",
-    "expression": "1.2 mm",
-    "comment": "blind clip notch depth into the wall"
-   }
-  },
-  {
-   "command": "parameters.add",
-   "params": {
     "name": "clip_z0",
     "expression": "base_h - 8",
     "comment": "clip window bottom"
@@ -3143,14 +3135,42 @@
    }
   },
   {
-   "command": "sketch.rectangle.two_point",
+   "command": "sketch.line",
    "params": {
-    "p0": [
-     -59.79,
-     9.48
+    "points": [
+     [
+      -59.79,
+      14.920000000000002
+     ],
+     [
+      -59.79,
+      9.48
+     ],
+     [
+      -55.79,
+      9.48
+     ],
+     [
+      -55.79,
+      14.920000000000002
+     ]
     ],
-    "p1": [
+    "infer": true
+   }
+  },
+  {
+   "command": "sketch.arc.center_point",
+   "params": {
+    "center": [
+     -57.79,
+     14.920000000000002
+    ],
+    "start": [
      -55.79,
+     14.920000000000002
+    ],
+    "end": [
+     -59.79,
      14.920000000000002
     ]
    }
@@ -3161,14 +3181,14 @@
     "entities": [
      "l1"
     ],
-    "value": "(p4_first + term_w / 2) - (p4_first - term_w / 2)"
+    "value": "(pcb_z + wire_z1 - term_w / 2) - (pcb_z + wire_z0)"
    }
   },
   {
    "command": "sketch.dimension",
    "params": {
     "entities": [
-     "l2"
+     "l3"
     ],
     "value": "(pcb_z + wire_z1 - term_w / 2) - (pcb_z + wire_z0)"
    }
@@ -3177,10 +3197,19 @@
    "command": "sketch.dimension",
    "params": {
     "entities": [
-     "origin",
-     "l4"
+     "l2"
     ],
-    "value": "-(p4_first - term_w / 2)"
+    "value": "term_w"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l2"
+    ],
+    "value": "pcb_z + wire_z0"
    }
   },
   {
@@ -3190,7 +3219,18 @@
      "origin",
      "l1"
     ],
-    "value": "pcb_z + wire_z0"
+    "value": "-((p4_first) - (term_w) / 2)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "a1.center"
+    ],
+    "value": "pcb_z + wire_z1 - term_w / 2",
+    "type": "vertical"
    }
   },
   {
@@ -3210,94 +3250,10 @@
    }
   },
   {
-   "command": "sketch.create",
-   "params": {
-    "plane": {
-     "origin": [
-      0,
-      0,
-      0
-     ],
-     "x_dir": [
-      1,
-      0,
-      0
-     ],
-     "y_dir": [
-      0,
-      0,
-      1
-     ]
-    },
-    "name": "P4 wire window top sketch",
-    "project_edges": false,
-    "offset": "cav_y + wall / 2"
-   }
-  },
-  {
-   "command": "sketch.circle.center",
-   "params": {
-    "center": [
-     -57.79,
-     14.920000000000002
-    ],
-    "diameter": 4.0
-   }
-  },
-  {
-   "command": "sketch.dimension",
-   "params": {
-    "entities": [
-     "c1"
-    ],
-    "value": "term_w",
-    "type": "diameter"
-   }
-  },
-  {
-   "command": "sketch.dimension",
-   "params": {
-    "entities": [
-     "origin",
-     "c1.center"
-    ],
-    "value": "-(p4_first)",
-    "type": "horizontal"
-   }
-  },
-  {
-   "command": "sketch.dimension",
-   "params": {
-    "entities": [
-     "origin",
-     "c1.center"
-    ],
-    "value": "pcb_z + wire_z1 - term_w / 2",
-    "type": "vertical"
-   }
-  },
-  {
-   "command": "sketch.finish",
-   "params": {}
-  },
-  {
-   "command": "solid.extrude",
-   "params": {
-    "distance": "wall + 2",
-    "name": "P4 wire window top",
-    "direction": "symmetric",
-    "operation": "cut",
-    "targets": [
-     "Base"
-    ]
-   }
-  },
-  {
    "command": "solid.pattern.rectangular",
    "params": {
     "features": [
-     "P4 wire window",
-     "P4 wire window top"
+     "P4 wire window"
     ],
     "dir1": [
      1,
@@ -3335,14 +3291,42 @@
    }
   },
   {
-   "command": "sketch.rectangle.two_point",
+   "command": "sketch.line",
    "params": {
-    "p0": [
-     -44.23,
-     9.48
+    "points": [
+     [
+      -44.23,
+      14.920000000000002
+     ],
+     [
+      -44.23,
+      9.48
+     ],
+     [
+      -40.23,
+      9.48
+     ],
+     [
+      -40.23,
+      14.920000000000002
+     ]
     ],
-    "p1": [
+    "infer": true
+   }
+  },
+  {
+   "command": "sketch.arc.center_point",
+   "params": {
+    "center": [
+     -42.23,
+     14.920000000000002
+    ],
+    "start": [
      -40.23,
+     14.920000000000002
+    ],
+    "end": [
+     -44.23,
      14.920000000000002
     ]
    }
@@ -3353,14 +3337,14 @@
     "entities": [
      "l1"
     ],
-    "value": "(p5_first + term_w / 2) - (p5_first - term_w / 2)"
+    "value": "(pcb_z + wire_z1 - term_w / 2) - (pcb_z + wire_z0)"
    }
   },
   {
    "command": "sketch.dimension",
    "params": {
     "entities": [
-     "l2"
+     "l3"
     ],
     "value": "(pcb_z + wire_z1 - term_w / 2) - (pcb_z + wire_z0)"
    }
@@ -3369,10 +3353,19 @@
    "command": "sketch.dimension",
    "params": {
     "entities": [
-     "origin",
-     "l4"
+     "l2"
     ],
-    "value": "-(p5_first - term_w / 2)"
+    "value": "term_w"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l2"
+    ],
+    "value": "pcb_z + wire_z0"
    }
   },
   {
@@ -3382,7 +3375,18 @@
      "origin",
      "l1"
     ],
-    "value": "pcb_z + wire_z0"
+    "value": "-((p5_first) - (term_w) / 2)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "a1.center"
+    ],
+    "value": "pcb_z + wire_z1 - term_w / 2",
+    "type": "vertical"
    }
   },
   {
@@ -3402,94 +3406,10 @@
    }
   },
   {
-   "command": "sketch.create",
-   "params": {
-    "plane": {
-     "origin": [
-      0,
-      0,
-      0
-     ],
-     "x_dir": [
-      1,
-      0,
-      0
-     ],
-     "y_dir": [
-      0,
-      0,
-      1
-     ]
-    },
-    "name": "P5 wire window top sketch",
-    "project_edges": false,
-    "offset": "cav_y + wall / 2"
-   }
-  },
-  {
-   "command": "sketch.circle.center",
-   "params": {
-    "center": [
-     -42.23,
-     14.920000000000002
-    ],
-    "diameter": 4.0
-   }
-  },
-  {
-   "command": "sketch.dimension",
-   "params": {
-    "entities": [
-     "c1"
-    ],
-    "value": "term_w",
-    "type": "diameter"
-   }
-  },
-  {
-   "command": "sketch.dimension",
-   "params": {
-    "entities": [
-     "origin",
-     "c1.center"
-    ],
-    "value": "-(p5_first)",
-    "type": "horizontal"
-   }
-  },
-  {
-   "command": "sketch.dimension",
-   "params": {
-    "entities": [
-     "origin",
-     "c1.center"
-    ],
-    "value": "pcb_z + wire_z1 - term_w / 2",
-    "type": "vertical"
-   }
-  },
-  {
-   "command": "sketch.finish",
-   "params": {}
-  },
-  {
-   "command": "solid.extrude",
-   "params": {
-    "distance": "wall + 2",
-    "name": "P5 wire window top",
-    "direction": "symmetric",
-    "operation": "cut",
-    "targets": [
-     "Base"
-    ]
-   }
-  },
-  {
    "command": "solid.pattern.rectangular",
    "params": {
     "features": [
-     "P5 wire window",
-     "P5 wire window top"
+     "P5 wire window"
     ],
     "dir1": [
      1,
@@ -3527,14 +3447,42 @@
    }
   },
   {
-   "command": "sketch.rectangle.two_point",
+   "command": "sketch.line",
    "params": {
-    "p0": [
-     -28.68,
-     9.48
+    "points": [
+     [
+      -28.68,
+      14.920000000000002
+     ],
+     [
+      -28.68,
+      9.48
+     ],
+     [
+      -24.68,
+      9.48
+     ],
+     [
+      -24.68,
+      14.920000000000002
+     ]
     ],
-    "p1": [
+    "infer": true
+   }
+  },
+  {
+   "command": "sketch.arc.center_point",
+   "params": {
+    "center": [
+     -26.68,
+     14.920000000000002
+    ],
+    "start": [
      -24.68,
+     14.920000000000002
+    ],
+    "end": [
+     -28.68,
      14.920000000000002
     ]
    }
@@ -3545,14 +3493,14 @@
     "entities": [
      "l1"
     ],
-    "value": "(p6_first + term_w / 2) - (p6_first - term_w / 2)"
+    "value": "(pcb_z + wire_z1 - term_w / 2) - (pcb_z + wire_z0)"
    }
   },
   {
    "command": "sketch.dimension",
    "params": {
     "entities": [
-     "l2"
+     "l3"
     ],
     "value": "(pcb_z + wire_z1 - term_w / 2) - (pcb_z + wire_z0)"
    }
@@ -3561,10 +3509,19 @@
    "command": "sketch.dimension",
    "params": {
     "entities": [
-     "origin",
-     "l4"
+     "l2"
     ],
-    "value": "-(p6_first - term_w / 2)"
+    "value": "term_w"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l2"
+    ],
+    "value": "pcb_z + wire_z0"
    }
   },
   {
@@ -3574,7 +3531,18 @@
      "origin",
      "l1"
     ],
-    "value": "pcb_z + wire_z0"
+    "value": "-((p6_first) - (term_w) / 2)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "a1.center"
+    ],
+    "value": "pcb_z + wire_z1 - term_w / 2",
+    "type": "vertical"
    }
   },
   {
@@ -3594,94 +3562,10 @@
    }
   },
   {
-   "command": "sketch.create",
-   "params": {
-    "plane": {
-     "origin": [
-      0,
-      0,
-      0
-     ],
-     "x_dir": [
-      1,
-      0,
-      0
-     ],
-     "y_dir": [
-      0,
-      0,
-      1
-     ]
-    },
-    "name": "P6 wire window top sketch",
-    "project_edges": false,
-    "offset": "cav_y + wall / 2"
-   }
-  },
-  {
-   "command": "sketch.circle.center",
-   "params": {
-    "center": [
-     -26.68,
-     14.920000000000002
-    ],
-    "diameter": 4.0
-   }
-  },
-  {
-   "command": "sketch.dimension",
-   "params": {
-    "entities": [
-     "c1"
-    ],
-    "value": "term_w",
-    "type": "diameter"
-   }
-  },
-  {
-   "command": "sketch.dimension",
-   "params": {
-    "entities": [
-     "origin",
-     "c1.center"
-    ],
-    "value": "-(p6_first)",
-    "type": "horizontal"
-   }
-  },
-  {
-   "command": "sketch.dimension",
-   "params": {
-    "entities": [
-     "origin",
-     "c1.center"
-    ],
-    "value": "pcb_z + wire_z1 - term_w / 2",
-    "type": "vertical"
-   }
-  },
-  {
-   "command": "sketch.finish",
-   "params": {}
-  },
-  {
-   "command": "solid.extrude",
-   "params": {
-    "distance": "wall + 2",
-    "name": "P6 wire window top",
-    "direction": "symmetric",
-    "operation": "cut",
-    "targets": [
-     "Base"
-    ]
-   }
-  },
-  {
    "command": "solid.pattern.rectangular",
    "params": {
     "features": [
-     "P6 wire window",
-     "P6 wire window top"
+     "P6 wire window"
     ],
     "dir1": [
      1,
@@ -3719,14 +3603,42 @@
    }
   },
   {
-   "command": "sketch.rectangle.two_point",
+   "command": "sketch.line",
    "params": {
-    "p0": [
-     -13.14,
-     9.48
+    "points": [
+     [
+      -13.14,
+      14.920000000000002
+     ],
+     [
+      -13.14,
+      9.48
+     ],
+     [
+      -9.14,
+      9.48
+     ],
+     [
+      -9.14,
+      14.920000000000002
+     ]
     ],
-    "p1": [
+    "infer": true
+   }
+  },
+  {
+   "command": "sketch.arc.center_point",
+   "params": {
+    "center": [
+     -11.14,
+     14.920000000000002
+    ],
+    "start": [
      -9.14,
+     14.920000000000002
+    ],
+    "end": [
+     -13.14,
      14.920000000000002
     ]
    }
@@ -3737,14 +3649,14 @@
     "entities": [
      "l1"
     ],
-    "value": "(p3_first + term_w / 2) - (p3_first - term_w / 2)"
+    "value": "(pcb_z + wire_z1 - term_w / 2) - (pcb_z + wire_z0)"
    }
   },
   {
    "command": "sketch.dimension",
    "params": {
     "entities": [
-     "l2"
+     "l3"
     ],
     "value": "(pcb_z + wire_z1 - term_w / 2) - (pcb_z + wire_z0)"
    }
@@ -3753,10 +3665,19 @@
    "command": "sketch.dimension",
    "params": {
     "entities": [
-     "origin",
-     "l4"
+     "l2"
     ],
-    "value": "-(p3_first - term_w / 2)"
+    "value": "term_w"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l2"
+    ],
+    "value": "pcb_z + wire_z0"
    }
   },
   {
@@ -3766,7 +3687,18 @@
      "origin",
      "l1"
     ],
-    "value": "pcb_z + wire_z0"
+    "value": "-((p3_first) - (term_w) / 2)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "a1.center"
+    ],
+    "value": "pcb_z + wire_z1 - term_w / 2",
+    "type": "vertical"
    }
   },
   {
@@ -3786,94 +3718,10 @@
    }
   },
   {
-   "command": "sketch.create",
-   "params": {
-    "plane": {
-     "origin": [
-      0,
-      0,
-      0
-     ],
-     "x_dir": [
-      1,
-      0,
-      0
-     ],
-     "y_dir": [
-      0,
-      0,
-      1
-     ]
-    },
-    "name": "P3 wire window top sketch",
-    "project_edges": false,
-    "offset": "cav_y + wall / 2"
-   }
-  },
-  {
-   "command": "sketch.circle.center",
-   "params": {
-    "center": [
-     -11.14,
-     14.920000000000002
-    ],
-    "diameter": 4.0
-   }
-  },
-  {
-   "command": "sketch.dimension",
-   "params": {
-    "entities": [
-     "c1"
-    ],
-    "value": "term_w",
-    "type": "diameter"
-   }
-  },
-  {
-   "command": "sketch.dimension",
-   "params": {
-    "entities": [
-     "origin",
-     "c1.center"
-    ],
-    "value": "-(p3_first)",
-    "type": "horizontal"
-   }
-  },
-  {
-   "command": "sketch.dimension",
-   "params": {
-    "entities": [
-     "origin",
-     "c1.center"
-    ],
-    "value": "pcb_z + wire_z1 - term_w / 2",
-    "type": "vertical"
-   }
-  },
-  {
-   "command": "sketch.finish",
-   "params": {}
-  },
-  {
-   "command": "solid.extrude",
-   "params": {
-    "distance": "wall + 2",
-    "name": "P3 wire window top",
-    "direction": "symmetric",
-    "operation": "cut",
-    "targets": [
-     "Base"
-    ]
-   }
-  },
-  {
    "command": "solid.pattern.rectangular",
    "params": {
     "features": [
-     "P3 wire window",
-     "P3 wire window top"
+     "P3 wire window"
     ],
     "dir1": [
      1,
@@ -3911,14 +3759,42 @@
    }
   },
   {
-   "command": "sketch.rectangle.two_point",
+   "command": "sketch.line",
    "params": {
-    "p0": [
-     7.09,
-     9.48
+    "points": [
+     [
+      7.09,
+      14.920000000000002
+     ],
+     [
+      7.09,
+      9.48
+     ],
+     [
+      11.09,
+      9.48
+     ],
+     [
+      11.09,
+      14.920000000000002
+     ]
     ],
-    "p1": [
+    "infer": true
+   }
+  },
+  {
+   "command": "sketch.arc.center_point",
+   "params": {
+    "center": [
+     9.09,
+     14.920000000000002
+    ],
+    "start": [
      11.09,
+     14.920000000000002
+    ],
+    "end": [
+     7.09,
      14.920000000000002
     ]
    }
@@ -3929,14 +3805,14 @@
     "entities": [
      "l1"
     ],
-    "value": "(p2_first + term_w / 2) - (p2_first - term_w / 2)"
+    "value": "(pcb_z + wire_z1 - term_w / 2) - (pcb_z + wire_z0)"
    }
   },
   {
    "command": "sketch.dimension",
    "params": {
     "entities": [
-     "l2"
+     "l3"
     ],
     "value": "(pcb_z + wire_z1 - term_w / 2) - (pcb_z + wire_z0)"
    }
@@ -3945,10 +3821,19 @@
    "command": "sketch.dimension",
    "params": {
     "entities": [
-     "origin",
-     "l4"
+     "l2"
     ],
-    "value": "p2_first - term_w / 2"
+    "value": "term_w"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l2"
+    ],
+    "value": "pcb_z + wire_z0"
    }
   },
   {
@@ -3958,7 +3843,18 @@
      "origin",
      "l1"
     ],
-    "value": "pcb_z + wire_z0"
+    "value": "(p2_first) - (term_w) / 2"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "a1.center"
+    ],
+    "value": "pcb_z + wire_z1 - term_w / 2",
+    "type": "vertical"
    }
   },
   {
@@ -3978,94 +3874,10 @@
    }
   },
   {
-   "command": "sketch.create",
-   "params": {
-    "plane": {
-     "origin": [
-      0,
-      0,
-      0
-     ],
-     "x_dir": [
-      1,
-      0,
-      0
-     ],
-     "y_dir": [
-      0,
-      0,
-      1
-     ]
-    },
-    "name": "P2 wire window top sketch",
-    "project_edges": false,
-    "offset": "-(cav_y + wall / 2)"
-   }
-  },
-  {
-   "command": "sketch.circle.center",
-   "params": {
-    "center": [
-     9.09,
-     14.920000000000002
-    ],
-    "diameter": 4.0
-   }
-  },
-  {
-   "command": "sketch.dimension",
-   "params": {
-    "entities": [
-     "c1"
-    ],
-    "value": "term_w",
-    "type": "diameter"
-   }
-  },
-  {
-   "command": "sketch.dimension",
-   "params": {
-    "entities": [
-     "origin",
-     "c1.center"
-    ],
-    "value": "p2_first",
-    "type": "horizontal"
-   }
-  },
-  {
-   "command": "sketch.dimension",
-   "params": {
-    "entities": [
-     "origin",
-     "c1.center"
-    ],
-    "value": "pcb_z + wire_z1 - term_w / 2",
-    "type": "vertical"
-   }
-  },
-  {
-   "command": "sketch.finish",
-   "params": {}
-  },
-  {
-   "command": "solid.extrude",
-   "params": {
-    "distance": "wall + 2",
-    "name": "P2 wire window top",
-    "direction": "symmetric",
-    "operation": "cut",
-    "targets": [
-     "Base"
-    ]
-   }
-  },
-  {
    "command": "solid.pattern.rectangular",
    "params": {
     "features": [
-     "P2 wire window",
-     "P2 wire window top"
+     "P2 wire window"
     ],
     "dir1": [
      1,
@@ -4103,14 +3915,42 @@
    }
   },
   {
-   "command": "sketch.rectangle.two_point",
+   "command": "sketch.line",
    "params": {
-    "p0": [
-     22.63,
-     9.48
+    "points": [
+     [
+      22.63,
+      14.920000000000002
+     ],
+     [
+      22.63,
+      9.48
+     ],
+     [
+      26.63,
+      9.48
+     ],
+     [
+      26.63,
+      14.920000000000002
+     ]
     ],
-    "p1": [
+    "infer": true
+   }
+  },
+  {
+   "command": "sketch.arc.center_point",
+   "params": {
+    "center": [
+     24.63,
+     14.920000000000002
+    ],
+    "start": [
      26.63,
+     14.920000000000002
+    ],
+    "end": [
+     22.63,
      14.920000000000002
     ]
    }
@@ -4121,14 +3961,14 @@
     "entities": [
      "l1"
     ],
-    "value": "(p1_first + term_w / 2) - (p1_first - term_w / 2)"
+    "value": "(pcb_z + wire_z1 - term_w / 2) - (pcb_z + wire_z0)"
    }
   },
   {
    "command": "sketch.dimension",
    "params": {
     "entities": [
-     "l2"
+     "l3"
     ],
     "value": "(pcb_z + wire_z1 - term_w / 2) - (pcb_z + wire_z0)"
    }
@@ -4137,10 +3977,19 @@
    "command": "sketch.dimension",
    "params": {
     "entities": [
-     "origin",
-     "l4"
+     "l2"
     ],
-    "value": "p1_first - term_w / 2"
+    "value": "term_w"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l2"
+    ],
+    "value": "pcb_z + wire_z0"
    }
   },
   {
@@ -4150,7 +3999,18 @@
      "origin",
      "l1"
     ],
-    "value": "pcb_z + wire_z0"
+    "value": "(p1_first) - (term_w) / 2"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "a1.center"
+    ],
+    "value": "pcb_z + wire_z1 - term_w / 2",
+    "type": "vertical"
    }
   },
   {
@@ -4170,94 +4030,10 @@
    }
   },
   {
-   "command": "sketch.create",
-   "params": {
-    "plane": {
-     "origin": [
-      0,
-      0,
-      0
-     ],
-     "x_dir": [
-      1,
-      0,
-      0
-     ],
-     "y_dir": [
-      0,
-      0,
-      1
-     ]
-    },
-    "name": "P1 wire window top sketch",
-    "project_edges": false,
-    "offset": "-(cav_y + wall / 2)"
-   }
-  },
-  {
-   "command": "sketch.circle.center",
-   "params": {
-    "center": [
-     24.63,
-     14.920000000000002
-    ],
-    "diameter": 4.0
-   }
-  },
-  {
-   "command": "sketch.dimension",
-   "params": {
-    "entities": [
-     "c1"
-    ],
-    "value": "term_w",
-    "type": "diameter"
-   }
-  },
-  {
-   "command": "sketch.dimension",
-   "params": {
-    "entities": [
-     "origin",
-     "c1.center"
-    ],
-    "value": "p1_first",
-    "type": "horizontal"
-   }
-  },
-  {
-   "command": "sketch.dimension",
-   "params": {
-    "entities": [
-     "origin",
-     "c1.center"
-    ],
-    "value": "pcb_z + wire_z1 - term_w / 2",
-    "type": "vertical"
-   }
-  },
-  {
-   "command": "sketch.finish",
-   "params": {}
-  },
-  {
-   "command": "solid.extrude",
-   "params": {
-    "distance": "wall + 2",
-    "name": "P1 wire window top",
-    "direction": "symmetric",
-    "operation": "cut",
-    "targets": [
-     "Base"
-    ]
-   }
-  },
-  {
    "command": "solid.pattern.rectangular",
    "params": {
     "features": [
-     "P1 wire window",
-     "P1 wire window top"
+     "P1 wire window"
     ],
     "dir1": [
      1,
@@ -4295,14 +4071,42 @@
    }
   },
   {
-   "command": "sketch.rectangle.two_point",
+   "command": "sketch.line",
    "params": {
-    "p0": [
-     -15.75,
-     9.48
+    "points": [
+     [
+      -15.75,
+      14.920000000000002
+     ],
+     [
+      -15.75,
+      9.48
+     ],
+     [
+      -11.75,
+      9.48
+     ],
+     [
+      -11.75,
+      14.920000000000002
+     ]
     ],
-    "p1": [
+    "infer": true
+   }
+  },
+  {
+   "command": "sketch.arc.center_point",
+   "params": {
+    "center": [
+     -13.75,
+     14.920000000000002
+    ],
+    "start": [
      -11.75,
+     14.920000000000002
+    ],
+    "end": [
+     -15.75,
      14.920000000000002
     ]
    }
@@ -4313,14 +4117,14 @@
     "entities": [
      "l1"
     ],
-    "value": "(p8_first + term_w / 2) - (p8_first - term_w / 2)"
+    "value": "(pcb_z + wire_z1 - term_w / 2) - (pcb_z + wire_z0)"
    }
   },
   {
    "command": "sketch.dimension",
    "params": {
     "entities": [
-     "l2"
+     "l3"
     ],
     "value": "(pcb_z + wire_z1 - term_w / 2) - (pcb_z + wire_z0)"
    }
@@ -4329,10 +4133,19 @@
    "command": "sketch.dimension",
    "params": {
     "entities": [
-     "origin",
-     "l4"
+     "l2"
     ],
-    "value": "-(p8_first - term_w / 2)"
+    "value": "term_w"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l2"
+    ],
+    "value": "pcb_z + wire_z0"
    }
   },
   {
@@ -4342,7 +4155,18 @@
      "origin",
      "l1"
     ],
-    "value": "pcb_z + wire_z0"
+    "value": "-((p8_first) - (term_w) / 2)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "a1.center"
+    ],
+    "value": "pcb_z + wire_z1 - term_w / 2",
+    "type": "vertical"
    }
   },
   {
@@ -4362,94 +4186,10 @@
    }
   },
   {
-   "command": "sketch.create",
-   "params": {
-    "plane": {
-     "origin": [
-      0,
-      0,
-      0
-     ],
-     "x_dir": [
-      0,
-      1,
-      0
-     ],
-     "y_dir": [
-      0,
-      0,
-      1
-     ]
-    },
-    "name": "P8 wire window top sketch",
-    "project_edges": false,
-    "offset": "cav_x1 + wall / 2"
-   }
-  },
-  {
-   "command": "sketch.circle.center",
-   "params": {
-    "center": [
-     -13.75,
-     14.920000000000002
-    ],
-    "diameter": 4.0
-   }
-  },
-  {
-   "command": "sketch.dimension",
-   "params": {
-    "entities": [
-     "c1"
-    ],
-    "value": "term_w",
-    "type": "diameter"
-   }
-  },
-  {
-   "command": "sketch.dimension",
-   "params": {
-    "entities": [
-     "origin",
-     "c1.center"
-    ],
-    "value": "-(p8_first)",
-    "type": "horizontal"
-   }
-  },
-  {
-   "command": "sketch.dimension",
-   "params": {
-    "entities": [
-     "origin",
-     "c1.center"
-    ],
-    "value": "pcb_z + wire_z1 - term_w / 2",
-    "type": "vertical"
-   }
-  },
-  {
-   "command": "sketch.finish",
-   "params": {}
-  },
-  {
-   "command": "solid.extrude",
-   "params": {
-    "distance": "wall + 2",
-    "name": "P8 wire window top",
-    "direction": "symmetric",
-    "operation": "cut",
-    "targets": [
-     "Base"
-    ]
-   }
-  },
-  {
    "command": "solid.pattern.rectangular",
    "params": {
     "features": [
-     "P8 wire window",
-     "P8 wire window top"
+     "P8 wire window"
     ],
     "dir1": [
      0,
@@ -4487,14 +4227,42 @@
    }
   },
   {
-   "command": "sketch.rectangle.two_point",
+   "command": "sketch.line",
    "params": {
-    "p0": [
-     0.7400000000000002,
-     9.48
+    "points": [
+     [
+      0.7400000000000002,
+      14.920000000000002
+     ],
+     [
+      0.7400000000000002,
+      9.48
+     ],
+     [
+      4.74,
+      9.48
+     ],
+     [
+      4.74,
+      14.920000000000002
+     ]
     ],
-    "p1": [
+    "infer": true
+   }
+  },
+  {
+   "command": "sketch.arc.center_point",
+   "params": {
+    "center": [
+     2.74,
+     14.920000000000002
+    ],
+    "start": [
      4.74,
+     14.920000000000002
+    ],
+    "end": [
+     0.7400000000000002,
      14.920000000000002
     ]
    }
@@ -4505,14 +4273,14 @@
     "entities": [
      "l1"
     ],
-    "value": "(p9_first + term_w / 2) - (p9_first - term_w / 2)"
+    "value": "(pcb_z + wire_z1 - term_w / 2) - (pcb_z + wire_z0)"
    }
   },
   {
    "command": "sketch.dimension",
    "params": {
     "entities": [
-     "l2"
+     "l3"
     ],
     "value": "(pcb_z + wire_z1 - term_w / 2) - (pcb_z + wire_z0)"
    }
@@ -4521,10 +4289,19 @@
    "command": "sketch.dimension",
    "params": {
     "entities": [
-     "origin",
-     "l4"
+     "l2"
     ],
-    "value": "p9_first - term_w / 2"
+    "value": "term_w"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l2"
+    ],
+    "value": "pcb_z + wire_z0"
    }
   },
   {
@@ -4534,7 +4311,18 @@
      "origin",
      "l1"
     ],
-    "value": "pcb_z + wire_z0"
+    "value": "(p9_first) - (term_w) / 2"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "a1.center"
+    ],
+    "value": "pcb_z + wire_z1 - term_w / 2",
+    "type": "vertical"
    }
   },
   {
@@ -4554,94 +4342,10 @@
    }
   },
   {
-   "command": "sketch.create",
-   "params": {
-    "plane": {
-     "origin": [
-      0,
-      0,
-      0
-     ],
-     "x_dir": [
-      0,
-      1,
-      0
-     ],
-     "y_dir": [
-      0,
-      0,
-      1
-     ]
-    },
-    "name": "P9 wire window top sketch",
-    "project_edges": false,
-    "offset": "cav_x1 + wall / 2"
-   }
-  },
-  {
-   "command": "sketch.circle.center",
-   "params": {
-    "center": [
-     2.74,
-     14.920000000000002
-    ],
-    "diameter": 4.0
-   }
-  },
-  {
-   "command": "sketch.dimension",
-   "params": {
-    "entities": [
-     "c1"
-    ],
-    "value": "term_w",
-    "type": "diameter"
-   }
-  },
-  {
-   "command": "sketch.dimension",
-   "params": {
-    "entities": [
-     "origin",
-     "c1.center"
-    ],
-    "value": "p9_first",
-    "type": "horizontal"
-   }
-  },
-  {
-   "command": "sketch.dimension",
-   "params": {
-    "entities": [
-     "origin",
-     "c1.center"
-    ],
-    "value": "pcb_z + wire_z1 - term_w / 2",
-    "type": "vertical"
-   }
-  },
-  {
-   "command": "sketch.finish",
-   "params": {}
-  },
-  {
-   "command": "solid.extrude",
-   "params": {
-    "distance": "wall + 2",
-    "name": "P9 wire window top",
-    "direction": "symmetric",
-    "operation": "cut",
-    "targets": [
-     "Base"
-    ]
-   }
-  },
-  {
    "command": "solid.pattern.rectangular",
    "params": {
     "features": [
-     "P9 wire window",
-     "P9 wire window top"
+     "P9 wire window"
     ],
     "dir1": [
      0,
@@ -4725,15 +4429,6 @@
    "command": "sketch.dimension",
    "params": {
     "entities": [
-     "l3"
-    ],
-    "value": "(vent_d) * 0.70710678"
-   }
-  },
-  {
-   "command": "sketch.dimension",
-   "params": {
-    "entities": [
      "origin",
      "l1"
     ],
@@ -4745,9 +4440,21 @@
    "params": {
     "entities": [
      "origin",
-     "l2"
+     "l1.start"
     ],
-    "value": "-(((-(vent_n - 1) / 2 * vent_pitch) + ((floor_t + pcb_z) / 2) + (vent_d) / 2) * 0.70710678)"
+    "value": "-(-(vent_n - 1) / 2 * vent_pitch)",
+    "type": "horizontal"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l1.start"
+    ],
+    "value": "(floor_t + pcb_z) / 2 - (vent_d) / 2",
+    "type": "vertical"
    }
   },
   {
@@ -4838,15 +4545,6 @@
    "command": "sketch.dimension",
    "params": {
     "entities": [
-     "l3"
-    ],
-    "value": "(vent_d) * 0.70710678"
-   }
-  },
-  {
-   "command": "sketch.dimension",
-   "params": {
-    "entities": [
      "origin",
      "l1"
     ],
@@ -4858,9 +4556,21 @@
    "params": {
     "entities": [
      "origin",
-     "l2"
+     "l1.start"
     ],
-    "value": "-(((-(vent_n - 1) / 2 * vent_pitch) + ((floor_t + pcb_z) / 2) + (vent_d) / 2) * 0.70710678)"
+    "value": "-(-(vent_n - 1) / 2 * vent_pitch)",
+    "type": "horizontal"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l1.start"
+    ],
+    "value": "(floor_t + pcb_z) / 2 - (vent_d) / 2",
+    "type": "vertical"
    }
   },
   {
@@ -4899,23 +4609,40 @@
   {
    "command": "sketch.create",
    "params": {
-    "plane": "XY",
-    "name": "Clip notches sketch",
+    "plane": {
+     "origin": [
+      0,
+      0,
+      0
+     ],
+     "x_dir": [
+      1,
+      0,
+      0
+     ],
+     "y_dir": [
+      0,
+      0,
+      1
+     ]
+    },
+    "name": "Clip window S sketch",
     "project_edges": false,
-    "offset": "clip_z1"
+    "offset": "cav_y + wall / 2"
    }
   },
   {
-   "command": "sketch.rectangle.two_point",
+   "command": "sketch.rectangle.rounded",
    "params": {
     "p0": [
      -68.9,
-     -20.95
+     18.0
     ],
     "p1": [
      -60.1,
-     -18.75
-    ]
+     20.4
+    ],
+    "radius": "0.4"
    }
   },
   {
@@ -4924,7 +4651,7 @@
     "entities": [
      "l1"
     ],
-    "value": "(clip1_x + clip_w / 2 + 0.4) - (clip1_x - clip_w / 2 - 0.4)"
+    "value": "(clip1_x + clip_w / 2 + 0.4) - (clip1_x - clip_w / 2 - 0.4) - 2 * (0.4)"
    }
   },
   {
@@ -4933,7 +4660,7 @@
     "entities": [
      "l2"
     ],
-    "value": "(-cav_y + 1) - (-cav_y - clip_pocket)"
+    "value": "(clip_z1) - (clip_z0) - 2 * (0.4)"
    }
   },
   {
@@ -4953,58 +4680,7 @@
      "origin",
      "l1"
     ],
-    "value": "-(-cav_y - clip_pocket)"
-   }
-  },
-  {
-   "command": "sketch.rectangle.two_point",
-   "params": {
-    "p0": [
-     -68.9,
-     18.75
-    ],
-    "p1": [
-     -60.1,
-     20.95
-    ]
-   }
-  },
-  {
-   "command": "sketch.dimension",
-   "params": {
-    "entities": [
-     "l5"
-    ],
-    "value": "(clip1_x + clip_w / 2 + 0.4) - (clip1_x - clip_w / 2 - 0.4)"
-   }
-  },
-  {
-   "command": "sketch.dimension",
-   "params": {
-    "entities": [
-     "l6"
-    ],
-    "value": "(cav_y + clip_pocket) - (cav_y - 1)"
-   }
-  },
-  {
-   "command": "sketch.dimension",
-   "params": {
-    "entities": [
-     "origin",
-     "l8"
-    ],
-    "value": "-(clip1_x - clip_w / 2 - 0.4)"
-   }
-  },
-  {
-   "command": "sketch.dimension",
-   "params": {
-    "entities": [
-     "origin",
-     "l5"
-    ],
-    "value": "cav_y - 1"
+    "value": "clip_z0"
    }
   },
   {
@@ -5014,9 +4690,102 @@
   {
    "command": "solid.extrude",
    "params": {
-    "distance": "clip_z1 - clip_z0",
-    "name": "Clip notch",
-    "direction": "reverse",
+    "distance": "wall + 2",
+    "name": "Clip window S",
+    "direction": "symmetric",
+    "operation": "cut",
+    "targets": [
+     "Base"
+    ]
+   }
+  },
+  {
+   "command": "sketch.create",
+   "params": {
+    "plane": {
+     "origin": [
+      0,
+      0,
+      0
+     ],
+     "x_dir": [
+      1,
+      0,
+      0
+     ],
+     "y_dir": [
+      0,
+      0,
+      1
+     ]
+    },
+    "name": "Clip window N sketch",
+    "project_edges": false,
+    "offset": "-(cav_y + wall / 2)"
+   }
+  },
+  {
+   "command": "sketch.rectangle.rounded",
+   "params": {
+    "p0": [
+     -68.9,
+     18.0
+    ],
+    "p1": [
+     -60.1,
+     20.4
+    ],
+    "radius": "0.4"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l1"
+    ],
+    "value": "(clip1_x + clip_w / 2 + 0.4) - (clip1_x - clip_w / 2 - 0.4) - 2 * (0.4)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l2"
+    ],
+    "value": "(clip_z1) - (clip_z0) - 2 * (0.4)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l4"
+    ],
+    "value": "-(clip1_x - clip_w / 2 - 0.4)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l1"
+    ],
+    "value": "clip_z0"
+   }
+  },
+  {
+   "command": "sketch.finish",
+   "params": {}
+  },
+  {
+   "command": "solid.extrude",
+   "params": {
+    "distance": "wall + 2",
+    "name": "Clip window N",
+    "direction": "symmetric",
     "operation": "cut",
     "targets": [
      "Base"
@@ -5027,7 +4796,8 @@
    "command": "solid.pattern.rectangular",
    "params": {
     "features": [
-     "Clip notch"
+     "Clip window S",
+     "Clip window N"
     ],
     "dir1": [
      1,
@@ -5036,7 +4806,7 @@
     ],
     "count1": 2,
     "spacing1": "clip2_x - clip1_x",
-    "name": "Clip notches"
+    "name": "Clip windows"
    }
   },
   {
@@ -8456,43 +8226,27 @@
     "features": [
      "P4 wire window sketch",
      "P4 wire window",
-     "P4 wire window top sketch",
-     "P4 wire window top",
      "P4 wire windows",
      "P5 wire window sketch",
      "P5 wire window",
-     "P5 wire window top sketch",
-     "P5 wire window top",
      "P5 wire windows",
      "P6 wire window sketch",
      "P6 wire window",
-     "P6 wire window top sketch",
-     "P6 wire window top",
      "P6 wire windows",
      "P3 wire window sketch",
      "P3 wire window",
-     "P3 wire window top sketch",
-     "P3 wire window top",
      "P3 wire windows",
      "P2 wire window sketch",
      "P2 wire window",
-     "P2 wire window top sketch",
-     "P2 wire window top",
      "P2 wire windows",
      "P1 wire window sketch",
      "P1 wire window",
-     "P1 wire window top sketch",
-     "P1 wire window top",
      "P1 wire windows",
      "P8 wire window sketch",
      "P8 wire window",
-     "P8 wire window top sketch",
-     "P8 wire window top",
      "P8 wire windows",
      "P9 wire window sketch",
      "P9 wire window",
-     "P9 wire window top sketch",
-     "P9 wire window top",
      "P9 wire windows"
     ]
    }
@@ -8513,11 +8267,13 @@
   {
    "command": "timeline.group",
    "params": {
-    "name": "8 Clip notches",
+    "name": "8 Clip windows",
     "features": [
-     "Clip notches sketch",
-     "Clip notch",
-     "Clip notches"
+     "Clip window S sketch",
+     "Clip window S",
+     "Clip window N sketch",
+     "Clip window N",
+     "Clip windows"
     ]
    }
   },

@@ -85,7 +85,6 @@ LID_HEX = (3.0, 1.2)                                      # lid vents: hexagon a
 LID_VENT_ZONES = [(45.2, 62.8, -7.5, 7.5),                # relays (x0 x1 y0 y1)
                   (-24.8, -0.8, -7.5, 7.5)]               # centre area
 BUMP = 0.8                                                # clip catch height (0.6 held too loosely)
-CLIP_POCKET = 1.2                                         # blind clip notch depth into the wall
 SCREW_BOSSES = ([(x, s * (Y1 + WALL + 2.2)) for x in (-73.0, 73.0) for s in (-1, 1)]
                 if LID_SCREWS else [])
 
@@ -247,11 +246,11 @@ if SMA:
     t = r * 2 ** 0.5 - zt                                 # half width of the flat top
     cuts.append(Part.makeCylinder(r, WALL + 2, V(sx, Y1 - 1, sz), V(0, 1, 0)))
     cuts.append(wall_prism("N", [(sx - k, sz + k), (sx + k, sz + k), (sx + t, sz + zt), (sx - t, sz + zt)]))
-# Clip notches: blind pockets CLIP_POCKET deep in the inner wall face, the outside stays closed
+# Clip windows through the wall: the catch can be pushed in from outside with a screwdriver
 CLIP_W, CLIP_Z0, CLIP_Z1 = 8.0, H - 8.0, H - 5.6
 for x in CLIP_X:
-    cuts.append(box(x - CLIP_W / 2 - 0.4, x + CLIP_W / 2 + 0.4, Y0 - CLIP_POCKET, Y0 + 1, CLIP_Z0, CLIP_Z1))
-    cuts.append(box(x - CLIP_W / 2 - 0.4, x + CLIP_W / 2 + 0.4, Y1 - 1, Y1 + CLIP_POCKET, CLIP_Z0, CLIP_Z1))
+    for side in "NS":
+        cuts.append(wall_window(side, x - CLIP_W / 2 - 0.4, x + CLIP_W / 2 + 0.4, CLIP_Z0, CLIP_Z1, 0.4))
 for c in cuts:
     base = base.cut(c)
 base = base.removeSplitter()
@@ -340,9 +339,11 @@ checks["mdb_tab_header_gap_mm"] = round(MDB_TAB_Z - max(
     s.BoundBox.ZMax for _, s in pcb_solids
     if s.BoundBox.XMax > MDB[0] and s.BoundBox.XMin < MDB[1] and s.BoundBox.YMin < Y0 + 5), 2)
 assert checks["mdb_tab_header_gap_mm"] > 1.5, checks["mdb_tab_header_gap_mm"]
-# Catch must stay inside its notch: wall face to catch tip vs notch depth
-checks["clip_pocket_margin_mm"] = round(CLIP_POCKET - (BUMP - FIT), 2)
-assert checks["clip_pocket_margin_mm"] > 0.2, checks["clip_pocket_margin_mm"]
+if SCREW_BOSSES:
+    # Clip windows must stay reachable from outside: no screw boss in front of them.
+    checks["clip_boss_min_gap_mm"] = round(min(
+        abs(cx - bx) - (CLIP_W / 2 + 0.4) - 3.4 for cx in CLIP_X for bx, _ in SCREW_BOSSES), 2)
+    assert checks["clip_boss_min_gap_mm"] > 0.5, checks["clip_boss_min_gap_mm"]
 
 
 # ---------------------------------------------------------------- export

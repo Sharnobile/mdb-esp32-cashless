@@ -60,10 +60,9 @@ For a version with optional lid screws, see [`../screw-clips`](../screw-clips).
 
 ## Closing
 
-4 tabs (8 × 1.2 mm, 0.8 mm catch), one near each corner, snap into 1.2 mm deep blind
-notches in the inner face of the north and south walls; the outside of the wall stays
-closed. Press the lid down to close. To open, flex the long walls outwards and lift
-the lid.
+4 tabs (8 × 1.2 mm, 0.8 mm catch), one near each corner, snap into windows in the
+north and south walls. Press the lid down to close. To open, push each catch inwards
+through its window with a small screwdriver and lift that side of the lid.
 
 ## Mounting
 
@@ -85,8 +84,8 @@ Starting point:
 - No web between two openings is thinner than 1 mm, so nothing drops out at 0.4 mm.
 - Base flat on its bottom face. Lid as exported: outer face on the bed.
 - Vents are 45° diamonds, terminal windows have round tops and the MDB slot is open at
-  the top, so the base needs no supports. The only bridge left is the USB-C top (10 mm);
-  the clip notch ceilings overhang 1.2 mm.
+  the top, so the base needs no supports. The only bridges left are the USB-C top (10 mm)
+  and the clip windows (8.8 mm).
 
 ## Regenerating
 

@@ -181,15 +181,39 @@ class Sketch:
         for i, e in places:
             self._dim(["origin", "l%d" % (n + i + 1)], pos(self.s, e))
 
+    def arch(self, ac, w, z0, zc):
+        """Window w wide from z0 up to zc with a semicircular top centred on (ac, zc): one
+        closed outline (three lines and an arc), so it cuts and patterns as a single profile."""
+        ev = self.s.ev
+        a0, a1 = "(%s) - (%s) / 2" % (ac, w), "(%s) + (%s) / 2" % (ac, w)
+        n = self.l
+        self.l += 3
+        self.a += 1
+        arc = "a%d" % self.a
+        self.s.cmd("sketch.line", points=[[ev(a0), ev(zc)], [ev(a0), ev(z0)], [ev(a1), ev(z0)], [ev(a1), ev(zc)]],
+                   infer=True)
+        self.s.cmd("sketch.arc.center_point", center=[ev(ac), ev(zc)], start=[ev(a1), ev(zc)], end=[ev(a0), ev(zc)])
+        left, bottom, right = ("l%d" % (n + i) for i in (1, 2, 3))
+        h = "(%s) - (%s)" % (zc, z0)
+        self._dim([left], h)
+        self._dim([right], h)
+        self._dim([bottom], w)
+        self._dim(["origin", bottom], pos(self.s, z0))
+        self._dim(["origin", left], pos(self.s, a0))
+        self._dim(["origin", arc + ".center"], pos(self.s, zc), "vertical")
+
     def diamond(self, ac, bc, d):
         """Square turned 45 degrees, d across corners, centred on (ac, bc). Placed by the
         distances from the origin to two neighbouring sides (normals (1, -1) and (1, 1))."""
         h = "(%s) / 2" % d
         self.polygon([(ac, "%s - %s" % (bc, h)), ("%s + %s" % (ac, h), bc), (ac, "%s + %s" % (bc, h)),
                       ("%s - %s" % (ac, h), bc)],
-                     [(i, "(%s) * 0.70710678" % d) for i in range(3)],
-                     [(0, "((%s) - (%s) + %s) * 0.70710678" % (ac, bc, h)),
-                      (1, "((%s) + (%s) + %s) * 0.70710678" % (ac, bc, h))])
+                     [(i, "(%s) * 0.70710678" % d) for i in range(2)],
+                     [(0, "((%s) - (%s) + %s) * 0.70710678" % (ac, bc, h))])
+        # the inferred right angles leave the square free to turn: pin its bottom corner too
+        first = "l%d" % (self.l - 3)
+        self._dim(["origin", first + ".start"], pos(self.s, ac), "horizontal")
+        self._dim(["origin", first + ".start"], pos(self.s, "%s - %s" % (bc, h)), "vertical")
 
     def hexagon(self, cx, cy, af):
         """Regular hexagon, af across flats, a corner on +y (flats facing +-x)."""
@@ -319,7 +343,6 @@ def build(variant):
     P("clip_w", 8.0, "clip tab width")
     P("clip_t", 1.2, "clip tab thickness")
     P("bump", p["BUMP"], "clip catch height")
-    P("clip_pocket", p["CLIP_POCKET"], "blind clip notch depth into the wall")
     P("clip_z0", "h - 8", "clip window bottom")
     P("clip_z1", "h - 5.6", "clip window top")
     P("clip1_x", p["CLIP_X"][0], "first clip pair")
@@ -441,17 +464,16 @@ def build(variant):
     s.group("Connector windows", sum(([n + " sketch", n] for n in f), []))
 
     # ---------------------------------------------------------------- terminal wire windows
-    # Round top: a rectangle up to the arc centre plus a circle, in two cuts (SolidCraft does not
-    # split a circle and an overlapping rectangle into regions).
+    # Round top: one outline of three lines and a half-circle arc. (A rectangle plus a circle in
+    # two cuts patterns badly: SolidCraft refuses the copies where the sides run tangent into the
+    # circle.)
     feats = []
     zc = "pcb_z + wire_z1 - term_w / 2"
     for n, side, along_x, first, row in blocks:
-        body = wall_cut("%s wire window" % n, side, lambda k, first=first: k.rect(
-            "%s - term_w / 2" % first, "%s + term_w / 2" % first, "pcb_z + wire_z0", zc))
-        top = wall_cut("%s wire window top" % n, side, lambda k, first=first: k.circle(first, zc, "term_w"))
-        s.cmd("solid.pattern.rectangular", features=[body, top], dir1=[1, 0, 0] if along_x else [0, 1, 0],
+        name = wall_cut("%s wire window" % n, side, lambda k, first=first: k.arch(first, "term_w", "pcb_z + wire_z0", zc))
+        s.cmd("solid.pattern.rectangular", features=[name], dir1=[1, 0, 0] if along_x else [0, 1, 0],
               count1=3, spacing1="term_pitch", name="%s wire windows" % n)
-        feats += [body + " sketch", body, top + " sketch", top, "%s wire windows" % n]
+        feats += [name + " sketch", name, "%s wire windows" % n]
     s.group("Terminal wire windows", feats)
 
     # ---------------------------------------------------------------- low vents
@@ -462,16 +484,13 @@ def build(variant):
           name="Vent rows")
     s.group("Low vents", ["Vent S sketch", "Vent S", "Vent N sketch", "Vent N", "Vent rows"])
 
-    # ---------------------------------------------------------------- clip notches
-    # blind pockets clip_pocket deep in the inner wall faces, cut down from the notch top
-    sk = Sketch(s, "Clip notches sketch", XY, "clip_z1")
-    sk.rect("clip1_x - clip_w / 2 - 0.4", "clip1_x + clip_w / 2 + 0.4", "-cav_y - clip_pocket", "-cav_y + 1")
-    sk.rect("clip1_x - clip_w / 2 - 0.4", "clip1_x + clip_w / 2 + 0.4", "cav_y - 1", "cav_y + clip_pocket")
-    sk.done()
-    extrude("Clip notch", "clip_z1 - clip_z0", direction="reverse", operation="cut", targets=base)
-    s.cmd("solid.pattern.rectangular", features=["Clip notch"], dir1=[1, 0, 0], count1=2,
-          spacing1="clip2_x - clip1_x", name="Clip notches")
-    s.group("Clip notches", ["Clip notches sketch", "Clip notch", "Clip notches"])
+    # ---------------------------------------------------------------- clip windows
+    clip_w = [wall_cut("Clip window %s" % side, side, lambda k: k.rect(
+        "clip1_x - clip_w / 2 - 0.4", "clip1_x + clip_w / 2 + 0.4", "clip_z0", "clip_z1", "0.4")) for side in "SN"]
+    s.cmd("solid.pattern.rectangular", features=clip_w, dir1=[1, 0, 0], count1=2, spacing1="clip2_x - clip1_x",
+          name="Clip windows")
+    s.group("Clip windows", ["Clip window S sketch", "Clip window S", "Clip window N sketch", "Clip window N",
+                               "Clip windows"])
 
     # ---------------------------------------------------------------- lid
     sk = Sketch(s, "Lid plate sketch", XY, "h")

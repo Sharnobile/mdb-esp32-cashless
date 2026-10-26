@@ -324,7 +324,6 @@ def build(variant):
     CLIP_W = P("ClipW", 8.0, "clip tab width")
     CLIP_T = P("ClipT", 1.2, "clip tab thickness")
     BUMP = P("Bump", p["BUMP"], "catch height")
-    CLIP_POCKET = P("ClipPocket", p["CLIP_POCKET"], "blind clip notch depth into the wall")
     CLIP_Z0 = P("ClipZ0", "=%s - 8" % H, "clip window bottom (derived)")
     CLIP_Z1 = P("ClipZ1", "=%s - 5.6" % H, "clip window top (derived)")
     clips = [P("Clip%dX" % (i + 1), x, "clip position") for i, x in enumerate(p["CLIP_X"])]
@@ -468,13 +467,11 @@ def build(variant):
             cuts.append(d.diamond("Vent %s %+d" % (side, i), plane, x, "(%s + %s) / 2" % (FLOOR, PCB_Z),
                                   "%s / 2" % VENT_D, c0, c1, g))
 
-    g = d.folder("Clip notches", cut_g)
+    g = d.folder("Clip windows", cut_g)
     for i, cx in enumerate(clips):
-        a0, a1 = "%s - %s / 2 - 0.4" % (cx, CLIP_W), "%s + %s / 2 + 0.4" % (cx, CLIP_W)
-        cuts.append(d.box("Clip notch S%d" % (i + 1), a0, a1, "%s - %s" % (Y0, CLIP_POCKET), "%s + 1" % Y0,
-                          CLIP_Z0, CLIP_Z1, g))
-        cuts.append(d.box("Clip notch N%d" % (i + 1), a0, a1, "%s - 1" % Y1, "%s + %s" % (Y1, CLIP_POCKET),
-                          CLIP_Z0, CLIP_Z1, g))
+        for side in "NS":
+            cuts.append(wall("Clip window %s%d" % (side, i + 1), side, "%s - %s / 2 - 0.4" % (cx, CLIP_W),
+                             "%s + %s / 2 + 0.4" % (cx, CLIP_W), CLIP_Z0, CLIP_Z1, "0.4", g))
 
     tools = d.fuse("All cuts", cuts, cut_g, refine=False)
     base = d.cut("Base", body, tools, base_g)

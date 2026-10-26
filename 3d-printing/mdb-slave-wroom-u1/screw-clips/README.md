@@ -61,9 +61,9 @@ four standoffs with M2.5 heat inserts in this variant.
 
 ## Closing
 
-- **Clips:** 4 tabs (8 × 1.2 mm, 0.8 mm catch) snap into 1.2 mm deep blind notches in
-  the inner face of the north and south walls; the outside of the wall stays closed. To
-  open, flex the long walls outwards and lift the lid.
+- **Clips:** 4 tabs (8 × 1.2 mm, 0.8 mm catch) snap into windows in the north and
+  south walls. To open, push each catch inwards through its window with a small
+  screwdriver.
 - **Screws (optional):** 4 external bosses with M2.5 × 5 × Ø3.5 heat inserts. Use
   M2.5 × 8 pan-head screws.
 
@@ -87,8 +87,8 @@ Starting point:
 - No web between two openings is thinner than 1 mm, so nothing drops out at 0.4 mm.
 - Base flat on its bottom face. Lid as exported: outer face on the bed.
 - Vents are 45° diamonds, terminal windows have round tops and the MDB slot is open at
-  the top, so the base needs no supports. The only bridge left is the USB-C top (10 mm);
-  the clip notch ceilings overhang 1.2 mm.
+  the top, so the base needs no supports. The only bridges left are the USB-C top (10 mm)
+  and the clip windows (8.8 mm).
 
 ## Regenerating
 
