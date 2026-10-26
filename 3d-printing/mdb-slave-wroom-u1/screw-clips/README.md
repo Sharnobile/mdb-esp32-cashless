@@ -21,6 +21,9 @@ four standoffs with M2.5 heat inserts in this variant.
 | `lid.stl` / `lid.step` | Lid. The STL is flipped: outer face on the bed, clips up |
 | `build_case.py` | Parametric FreeCAD source for both parts |
 | `case_wroom-u1_screw-clips.3mf` | Slicer project (base + lid) |
+| `case_wroom-u1-screw-clips.FCStd` | FreeCAD model: one tree node per build step, dimensions in the `Params` spreadsheet |
+| `case_wroom-u1-screw-clips.solidcraft` | SolidCraft design: parameters, dimensioned sketches, timeline folders |
+| `case_wroom-u1-screw-clips.solidcraft.json` | The same SolidCraft design as a command script |
 
 ## Dimensions
 
@@ -98,6 +101,24 @@ The script reads the board model from [`../pcb_wroom-u1.step`](../pcb_wroom-u1.s
 (STEP export of `kicad/mdb_slave_esp32s3-wroom-1u`). It rewrites the STEP and STL files
 and prints geometry checks: solid validity, base/lid overlap and collisions with the
 board.
+
+### Editable CAD models
+
+The `.FCStd` and `.solidcraft` files are generated from `build_case.py` and give the same
+base and lid. Open the `Params` spreadsheet (FreeCAD, then Recompute) or the Parameters panel
+(SolidCraft) to change a dimension such as `Wall`/`wall`, `TermW`/`term_w` or `SmaZ`/`sma_z`.
+Adding or removing whole features (another terminal block, a new opening) is a change to
+`build_case.py`; regenerate both files from the parent folder afterwards:
+
+```bash
+freecadcmd build_fcstd.py                     # both variants; VARIANT=clips for one
+python3 build_solidcraft.py                   # writes the .solidcraft.json scripts
+solidcraft-cli run screw-clips/case_wroom-u1-screw-clips.solidcraft.json --save screw-clips/case_wroom-u1-screw-clips.solidcraft
+```
+
+`build_fcstd.py` checks nothing by itself: compare its `Base`/`Lid` with `base.step`/`lid.step`
+after a change (they matched exactly when this was written; the SolidCraft model is within
+1 mm³ per part).
 
 ## Limitations
 
