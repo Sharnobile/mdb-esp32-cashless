@@ -43,9 +43,10 @@ INSERT_BORE = 3.3     # M2.5 x 5 x OD3.5 heat insert, validated on a test coupon
 INSERT_DEPTH = 5.6
 LID_SCREW = 2.9       # M2.5 clearance hole in the lid
 FIT = 0.25            # lid lip to wall clearance
-TERM_W = 4.0          # terminal wire window width and lid screwdriver hole diameter. Poles sit
-                      # 5.08 mm apart: 4.0 leaves 1.08 mm webs, two lines of a 0.4 mm nozzle
-                      # (4.8 left 0.28 mm, which the slicer drops or prints as loose strands)
+TERM_W = 3.2          # terminal wire window width. Poles sit 5.08 mm apart: 3.2 leaves 1.88 mm
+                      # webs, four lines of a 0.4 mm nozzle (4.0 left 1.08 mm, which printed
+                      # as thin wavy strands that broke; 4.8 left 0.28 mm and dropped out)
+TERM_HOLE = 4.0       # lid screwdriver hole diameter (lid prints flat, its 1.08 mm webs are fine)
 
 BOARD_X, BOARD_Y = 74.91, 19.25
 PCB_HOLES = [(-71.414936, -15.75), (-71.414936, 15.75), (41.4757, -15.7906), (41.4857, 14.7496)]
@@ -71,6 +72,10 @@ WIRE_Z = (3.08 - 0.6, 9.32 + 0.6)                         # wire entry height, b
 
 MDB = (10.04, 24.04, -1.9, 12.3)                          # x0 x1 z0 z1 (board frame)
 USB_C = (0.38, 2.78)                                      # centre y, z (board frame)
+# The receptacle face is 0.18 mm inside the wall and a plug overmould starts >= 6 mm behind the
+# shell tip, so only the 8.25 x 2.4 plug shell passes the 2 mm wall: the window clears the
+# 8.94 x 3.26 receptacle by ~0.5 mm all round (12.8 x 7.2 looked oversized on the print).
+USB_W, USB_H, USB_CHAMFER = 10.0, 4.6, 1.0                # window, 45 degree corner chamfers
 LEDS = [(-47.76, -3.43)]                                  # WS2812B-2121 "LED D0"
 ANTENNA_X = -46.0                                         # U.FL cable slot, north wall
 UART_X, UART_W = -33.15, 8.0                              # J1 UART debug cable slot, north wall
@@ -211,12 +216,10 @@ for sgn, xw in ((-1, OX0), (1, OX1)):
     base = base.fuse(ear)
 
 cuts = []
-# USB-C: 12.8 x 7.2, room for an overmoulded plug. 45 degree corner chamfers instead of
-# r2.4 fillets: same clearance on the diagonal (2.4 * (2 - sqrt2) = 1.4), and the top
-# bridge shrinks to 10 mm with no curved overhang.
-USB_CHAMFER = 1.4
-cuts.append(chamfered_window("W", USB_C[0] - 6.4, USB_C[0] + 6.4,
-                             PCB_Z + USB_C[1] - 3.6, PCB_Z + USB_C[1] + 3.6, USB_CHAMFER))
+# USB-C: 45 degree corner chamfers instead of fillets, so the top bridge (8 mm) has no
+# curved overhang.
+cuts.append(chamfered_window("W", USB_C[0] - USB_W / 2, USB_C[0] + USB_W / 2,
+                             PCB_Z + USB_C[1] - USB_H / 2, PCB_Z + USB_C[1] + USB_H / 2, USB_CHAMFER))
 # MDB Mini-Fit 2x3 (plug + latch): slot open to the wall rim, so there is no 15.6 mm bridge.
 # MDB_TAB_Z is the old window top (2 mm above the header); a tab on the lid fills the slot
 # from there up.
@@ -288,7 +291,7 @@ lid_cuts = []
 for x, y in SCREW_BOSSES:
     lid_cuts.append(cyl(x, y, LID_SCREW / 2, H - 1, H + LID + 1))
 for (px, py), side in TERMINALS:                  # screwdriver access to terminal screws
-    lid_cuts.append(cyl(px, py, TERM_W / 2, H - 1, H + LID + 1))
+    lid_cuts.append(cyl(px, py, TERM_HOLE / 2, H - 1, H + LID + 1))
 for x, y in LEDS:                                 # LED window
     lid_cuts.append(cyl(x, y, 2.0, H - 1, H + LID + 1))
 # High ventilation: honeycomb above the relays and the centre area

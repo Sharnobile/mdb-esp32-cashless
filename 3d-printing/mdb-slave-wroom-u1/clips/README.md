@@ -32,15 +32,17 @@ For a version with optional lid screws, see [`../screw-clips`](../screw-clips).
 
 ## Openings
 
-- **USB-C:** 12.8 × 7.2 mm window in the west wall, flush with the connector. The
-  corners are 45° chamfers, so the top bridge is only 10 mm.
+- **USB-C:** 10 × 4.6 mm window in the west wall, flush with the connector: ~0.5 mm
+  around the receptacle. Only the plug shell enters the 2 mm wall, so an overmoulded
+  plug still fits. The corners are 45° chamfers, so the top bridge is only 8 mm.
 - **MDB (Mini-Fit 2×3):** 15.6 mm wide slot in the south wall, open to the wall rim
   so it needs no bridge. A tab on the lid closes it from 2 mm above the header down
   to the same 12.5 mm opening as before (the plug latch still fits).
-- **Terminal blocks:** one 4.0 × 7.4 mm wire window per pole with a round top for the round cable (30 poles on the south,
+- **Terminal blocks:** one 3.2 × 7.4 mm wire window per pole with a round top for the round cable (30 poles on the south,
   north and east walls), plus a Ø4 hole in the lid above each terminal screw. The poles
-  sit 5.08 mm apart, so 4.0 mm leaves 1.08 mm webs between neighbouring openings: two
-  lines with a 0.4 mm nozzle (`TERM_W` in the script).
+  sit 5.08 mm apart, so 3.2 mm leaves 1.88 mm webs between neighbouring openings: four
+  lines with a 0.4 mm nozzle (`TERM_W` in the script; 4.0 mm left 1.08 mm webs that
+  printed as fragile strands). The lid hole is `TERM_HOLE`.
 - **LED D0 (WS2812B):** Ø4 hole in the lid.
 - **Antenna:** 3 × 2 mm slot at the top of the north wall, under the lid, close to the
   ESP32 U.FL connector.
@@ -81,10 +83,10 @@ screw clamps solid plastic.
 
 Starting point:
 - PETG, 0.4 mm nozzle, 0.2 mm layers, 3 perimeters, 20 % infill, no supports.
-- No web between two openings is thinner than 1 mm, so nothing drops out at 0.4 mm.
+- Wall webs between openings are at least 1.1 mm (vents) and 1.88 mm (terminal windows).
 - Base flat on its bottom face. Lid as exported: outer face on the bed.
 - Vents are 45° diamonds, terminal windows have round tops and the MDB slot is open at
-  the top, so the base needs no supports. The only bridges left are the USB-C top (10 mm)
+  the top, so the base needs no supports. The only bridges left are the USB-C top (8 mm)
   and the clip windows (8.8 mm).
 
 ## Regenerating
