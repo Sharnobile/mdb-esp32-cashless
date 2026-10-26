@@ -20,6 +20,9 @@ For a version with optional lid screws, see [`../screw-clips`](../screw-clips).
 | `lid.stl` / `lid.step` | Lid. The STL is flipped: outer face on the bed, clips up |
 | `build_case.py` | Parametric FreeCAD source for both parts |
 | `case_wroom-u1-clips.3mf` | Slicer project (base + lid) |
+| `case_wroom-u1-clips.FCStd` | FreeCAD model: one tree node per build step, dimensions in the `Params` spreadsheet |
+| `case_wroom-u1-clips.solidcraft` | SolidCraft design: parameters, dimensioned sketches, timeline folders |
+| `case_wroom-u1-clips.solidcraft.json` | The same SolidCraft design as a command script |
 
 ## Dimensions
 
@@ -29,29 +32,46 @@ For a version with optional lid screws, see [`../screw-clips`](../screw-clips).
 
 ## Openings
 
-- **USB-C:** 12.8 × 7.2 mm window in the west wall, flush with the connector.
-- **MDB (Mini-Fit 2×3):** 15.6 × 12.5 mm window in the south wall.
-- **Terminal blocks:** one 4.8 × 8.4 mm wire window per pole (30 poles on the south,
-  north and east walls), plus a Ø4.8 hole in the lid above each terminal screw.
+- **USB-C:** 10 × 4.6 mm window in the west wall, flush with the connector: ~0.5 mm
+  around the receptacle. Only the plug shell enters the 2 mm wall, so an overmoulded
+  plug still fits. The corners are 45° chamfers, so the top bridge is only 8 mm.
+- **MDB (Mini-Fit 2×3):** 15.6 mm wide slot in the south wall, open to the wall rim
+  so it needs no bridge. A tab on the lid closes it from 2 mm above the header down
+  to the same 12.5 mm opening as before (the plug latch still fits).
+- **Terminal blocks:** one 3.2 × 7.4 mm wire window per pole with a round top for the round cable (30 poles on the south,
+  north and east walls), plus a Ø4 hole in the lid above each terminal screw. The poles
+  sit 5.08 mm apart, so 3.2 mm leaves 1.88 mm webs between neighbouring openings: four
+  lines with a 0.4 mm nozzle (`TERM_W` in the script; 4.0 mm left 1.08 mm webs that
+  printed as fragile strands). The lid hole is `TERM_HOLE`.
 - **LED D0 (WS2812B):** Ø4 hole in the lid.
 - **Antenna:** 3 × 2 mm slot at the top of the north wall, under the lid, close to the
   ESP32 U.FL connector.
+- **SMA antenna jack:** Ø6.6 mm hole in the north wall near the USB-C end (centre 22.6 mm
+  from the west inner wall, 18 mm above the bottom), for a standard SMA bulkhead jack on a
+  U.FL pigtail: 1/4-36 UNS thread, 8 mm hex, 6.5 mm panel cutout, panels up to 4.4 mm
+  thick. The 2 mm wall leaves enough thread for nut and washer. The jack body sits above the
+  ESP32 module, and the script checks that a 10.2 × 12 mm body behind the wall touches
+  neither the board nor the lid. The top of the hole is a cut-off teardrop, so it prints
+  without support. Set `SMA = None` for a closed wall.
 - **UART debug:** 8 × 2 mm slot at the top of the north wall, under the lid, above
   the J1 header (EN/TXD/RXD/IO0). Lets debug wires out with the lid closed.
-- **Ventilation:** 1.6 × 3.4 mm slots below the board in the long walls, and
-  1.6 × 12 mm slots in the lid above the relays and the centre area. Air flows in at
+- **Ventilation:** a row of 3.4 mm diamonds (45° sides) below the board in the long walls,
+  and a honeycomb of 3 mm hexagons in the lid above the relays and the centre area
+  (`VENT_D`, `LID_HEX`, `LID_VENT_ZONES` in the script). Air flows in at
   the bottom and out at the top.
 
 ## Closing
 
-4 tabs (8 × 1.2 mm, 0.6 mm catch), one near each corner, snap into windows in the
-north and south walls. Press the lid down to close. To open, push each catch inwards
-through its window with a small screwdriver and lift that side of the lid.
+4 tabs (8 × 1.2 mm, 0.8 mm catch), one near each corner, snap into 1.2 mm deep blind
+notches in the inner face of the north and south walls; the outside of the wall stays
+closed. Press the lid down to close. To open, flex the long walls outwards and lift
+the lid.
 
 ## Mounting
 
 Two 4 mm thick ears. Each has a 10 × 4.5 mm slot for an M4 screw and two 9 × 3.2 mm
-zip-tie slots, linked by a 1.8 mm tunnel under the ear.
+zip-tie slots. The ears are solid underneath and sit flat on the print bed, so the
+screw clamps solid plastic.
 
 ## Hardware
 
@@ -64,9 +84,11 @@ zip-tie slots, linked by a 1.8 mm tunnel under the ear.
 
 Starting point:
 - PETG, 0.4 mm nozzle, 0.2 mm layers, 3 perimeters, 20 % infill, no supports.
+- Wall webs between openings are at least 1.1 mm (vents) and 1.88 mm (terminal windows).
 - Base flat on its bottom face. Lid as exported: outer face on the bed.
-- The wall windows need short bridges (15.6 mm maximum). Check them in the slicer
-  preview.
+- Vents are 45° diamonds, terminal windows have round tops and the MDB slot is open at
+  the top, so the base needs no supports. The only bridge left is the USB-C top (8 mm);
+  the clip notch ceilings overhang 1.2 mm.
 
 ## Regenerating
 
@@ -80,6 +102,24 @@ The script reads the board model from [`../pcb_wroom-u1.step`](../pcb_wroom-u1.s
 (STEP export of `kicad/mdb_slave_esp32s3-wroom-1u`). It rewrites the STEP and STL files
 and prints geometry checks: solid validity, base/lid overlap and collisions with the
 board. `LID_SCREWS = True` in the script produces the screw-clips variant.
+
+### Editable CAD models
+
+The `.FCStd` and `.solidcraft` files are generated from `build_case.py` and give the same
+base and lid. Open the `Params` spreadsheet (FreeCAD, then Recompute) or the Parameters panel
+(SolidCraft) to change a dimension such as `Wall`/`wall`, `TermW`/`term_w` or `SmaZ`/`sma_z`.
+Adding or removing whole features (another terminal block, a new opening) is a change to
+`build_case.py`; regenerate both files from the parent folder afterwards:
+
+```bash
+freecadcmd build_fcstd.py                     # both variants; VARIANT=clips for one
+python3 build_solidcraft.py                   # writes the .solidcraft.json scripts
+solidcraft-cli run clips/case_wroom-u1-clips.solidcraft.json --save clips/case_wroom-u1-clips.solidcraft
+```
+
+`build_fcstd.py` checks nothing by itself: compare its `Base`/`Lid` with `base.step`/`lid.step`
+after a change (they matched exactly when this was written; the SolidCraft model is within
+1 mm³ per part).
 
 ## Limitations
 

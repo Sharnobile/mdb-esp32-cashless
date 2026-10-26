@@ -1,0 +1,8622 @@
+{
+ "commands": [
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "wall",
+    "expression": "2.0 mm",
+    "comment": "wall thickness"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "floor_t",
+    "expression": "2.0 mm",
+    "comment": "floor thickness"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "lid_t",
+    "expression": "2.0 mm",
+    "comment": "lid thickness"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "gap",
+    "expression": "0.6 mm",
+    "comment": "board to wall clearance"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "standoff",
+    "expression": "5.0 mm",
+    "comment": "standoff height under the board"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "pcb_t",
+    "expression": "1.52 mm",
+    "comment": "board thickness"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "tallest",
+    "expression": "17.6 mm",
+    "comment": "tallest part on the board (relays)"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "top_clear",
+    "expression": "1.4 mm",
+    "comment": "clearance above the tallest part"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "fit",
+    "expression": "0.25 mm",
+    "comment": "lid lip to wall clearance"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "r_outer",
+    "expression": "3.0 mm",
+    "comment": "outer corner radius"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "r_inner",
+    "expression": "1.0 mm",
+    "comment": "cavity corner radius"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "board_x",
+    "expression": "74.91 mm",
+    "comment": "half board length (board centred on the origin)"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "board_y",
+    "expression": "19.25 mm",
+    "comment": "half board width"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "cav_west",
+    "expression": "-75.6 mm",
+    "comment": "west cavity wall (the USB-C plug sticks out)"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "cav_margin",
+    "expression": "0.5 mm",
+    "comment": "cavity margin north and south"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "pcb_z",
+    "expression": "floor_t + standoff",
+    "comment": "board bottom"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "base_h",
+    "expression": "pcb_z + tallest + top_clear",
+    "comment": "base height"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "cav_x0",
+    "expression": "cav_west"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "cav_x1",
+    "expression": "board_x + gap"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "cav_y",
+    "expression": "board_y + cav_margin",
+    "comment": "half cavity width"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "out_x0",
+    "expression": "cav_x0 - wall"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "out_x1",
+    "expression": "cav_x1 + wall"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "out_y",
+    "expression": "cav_y + wall",
+    "comment": "half outer width"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "insert_bore",
+    "expression": "3.3 mm",
+    "comment": "M2.5 heat insert bore"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "insert_depth",
+    "expression": "5.6 mm",
+    "comment": "insert bore depth"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "standoff_d",
+    "expression": "6.4 mm",
+    "comment": "standoff diameter"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "hole1_x",
+    "expression": "-71.414936 mm",
+    "comment": "board mounting hole"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "hole1_y",
+    "expression": "-15.75 mm"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "hole2_x",
+    "expression": "-71.414936 mm",
+    "comment": "board mounting hole"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "hole2_y",
+    "expression": "15.75 mm"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "hole3_x",
+    "expression": "41.4757 mm",
+    "comment": "board mounting hole"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "hole3_y",
+    "expression": "-15.7906 mm"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "hole4_x",
+    "expression": "41.4857 mm",
+    "comment": "board mounting hole"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "hole4_y",
+    "expression": "14.7496 mm"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "boss_d",
+    "expression": "6.8 mm",
+    "comment": "lid screw boss diameter"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "boss_x",
+    "expression": "73.0 mm",
+    "comment": "lid screw boss x (mirrored)"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "boss_offset",
+    "expression": "2.2 mm",
+    "comment": "boss centre outside the wall"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "boss_y",
+    "expression": "out_y + boss_offset"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "lid_screw",
+    "expression": "2.9 mm",
+    "comment": "M2.5 clearance hole in the lid"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "term_w",
+    "expression": "3.2 mm",
+    "comment": "terminal wire window width"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "term_hole",
+    "expression": "4.0 mm",
+    "comment": "lid screwdriver hole diameter"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "term_pitch",
+    "expression": "5.08 mm",
+    "comment": "terminal pole pitch"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "wire_z0",
+    "expression": "2.48 mm",
+    "comment": "wire window bottom above the board bottom"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "wire_z1",
+    "expression": "9.92 mm",
+    "comment": "wire window top above the board bottom"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "p4_first",
+    "expression": "-57.79 mm",
+    "comment": "first pole, S wall"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "p4_row",
+    "expression": "-14.3 mm"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "p5_first",
+    "expression": "-42.23 mm",
+    "comment": "first pole, S wall"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "p5_row",
+    "expression": "-14.3 mm"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "p6_first",
+    "expression": "-26.68 mm",
+    "comment": "first pole, S wall"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "p6_row",
+    "expression": "-14.3 mm"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "p3_first",
+    "expression": "-11.14 mm",
+    "comment": "first pole, S wall"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "p3_row",
+    "expression": "-14.3 mm"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "p2_first",
+    "expression": "9.09 mm",
+    "comment": "first pole, N wall"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "p2_row",
+    "expression": "14.3 mm"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "p1_first",
+    "expression": "24.63 mm",
+    "comment": "first pole, N wall"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "p1_row",
+    "expression": "14.3 mm"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "p8_first",
+    "expression": "-13.75 mm",
+    "comment": "first pole, E wall"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "p8_row",
+    "expression": "70.06 mm"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "p9_first",
+    "expression": "2.74 mm",
+    "comment": "first pole, E wall"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "p9_row",
+    "expression": "70.06 mm"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "usb_y",
+    "expression": "0.38 mm",
+    "comment": "USB-C centre y"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "usb_z",
+    "expression": "2.78 mm",
+    "comment": "USB-C centre above the board bottom"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "usb_w",
+    "expression": "10.0 mm",
+    "comment": "USB-C window width"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "usb_h",
+    "expression": "4.6 mm",
+    "comment": "USB-C window height"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "usb_chamfer",
+    "expression": "1.0 mm",
+    "comment": "USB-C window 45 degree corner chamfer"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "mdb_x0",
+    "expression": "10.04 mm",
+    "comment": "MDB connector x min"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "mdb_x1",
+    "expression": "24.04 mm",
+    "comment": "MDB connector x max"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "mdb_top",
+    "expression": "12.3 mm",
+    "comment": "MDB connector top above the board bottom"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "antenna_x",
+    "expression": "-46.0 mm",
+    "comment": "U.FL cable slot, north wall"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "uart_x",
+    "expression": "-33.15 mm",
+    "comment": "UART debug slot, north wall"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "uart_w",
+    "expression": "8.0 mm",
+    "comment": "UART debug slot width"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "sma_x",
+    "expression": "-53.0 mm",
+    "comment": "SMA jack hole centre x, north wall"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "sma_z",
+    "expression": "18.0 mm",
+    "comment": "SMA jack hole centre height"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "sma_d",
+    "expression": "6.6 mm",
+    "comment": "SMA jack hole diameter (panel cutout 6.5)"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "sma_cap",
+    "expression": "0.3 mm",
+    "comment": "teardrop cut-off above the hole top"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "led_x",
+    "expression": "-47.76 mm",
+    "comment": "LED window"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "led_y",
+    "expression": "-3.43 mm"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "led_d",
+    "expression": "4.0 mm",
+    "comment": "LED window diameter"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "vent_d",
+    "expression": "3.4 mm",
+    "comment": "wall vent diamond, across corners"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "vent_pitch",
+    "expression": "5.0 mm",
+    "comment": "wall vent pitch"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "vent_n",
+    "expression": "27",
+    "comment": "wall vents per long wall",
+    "unit": ""
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "hex_af",
+    "expression": "3.0 mm",
+    "comment": "lid vent hexagon across flats"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "hex_web",
+    "expression": "1.2 mm",
+    "comment": "web between lid vent hexagons"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "hex_pitch",
+    "expression": "hex_af + hex_web"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "hex_row",
+    "expression": "hex_pitch * 0.8660254",
+    "comment": "lid vent row spacing"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "lv1_x0",
+    "expression": "45.2 mm",
+    "comment": "lid vent zone"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "lv1_x1",
+    "expression": "62.8 mm"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "lv1_y0",
+    "expression": "-7.5 mm"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "lv1_y1",
+    "expression": "7.5 mm"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "lv2_x0",
+    "expression": "-24.8 mm",
+    "comment": "lid vent zone"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "lv2_x1",
+    "expression": "-0.8 mm"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "lv2_y0",
+    "expression": "-7.5 mm"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "lv2_y1",
+    "expression": "7.5 mm"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "clip_w",
+    "expression": "8.0 mm",
+    "comment": "clip tab width"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "clip_t",
+    "expression": "1.2 mm",
+    "comment": "clip tab thickness"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "bump",
+    "expression": "0.8 mm",
+    "comment": "clip catch height"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "clip_pocket",
+    "expression": "1.2 mm",
+    "comment": "blind clip notch depth into the wall"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "clip_z0",
+    "expression": "base_h - 8",
+    "comment": "clip window bottom"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "clip_z1",
+    "expression": "base_h - 5.6",
+    "comment": "clip window top"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "clip1_x",
+    "expression": "-64.5 mm",
+    "comment": "first clip pair"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "clip2_x",
+    "expression": "47.0 mm",
+    "comment": "second clip pair"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "lip_d",
+    "expression": "2.5 mm",
+    "comment": "lid lip depth"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "lip_t",
+    "expression": "1.6 mm",
+    "comment": "lid lip thickness"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "ear_t",
+    "expression": "4.0 mm",
+    "comment": "mounting ear thickness"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "ear_l",
+    "expression": "20.0 mm",
+    "comment": "mounting ear length"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "ear_w",
+    "expression": "32.0 mm",
+    "comment": "mounting ear width"
+   }
+  },
+  {
+   "command": "sketch.create",
+   "params": {
+    "plane": "XY",
+    "name": "Outline sketch",
+    "project_edges": false
+   }
+  },
+  {
+   "command": "sketch.rectangle.rounded",
+   "params": {
+    "p0": [
+     -77.6,
+     -21.75
+    ],
+    "p1": [
+     77.50999999999999,
+     21.75
+    ],
+    "radius": "r_outer"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l1"
+    ],
+    "value": "(out_x1) - (out_x0) - 2 * (r_outer)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l2"
+    ],
+    "value": "(out_y) - (-out_y) - 2 * (r_outer)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l4"
+    ],
+    "value": "-(out_x0)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l1"
+    ],
+    "value": "-(-out_y)"
+   }
+  },
+  {
+   "command": "sketch.finish",
+   "params": {}
+  },
+  {
+   "command": "solid.extrude",
+   "params": {
+    "distance": "base_h",
+    "name": "Outer body",
+    "body_name": "Base"
+   }
+  },
+  {
+   "command": "sketch.create",
+   "params": {
+    "plane": "XY",
+    "name": "Cavity sketch",
+    "project_edges": false,
+    "offset": "floor_t"
+   }
+  },
+  {
+   "command": "sketch.rectangle.rounded",
+   "params": {
+    "p0": [
+     -75.6,
+     -19.75
+    ],
+    "p1": [
+     75.50999999999999,
+     19.75
+    ],
+    "radius": "r_inner"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l1"
+    ],
+    "value": "(cav_x1) - (cav_x0) - 2 * (r_inner)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l2"
+    ],
+    "value": "(cav_y) - (-cav_y) - 2 * (r_inner)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l4"
+    ],
+    "value": "-(cav_x0)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l1"
+    ],
+    "value": "-(-cav_y)"
+   }
+  },
+  {
+   "command": "sketch.finish",
+   "params": {}
+  },
+  {
+   "command": "solid.extrude",
+   "params": {
+    "distance": "base_h",
+    "name": "Cavity",
+    "operation": "cut",
+    "targets": [
+     "Base"
+    ]
+   }
+  },
+  {
+   "command": "sketch.create",
+   "params": {
+    "plane": "XY",
+    "name": "Standoffs sketch",
+    "project_edges": false,
+    "offset": "floor_t"
+   }
+  },
+  {
+   "command": "sketch.circle.center",
+   "params": {
+    "center": [
+     -71.414936,
+     -15.75
+    ],
+    "diameter": 6.4
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "c1"
+    ],
+    "value": "standoff_d",
+    "type": "diameter"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c1.center"
+    ],
+    "value": "-(hole1_x)",
+    "type": "horizontal"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c1.center"
+    ],
+    "value": "-(hole1_y)",
+    "type": "vertical"
+   }
+  },
+  {
+   "command": "sketch.circle.center",
+   "params": {
+    "center": [
+     -71.414936,
+     15.75
+    ],
+    "diameter": 6.4
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "c2"
+    ],
+    "value": "standoff_d",
+    "type": "diameter"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c2.center"
+    ],
+    "value": "-(hole2_x)",
+    "type": "horizontal"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c2.center"
+    ],
+    "value": "hole2_y",
+    "type": "vertical"
+   }
+  },
+  {
+   "command": "sketch.circle.center",
+   "params": {
+    "center": [
+     41.4757,
+     -15.7906
+    ],
+    "diameter": 6.4
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "c3"
+    ],
+    "value": "standoff_d",
+    "type": "diameter"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c3.center"
+    ],
+    "value": "hole3_x",
+    "type": "horizontal"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c3.center"
+    ],
+    "value": "-(hole3_y)",
+    "type": "vertical"
+   }
+  },
+  {
+   "command": "sketch.circle.center",
+   "params": {
+    "center": [
+     41.4857,
+     14.7496
+    ],
+    "diameter": 6.4
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "c4"
+    ],
+    "value": "standoff_d",
+    "type": "diameter"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c4.center"
+    ],
+    "value": "hole4_x",
+    "type": "horizontal"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c4.center"
+    ],
+    "value": "hole4_y",
+    "type": "vertical"
+   }
+  },
+  {
+   "command": "sketch.finish",
+   "params": {}
+  },
+  {
+   "command": "solid.extrude",
+   "params": {
+    "distance": "standoff",
+    "name": "Standoffs",
+    "operation": "join",
+    "targets": [
+     "Base"
+    ]
+   }
+  },
+  {
+   "command": "sketch.create",
+   "params": {
+    "plane": "XY",
+    "name": "Board inserts sketch",
+    "project_edges": false,
+    "offset": "pcb_z"
+   }
+  },
+  {
+   "command": "sketch.point",
+   "params": {
+    "point": [
+     -71.414936,
+     -15.75
+    ]
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "p1"
+    ],
+    "value": "-(hole1_x)",
+    "type": "horizontal"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "p1"
+    ],
+    "value": "-(hole1_y)",
+    "type": "vertical"
+   }
+  },
+  {
+   "command": "sketch.point",
+   "params": {
+    "point": [
+     -71.414936,
+     15.75
+    ]
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "p2"
+    ],
+    "value": "-(hole2_x)",
+    "type": "horizontal"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "p2"
+    ],
+    "value": "hole2_y",
+    "type": "vertical"
+   }
+  },
+  {
+   "command": "sketch.point",
+   "params": {
+    "point": [
+     41.4757,
+     -15.7906
+    ]
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "p3"
+    ],
+    "value": "hole3_x",
+    "type": "horizontal"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "p3"
+    ],
+    "value": "-(hole3_y)",
+    "type": "vertical"
+   }
+  },
+  {
+   "command": "sketch.point",
+   "params": {
+    "point": [
+     41.4857,
+     14.7496
+    ]
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "p4"
+    ],
+    "value": "hole4_x",
+    "type": "horizontal"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "p4"
+    ],
+    "value": "hole4_y",
+    "type": "vertical"
+   }
+  },
+  {
+   "command": "sketch.finish",
+   "params": {}
+  },
+  {
+   "command": "solid.hole",
+   "params": {
+    "sketch": "Board inserts sketch",
+    "diameter": "insert_bore",
+    "depth": "insert_depth",
+    "type": "countersink",
+    "cs_diameter": "insert_bore + 0.8",
+    "cs_angle": "90 deg",
+    "name": "Board inserts"
+   }
+  },
+  {
+   "command": "sketch.create",
+   "params": {
+    "plane": "XY",
+    "name": "Screw bosses sketch",
+    "project_edges": false
+   }
+  },
+  {
+   "command": "sketch.circle.center",
+   "params": {
+    "center": [
+     -73.0,
+     -23.95
+    ],
+    "diameter": 6.8
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "c1"
+    ],
+    "value": "boss_d",
+    "type": "diameter"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c1.center"
+    ],
+    "value": "-(-boss_x)",
+    "type": "horizontal"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c1.center"
+    ],
+    "value": "-(-boss_y)",
+    "type": "vertical"
+   }
+  },
+  {
+   "command": "sketch.rectangle.two_point",
+   "params": {
+    "p0": [
+     -76.4,
+     -23.95
+    ],
+    "p1": [
+     -69.6,
+     -21.25
+    ]
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l1"
+    ],
+    "value": "(-boss_x + boss_d / 2) - (-boss_x - boss_d / 2)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l2"
+    ],
+    "value": "(-(cav_y + wall - 0.5)) - (-boss_y)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l4"
+    ],
+    "value": "-(-boss_x - boss_d / 2)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l1"
+    ],
+    "value": "-(-boss_y)"
+   }
+  },
+  {
+   "command": "sketch.circle.center",
+   "params": {
+    "center": [
+     -73.0,
+     23.95
+    ],
+    "diameter": 6.8
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "c2"
+    ],
+    "value": "boss_d",
+    "type": "diameter"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c2.center"
+    ],
+    "value": "-(-boss_x)",
+    "type": "horizontal"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c2.center"
+    ],
+    "value": "boss_y",
+    "type": "vertical"
+   }
+  },
+  {
+   "command": "sketch.rectangle.two_point",
+   "params": {
+    "p0": [
+     -76.4,
+     21.25
+    ],
+    "p1": [
+     -69.6,
+     23.95
+    ]
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l5"
+    ],
+    "value": "(-boss_x + boss_d / 2) - (-boss_x - boss_d / 2)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l6"
+    ],
+    "value": "(boss_y) - (cav_y + wall - 0.5)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l8"
+    ],
+    "value": "-(-boss_x - boss_d / 2)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l5"
+    ],
+    "value": "cav_y + wall - 0.5"
+   }
+  },
+  {
+   "command": "sketch.circle.center",
+   "params": {
+    "center": [
+     73.0,
+     -23.95
+    ],
+    "diameter": 6.8
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "c3"
+    ],
+    "value": "boss_d",
+    "type": "diameter"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c3.center"
+    ],
+    "value": "boss_x",
+    "type": "horizontal"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c3.center"
+    ],
+    "value": "-(-boss_y)",
+    "type": "vertical"
+   }
+  },
+  {
+   "command": "sketch.rectangle.two_point",
+   "params": {
+    "p0": [
+     69.6,
+     -23.95
+    ],
+    "p1": [
+     76.4,
+     -21.25
+    ]
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l9"
+    ],
+    "value": "(boss_x + boss_d / 2) - (boss_x - boss_d / 2)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l10"
+    ],
+    "value": "(-(cav_y + wall - 0.5)) - (-boss_y)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l12"
+    ],
+    "value": "boss_x - boss_d / 2"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l9"
+    ],
+    "value": "-(-boss_y)"
+   }
+  },
+  {
+   "command": "sketch.circle.center",
+   "params": {
+    "center": [
+     73.0,
+     23.95
+    ],
+    "diameter": 6.8
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "c4"
+    ],
+    "value": "boss_d",
+    "type": "diameter"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c4.center"
+    ],
+    "value": "boss_x",
+    "type": "horizontal"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c4.center"
+    ],
+    "value": "boss_y",
+    "type": "vertical"
+   }
+  },
+  {
+   "command": "sketch.rectangle.two_point",
+   "params": {
+    "p0": [
+     69.6,
+     21.25
+    ],
+    "p1": [
+     76.4,
+     23.95
+    ]
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l13"
+    ],
+    "value": "(boss_x + boss_d / 2) - (boss_x - boss_d / 2)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l14"
+    ],
+    "value": "(boss_y) - (cav_y + wall - 0.5)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l16"
+    ],
+    "value": "boss_x - boss_d / 2"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l13"
+    ],
+    "value": "cav_y + wall - 0.5"
+   }
+  },
+  {
+   "command": "sketch.finish",
+   "params": {}
+  },
+  {
+   "command": "solid.extrude",
+   "params": {
+    "distance": "base_h",
+    "name": "Screw bosses",
+    "operation": "join",
+    "targets": [
+     "Base"
+    ]
+   }
+  },
+  {
+   "command": "sketch.create",
+   "params": {
+    "plane": "XY",
+    "name": "Boss inserts sketch",
+    "project_edges": false,
+    "offset": "base_h"
+   }
+  },
+  {
+   "command": "sketch.point",
+   "params": {
+    "point": [
+     -73.0,
+     -23.95
+    ]
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "p1"
+    ],
+    "value": "-(-boss_x)",
+    "type": "horizontal"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "p1"
+    ],
+    "value": "-(-boss_y)",
+    "type": "vertical"
+   }
+  },
+  {
+   "command": "sketch.point",
+   "params": {
+    "point": [
+     -73.0,
+     23.95
+    ]
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "p2"
+    ],
+    "value": "-(-boss_x)",
+    "type": "horizontal"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "p2"
+    ],
+    "value": "boss_y",
+    "type": "vertical"
+   }
+  },
+  {
+   "command": "sketch.point",
+   "params": {
+    "point": [
+     73.0,
+     -23.95
+    ]
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "p3"
+    ],
+    "value": "boss_x",
+    "type": "horizontal"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "p3"
+    ],
+    "value": "-(-boss_y)",
+    "type": "vertical"
+   }
+  },
+  {
+   "command": "sketch.point",
+   "params": {
+    "point": [
+     73.0,
+     23.95
+    ]
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "p4"
+    ],
+    "value": "boss_x",
+    "type": "horizontal"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "p4"
+    ],
+    "value": "boss_y",
+    "type": "vertical"
+   }
+  },
+  {
+   "command": "sketch.finish",
+   "params": {}
+  },
+  {
+   "command": "solid.hole",
+   "params": {
+    "sketch": "Boss inserts sketch",
+    "diameter": "insert_bore",
+    "depth": "insert_depth",
+    "type": "countersink",
+    "cs_diameter": "insert_bore + 0.8",
+    "cs_angle": "90 deg",
+    "name": "Boss inserts"
+   }
+  },
+  {
+   "command": "sketch.create",
+   "params": {
+    "plane": "XY",
+    "name": "Ears sketch",
+    "project_edges": false
+   }
+  },
+  {
+   "command": "sketch.rectangle.rounded",
+   "params": {
+    "p0": [
+     -97.6,
+     -16.0
+    ],
+    "p1": [
+     -75.6,
+     16.0
+    ],
+    "radius": "r_outer"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l1"
+    ],
+    "value": "(out_x0 + 2) - (out_x0 - ear_l) - 2 * (r_outer)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l2"
+    ],
+    "value": "(ear_w / 2) - (-ear_w / 2) - 2 * (r_outer)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l4"
+    ],
+    "value": "-(out_x0 - ear_l)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l1"
+    ],
+    "value": "-(-ear_w / 2)"
+   }
+  },
+  {
+   "command": "sketch.rectangle.rounded",
+   "params": {
+    "p0": [
+     75.50999999999999,
+     -16.0
+    ],
+    "p1": [
+     97.50999999999999,
+     16.0
+    ],
+    "radius": "r_outer"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l5"
+    ],
+    "value": "(out_x1 + ear_l) - (out_x1 - 2) - 2 * (r_outer)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l6"
+    ],
+    "value": "(ear_w / 2) - (-ear_w / 2) - 2 * (r_outer)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l8"
+    ],
+    "value": "out_x1 - 2"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l5"
+    ],
+    "value": "-(-ear_w / 2)"
+   }
+  },
+  {
+   "command": "sketch.finish",
+   "params": {}
+  },
+  {
+   "command": "solid.extrude",
+   "params": {
+    "distance": "ear_t",
+    "name": "Ears",
+    "operation": "join",
+    "targets": [
+     "Base"
+    ]
+   }
+  },
+  {
+   "command": "sketch.create",
+   "params": {
+    "plane": "XY",
+    "name": "Ear slots sketch",
+    "project_edges": false,
+    "offset": "ear_t / 2"
+   }
+  },
+  {
+   "command": "sketch.rectangle.two_point",
+   "params": {
+    "p0": [
+     -89.85,
+     -2.75
+    ],
+    "p1": [
+     -85.35,
+     2.75
+    ]
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l1"
+    ],
+    "value": "((out_x0 - ear_l / 2) + 2.25) - ((out_x0 - ear_l / 2) - 2.25)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l2"
+    ],
+    "value": "(2.75) - (-2.75)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l4"
+    ],
+    "value": "-((out_x0 - ear_l / 2) - 2.25)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l1"
+    ],
+    "value": "-(-2.75)"
+   }
+  },
+  {
+   "command": "sketch.circle.center",
+   "params": {
+    "center": [
+     -87.6,
+     -2.75
+    ],
+    "diameter": 4.5
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "c1"
+    ],
+    "value": "4.5",
+    "type": "diameter"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c1.center"
+    ],
+    "value": "-((out_x0 - ear_l / 2))",
+    "type": "horizontal"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c1.center"
+    ],
+    "value": "-(-2.75)",
+    "type": "vertical"
+   }
+  },
+  {
+   "command": "sketch.circle.center",
+   "params": {
+    "center": [
+     -87.6,
+     2.75
+    ],
+    "diameter": 4.5
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "c2"
+    ],
+    "value": "4.5",
+    "type": "diameter"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c2.center"
+    ],
+    "value": "-((out_x0 - ear_l / 2))",
+    "type": "horizontal"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c2.center"
+    ],
+    "value": "2.75",
+    "type": "vertical"
+   }
+  },
+  {
+   "command": "sketch.rectangle.two_point",
+   "params": {
+    "p0": [
+     -92.1,
+     -12.6
+    ],
+    "p1": [
+     -83.1,
+     -9.4
+    ]
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l5"
+    ],
+    "value": "((out_x0 - ear_l / 2) + 4.5) - ((out_x0 - ear_l / 2) - 4.5)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l6"
+    ],
+    "value": "(-11 + 1.6) - (-11 - 1.6)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l8"
+    ],
+    "value": "-((out_x0 - ear_l / 2) - 4.5)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l5"
+    ],
+    "value": "-(-11 - 1.6)"
+   }
+  },
+  {
+   "command": "sketch.rectangle.two_point",
+   "params": {
+    "p0": [
+     -92.1,
+     9.4
+    ],
+    "p1": [
+     -83.1,
+     12.6
+    ]
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l9"
+    ],
+    "value": "((out_x0 - ear_l / 2) + 4.5) - ((out_x0 - ear_l / 2) - 4.5)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l10"
+    ],
+    "value": "(11 + 1.6) - (11 - 1.6)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l12"
+    ],
+    "value": "-((out_x0 - ear_l / 2) - 4.5)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l9"
+    ],
+    "value": "11 - 1.6"
+   }
+  },
+  {
+   "command": "sketch.rectangle.two_point",
+   "params": {
+    "p0": [
+     85.25999999999999,
+     -2.75
+    ],
+    "p1": [
+     89.75999999999999,
+     2.75
+    ]
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l13"
+    ],
+    "value": "((out_x1 + ear_l / 2) + 2.25) - ((out_x1 + ear_l / 2) - 2.25)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l14"
+    ],
+    "value": "(2.75) - (-2.75)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l16"
+    ],
+    "value": "(out_x1 + ear_l / 2) - 2.25"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l13"
+    ],
+    "value": "-(-2.75)"
+   }
+  },
+  {
+   "command": "sketch.circle.center",
+   "params": {
+    "center": [
+     87.50999999999999,
+     -2.75
+    ],
+    "diameter": 4.5
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "c3"
+    ],
+    "value": "4.5",
+    "type": "diameter"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c3.center"
+    ],
+    "value": "(out_x1 + ear_l / 2)",
+    "type": "horizontal"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c3.center"
+    ],
+    "value": "-(-2.75)",
+    "type": "vertical"
+   }
+  },
+  {
+   "command": "sketch.circle.center",
+   "params": {
+    "center": [
+     87.50999999999999,
+     2.75
+    ],
+    "diameter": 4.5
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "c4"
+    ],
+    "value": "4.5",
+    "type": "diameter"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c4.center"
+    ],
+    "value": "(out_x1 + ear_l / 2)",
+    "type": "horizontal"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c4.center"
+    ],
+    "value": "2.75",
+    "type": "vertical"
+   }
+  },
+  {
+   "command": "sketch.rectangle.two_point",
+   "params": {
+    "p0": [
+     83.00999999999999,
+     -12.6
+    ],
+    "p1": [
+     92.00999999999999,
+     -9.4
+    ]
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l17"
+    ],
+    "value": "((out_x1 + ear_l / 2) + 4.5) - ((out_x1 + ear_l / 2) - 4.5)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l18"
+    ],
+    "value": "(-11 + 1.6) - (-11 - 1.6)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l20"
+    ],
+    "value": "(out_x1 + ear_l / 2) - 4.5"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l17"
+    ],
+    "value": "-(-11 - 1.6)"
+   }
+  },
+  {
+   "command": "sketch.rectangle.two_point",
+   "params": {
+    "p0": [
+     83.00999999999999,
+     9.4
+    ],
+    "p1": [
+     92.00999999999999,
+     12.6
+    ]
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l21"
+    ],
+    "value": "((out_x1 + ear_l / 2) + 4.5) - ((out_x1 + ear_l / 2) - 4.5)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l22"
+    ],
+    "value": "(11 + 1.6) - (11 - 1.6)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l24"
+    ],
+    "value": "(out_x1 + ear_l / 2) - 4.5"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l21"
+    ],
+    "value": "11 - 1.6"
+   }
+  },
+  {
+   "command": "sketch.finish",
+   "params": {}
+  },
+  {
+   "command": "solid.extrude",
+   "params": {
+    "distance": "ear_t + 2",
+    "name": "Ear slots",
+    "direction": "symmetric",
+    "operation": "cut",
+    "targets": [
+     "Base"
+    ]
+   }
+  },
+  {
+   "command": "sketch.create",
+   "params": {
+    "plane": {
+     "origin": [
+      0,
+      0,
+      0
+     ],
+     "x_dir": [
+      0,
+      1,
+      0
+     ],
+     "y_dir": [
+      0,
+      0,
+      1
+     ]
+    },
+    "name": "USB-C window sketch",
+    "project_edges": false,
+    "offset": "cav_x0 - wall / 2"
+   }
+  },
+  {
+   "command": "sketch.line",
+   "params": {
+    "points": [
+     [
+      -3.62,
+      7.4799999999999995
+     ],
+     [
+      4.38,
+      7.4799999999999995
+     ],
+     [
+      5.38,
+      8.48
+     ],
+     [
+      5.38,
+      11.079999999999998
+     ],
+     [
+      4.38,
+      12.079999999999998
+     ],
+     [
+      -3.62,
+      12.079999999999998
+     ],
+     [
+      -4.62,
+      11.079999999999998
+     ],
+     [
+      -4.62,
+      8.48
+     ]
+    ],
+    "closed": true,
+    "infer": true
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l1"
+    ],
+    "value": "(usb_y + usb_w / 2) - (usb_y - usb_w / 2) - 2 * (usb_chamfer)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l3"
+    ],
+    "value": "(pcb_z + usb_z + usb_h / 2) - (pcb_z + usb_z - usb_h / 2) - 2 * (usb_chamfer)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l5"
+    ],
+    "value": "(usb_y + usb_w / 2) - (usb_y - usb_w / 2) - 2 * (usb_chamfer)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l7"
+    ],
+    "value": "(pcb_z + usb_z + usb_h / 2) - (pcb_z + usb_z - usb_h / 2) - 2 * (usb_chamfer)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l2"
+    ],
+    "value": "(usb_chamfer) * 1.41421356"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l4"
+    ],
+    "value": "(usb_chamfer) * 1.41421356"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l6"
+    ],
+    "value": "(usb_chamfer) * 1.41421356"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l8"
+    ],
+    "value": "(usb_chamfer) * 1.41421356"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l1"
+    ],
+    "value": "pcb_z + usb_z - usb_h / 2"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l7"
+    ],
+    "value": "-(usb_y - usb_w / 2)"
+   }
+  },
+  {
+   "command": "sketch.finish",
+   "params": {}
+  },
+  {
+   "command": "solid.extrude",
+   "params": {
+    "distance": "wall + 2",
+    "name": "USB-C window",
+    "direction": "symmetric",
+    "operation": "cut",
+    "targets": [
+     "Base"
+    ]
+   }
+  },
+  {
+   "command": "sketch.create",
+   "params": {
+    "plane": {
+     "origin": [
+      0,
+      0,
+      0
+     ],
+     "x_dir": [
+      1,
+      0,
+      0
+     ],
+     "y_dir": [
+      0,
+      0,
+      1
+     ]
+    },
+    "name": "MDB slot sketch",
+    "project_edges": false,
+    "offset": "cav_y + wall / 2"
+   }
+  },
+  {
+   "command": "sketch.rectangle.rounded",
+   "params": {
+    "p0": [
+     9.239999999999998,
+     8.82
+    ],
+    "p1": [
+     24.84,
+     29.0
+    ],
+    "radius": "1"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l1"
+    ],
+    "value": "(mdb_x1 + 0.8) - (mdb_x0 - 0.8) - 2 * (1)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l2"
+    ],
+    "value": "(base_h + 3) - (pcb_z + pcb_t + 0.3) - 2 * (1)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l4"
+    ],
+    "value": "mdb_x0 - 0.8"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l1"
+    ],
+    "value": "pcb_z + pcb_t + 0.3"
+   }
+  },
+  {
+   "command": "sketch.finish",
+   "params": {}
+  },
+  {
+   "command": "solid.extrude",
+   "params": {
+    "distance": "wall + 2",
+    "name": "MDB slot",
+    "direction": "symmetric",
+    "operation": "cut",
+    "targets": [
+     "Base"
+    ]
+   }
+  },
+  {
+   "command": "sketch.create",
+   "params": {
+    "plane": {
+     "origin": [
+      0,
+      0,
+      0
+     ],
+     "x_dir": [
+      1,
+      0,
+      0
+     ],
+     "y_dir": [
+      0,
+      0,
+      1
+     ]
+    },
+    "name": "Cable slots sketch",
+    "project_edges": false,
+    "offset": "-(cav_y + wall / 2)"
+   }
+  },
+  {
+   "command": "sketch.rectangle.two_point",
+   "params": {
+    "p0": [
+     -47.5,
+     24.0
+    ],
+    "p1": [
+     -44.5,
+     27.0
+    ]
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l1"
+    ],
+    "value": "(antenna_x + 1.5) - (antenna_x - 1.5)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l2"
+    ],
+    "value": "(base_h + 1) - (base_h - 2)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l4"
+    ],
+    "value": "-(antenna_x - 1.5)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l1"
+    ],
+    "value": "base_h - 2"
+   }
+  },
+  {
+   "command": "sketch.rectangle.two_point",
+   "params": {
+    "p0": [
+     -37.15,
+     24.0
+    ],
+    "p1": [
+     -29.15,
+     27.0
+    ]
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l5"
+    ],
+    "value": "(uart_x + uart_w / 2) - (uart_x - uart_w / 2)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l6"
+    ],
+    "value": "(base_h + 1) - (base_h - 2)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l8"
+    ],
+    "value": "-(uart_x - uart_w / 2)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l5"
+    ],
+    "value": "base_h - 2"
+   }
+  },
+  {
+   "command": "sketch.finish",
+   "params": {}
+  },
+  {
+   "command": "solid.extrude",
+   "params": {
+    "distance": "wall + 2",
+    "name": "Cable slots",
+    "direction": "symmetric",
+    "operation": "cut",
+    "targets": [
+     "Base"
+    ]
+   }
+  },
+  {
+   "command": "sketch.create",
+   "params": {
+    "plane": {
+     "origin": [
+      0,
+      0,
+      0
+     ],
+     "x_dir": [
+      1,
+      0,
+      0
+     ],
+     "y_dir": [
+      0,
+      0,
+      1
+     ]
+    },
+    "name": "SMA jack hole sketch",
+    "project_edges": false,
+    "offset": "-(cav_y + wall / 2)"
+   }
+  },
+  {
+   "command": "sketch.circle.center",
+   "params": {
+    "center": [
+     -53.0,
+     18.0
+    ],
+    "diameter": 6.6
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "c1"
+    ],
+    "value": "sma_d",
+    "type": "diameter"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c1.center"
+    ],
+    "value": "-(sma_x)",
+    "type": "horizontal"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c1.center"
+    ],
+    "value": "sma_z",
+    "type": "vertical"
+   }
+  },
+  {
+   "command": "sketch.finish",
+   "params": {}
+  },
+  {
+   "command": "solid.extrude",
+   "params": {
+    "distance": "wall + 2",
+    "name": "SMA jack hole",
+    "direction": "symmetric",
+    "operation": "cut",
+    "targets": [
+     "Base"
+    ]
+   }
+  },
+  {
+   "command": "sketch.create",
+   "params": {
+    "plane": {
+     "origin": [
+      0,
+      0,
+      0
+     ],
+     "x_dir": [
+      1,
+      0,
+      0
+     ],
+     "y_dir": [
+      0,
+      0,
+      1
+     ]
+    },
+    "name": "SMA jack hole cap sketch",
+    "project_edges": false,
+    "offset": "-(cav_y + wall / 2)"
+   }
+  },
+  {
+   "command": "sketch.line",
+   "params": {
+    "points": [
+     [
+      -55.333452374000004,
+      18.0
+     ],
+     [
+      -50.666547625999996,
+      18.0
+     ],
+     [
+      -50.666547625999996,
+      20.333452374
+     ],
+     [
+      -51.933095252,
+      21.6
+     ],
+     [
+      -54.066904748,
+      21.6
+     ],
+     [
+      -55.333452374000004,
+      20.333452374
+     ]
+    ],
+    "closed": true,
+    "infer": true
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l1"
+    ],
+    "value": "2 * sma_d / 2 * 0.70710678"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l2"
+    ],
+    "value": "sma_d / 2 * 0.70710678"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l4"
+    ],
+    "value": "2 * (sma_d / 2 * 1.41421356 - (sma_d / 2 + sma_cap))"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l6"
+    ],
+    "value": "sma_d / 2 * 0.70710678"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l3"
+    ],
+    "value": "((sma_d / 2 + sma_cap) - sma_d / 2 * 0.70710678) * 1.41421356"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l1"
+    ],
+    "value": "sma_z"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l6"
+    ],
+    "value": "-(sma_x - sma_d / 2 * 0.70710678)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l4"
+    ],
+    "value": "sma_z + (sma_d / 2 + sma_cap)"
+   }
+  },
+  {
+   "command": "sketch.finish",
+   "params": {}
+  },
+  {
+   "command": "solid.extrude",
+   "params": {
+    "distance": "wall + 2",
+    "name": "SMA jack hole cap",
+    "direction": "symmetric",
+    "operation": "cut",
+    "targets": [
+     "Base"
+    ]
+   }
+  },
+  {
+   "command": "sketch.create",
+   "params": {
+    "plane": {
+     "origin": [
+      0,
+      0,
+      0
+     ],
+     "x_dir": [
+      1,
+      0,
+      0
+     ],
+     "y_dir": [
+      0,
+      0,
+      1
+     ]
+    },
+    "name": "P4 wire window sketch",
+    "project_edges": false,
+    "offset": "cav_y + wall / 2"
+   }
+  },
+  {
+   "command": "sketch.rectangle.two_point",
+   "params": {
+    "p0": [
+     -59.39,
+     9.48
+    ],
+    "p1": [
+     -56.19,
+     15.320000000000002
+    ]
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l1"
+    ],
+    "value": "(p4_first + term_w / 2) - (p4_first - term_w / 2)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l2"
+    ],
+    "value": "(pcb_z + wire_z1 - term_w / 2) - (pcb_z + wire_z0)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l4"
+    ],
+    "value": "-(p4_first - term_w / 2)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l1"
+    ],
+    "value": "pcb_z + wire_z0"
+   }
+  },
+  {
+   "command": "sketch.finish",
+   "params": {}
+  },
+  {
+   "command": "solid.extrude",
+   "params": {
+    "distance": "wall + 2",
+    "name": "P4 wire window",
+    "direction": "symmetric",
+    "operation": "cut",
+    "targets": [
+     "Base"
+    ]
+   }
+  },
+  {
+   "command": "sketch.create",
+   "params": {
+    "plane": {
+     "origin": [
+      0,
+      0,
+      0
+     ],
+     "x_dir": [
+      1,
+      0,
+      0
+     ],
+     "y_dir": [
+      0,
+      0,
+      1
+     ]
+    },
+    "name": "P4 wire window top sketch",
+    "project_edges": false,
+    "offset": "cav_y + wall / 2"
+   }
+  },
+  {
+   "command": "sketch.circle.center",
+   "params": {
+    "center": [
+     -57.79,
+     15.320000000000002
+    ],
+    "diameter": 3.2
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "c1"
+    ],
+    "value": "term_w",
+    "type": "diameter"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c1.center"
+    ],
+    "value": "-(p4_first)",
+    "type": "horizontal"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c1.center"
+    ],
+    "value": "pcb_z + wire_z1 - term_w / 2",
+    "type": "vertical"
+   }
+  },
+  {
+   "command": "sketch.finish",
+   "params": {}
+  },
+  {
+   "command": "solid.extrude",
+   "params": {
+    "distance": "wall + 2",
+    "name": "P4 wire window top",
+    "direction": "symmetric",
+    "operation": "cut",
+    "targets": [
+     "Base"
+    ]
+   }
+  },
+  {
+   "command": "solid.pattern.rectangular",
+   "params": {
+    "features": [
+     "P4 wire window",
+     "P4 wire window top"
+    ],
+    "dir1": [
+     1,
+     0,
+     0
+    ],
+    "count1": 3,
+    "spacing1": "term_pitch",
+    "name": "P4 wire windows"
+   }
+  },
+  {
+   "command": "sketch.create",
+   "params": {
+    "plane": {
+     "origin": [
+      0,
+      0,
+      0
+     ],
+     "x_dir": [
+      1,
+      0,
+      0
+     ],
+     "y_dir": [
+      0,
+      0,
+      1
+     ]
+    },
+    "name": "P5 wire window sketch",
+    "project_edges": false,
+    "offset": "cav_y + wall / 2"
+   }
+  },
+  {
+   "command": "sketch.rectangle.two_point",
+   "params": {
+    "p0": [
+     -43.83,
+     9.48
+    ],
+    "p1": [
+     -40.629999999999995,
+     15.320000000000002
+    ]
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l1"
+    ],
+    "value": "(p5_first + term_w / 2) - (p5_first - term_w / 2)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l2"
+    ],
+    "value": "(pcb_z + wire_z1 - term_w / 2) - (pcb_z + wire_z0)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l4"
+    ],
+    "value": "-(p5_first - term_w / 2)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l1"
+    ],
+    "value": "pcb_z + wire_z0"
+   }
+  },
+  {
+   "command": "sketch.finish",
+   "params": {}
+  },
+  {
+   "command": "solid.extrude",
+   "params": {
+    "distance": "wall + 2",
+    "name": "P5 wire window",
+    "direction": "symmetric",
+    "operation": "cut",
+    "targets": [
+     "Base"
+    ]
+   }
+  },
+  {
+   "command": "sketch.create",
+   "params": {
+    "plane": {
+     "origin": [
+      0,
+      0,
+      0
+     ],
+     "x_dir": [
+      1,
+      0,
+      0
+     ],
+     "y_dir": [
+      0,
+      0,
+      1
+     ]
+    },
+    "name": "P5 wire window top sketch",
+    "project_edges": false,
+    "offset": "cav_y + wall / 2"
+   }
+  },
+  {
+   "command": "sketch.circle.center",
+   "params": {
+    "center": [
+     -42.23,
+     15.320000000000002
+    ],
+    "diameter": 3.2
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "c1"
+    ],
+    "value": "term_w",
+    "type": "diameter"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c1.center"
+    ],
+    "value": "-(p5_first)",
+    "type": "horizontal"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c1.center"
+    ],
+    "value": "pcb_z + wire_z1 - term_w / 2",
+    "type": "vertical"
+   }
+  },
+  {
+   "command": "sketch.finish",
+   "params": {}
+  },
+  {
+   "command": "solid.extrude",
+   "params": {
+    "distance": "wall + 2",
+    "name": "P5 wire window top",
+    "direction": "symmetric",
+    "operation": "cut",
+    "targets": [
+     "Base"
+    ]
+   }
+  },
+  {
+   "command": "solid.pattern.rectangular",
+   "params": {
+    "features": [
+     "P5 wire window",
+     "P5 wire window top"
+    ],
+    "dir1": [
+     1,
+     0,
+     0
+    ],
+    "count1": 3,
+    "spacing1": "term_pitch",
+    "name": "P5 wire windows"
+   }
+  },
+  {
+   "command": "sketch.create",
+   "params": {
+    "plane": {
+     "origin": [
+      0,
+      0,
+      0
+     ],
+     "x_dir": [
+      1,
+      0,
+      0
+     ],
+     "y_dir": [
+      0,
+      0,
+      1
+     ]
+    },
+    "name": "P6 wire window sketch",
+    "project_edges": false,
+    "offset": "cav_y + wall / 2"
+   }
+  },
+  {
+   "command": "sketch.rectangle.two_point",
+   "params": {
+    "p0": [
+     -28.28,
+     9.48
+    ],
+    "p1": [
+     -25.08,
+     15.320000000000002
+    ]
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l1"
+    ],
+    "value": "(p6_first + term_w / 2) - (p6_first - term_w / 2)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l2"
+    ],
+    "value": "(pcb_z + wire_z1 - term_w / 2) - (pcb_z + wire_z0)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l4"
+    ],
+    "value": "-(p6_first - term_w / 2)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l1"
+    ],
+    "value": "pcb_z + wire_z0"
+   }
+  },
+  {
+   "command": "sketch.finish",
+   "params": {}
+  },
+  {
+   "command": "solid.extrude",
+   "params": {
+    "distance": "wall + 2",
+    "name": "P6 wire window",
+    "direction": "symmetric",
+    "operation": "cut",
+    "targets": [
+     "Base"
+    ]
+   }
+  },
+  {
+   "command": "sketch.create",
+   "params": {
+    "plane": {
+     "origin": [
+      0,
+      0,
+      0
+     ],
+     "x_dir": [
+      1,
+      0,
+      0
+     ],
+     "y_dir": [
+      0,
+      0,
+      1
+     ]
+    },
+    "name": "P6 wire window top sketch",
+    "project_edges": false,
+    "offset": "cav_y + wall / 2"
+   }
+  },
+  {
+   "command": "sketch.circle.center",
+   "params": {
+    "center": [
+     -26.68,
+     15.320000000000002
+    ],
+    "diameter": 3.2
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "c1"
+    ],
+    "value": "term_w",
+    "type": "diameter"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c1.center"
+    ],
+    "value": "-(p6_first)",
+    "type": "horizontal"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c1.center"
+    ],
+    "value": "pcb_z + wire_z1 - term_w / 2",
+    "type": "vertical"
+   }
+  },
+  {
+   "command": "sketch.finish",
+   "params": {}
+  },
+  {
+   "command": "solid.extrude",
+   "params": {
+    "distance": "wall + 2",
+    "name": "P6 wire window top",
+    "direction": "symmetric",
+    "operation": "cut",
+    "targets": [
+     "Base"
+    ]
+   }
+  },
+  {
+   "command": "solid.pattern.rectangular",
+   "params": {
+    "features": [
+     "P6 wire window",
+     "P6 wire window top"
+    ],
+    "dir1": [
+     1,
+     0,
+     0
+    ],
+    "count1": 3,
+    "spacing1": "term_pitch",
+    "name": "P6 wire windows"
+   }
+  },
+  {
+   "command": "sketch.create",
+   "params": {
+    "plane": {
+     "origin": [
+      0,
+      0,
+      0
+     ],
+     "x_dir": [
+      1,
+      0,
+      0
+     ],
+     "y_dir": [
+      0,
+      0,
+      1
+     ]
+    },
+    "name": "P3 wire window sketch",
+    "project_edges": false,
+    "offset": "cav_y + wall / 2"
+   }
+  },
+  {
+   "command": "sketch.rectangle.two_point",
+   "params": {
+    "p0": [
+     -12.74,
+     9.48
+    ],
+    "p1": [
+     -9.540000000000001,
+     15.320000000000002
+    ]
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l1"
+    ],
+    "value": "(p3_first + term_w / 2) - (p3_first - term_w / 2)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l2"
+    ],
+    "value": "(pcb_z + wire_z1 - term_w / 2) - (pcb_z + wire_z0)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l4"
+    ],
+    "value": "-(p3_first - term_w / 2)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l1"
+    ],
+    "value": "pcb_z + wire_z0"
+   }
+  },
+  {
+   "command": "sketch.finish",
+   "params": {}
+  },
+  {
+   "command": "solid.extrude",
+   "params": {
+    "distance": "wall + 2",
+    "name": "P3 wire window",
+    "direction": "symmetric",
+    "operation": "cut",
+    "targets": [
+     "Base"
+    ]
+   }
+  },
+  {
+   "command": "sketch.create",
+   "params": {
+    "plane": {
+     "origin": [
+      0,
+      0,
+      0
+     ],
+     "x_dir": [
+      1,
+      0,
+      0
+     ],
+     "y_dir": [
+      0,
+      0,
+      1
+     ]
+    },
+    "name": "P3 wire window top sketch",
+    "project_edges": false,
+    "offset": "cav_y + wall / 2"
+   }
+  },
+  {
+   "command": "sketch.circle.center",
+   "params": {
+    "center": [
+     -11.14,
+     15.320000000000002
+    ],
+    "diameter": 3.2
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "c1"
+    ],
+    "value": "term_w",
+    "type": "diameter"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c1.center"
+    ],
+    "value": "-(p3_first)",
+    "type": "horizontal"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c1.center"
+    ],
+    "value": "pcb_z + wire_z1 - term_w / 2",
+    "type": "vertical"
+   }
+  },
+  {
+   "command": "sketch.finish",
+   "params": {}
+  },
+  {
+   "command": "solid.extrude",
+   "params": {
+    "distance": "wall + 2",
+    "name": "P3 wire window top",
+    "direction": "symmetric",
+    "operation": "cut",
+    "targets": [
+     "Base"
+    ]
+   }
+  },
+  {
+   "command": "solid.pattern.rectangular",
+   "params": {
+    "features": [
+     "P3 wire window",
+     "P3 wire window top"
+    ],
+    "dir1": [
+     1,
+     0,
+     0
+    ],
+    "count1": 3,
+    "spacing1": "term_pitch",
+    "name": "P3 wire windows"
+   }
+  },
+  {
+   "command": "sketch.create",
+   "params": {
+    "plane": {
+     "origin": [
+      0,
+      0,
+      0
+     ],
+     "x_dir": [
+      1,
+      0,
+      0
+     ],
+     "y_dir": [
+      0,
+      0,
+      1
+     ]
+    },
+    "name": "P2 wire window sketch",
+    "project_edges": false,
+    "offset": "-(cav_y + wall / 2)"
+   }
+  },
+  {
+   "command": "sketch.rectangle.two_point",
+   "params": {
+    "p0": [
+     7.49,
+     9.48
+    ],
+    "p1": [
+     10.69,
+     15.320000000000002
+    ]
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l1"
+    ],
+    "value": "(p2_first + term_w / 2) - (p2_first - term_w / 2)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l2"
+    ],
+    "value": "(pcb_z + wire_z1 - term_w / 2) - (pcb_z + wire_z0)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l4"
+    ],
+    "value": "p2_first - term_w / 2"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l1"
+    ],
+    "value": "pcb_z + wire_z0"
+   }
+  },
+  {
+   "command": "sketch.finish",
+   "params": {}
+  },
+  {
+   "command": "solid.extrude",
+   "params": {
+    "distance": "wall + 2",
+    "name": "P2 wire window",
+    "direction": "symmetric",
+    "operation": "cut",
+    "targets": [
+     "Base"
+    ]
+   }
+  },
+  {
+   "command": "sketch.create",
+   "params": {
+    "plane": {
+     "origin": [
+      0,
+      0,
+      0
+     ],
+     "x_dir": [
+      1,
+      0,
+      0
+     ],
+     "y_dir": [
+      0,
+      0,
+      1
+     ]
+    },
+    "name": "P2 wire window top sketch",
+    "project_edges": false,
+    "offset": "-(cav_y + wall / 2)"
+   }
+  },
+  {
+   "command": "sketch.circle.center",
+   "params": {
+    "center": [
+     9.09,
+     15.320000000000002
+    ],
+    "diameter": 3.2
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "c1"
+    ],
+    "value": "term_w",
+    "type": "diameter"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c1.center"
+    ],
+    "value": "p2_first",
+    "type": "horizontal"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c1.center"
+    ],
+    "value": "pcb_z + wire_z1 - term_w / 2",
+    "type": "vertical"
+   }
+  },
+  {
+   "command": "sketch.finish",
+   "params": {}
+  },
+  {
+   "command": "solid.extrude",
+   "params": {
+    "distance": "wall + 2",
+    "name": "P2 wire window top",
+    "direction": "symmetric",
+    "operation": "cut",
+    "targets": [
+     "Base"
+    ]
+   }
+  },
+  {
+   "command": "solid.pattern.rectangular",
+   "params": {
+    "features": [
+     "P2 wire window",
+     "P2 wire window top"
+    ],
+    "dir1": [
+     1,
+     0,
+     0
+    ],
+    "count1": 3,
+    "spacing1": "term_pitch",
+    "name": "P2 wire windows"
+   }
+  },
+  {
+   "command": "sketch.create",
+   "params": {
+    "plane": {
+     "origin": [
+      0,
+      0,
+      0
+     ],
+     "x_dir": [
+      1,
+      0,
+      0
+     ],
+     "y_dir": [
+      0,
+      0,
+      1
+     ]
+    },
+    "name": "P1 wire window sketch",
+    "project_edges": false,
+    "offset": "-(cav_y + wall / 2)"
+   }
+  },
+  {
+   "command": "sketch.rectangle.two_point",
+   "params": {
+    "p0": [
+     23.029999999999998,
+     9.48
+    ],
+    "p1": [
+     26.23,
+     15.320000000000002
+    ]
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l1"
+    ],
+    "value": "(p1_first + term_w / 2) - (p1_first - term_w / 2)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l2"
+    ],
+    "value": "(pcb_z + wire_z1 - term_w / 2) - (pcb_z + wire_z0)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l4"
+    ],
+    "value": "p1_first - term_w / 2"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l1"
+    ],
+    "value": "pcb_z + wire_z0"
+   }
+  },
+  {
+   "command": "sketch.finish",
+   "params": {}
+  },
+  {
+   "command": "solid.extrude",
+   "params": {
+    "distance": "wall + 2",
+    "name": "P1 wire window",
+    "direction": "symmetric",
+    "operation": "cut",
+    "targets": [
+     "Base"
+    ]
+   }
+  },
+  {
+   "command": "sketch.create",
+   "params": {
+    "plane": {
+     "origin": [
+      0,
+      0,
+      0
+     ],
+     "x_dir": [
+      1,
+      0,
+      0
+     ],
+     "y_dir": [
+      0,
+      0,
+      1
+     ]
+    },
+    "name": "P1 wire window top sketch",
+    "project_edges": false,
+    "offset": "-(cav_y + wall / 2)"
+   }
+  },
+  {
+   "command": "sketch.circle.center",
+   "params": {
+    "center": [
+     24.63,
+     15.320000000000002
+    ],
+    "diameter": 3.2
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "c1"
+    ],
+    "value": "term_w",
+    "type": "diameter"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c1.center"
+    ],
+    "value": "p1_first",
+    "type": "horizontal"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c1.center"
+    ],
+    "value": "pcb_z + wire_z1 - term_w / 2",
+    "type": "vertical"
+   }
+  },
+  {
+   "command": "sketch.finish",
+   "params": {}
+  },
+  {
+   "command": "solid.extrude",
+   "params": {
+    "distance": "wall + 2",
+    "name": "P1 wire window top",
+    "direction": "symmetric",
+    "operation": "cut",
+    "targets": [
+     "Base"
+    ]
+   }
+  },
+  {
+   "command": "solid.pattern.rectangular",
+   "params": {
+    "features": [
+     "P1 wire window",
+     "P1 wire window top"
+    ],
+    "dir1": [
+     1,
+     0,
+     0
+    ],
+    "count1": 3,
+    "spacing1": "term_pitch",
+    "name": "P1 wire windows"
+   }
+  },
+  {
+   "command": "sketch.create",
+   "params": {
+    "plane": {
+     "origin": [
+      0,
+      0,
+      0
+     ],
+     "x_dir": [
+      0,
+      1,
+      0
+     ],
+     "y_dir": [
+      0,
+      0,
+      1
+     ]
+    },
+    "name": "P8 wire window sketch",
+    "project_edges": false,
+    "offset": "cav_x1 + wall / 2"
+   }
+  },
+  {
+   "command": "sketch.rectangle.two_point",
+   "params": {
+    "p0": [
+     -15.35,
+     9.48
+    ],
+    "p1": [
+     -12.15,
+     15.320000000000002
+    ]
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l1"
+    ],
+    "value": "(p8_first + term_w / 2) - (p8_first - term_w / 2)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l2"
+    ],
+    "value": "(pcb_z + wire_z1 - term_w / 2) - (pcb_z + wire_z0)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l4"
+    ],
+    "value": "-(p8_first - term_w / 2)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l1"
+    ],
+    "value": "pcb_z + wire_z0"
+   }
+  },
+  {
+   "command": "sketch.finish",
+   "params": {}
+  },
+  {
+   "command": "solid.extrude",
+   "params": {
+    "distance": "wall + 2",
+    "name": "P8 wire window",
+    "direction": "symmetric",
+    "operation": "cut",
+    "targets": [
+     "Base"
+    ]
+   }
+  },
+  {
+   "command": "sketch.create",
+   "params": {
+    "plane": {
+     "origin": [
+      0,
+      0,
+      0
+     ],
+     "x_dir": [
+      0,
+      1,
+      0
+     ],
+     "y_dir": [
+      0,
+      0,
+      1
+     ]
+    },
+    "name": "P8 wire window top sketch",
+    "project_edges": false,
+    "offset": "cav_x1 + wall / 2"
+   }
+  },
+  {
+   "command": "sketch.circle.center",
+   "params": {
+    "center": [
+     -13.75,
+     15.320000000000002
+    ],
+    "diameter": 3.2
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "c1"
+    ],
+    "value": "term_w",
+    "type": "diameter"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c1.center"
+    ],
+    "value": "-(p8_first)",
+    "type": "horizontal"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c1.center"
+    ],
+    "value": "pcb_z + wire_z1 - term_w / 2",
+    "type": "vertical"
+   }
+  },
+  {
+   "command": "sketch.finish",
+   "params": {}
+  },
+  {
+   "command": "solid.extrude",
+   "params": {
+    "distance": "wall + 2",
+    "name": "P8 wire window top",
+    "direction": "symmetric",
+    "operation": "cut",
+    "targets": [
+     "Base"
+    ]
+   }
+  },
+  {
+   "command": "solid.pattern.rectangular",
+   "params": {
+    "features": [
+     "P8 wire window",
+     "P8 wire window top"
+    ],
+    "dir1": [
+     0,
+     1,
+     0
+    ],
+    "count1": 3,
+    "spacing1": "term_pitch",
+    "name": "P8 wire windows"
+   }
+  },
+  {
+   "command": "sketch.create",
+   "params": {
+    "plane": {
+     "origin": [
+      0,
+      0,
+      0
+     ],
+     "x_dir": [
+      0,
+      1,
+      0
+     ],
+     "y_dir": [
+      0,
+      0,
+      1
+     ]
+    },
+    "name": "P9 wire window sketch",
+    "project_edges": false,
+    "offset": "cav_x1 + wall / 2"
+   }
+  },
+  {
+   "command": "sketch.rectangle.two_point",
+   "params": {
+    "p0": [
+     1.1400000000000001,
+     9.48
+    ],
+    "p1": [
+     4.34,
+     15.320000000000002
+    ]
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l1"
+    ],
+    "value": "(p9_first + term_w / 2) - (p9_first - term_w / 2)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l2"
+    ],
+    "value": "(pcb_z + wire_z1 - term_w / 2) - (pcb_z + wire_z0)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l4"
+    ],
+    "value": "p9_first - term_w / 2"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l1"
+    ],
+    "value": "pcb_z + wire_z0"
+   }
+  },
+  {
+   "command": "sketch.finish",
+   "params": {}
+  },
+  {
+   "command": "solid.extrude",
+   "params": {
+    "distance": "wall + 2",
+    "name": "P9 wire window",
+    "direction": "symmetric",
+    "operation": "cut",
+    "targets": [
+     "Base"
+    ]
+   }
+  },
+  {
+   "command": "sketch.create",
+   "params": {
+    "plane": {
+     "origin": [
+      0,
+      0,
+      0
+     ],
+     "x_dir": [
+      0,
+      1,
+      0
+     ],
+     "y_dir": [
+      0,
+      0,
+      1
+     ]
+    },
+    "name": "P9 wire window top sketch",
+    "project_edges": false,
+    "offset": "cav_x1 + wall / 2"
+   }
+  },
+  {
+   "command": "sketch.circle.center",
+   "params": {
+    "center": [
+     2.74,
+     15.320000000000002
+    ],
+    "diameter": 3.2
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "c1"
+    ],
+    "value": "term_w",
+    "type": "diameter"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c1.center"
+    ],
+    "value": "p9_first",
+    "type": "horizontal"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c1.center"
+    ],
+    "value": "pcb_z + wire_z1 - term_w / 2",
+    "type": "vertical"
+   }
+  },
+  {
+   "command": "sketch.finish",
+   "params": {}
+  },
+  {
+   "command": "solid.extrude",
+   "params": {
+    "distance": "wall + 2",
+    "name": "P9 wire window top",
+    "direction": "symmetric",
+    "operation": "cut",
+    "targets": [
+     "Base"
+    ]
+   }
+  },
+  {
+   "command": "solid.pattern.rectangular",
+   "params": {
+    "features": [
+     "P9 wire window",
+     "P9 wire window top"
+    ],
+    "dir1": [
+     0,
+     1,
+     0
+    ],
+    "count1": 3,
+    "spacing1": "term_pitch",
+    "name": "P9 wire windows"
+   }
+  },
+  {
+   "command": "sketch.create",
+   "params": {
+    "plane": {
+     "origin": [
+      0,
+      0,
+      0
+     ],
+     "x_dir": [
+      1,
+      0,
+      0
+     ],
+     "y_dir": [
+      0,
+      0,
+      1
+     ]
+    },
+    "name": "Vent S sketch",
+    "project_edges": false,
+    "offset": "cav_y + wall / 2"
+   }
+  },
+  {
+   "command": "sketch.line",
+   "params": {
+    "points": [
+     [
+      -65.0,
+      2.8
+     ],
+     [
+      -63.3,
+      4.5
+     ],
+     [
+      -65.0,
+      6.2
+     ],
+     [
+      -66.7,
+      4.5
+     ]
+    ],
+    "closed": true,
+    "infer": true
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l1"
+    ],
+    "value": "(vent_d) * 0.70710678"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l2"
+    ],
+    "value": "(vent_d) * 0.70710678"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l3"
+    ],
+    "value": "(vent_d) * 0.70710678"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l1"
+    ],
+    "value": "-(((-(vent_n - 1) / 2 * vent_pitch) - ((floor_t + pcb_z) / 2) + (vent_d) / 2) * 0.70710678)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l2"
+    ],
+    "value": "-(((-(vent_n - 1) / 2 * vent_pitch) + ((floor_t + pcb_z) / 2) + (vent_d) / 2) * 0.70710678)"
+   }
+  },
+  {
+   "command": "sketch.finish",
+   "params": {}
+  },
+  {
+   "command": "solid.extrude",
+   "params": {
+    "distance": "wall + 2",
+    "name": "Vent S",
+    "direction": "symmetric",
+    "operation": "cut",
+    "targets": [
+     "Base"
+    ]
+   }
+  },
+  {
+   "command": "sketch.create",
+   "params": {
+    "plane": {
+     "origin": [
+      0,
+      0,
+      0
+     ],
+     "x_dir": [
+      1,
+      0,
+      0
+     ],
+     "y_dir": [
+      0,
+      0,
+      1
+     ]
+    },
+    "name": "Vent N sketch",
+    "project_edges": false,
+    "offset": "-(cav_y + wall / 2)"
+   }
+  },
+  {
+   "command": "sketch.line",
+   "params": {
+    "points": [
+     [
+      -65.0,
+      2.8
+     ],
+     [
+      -63.3,
+      4.5
+     ],
+     [
+      -65.0,
+      6.2
+     ],
+     [
+      -66.7,
+      4.5
+     ]
+    ],
+    "closed": true,
+    "infer": true
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l1"
+    ],
+    "value": "(vent_d) * 0.70710678"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l2"
+    ],
+    "value": "(vent_d) * 0.70710678"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l3"
+    ],
+    "value": "(vent_d) * 0.70710678"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l1"
+    ],
+    "value": "-(((-(vent_n - 1) / 2 * vent_pitch) - ((floor_t + pcb_z) / 2) + (vent_d) / 2) * 0.70710678)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l2"
+    ],
+    "value": "-(((-(vent_n - 1) / 2 * vent_pitch) + ((floor_t + pcb_z) / 2) + (vent_d) / 2) * 0.70710678)"
+   }
+  },
+  {
+   "command": "sketch.finish",
+   "params": {}
+  },
+  {
+   "command": "solid.extrude",
+   "params": {
+    "distance": "wall + 2",
+    "name": "Vent N",
+    "direction": "symmetric",
+    "operation": "cut",
+    "targets": [
+     "Base"
+    ]
+   }
+  },
+  {
+   "command": "solid.pattern.rectangular",
+   "params": {
+    "features": [
+     "Vent S",
+     "Vent N"
+    ],
+    "dir1": [
+     1,
+     0,
+     0
+    ],
+    "count1": "vent_n",
+    "spacing1": "vent_pitch",
+    "name": "Vent rows"
+   }
+  },
+  {
+   "command": "sketch.create",
+   "params": {
+    "plane": "XY",
+    "name": "Clip notches sketch",
+    "project_edges": false,
+    "offset": "clip_z1"
+   }
+  },
+  {
+   "command": "sketch.rectangle.two_point",
+   "params": {
+    "p0": [
+     -68.9,
+     -20.95
+    ],
+    "p1": [
+     -60.1,
+     -18.75
+    ]
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l1"
+    ],
+    "value": "(clip1_x + clip_w / 2 + 0.4) - (clip1_x - clip_w / 2 - 0.4)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l2"
+    ],
+    "value": "(-cav_y + 1) - (-cav_y - clip_pocket)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l4"
+    ],
+    "value": "-(clip1_x - clip_w / 2 - 0.4)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l1"
+    ],
+    "value": "-(-cav_y - clip_pocket)"
+   }
+  },
+  {
+   "command": "sketch.rectangle.two_point",
+   "params": {
+    "p0": [
+     -68.9,
+     18.75
+    ],
+    "p1": [
+     -60.1,
+     20.95
+    ]
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l5"
+    ],
+    "value": "(clip1_x + clip_w / 2 + 0.4) - (clip1_x - clip_w / 2 - 0.4)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l6"
+    ],
+    "value": "(cav_y + clip_pocket) - (cav_y - 1)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l8"
+    ],
+    "value": "-(clip1_x - clip_w / 2 - 0.4)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l5"
+    ],
+    "value": "cav_y - 1"
+   }
+  },
+  {
+   "command": "sketch.finish",
+   "params": {}
+  },
+  {
+   "command": "solid.extrude",
+   "params": {
+    "distance": "clip_z1 - clip_z0",
+    "name": "Clip notch",
+    "direction": "reverse",
+    "operation": "cut",
+    "targets": [
+     "Base"
+    ]
+   }
+  },
+  {
+   "command": "solid.pattern.rectangular",
+   "params": {
+    "features": [
+     "Clip notch"
+    ],
+    "dir1": [
+     1,
+     0,
+     0
+    ],
+    "count1": 2,
+    "spacing1": "clip2_x - clip1_x",
+    "name": "Clip notches"
+   }
+  },
+  {
+   "command": "sketch.create",
+   "params": {
+    "plane": "XY",
+    "name": "Lid plate sketch",
+    "project_edges": false,
+    "offset": "base_h"
+   }
+  },
+  {
+   "command": "sketch.rectangle.rounded",
+   "params": {
+    "p0": [
+     -77.6,
+     -21.75
+    ],
+    "p1": [
+     77.50999999999999,
+     21.75
+    ],
+    "radius": "r_outer"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l1"
+    ],
+    "value": "(out_x1) - (out_x0) - 2 * (r_outer)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l2"
+    ],
+    "value": "(out_y) - (-out_y) - 2 * (r_outer)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l4"
+    ],
+    "value": "-(out_x0)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l1"
+    ],
+    "value": "-(-out_y)"
+   }
+  },
+  {
+   "command": "sketch.circle.center",
+   "params": {
+    "center": [
+     -73.0,
+     -23.95
+    ],
+    "diameter": 6.8
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "c1"
+    ],
+    "value": "boss_d",
+    "type": "diameter"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c1.center"
+    ],
+    "value": "-(-boss_x)",
+    "type": "horizontal"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c1.center"
+    ],
+    "value": "-(-boss_y)",
+    "type": "vertical"
+   }
+  },
+  {
+   "command": "sketch.rectangle.two_point",
+   "params": {
+    "p0": [
+     -76.4,
+     -23.95
+    ],
+    "p1": [
+     -69.6,
+     -21.25
+    ]
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l5"
+    ],
+    "value": "(-boss_x + boss_d / 2) - (-boss_x - boss_d / 2)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l6"
+    ],
+    "value": "(-(cav_y + wall - 0.5)) - (-boss_y)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l8"
+    ],
+    "value": "-(-boss_x - boss_d / 2)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l5"
+    ],
+    "value": "-(-boss_y)"
+   }
+  },
+  {
+   "command": "sketch.circle.center",
+   "params": {
+    "center": [
+     -73.0,
+     23.95
+    ],
+    "diameter": 6.8
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "c2"
+    ],
+    "value": "boss_d",
+    "type": "diameter"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c2.center"
+    ],
+    "value": "-(-boss_x)",
+    "type": "horizontal"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c2.center"
+    ],
+    "value": "boss_y",
+    "type": "vertical"
+   }
+  },
+  {
+   "command": "sketch.rectangle.two_point",
+   "params": {
+    "p0": [
+     -76.4,
+     21.25
+    ],
+    "p1": [
+     -69.6,
+     23.95
+    ]
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l9"
+    ],
+    "value": "(-boss_x + boss_d / 2) - (-boss_x - boss_d / 2)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l10"
+    ],
+    "value": "(boss_y) - (cav_y + wall - 0.5)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l12"
+    ],
+    "value": "-(-boss_x - boss_d / 2)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l9"
+    ],
+    "value": "cav_y + wall - 0.5"
+   }
+  },
+  {
+   "command": "sketch.circle.center",
+   "params": {
+    "center": [
+     73.0,
+     -23.95
+    ],
+    "diameter": 6.8
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "c3"
+    ],
+    "value": "boss_d",
+    "type": "diameter"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c3.center"
+    ],
+    "value": "boss_x",
+    "type": "horizontal"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c3.center"
+    ],
+    "value": "-(-boss_y)",
+    "type": "vertical"
+   }
+  },
+  {
+   "command": "sketch.rectangle.two_point",
+   "params": {
+    "p0": [
+     69.6,
+     -23.95
+    ],
+    "p1": [
+     76.4,
+     -21.25
+    ]
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l13"
+    ],
+    "value": "(boss_x + boss_d / 2) - (boss_x - boss_d / 2)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l14"
+    ],
+    "value": "(-(cav_y + wall - 0.5)) - (-boss_y)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l16"
+    ],
+    "value": "boss_x - boss_d / 2"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l13"
+    ],
+    "value": "-(-boss_y)"
+   }
+  },
+  {
+   "command": "sketch.circle.center",
+   "params": {
+    "center": [
+     73.0,
+     23.95
+    ],
+    "diameter": 6.8
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "c4"
+    ],
+    "value": "boss_d",
+    "type": "diameter"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c4.center"
+    ],
+    "value": "boss_x",
+    "type": "horizontal"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c4.center"
+    ],
+    "value": "boss_y",
+    "type": "vertical"
+   }
+  },
+  {
+   "command": "sketch.rectangle.two_point",
+   "params": {
+    "p0": [
+     69.6,
+     21.25
+    ],
+    "p1": [
+     76.4,
+     23.95
+    ]
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l17"
+    ],
+    "value": "(boss_x + boss_d / 2) - (boss_x - boss_d / 2)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l18"
+    ],
+    "value": "(boss_y) - (cav_y + wall - 0.5)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l20"
+    ],
+    "value": "boss_x - boss_d / 2"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l17"
+    ],
+    "value": "cav_y + wall - 0.5"
+   }
+  },
+  {
+   "command": "sketch.finish",
+   "params": {}
+  },
+  {
+   "command": "solid.extrude",
+   "params": {
+    "distance": "lid_t",
+    "name": "Lid plate",
+    "operation": "new",
+    "body_name": "Lid"
+   }
+  },
+  {
+   "command": "sketch.create",
+   "params": {
+    "plane": "XY",
+    "name": "Lip sketch",
+    "project_edges": false,
+    "offset": "base_h - lip_d"
+   }
+  },
+  {
+   "command": "sketch.rectangle.rounded",
+   "params": {
+    "p0": [
+     -75.35,
+     -19.5
+    ],
+    "p1": [
+     75.25999999999999,
+     19.5
+    ],
+    "radius": "r_inner"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l1"
+    ],
+    "value": "(cav_x1 - fit) - (cav_x0 + fit) - 2 * (r_inner)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l2"
+    ],
+    "value": "(cav_y - fit) - (-(cav_y - fit)) - 2 * (r_inner)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l4"
+    ],
+    "value": "-(cav_x0 + fit)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l1"
+    ],
+    "value": "-(-(cav_y - fit))"
+   }
+  },
+  {
+   "command": "sketch.rectangle.rounded",
+   "params": {
+    "p0": [
+     -73.75,
+     -17.9
+    ],
+    "p1": [
+     73.66,
+     17.9
+    ],
+    "radius": "0.5"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l5"
+    ],
+    "value": "(cav_x1 - fit - lip_t) - (cav_x0 + fit + lip_t) - 2 * (0.5)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l6"
+    ],
+    "value": "(cav_y - fit - lip_t) - (-(cav_y - fit - lip_t)) - 2 * (0.5)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l8"
+    ],
+    "value": "-(cav_x0 + fit + lip_t)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l5"
+    ],
+    "value": "-(-(cav_y - fit - lip_t))"
+   }
+  },
+  {
+   "command": "sketch.finish",
+   "params": {}
+  },
+  {
+   "command": "solid.extrude",
+   "params": {
+    "distance": "lip_d + 0.01",
+    "name": "Lip",
+    "operation": "join",
+    "targets": [
+     "Lid"
+    ],
+    "profiles": [
+     {
+      "point": [
+       -74.55,
+       0
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "command": "sketch.create",
+   "params": {
+    "plane": "XY",
+    "name": "Lip reliefs sketch",
+    "project_edges": false,
+    "offset": "base_h - lip_d - 1"
+   }
+  },
+  {
+   "command": "sketch.rectangle.two_point",
+   "params": {
+    "p0": [
+     -48.0,
+     16.75
+    ],
+    "p1": [
+     -44.0,
+     20.75
+    ]
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l1"
+    ],
+    "value": "(antenna_x + 2) - (antenna_x - 2)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l2"
+    ],
+    "value": "(cav_y + 1) - (cav_y - 3)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l4"
+    ],
+    "value": "-(antenna_x - 2)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l1"
+    ],
+    "value": "cav_y - 3"
+   }
+  },
+  {
+   "command": "sketch.rectangle.two_point",
+   "params": {
+    "p0": [
+     -37.65,
+     16.75
+    ],
+    "p1": [
+     -28.65,
+     20.75
+    ]
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l5"
+    ],
+    "value": "(uart_x + uart_w / 2 + 0.5) - (uart_x - uart_w / 2 - 0.5)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l6"
+    ],
+    "value": "(cav_y + 1) - (cav_y - 3)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l8"
+    ],
+    "value": "-(uart_x - uart_w / 2 - 0.5)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l5"
+    ],
+    "value": "cav_y - 3"
+   }
+  },
+  {
+   "command": "sketch.rectangle.two_point",
+   "params": {
+    "p0": [
+     -69.5,
+     -22.75
+    ],
+    "p1": [
+     -59.5,
+     -16.75
+    ]
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l9"
+    ],
+    "value": "(clip1_x + clip_w / 2 + 1) - (clip1_x - clip_w / 2 - 1)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l10"
+    ],
+    "value": "(-cav_y + 3) - (-cav_y - 3)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l12"
+    ],
+    "value": "-(clip1_x - clip_w / 2 - 1)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l9"
+    ],
+    "value": "-(-cav_y - 3)"
+   }
+  },
+  {
+   "command": "sketch.rectangle.two_point",
+   "params": {
+    "p0": [
+     -69.5,
+     16.75
+    ],
+    "p1": [
+     -59.5,
+     22.75
+    ]
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l13"
+    ],
+    "value": "(clip1_x + clip_w / 2 + 1) - (clip1_x - clip_w / 2 - 1)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l14"
+    ],
+    "value": "(cav_y + 3) - (cav_y - 3)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l16"
+    ],
+    "value": "-(clip1_x - clip_w / 2 - 1)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l13"
+    ],
+    "value": "cav_y - 3"
+   }
+  },
+  {
+   "command": "sketch.rectangle.two_point",
+   "params": {
+    "p0": [
+     42.0,
+     -22.75
+    ],
+    "p1": [
+     52.0,
+     -16.75
+    ]
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l17"
+    ],
+    "value": "(clip2_x + clip_w / 2 + 1) - (clip2_x - clip_w / 2 - 1)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l18"
+    ],
+    "value": "(-cav_y + 3) - (-cav_y - 3)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l20"
+    ],
+    "value": "clip2_x - clip_w / 2 - 1"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l17"
+    ],
+    "value": "-(-cav_y - 3)"
+   }
+  },
+  {
+   "command": "sketch.rectangle.two_point",
+   "params": {
+    "p0": [
+     42.0,
+     16.75
+    ],
+    "p1": [
+     52.0,
+     22.75
+    ]
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l21"
+    ],
+    "value": "(clip2_x + clip_w / 2 + 1) - (clip2_x - clip_w / 2 - 1)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l22"
+    ],
+    "value": "(cav_y + 3) - (cav_y - 3)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l24"
+    ],
+    "value": "clip2_x - clip_w / 2 - 1"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l21"
+    ],
+    "value": "cav_y - 3"
+   }
+  },
+  {
+   "command": "sketch.finish",
+   "params": {}
+  },
+  {
+   "command": "solid.extrude",
+   "params": {
+    "distance": "lip_d + 1",
+    "name": "Lip reliefs",
+    "operation": "cut",
+    "targets": [
+     "Lid"
+    ]
+   }
+  },
+  {
+   "command": "sketch.create",
+   "params": {
+    "plane": "XY",
+    "name": "MDB filler tab sketch",
+    "project_edges": false,
+    "offset": "pcb_z + mdb_top + 2"
+   }
+  },
+  {
+   "command": "sketch.rectangle.two_point",
+   "params": {
+    "p0": [
+     9.489999999999998,
+     -21.75
+    ],
+    "p1": [
+     24.59,
+     -19.49
+    ]
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l1"
+    ],
+    "value": "(mdb_x1 + 0.8 - fit) - (mdb_x0 - 0.8 + fit)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l2"
+    ],
+    "value": "(-(cav_y - fit - 0.01)) - (-out_y)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l4"
+    ],
+    "value": "mdb_x0 - 0.8 + fit"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l1"
+    ],
+    "value": "-(-out_y)"
+   }
+  },
+  {
+   "command": "sketch.finish",
+   "params": {}
+  },
+  {
+   "command": "solid.extrude",
+   "params": {
+    "distance": "base_h + 0.01 - (pcb_z + mdb_top + 2)",
+    "name": "MDB filler tab",
+    "operation": "join",
+    "targets": [
+     "Lid"
+    ]
+   }
+  },
+  {
+   "command": "sketch.create",
+   "params": {
+    "plane": {
+     "origin": [
+      0,
+      0,
+      0
+     ],
+     "x_dir": [
+      0,
+      1,
+      0
+     ],
+     "y_dir": [
+      0,
+      0,
+      1
+     ]
+    },
+    "name": "Clip S sketch",
+    "project_edges": false,
+    "offset": "clip1_x"
+   }
+  },
+  {
+   "command": "sketch.line",
+   "params": {
+    "points": [
+     [
+      -19.5,
+      17.7
+     ],
+     [
+      -18.3,
+      17.7
+     ],
+     [
+      -18.3,
+      26.01
+     ],
+     [
+      -19.5,
+      26.01
+     ],
+     [
+      -19.5,
+      20.099999999999998
+     ],
+     [
+      -20.3,
+      20.099999999999998
+     ],
+     [
+      -19.5,
+      17.9
+     ]
+    ],
+    "closed": true,
+    "infer": true
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l1"
+    ],
+    "value": "clip_t"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l3"
+    ],
+    "value": "clip_t"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l2"
+    ],
+    "value": "(base_h + 0.01) - (clip_z0 - 0.3)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l4"
+    ],
+    "value": "(base_h + 0.01) - (clip_z1 - 0.3)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l5"
+    ],
+    "value": "bump"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l7"
+    ],
+    "value": "(clip_z0 - 0.1) - (clip_z0 - 0.3)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l1"
+    ],
+    "value": "clip_z0 - 0.3"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l2"
+    ],
+    "value": "-((-cav_y + fit + clip_t))"
+   }
+  },
+  {
+   "command": "sketch.finish",
+   "params": {}
+  },
+  {
+   "command": "solid.extrude",
+   "params": {
+    "distance": "clip_w",
+    "name": "Clip S",
+    "direction": "symmetric",
+    "operation": "join",
+    "targets": [
+     "Lid"
+    ]
+   }
+  },
+  {
+   "command": "sketch.create",
+   "params": {
+    "plane": {
+     "origin": [
+      0,
+      0,
+      0
+     ],
+     "x_dir": [
+      0,
+      1,
+      0
+     ],
+     "y_dir": [
+      0,
+      0,
+      1
+     ]
+    },
+    "name": "Clip N sketch",
+    "project_edges": false,
+    "offset": "clip1_x"
+   }
+  },
+  {
+   "command": "sketch.line",
+   "params": {
+    "points": [
+     [
+      18.3,
+      17.7
+     ],
+     [
+      19.5,
+      17.7
+     ],
+     [
+      19.5,
+      17.9
+     ],
+     [
+      20.3,
+      20.099999999999998
+     ],
+     [
+      19.5,
+      20.099999999999998
+     ],
+     [
+      19.5,
+      26.01
+     ],
+     [
+      18.3,
+      26.01
+     ]
+    ],
+    "closed": true,
+    "infer": true
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l1"
+    ],
+    "value": "clip_t"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l6"
+    ],
+    "value": "clip_t"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l2"
+    ],
+    "value": "(clip_z0 - 0.1) - (clip_z0 - 0.3)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l5"
+    ],
+    "value": "(base_h + 0.01) - (clip_z1 - 0.3)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l4"
+    ],
+    "value": "bump"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l7"
+    ],
+    "value": "(base_h + 0.01) - (clip_z0 - 0.3)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l1"
+    ],
+    "value": "clip_z0 - 0.3"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l7"
+    ],
+    "value": "(cav_y - fit - clip_t)"
+   }
+  },
+  {
+   "command": "sketch.finish",
+   "params": {}
+  },
+  {
+   "command": "solid.extrude",
+   "params": {
+    "distance": "clip_w",
+    "name": "Clip N",
+    "direction": "symmetric",
+    "operation": "join",
+    "targets": [
+     "Lid"
+    ]
+   }
+  },
+  {
+   "command": "solid.pattern.rectangular",
+   "params": {
+    "features": [
+     "Clip S",
+     "Clip N"
+    ],
+    "dir1": [
+     1,
+     0,
+     0
+    ],
+    "count1": 2,
+    "spacing1": "clip2_x - clip1_x",
+    "name": "Clips"
+   }
+  },
+  {
+   "command": "sketch.create",
+   "params": {
+    "plane": "XY",
+    "name": "Lid screw holes sketch",
+    "project_edges": false,
+    "offset": "base_h + lid_t / 2"
+   }
+  },
+  {
+   "command": "sketch.circle.center",
+   "params": {
+    "center": [
+     -73.0,
+     -23.95
+    ],
+    "diameter": 2.9
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "c1"
+    ],
+    "value": "lid_screw",
+    "type": "diameter"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c1.center"
+    ],
+    "value": "-(-boss_x)",
+    "type": "horizontal"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c1.center"
+    ],
+    "value": "-(-boss_y)",
+    "type": "vertical"
+   }
+  },
+  {
+   "command": "sketch.circle.center",
+   "params": {
+    "center": [
+     -73.0,
+     23.95
+    ],
+    "diameter": 2.9
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "c2"
+    ],
+    "value": "lid_screw",
+    "type": "diameter"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c2.center"
+    ],
+    "value": "-(-boss_x)",
+    "type": "horizontal"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c2.center"
+    ],
+    "value": "boss_y",
+    "type": "vertical"
+   }
+  },
+  {
+   "command": "sketch.circle.center",
+   "params": {
+    "center": [
+     73.0,
+     -23.95
+    ],
+    "diameter": 2.9
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "c3"
+    ],
+    "value": "lid_screw",
+    "type": "diameter"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c3.center"
+    ],
+    "value": "boss_x",
+    "type": "horizontal"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c3.center"
+    ],
+    "value": "-(-boss_y)",
+    "type": "vertical"
+   }
+  },
+  {
+   "command": "sketch.circle.center",
+   "params": {
+    "center": [
+     73.0,
+     23.95
+    ],
+    "diameter": 2.9
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "c4"
+    ],
+    "value": "lid_screw",
+    "type": "diameter"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c4.center"
+    ],
+    "value": "boss_x",
+    "type": "horizontal"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c4.center"
+    ],
+    "value": "boss_y",
+    "type": "vertical"
+   }
+  },
+  {
+   "command": "sketch.finish",
+   "params": {}
+  },
+  {
+   "command": "solid.extrude",
+   "params": {
+    "distance": "lid_t + 2",
+    "name": "Lid screw holes",
+    "direction": "symmetric",
+    "operation": "cut",
+    "targets": [
+     "Lid"
+    ]
+   }
+  },
+  {
+   "command": "sketch.create",
+   "params": {
+    "plane": "XY",
+    "name": "P4 screwdriver hole sketch",
+    "project_edges": false,
+    "offset": "base_h + lid_t / 2"
+   }
+  },
+  {
+   "command": "sketch.circle.center",
+   "params": {
+    "center": [
+     -57.79,
+     -14.3
+    ],
+    "diameter": 4.0
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "c1"
+    ],
+    "value": "term_hole",
+    "type": "diameter"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c1.center"
+    ],
+    "value": "-(p4_first)",
+    "type": "horizontal"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c1.center"
+    ],
+    "value": "-(p4_row)",
+    "type": "vertical"
+   }
+  },
+  {
+   "command": "sketch.finish",
+   "params": {}
+  },
+  {
+   "command": "solid.extrude",
+   "params": {
+    "distance": "lid_t + 2",
+    "name": "P4 screwdriver hole",
+    "direction": "symmetric",
+    "operation": "cut",
+    "targets": [
+     "Lid"
+    ]
+   }
+  },
+  {
+   "command": "solid.pattern.rectangular",
+   "params": {
+    "features": [
+     "P4 screwdriver hole"
+    ],
+    "dir1": [
+     1,
+     0,
+     0
+    ],
+    "count1": 3,
+    "spacing1": "term_pitch",
+    "name": "P4 screwdriver holes"
+   }
+  },
+  {
+   "command": "sketch.create",
+   "params": {
+    "plane": "XY",
+    "name": "P5 screwdriver hole sketch",
+    "project_edges": false,
+    "offset": "base_h + lid_t / 2"
+   }
+  },
+  {
+   "command": "sketch.circle.center",
+   "params": {
+    "center": [
+     -42.23,
+     -14.3
+    ],
+    "diameter": 4.0
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "c1"
+    ],
+    "value": "term_hole",
+    "type": "diameter"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c1.center"
+    ],
+    "value": "-(p5_first)",
+    "type": "horizontal"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c1.center"
+    ],
+    "value": "-(p5_row)",
+    "type": "vertical"
+   }
+  },
+  {
+   "command": "sketch.finish",
+   "params": {}
+  },
+  {
+   "command": "solid.extrude",
+   "params": {
+    "distance": "lid_t + 2",
+    "name": "P5 screwdriver hole",
+    "direction": "symmetric",
+    "operation": "cut",
+    "targets": [
+     "Lid"
+    ]
+   }
+  },
+  {
+   "command": "solid.pattern.rectangular",
+   "params": {
+    "features": [
+     "P5 screwdriver hole"
+    ],
+    "dir1": [
+     1,
+     0,
+     0
+    ],
+    "count1": 3,
+    "spacing1": "term_pitch",
+    "name": "P5 screwdriver holes"
+   }
+  },
+  {
+   "command": "sketch.create",
+   "params": {
+    "plane": "XY",
+    "name": "P6 screwdriver hole sketch",
+    "project_edges": false,
+    "offset": "base_h + lid_t / 2"
+   }
+  },
+  {
+   "command": "sketch.circle.center",
+   "params": {
+    "center": [
+     -26.68,
+     -14.3
+    ],
+    "diameter": 4.0
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "c1"
+    ],
+    "value": "term_hole",
+    "type": "diameter"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c1.center"
+    ],
+    "value": "-(p6_first)",
+    "type": "horizontal"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c1.center"
+    ],
+    "value": "-(p6_row)",
+    "type": "vertical"
+   }
+  },
+  {
+   "command": "sketch.finish",
+   "params": {}
+  },
+  {
+   "command": "solid.extrude",
+   "params": {
+    "distance": "lid_t + 2",
+    "name": "P6 screwdriver hole",
+    "direction": "symmetric",
+    "operation": "cut",
+    "targets": [
+     "Lid"
+    ]
+   }
+  },
+  {
+   "command": "solid.pattern.rectangular",
+   "params": {
+    "features": [
+     "P6 screwdriver hole"
+    ],
+    "dir1": [
+     1,
+     0,
+     0
+    ],
+    "count1": 3,
+    "spacing1": "term_pitch",
+    "name": "P6 screwdriver holes"
+   }
+  },
+  {
+   "command": "sketch.create",
+   "params": {
+    "plane": "XY",
+    "name": "P3 screwdriver hole sketch",
+    "project_edges": false,
+    "offset": "base_h + lid_t / 2"
+   }
+  },
+  {
+   "command": "sketch.circle.center",
+   "params": {
+    "center": [
+     -11.14,
+     -14.3
+    ],
+    "diameter": 4.0
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "c1"
+    ],
+    "value": "term_hole",
+    "type": "diameter"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c1.center"
+    ],
+    "value": "-(p3_first)",
+    "type": "horizontal"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c1.center"
+    ],
+    "value": "-(p3_row)",
+    "type": "vertical"
+   }
+  },
+  {
+   "command": "sketch.finish",
+   "params": {}
+  },
+  {
+   "command": "solid.extrude",
+   "params": {
+    "distance": "lid_t + 2",
+    "name": "P3 screwdriver hole",
+    "direction": "symmetric",
+    "operation": "cut",
+    "targets": [
+     "Lid"
+    ]
+   }
+  },
+  {
+   "command": "solid.pattern.rectangular",
+   "params": {
+    "features": [
+     "P3 screwdriver hole"
+    ],
+    "dir1": [
+     1,
+     0,
+     0
+    ],
+    "count1": 3,
+    "spacing1": "term_pitch",
+    "name": "P3 screwdriver holes"
+   }
+  },
+  {
+   "command": "sketch.create",
+   "params": {
+    "plane": "XY",
+    "name": "P2 screwdriver hole sketch",
+    "project_edges": false,
+    "offset": "base_h + lid_t / 2"
+   }
+  },
+  {
+   "command": "sketch.circle.center",
+   "params": {
+    "center": [
+     9.09,
+     14.3
+    ],
+    "diameter": 4.0
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "c1"
+    ],
+    "value": "term_hole",
+    "type": "diameter"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c1.center"
+    ],
+    "value": "p2_first",
+    "type": "horizontal"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c1.center"
+    ],
+    "value": "p2_row",
+    "type": "vertical"
+   }
+  },
+  {
+   "command": "sketch.finish",
+   "params": {}
+  },
+  {
+   "command": "solid.extrude",
+   "params": {
+    "distance": "lid_t + 2",
+    "name": "P2 screwdriver hole",
+    "direction": "symmetric",
+    "operation": "cut",
+    "targets": [
+     "Lid"
+    ]
+   }
+  },
+  {
+   "command": "solid.pattern.rectangular",
+   "params": {
+    "features": [
+     "P2 screwdriver hole"
+    ],
+    "dir1": [
+     1,
+     0,
+     0
+    ],
+    "count1": 3,
+    "spacing1": "term_pitch",
+    "name": "P2 screwdriver holes"
+   }
+  },
+  {
+   "command": "sketch.create",
+   "params": {
+    "plane": "XY",
+    "name": "P1 screwdriver hole sketch",
+    "project_edges": false,
+    "offset": "base_h + lid_t / 2"
+   }
+  },
+  {
+   "command": "sketch.circle.center",
+   "params": {
+    "center": [
+     24.63,
+     14.3
+    ],
+    "diameter": 4.0
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "c1"
+    ],
+    "value": "term_hole",
+    "type": "diameter"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c1.center"
+    ],
+    "value": "p1_first",
+    "type": "horizontal"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c1.center"
+    ],
+    "value": "p1_row",
+    "type": "vertical"
+   }
+  },
+  {
+   "command": "sketch.finish",
+   "params": {}
+  },
+  {
+   "command": "solid.extrude",
+   "params": {
+    "distance": "lid_t + 2",
+    "name": "P1 screwdriver hole",
+    "direction": "symmetric",
+    "operation": "cut",
+    "targets": [
+     "Lid"
+    ]
+   }
+  },
+  {
+   "command": "solid.pattern.rectangular",
+   "params": {
+    "features": [
+     "P1 screwdriver hole"
+    ],
+    "dir1": [
+     1,
+     0,
+     0
+    ],
+    "count1": 3,
+    "spacing1": "term_pitch",
+    "name": "P1 screwdriver holes"
+   }
+  },
+  {
+   "command": "sketch.create",
+   "params": {
+    "plane": "XY",
+    "name": "P8 screwdriver hole sketch",
+    "project_edges": false,
+    "offset": "base_h + lid_t / 2"
+   }
+  },
+  {
+   "command": "sketch.circle.center",
+   "params": {
+    "center": [
+     70.06,
+     -13.75
+    ],
+    "diameter": 4.0
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "c1"
+    ],
+    "value": "term_hole",
+    "type": "diameter"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c1.center"
+    ],
+    "value": "p8_row",
+    "type": "horizontal"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c1.center"
+    ],
+    "value": "-(p8_first)",
+    "type": "vertical"
+   }
+  },
+  {
+   "command": "sketch.finish",
+   "params": {}
+  },
+  {
+   "command": "solid.extrude",
+   "params": {
+    "distance": "lid_t + 2",
+    "name": "P8 screwdriver hole",
+    "direction": "symmetric",
+    "operation": "cut",
+    "targets": [
+     "Lid"
+    ]
+   }
+  },
+  {
+   "command": "solid.pattern.rectangular",
+   "params": {
+    "features": [
+     "P8 screwdriver hole"
+    ],
+    "dir1": [
+     0,
+     1,
+     0
+    ],
+    "count1": 3,
+    "spacing1": "term_pitch",
+    "name": "P8 screwdriver holes"
+   }
+  },
+  {
+   "command": "sketch.create",
+   "params": {
+    "plane": "XY",
+    "name": "P9 screwdriver hole sketch",
+    "project_edges": false,
+    "offset": "base_h + lid_t / 2"
+   }
+  },
+  {
+   "command": "sketch.circle.center",
+   "params": {
+    "center": [
+     70.06,
+     2.74
+    ],
+    "diameter": 4.0
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "c1"
+    ],
+    "value": "term_hole",
+    "type": "diameter"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c1.center"
+    ],
+    "value": "p9_row",
+    "type": "horizontal"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c1.center"
+    ],
+    "value": "p9_first",
+    "type": "vertical"
+   }
+  },
+  {
+   "command": "sketch.finish",
+   "params": {}
+  },
+  {
+   "command": "solid.extrude",
+   "params": {
+    "distance": "lid_t + 2",
+    "name": "P9 screwdriver hole",
+    "direction": "symmetric",
+    "operation": "cut",
+    "targets": [
+     "Lid"
+    ]
+   }
+  },
+  {
+   "command": "solid.pattern.rectangular",
+   "params": {
+    "features": [
+     "P9 screwdriver hole"
+    ],
+    "dir1": [
+     0,
+     1,
+     0
+    ],
+    "count1": 3,
+    "spacing1": "term_pitch",
+    "name": "P9 screwdriver holes"
+   }
+  },
+  {
+   "command": "sketch.create",
+   "params": {
+    "plane": "XY",
+    "name": "LED window sketch",
+    "project_edges": false,
+    "offset": "base_h + lid_t / 2"
+   }
+  },
+  {
+   "command": "sketch.circle.center",
+   "params": {
+    "center": [
+     -47.76,
+     -3.43
+    ],
+    "diameter": 4.0
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "c1"
+    ],
+    "value": "led_d",
+    "type": "diameter"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c1.center"
+    ],
+    "value": "-(led_x)",
+    "type": "horizontal"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "c1.center"
+    ],
+    "value": "-(led_y)",
+    "type": "vertical"
+   }
+  },
+  {
+   "command": "sketch.finish",
+   "params": {}
+  },
+  {
+   "command": "solid.extrude",
+   "params": {
+    "distance": "lid_t + 2",
+    "name": "LED window",
+    "direction": "symmetric",
+    "operation": "cut",
+    "targets": [
+     "Lid"
+    ]
+   }
+  },
+  {
+   "command": "sketch.create",
+   "params": {
+    "plane": "XY",
+    "name": "Lid vent lv1 row 1 sketch",
+    "project_edges": false,
+    "offset": "base_h + lid_t / 2"
+   }
+  },
+  {
+   "command": "sketch.line",
+   "params": {
+    "points": [
+     [
+      47.7,
+      -3.7239092048622453
+     ],
+     [
+      46.2,
+      -4.589934612431122
+     ],
+     [
+      46.2,
+      -6.321985427568878
+     ],
+     [
+      47.7,
+      -7.188010835137755
+     ],
+     [
+      49.2,
+      -6.321985427568878
+     ],
+     [
+      49.2,
+      -4.589934612431122
+     ]
+    ],
+    "closed": true,
+    "infer": true
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l1"
+    ],
+    "value": "(hex_af) / 1.7320508"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l2"
+    ],
+    "value": "(hex_af) / 1.7320508"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l3"
+    ],
+    "value": "(hex_af) / 1.7320508"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l4"
+    ],
+    "value": "(hex_af) / 1.7320508"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l5"
+    ],
+    "value": "(hex_af) / 1.7320508"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l2"
+    ],
+    "value": "((lv1_x0 + lv1_x1 - 3 * hex_pitch) / 2) + 0.0 * hex_pitch - (hex_af) / 2"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l1"
+    ],
+    "value": "0.5 * (((lv1_x0 + lv1_x1 - 3 * hex_pitch) / 2) + 0.0 * hex_pitch) - 0.8660254 * (((lv1_y0 + lv1_y1 - 3 * hex_row) / 2) + 0 * hex_row + (hex_af) / 1.7320508)"
+   }
+  },
+  {
+   "command": "sketch.finish",
+   "params": {}
+  },
+  {
+   "command": "solid.extrude",
+   "params": {
+    "distance": "lid_t + 2",
+    "name": "Lid vent lv1 row 1",
+    "direction": "symmetric",
+    "operation": "cut",
+    "targets": [
+     "Lid"
+    ]
+   }
+  },
+  {
+   "command": "solid.pattern.rectangular",
+   "params": {
+    "features": [
+     "Lid vent lv1 row 1"
+    ],
+    "dir1": [
+     1,
+     0,
+     0
+    ],
+    "count1": 4,
+    "spacing1": "hex_pitch",
+    "name": "Lid vents lv1 row 1"
+   }
+  },
+  {
+   "command": "sketch.create",
+   "params": {
+    "plane": "XY",
+    "name": "Lid vent lv1 row 2 sketch",
+    "project_edges": false,
+    "offset": "base_h + lid_t / 2"
+   }
+  },
+  {
+   "command": "sketch.line",
+   "params": {
+    "points": [
+     [
+      49.800000000000004,
+      -0.08660252486224529
+     ],
+     [
+      48.300000000000004,
+      -0.9526279324311226
+     ],
+     [
+      48.300000000000004,
+      -2.6846787475688774
+     ],
+     [
+      49.800000000000004,
+      -3.5507041551377547
+     ],
+     [
+      51.300000000000004,
+      -2.6846787475688774
+     ],
+     [
+      51.300000000000004,
+      -0.9526279324311226
+     ]
+    ],
+    "closed": true,
+    "infer": true
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l1"
+    ],
+    "value": "(hex_af) / 1.7320508"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l2"
+    ],
+    "value": "(hex_af) / 1.7320508"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l3"
+    ],
+    "value": "(hex_af) / 1.7320508"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l4"
+    ],
+    "value": "(hex_af) / 1.7320508"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l5"
+    ],
+    "value": "(hex_af) / 1.7320508"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l2"
+    ],
+    "value": "((lv1_x0 + lv1_x1 - 3 * hex_pitch) / 2) + 0.5 * hex_pitch - (hex_af) / 2"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l1"
+    ],
+    "value": "0.5 * (((lv1_x0 + lv1_x1 - 3 * hex_pitch) / 2) + 0.5 * hex_pitch) - 0.8660254 * (((lv1_y0 + lv1_y1 - 3 * hex_row) / 2) + 1 * hex_row + (hex_af) / 1.7320508)"
+   }
+  },
+  {
+   "command": "sketch.finish",
+   "params": {}
+  },
+  {
+   "command": "solid.extrude",
+   "params": {
+    "distance": "lid_t + 2",
+    "name": "Lid vent lv1 row 2",
+    "direction": "symmetric",
+    "operation": "cut",
+    "targets": [
+     "Lid"
+    ]
+   }
+  },
+  {
+   "command": "solid.pattern.rectangular",
+   "params": {
+    "features": [
+     "Lid vent lv1 row 2"
+    ],
+    "dir1": [
+     1,
+     0,
+     0
+    ],
+    "count1": 3,
+    "spacing1": "hex_pitch",
+    "name": "Lid vents lv1 row 2"
+   }
+  },
+  {
+   "command": "sketch.create",
+   "params": {
+    "plane": "XY",
+    "name": "Lid vent lv1 row 3 sketch",
+    "project_edges": false,
+    "offset": "base_h + lid_t / 2"
+   }
+  },
+  {
+   "command": "sketch.line",
+   "params": {
+    "points": [
+     [
+      47.7,
+      3.5507041551377547
+     ],
+     [
+      46.2,
+      2.6846787475688774
+     ],
+     [
+      46.2,
+      0.9526279324311226
+     ],
+     [
+      47.7,
+      0.08660252486224529
+     ],
+     [
+      49.2,
+      0.9526279324311226
+     ],
+     [
+      49.2,
+      2.6846787475688774
+     ]
+    ],
+    "closed": true,
+    "infer": true
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l1"
+    ],
+    "value": "(hex_af) / 1.7320508"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l2"
+    ],
+    "value": "(hex_af) / 1.7320508"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l3"
+    ],
+    "value": "(hex_af) / 1.7320508"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l4"
+    ],
+    "value": "(hex_af) / 1.7320508"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l5"
+    ],
+    "value": "(hex_af) / 1.7320508"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l2"
+    ],
+    "value": "((lv1_x0 + lv1_x1 - 3 * hex_pitch) / 2) + 0.0 * hex_pitch - (hex_af) / 2"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l1"
+    ],
+    "value": "0.5 * (((lv1_x0 + lv1_x1 - 3 * hex_pitch) / 2) + 0.0 * hex_pitch) - 0.8660254 * (((lv1_y0 + lv1_y1 - 3 * hex_row) / 2) + 2 * hex_row + (hex_af) / 1.7320508)"
+   }
+  },
+  {
+   "command": "sketch.finish",
+   "params": {}
+  },
+  {
+   "command": "solid.extrude",
+   "params": {
+    "distance": "lid_t + 2",
+    "name": "Lid vent lv1 row 3",
+    "direction": "symmetric",
+    "operation": "cut",
+    "targets": [
+     "Lid"
+    ]
+   }
+  },
+  {
+   "command": "solid.pattern.rectangular",
+   "params": {
+    "features": [
+     "Lid vent lv1 row 3"
+    ],
+    "dir1": [
+     1,
+     0,
+     0
+    ],
+    "count1": 4,
+    "spacing1": "hex_pitch",
+    "name": "Lid vents lv1 row 3"
+   }
+  },
+  {
+   "command": "sketch.create",
+   "params": {
+    "plane": "XY",
+    "name": "Lid vent lv1 row 4 sketch",
+    "project_edges": false,
+    "offset": "base_h + lid_t / 2"
+   }
+  },
+  {
+   "command": "sketch.line",
+   "params": {
+    "points": [
+     [
+      49.800000000000004,
+      7.188010835137755
+     ],
+     [
+      48.300000000000004,
+      6.321985427568878
+     ],
+     [
+      48.300000000000004,
+      4.589934612431122
+     ],
+     [
+      49.800000000000004,
+      3.7239092048622453
+     ],
+     [
+      51.300000000000004,
+      4.589934612431122
+     ],
+     [
+      51.300000000000004,
+      6.321985427568878
+     ]
+    ],
+    "closed": true,
+    "infer": true
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l1"
+    ],
+    "value": "(hex_af) / 1.7320508"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l2"
+    ],
+    "value": "(hex_af) / 1.7320508"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l3"
+    ],
+    "value": "(hex_af) / 1.7320508"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l4"
+    ],
+    "value": "(hex_af) / 1.7320508"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l5"
+    ],
+    "value": "(hex_af) / 1.7320508"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l2"
+    ],
+    "value": "((lv1_x0 + lv1_x1 - 3 * hex_pitch) / 2) + 0.5 * hex_pitch - (hex_af) / 2"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l1"
+    ],
+    "value": "0.5 * (((lv1_x0 + lv1_x1 - 3 * hex_pitch) / 2) + 0.5 * hex_pitch) - 0.8660254 * (((lv1_y0 + lv1_y1 - 3 * hex_row) / 2) + 3 * hex_row + (hex_af) / 1.7320508)"
+   }
+  },
+  {
+   "command": "sketch.finish",
+   "params": {}
+  },
+  {
+   "command": "solid.extrude",
+   "params": {
+    "distance": "lid_t + 2",
+    "name": "Lid vent lv1 row 4",
+    "direction": "symmetric",
+    "operation": "cut",
+    "targets": [
+     "Lid"
+    ]
+   }
+  },
+  {
+   "command": "solid.pattern.rectangular",
+   "params": {
+    "features": [
+     "Lid vent lv1 row 4"
+    ],
+    "dir1": [
+     1,
+     0,
+     0
+    ],
+    "count1": 3,
+    "spacing1": "hex_pitch",
+    "name": "Lid vents lv1 row 4"
+   }
+  },
+  {
+   "command": "sketch.create",
+   "params": {
+    "plane": "XY",
+    "name": "Lid vent lv2 row 1 sketch",
+    "project_edges": false,
+    "offset": "base_h + lid_t / 2"
+   }
+  },
+  {
+   "command": "sketch.line",
+   "params": {
+    "points": [
+     [
+      -21.200000000000003,
+      -3.7239092048622453
+     ],
+     [
+      -22.700000000000003,
+      -4.589934612431122
+     ],
+     [
+      -22.700000000000003,
+      -6.321985427568878
+     ],
+     [
+      -21.200000000000003,
+      -7.188010835137755
+     ],
+     [
+      -19.700000000000003,
+      -6.321985427568878
+     ],
+     [
+      -19.700000000000003,
+      -4.589934612431122
+     ]
+    ],
+    "closed": true,
+    "infer": true
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l1"
+    ],
+    "value": "(hex_af) / 1.7320508"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l2"
+    ],
+    "value": "(hex_af) / 1.7320508"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l3"
+    ],
+    "value": "(hex_af) / 1.7320508"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l4"
+    ],
+    "value": "(hex_af) / 1.7320508"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l5"
+    ],
+    "value": "(hex_af) / 1.7320508"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l2"
+    ],
+    "value": "-(((lv2_x0 + lv2_x1 - 4 * hex_pitch) / 2) + 0.0 * hex_pitch - (hex_af) / 2)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l1"
+    ],
+    "value": "-(0.5 * (((lv2_x0 + lv2_x1 - 4 * hex_pitch) / 2) + 0.0 * hex_pitch) - 0.8660254 * (((lv2_y0 + lv2_y1 - 3 * hex_row) / 2) + 0 * hex_row + (hex_af) / 1.7320508))"
+   }
+  },
+  {
+   "command": "sketch.finish",
+   "params": {}
+  },
+  {
+   "command": "solid.extrude",
+   "params": {
+    "distance": "lid_t + 2",
+    "name": "Lid vent lv2 row 1",
+    "direction": "symmetric",
+    "operation": "cut",
+    "targets": [
+     "Lid"
+    ]
+   }
+  },
+  {
+   "command": "solid.pattern.rectangular",
+   "params": {
+    "features": [
+     "Lid vent lv2 row 1"
+    ],
+    "dir1": [
+     1,
+     0,
+     0
+    ],
+    "count1": 5,
+    "spacing1": "hex_pitch",
+    "name": "Lid vents lv2 row 1"
+   }
+  },
+  {
+   "command": "sketch.create",
+   "params": {
+    "plane": "XY",
+    "name": "Lid vent lv2 row 2 sketch",
+    "project_edges": false,
+    "offset": "base_h + lid_t / 2"
+   }
+  },
+  {
+   "command": "sketch.line",
+   "params": {
+    "points": [
+     [
+      -19.1,
+      -0.08660252486224529
+     ],
+     [
+      -20.6,
+      -0.9526279324311226
+     ],
+     [
+      -20.6,
+      -2.6846787475688774
+     ],
+     [
+      -19.1,
+      -3.5507041551377547
+     ],
+     [
+      -17.6,
+      -2.6846787475688774
+     ],
+     [
+      -17.6,
+      -0.9526279324311226
+     ]
+    ],
+    "closed": true,
+    "infer": true
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l1"
+    ],
+    "value": "(hex_af) / 1.7320508"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l2"
+    ],
+    "value": "(hex_af) / 1.7320508"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l3"
+    ],
+    "value": "(hex_af) / 1.7320508"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l4"
+    ],
+    "value": "(hex_af) / 1.7320508"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l5"
+    ],
+    "value": "(hex_af) / 1.7320508"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l2"
+    ],
+    "value": "-(((lv2_x0 + lv2_x1 - 4 * hex_pitch) / 2) + 0.5 * hex_pitch - (hex_af) / 2)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l1"
+    ],
+    "value": "-(0.5 * (((lv2_x0 + lv2_x1 - 4 * hex_pitch) / 2) + 0.5 * hex_pitch) - 0.8660254 * (((lv2_y0 + lv2_y1 - 3 * hex_row) / 2) + 1 * hex_row + (hex_af) / 1.7320508))"
+   }
+  },
+  {
+   "command": "sketch.finish",
+   "params": {}
+  },
+  {
+   "command": "solid.extrude",
+   "params": {
+    "distance": "lid_t + 2",
+    "name": "Lid vent lv2 row 2",
+    "direction": "symmetric",
+    "operation": "cut",
+    "targets": [
+     "Lid"
+    ]
+   }
+  },
+  {
+   "command": "solid.pattern.rectangular",
+   "params": {
+    "features": [
+     "Lid vent lv2 row 2"
+    ],
+    "dir1": [
+     1,
+     0,
+     0
+    ],
+    "count1": 4,
+    "spacing1": "hex_pitch",
+    "name": "Lid vents lv2 row 2"
+   }
+  },
+  {
+   "command": "sketch.create",
+   "params": {
+    "plane": "XY",
+    "name": "Lid vent lv2 row 3 sketch",
+    "project_edges": false,
+    "offset": "base_h + lid_t / 2"
+   }
+  },
+  {
+   "command": "sketch.line",
+   "params": {
+    "points": [
+     [
+      -21.200000000000003,
+      3.5507041551377547
+     ],
+     [
+      -22.700000000000003,
+      2.6846787475688774
+     ],
+     [
+      -22.700000000000003,
+      0.9526279324311226
+     ],
+     [
+      -21.200000000000003,
+      0.08660252486224529
+     ],
+     [
+      -19.700000000000003,
+      0.9526279324311226
+     ],
+     [
+      -19.700000000000003,
+      2.6846787475688774
+     ]
+    ],
+    "closed": true,
+    "infer": true
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l1"
+    ],
+    "value": "(hex_af) / 1.7320508"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l2"
+    ],
+    "value": "(hex_af) / 1.7320508"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l3"
+    ],
+    "value": "(hex_af) / 1.7320508"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l4"
+    ],
+    "value": "(hex_af) / 1.7320508"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l5"
+    ],
+    "value": "(hex_af) / 1.7320508"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l2"
+    ],
+    "value": "-(((lv2_x0 + lv2_x1 - 4 * hex_pitch) / 2) + 0.0 * hex_pitch - (hex_af) / 2)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l1"
+    ],
+    "value": "-(0.5 * (((lv2_x0 + lv2_x1 - 4 * hex_pitch) / 2) + 0.0 * hex_pitch) - 0.8660254 * (((lv2_y0 + lv2_y1 - 3 * hex_row) / 2) + 2 * hex_row + (hex_af) / 1.7320508))"
+   }
+  },
+  {
+   "command": "sketch.finish",
+   "params": {}
+  },
+  {
+   "command": "solid.extrude",
+   "params": {
+    "distance": "lid_t + 2",
+    "name": "Lid vent lv2 row 3",
+    "direction": "symmetric",
+    "operation": "cut",
+    "targets": [
+     "Lid"
+    ]
+   }
+  },
+  {
+   "command": "solid.pattern.rectangular",
+   "params": {
+    "features": [
+     "Lid vent lv2 row 3"
+    ],
+    "dir1": [
+     1,
+     0,
+     0
+    ],
+    "count1": 5,
+    "spacing1": "hex_pitch",
+    "name": "Lid vents lv2 row 3"
+   }
+  },
+  {
+   "command": "sketch.create",
+   "params": {
+    "plane": "XY",
+    "name": "Lid vent lv2 row 4 sketch",
+    "project_edges": false,
+    "offset": "base_h + lid_t / 2"
+   }
+  },
+  {
+   "command": "sketch.line",
+   "params": {
+    "points": [
+     [
+      -19.1,
+      7.188010835137755
+     ],
+     [
+      -20.6,
+      6.321985427568878
+     ],
+     [
+      -20.6,
+      4.589934612431122
+     ],
+     [
+      -19.1,
+      3.7239092048622453
+     ],
+     [
+      -17.6,
+      4.589934612431122
+     ],
+     [
+      -17.6,
+      6.321985427568878
+     ]
+    ],
+    "closed": true,
+    "infer": true
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l1"
+    ],
+    "value": "(hex_af) / 1.7320508"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l2"
+    ],
+    "value": "(hex_af) / 1.7320508"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l3"
+    ],
+    "value": "(hex_af) / 1.7320508"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l4"
+    ],
+    "value": "(hex_af) / 1.7320508"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "l5"
+    ],
+    "value": "(hex_af) / 1.7320508"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l2"
+    ],
+    "value": "-(((lv2_x0 + lv2_x1 - 4 * hex_pitch) / 2) + 0.5 * hex_pitch - (hex_af) / 2)"
+   }
+  },
+  {
+   "command": "sketch.dimension",
+   "params": {
+    "entities": [
+     "origin",
+     "l1"
+    ],
+    "value": "-(0.5 * (((lv2_x0 + lv2_x1 - 4 * hex_pitch) / 2) + 0.5 * hex_pitch) - 0.8660254 * (((lv2_y0 + lv2_y1 - 3 * hex_row) / 2) + 3 * hex_row + (hex_af) / 1.7320508))"
+   }
+  },
+  {
+   "command": "sketch.finish",
+   "params": {}
+  },
+  {
+   "command": "solid.extrude",
+   "params": {
+    "distance": "lid_t + 2",
+    "name": "Lid vent lv2 row 4",
+    "direction": "symmetric",
+    "operation": "cut",
+    "targets": [
+     "Lid"
+    ]
+   }
+  },
+  {
+   "command": "solid.pattern.rectangular",
+   "params": {
+    "features": [
+     "Lid vent lv2 row 4"
+    ],
+    "dir1": [
+     1,
+     0,
+     0
+    ],
+    "count1": 4,
+    "spacing1": "hex_pitch",
+    "name": "Lid vents lv2 row 4"
+   }
+  },
+  {
+   "command": "timeline.group",
+   "params": {
+    "name": "1 Shell",
+    "features": [
+     "Outline sketch",
+     "Outer body",
+     "Cavity sketch",
+     "Cavity"
+    ]
+   }
+  },
+  {
+   "command": "timeline.group",
+   "params": {
+    "name": "2 Standoffs",
+    "features": [
+     "Standoffs sketch",
+     "Standoffs",
+     "Board inserts sketch",
+     "Board inserts"
+    ]
+   }
+  },
+  {
+   "command": "timeline.group",
+   "params": {
+    "name": "3 Lid screw bosses",
+    "features": [
+     "Screw bosses sketch",
+     "Screw bosses",
+     "Boss inserts sketch",
+     "Boss inserts"
+    ]
+   }
+  },
+  {
+   "command": "timeline.group",
+   "params": {
+    "name": "4 Mounting ears",
+    "features": [
+     "Ears sketch",
+     "Ears",
+     "Ear slots sketch",
+     "Ear slots"
+    ]
+   }
+  },
+  {
+   "command": "timeline.group",
+   "params": {
+    "name": "5 Connector windows",
+    "features": [
+     "USB-C window sketch",
+     "USB-C window",
+     "MDB slot sketch",
+     "MDB slot",
+     "Cable slots sketch",
+     "Cable slots",
+     "SMA jack hole sketch",
+     "SMA jack hole",
+     "SMA jack hole cap sketch",
+     "SMA jack hole cap"
+    ]
+   }
+  },
+  {
+   "command": "timeline.group",
+   "params": {
+    "name": "6 Terminal wire windows",
+    "features": [
+     "P4 wire window sketch",
+     "P4 wire window",
+     "P4 wire window top sketch",
+     "P4 wire window top",
+     "P4 wire windows",
+     "P5 wire window sketch",
+     "P5 wire window",
+     "P5 wire window top sketch",
+     "P5 wire window top",
+     "P5 wire windows",
+     "P6 wire window sketch",
+     "P6 wire window",
+     "P6 wire window top sketch",
+     "P6 wire window top",
+     "P6 wire windows",
+     "P3 wire window sketch",
+     "P3 wire window",
+     "P3 wire window top sketch",
+     "P3 wire window top",
+     "P3 wire windows",
+     "P2 wire window sketch",
+     "P2 wire window",
+     "P2 wire window top sketch",
+     "P2 wire window top",
+     "P2 wire windows",
+     "P1 wire window sketch",
+     "P1 wire window",
+     "P1 wire window top sketch",
+     "P1 wire window top",
+     "P1 wire windows",
+     "P8 wire window sketch",
+     "P8 wire window",
+     "P8 wire window top sketch",
+     "P8 wire window top",
+     "P8 wire windows",
+     "P9 wire window sketch",
+     "P9 wire window",
+     "P9 wire window top sketch",
+     "P9 wire window top",
+     "P9 wire windows"
+    ]
+   }
+  },
+  {
+   "command": "timeline.group",
+   "params": {
+    "name": "7 Low vents",
+    "features": [
+     "Vent S sketch",
+     "Vent S",
+     "Vent N sketch",
+     "Vent N",
+     "Vent rows"
+    ]
+   }
+  },
+  {
+   "command": "timeline.group",
+   "params": {
+    "name": "8 Clip notches",
+    "features": [
+     "Clip notches sketch",
+     "Clip notch",
+     "Clip notches"
+    ]
+   }
+  },
+  {
+   "command": "timeline.group",
+   "params": {
+    "name": "9 Lid and lip",
+    "features": [
+     "Lid plate sketch",
+     "Lid plate",
+     "Lip sketch",
+     "Lip",
+     "Lip reliefs sketch",
+     "Lip reliefs",
+     "MDB filler tab sketch",
+     "MDB filler tab"
+    ]
+   }
+  },
+  {
+   "command": "timeline.group",
+   "params": {
+    "name": "10 Clips",
+    "features": [
+     "Clip S sketch",
+     "Clip S",
+     "Clip N sketch",
+     "Clip N",
+     "Clips"
+    ]
+   }
+  },
+  {
+   "command": "timeline.group",
+   "params": {
+    "name": "11 Lid cut-outs",
+    "features": [
+     "Lid screw holes sketch",
+     "Lid screw holes",
+     "P4 screwdriver hole sketch",
+     "P4 screwdriver hole",
+     "P4 screwdriver holes",
+     "P5 screwdriver hole sketch",
+     "P5 screwdriver hole",
+     "P5 screwdriver holes",
+     "P6 screwdriver hole sketch",
+     "P6 screwdriver hole",
+     "P6 screwdriver holes",
+     "P3 screwdriver hole sketch",
+     "P3 screwdriver hole",
+     "P3 screwdriver holes",
+     "P2 screwdriver hole sketch",
+     "P2 screwdriver hole",
+     "P2 screwdriver holes",
+     "P1 screwdriver hole sketch",
+     "P1 screwdriver hole",
+     "P1 screwdriver holes",
+     "P8 screwdriver hole sketch",
+     "P8 screwdriver hole",
+     "P8 screwdriver holes",
+     "P9 screwdriver hole sketch",
+     "P9 screwdriver hole",
+     "P9 screwdriver holes",
+     "LED window sketch",
+     "LED window",
+     "Lid vent lv1 row 1 sketch",
+     "Lid vent lv1 row 1",
+     "Lid vents lv1 row 1",
+     "Lid vent lv1 row 2 sketch",
+     "Lid vent lv1 row 2",
+     "Lid vents lv1 row 2",
+     "Lid vent lv1 row 3 sketch",
+     "Lid vent lv1 row 3",
+     "Lid vents lv1 row 3",
+     "Lid vent lv1 row 4 sketch",
+     "Lid vent lv1 row 4",
+     "Lid vents lv1 row 4",
+     "Lid vent lv2 row 1 sketch",
+     "Lid vent lv2 row 1",
+     "Lid vents lv2 row 1",
+     "Lid vent lv2 row 2 sketch",
+     "Lid vent lv2 row 2",
+     "Lid vents lv2 row 2",
+     "Lid vent lv2 row 3 sketch",
+     "Lid vent lv2 row 3",
+     "Lid vents lv2 row 3",
+     "Lid vent lv2 row 4 sketch",
+     "Lid vent lv2 row 4",
+     "Lid vents lv2 row 4"
+    ]
+   }
+  }
+ ]
+}
