@@ -73,6 +73,12 @@ USB_C = (0.38, 2.78)                                      # centre y, z (board f
 LEDS = [(-47.76, -3.43)]                                  # WS2812B-2121 "LED D0"
 ANTENNA_X = -46.0                                         # U.FL cable slot, north wall
 UART_X, UART_W = -33.15, 8.0                              # J1 UART debug cable slot, north wall
+# SMA bulkhead jack (1/4-36 UNS thread, 8 mm hex, panel cutout 6.5 mm, max panel 4.4 mm) for an
+# external antenna on a U.FL pigtail. North wall near the USB-C end, above the ESP32 module so
+# the jack body and cable clear it, clear of the clip window. SMA = None leaves the wall closed.
+SMA = (-53.0, 18.0)                                       # x, z of the hole centre
+SMA_D = 6.6                                               # printed holes come out ~0.1 mm small
+SMA_CAP = 0.3                                             # teardrop cut-off above the circle top
 SCREW_BOSSES = ([(x, s * (Y1 + WALL + 2.2)) for x in (-73.0, 73.0) for s in (-1, 1)]
                 if LID_SCREWS else [])
 
@@ -196,6 +202,15 @@ for x in [i * 5.0 for i in range(-14, 15)]:
         continue
     for side in "NS":
         cuts.append(peaked_window(side, x - 0.8, x + 0.8, FLOOR + 0.8, PCB_Z - 0.8))
+# SMA jack: round hole with a teardrop top cut off 0.3 mm above the circle, so it prints
+# without support (2.1 mm bridge) and the thread still bears all round
+if SMA:
+    r, (sx, sz) = SMA_D / 2, SMA
+    k = r / 2 ** 0.5                                      # 45 degree tangent points at (+-k, k)
+    zt = r + SMA_CAP                                      # cut-off height above the centre
+    t = r * 2 ** 0.5 - zt                                 # half width of the flat top
+    cuts.append(Part.makeCylinder(r, WALL + 2, V(sx, Y1 - 1, sz), V(0, 1, 0)))
+    cuts.append(wall_prism("N", [(sx - k, sz + k), (sx + k, sz + k), (sx + t, sz + zt), (sx - t, sz + zt)]))
 # Clip windows
 CLIP_W, CLIP_Z0, CLIP_Z1 = 8.0, H - 8.0, H - 5.6
 for x in CLIP_X:
@@ -277,6 +292,13 @@ for name, part in (("base", base), ("lid", lid)):
 checks["base_lid_overlap_mm3"] = round(base.common(lid).Volume, 3)
 checks["pcb_collisions"] = collisions
 checks["base_height_mm"] = round(H, 2)
+if SMA:
+    # Room behind the wall for the jack: 8 mm hex flange (9.2 mm across corners) + crimp
+    # ferrule, 12 mm deep, plus 0.5 mm. The lid lip must not touch it either.
+    body = Part.makeCylinder(5.1, 12.0, V(SMA[0], Y1, SMA[1]), V(0, -1, 0))
+    checks["sma_body_hits"] = [label for label, s in pcb_solids if body.common(s).Volume > 0.001]
+    checks["sma_body_lid_mm3"] = round(body.common(lid).Volume, 3)
+    assert not checks["sma_body_hits"] and checks["sma_body_lid_mm3"] == 0, checks
 if SCREW_BOSSES:
     # Clip windows must stay reachable from outside: no screw boss in front of them.
     checks["clip_boss_min_gap_mm"] = round(min(

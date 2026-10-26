@@ -41,6 +41,13 @@ For a version with optional lid screws, see [`../screw-clips`](../screw-clips).
 - **LED D0 (WS2812B):** Ø4 hole in the lid.
 - **Antenna:** 3 × 2 mm slot at the top of the north wall, under the lid, close to the
   ESP32 U.FL connector.
+- **SMA antenna jack:** Ø6.6 mm hole in the north wall near the USB-C end (centre 22.6 mm
+  from the west inner wall, 18 mm above the bottom), for a standard SMA bulkhead jack on a
+  U.FL pigtail: 1/4-36 UNS thread, 8 mm hex, 6.5 mm panel cutout, panels up to 4.4 mm
+  thick. The 2 mm wall leaves enough thread for nut and washer. The jack body sits above the
+  ESP32 module, and the script checks that a 10.2 × 12 mm body behind the wall touches
+  neither the board nor the lid. The top of the hole is a cut-off teardrop, so it prints
+  without support. Set `SMA = None` for a closed wall.
 - **UART debug:** 8 × 2 mm slot at the top of the north wall, under the lid, above
   the J1 header (EN/TXD/RXD/IO0). Lets debug wires out with the lid closed.
 - **Ventilation:** 1.6 × 3.4 mm slots with a 45° pointed top below the board in the long walls, and
