@@ -38,7 +38,7 @@ four standoffs with M2.5 heat inserts in this variant.
 - **MDB (Mini-Fit 2×3):** 15.6 mm wide slot in the south wall, open to the wall rim
   so it needs no bridge. A tab on the lid closes it from 2 mm above the header down
   to the same 12.5 mm opening as before (the plug latch still fits).
-- **Terminal blocks:** one 4.0 × 8.4 mm wire window per pole with a 45° pointed top (30 poles on the south,
+- **Terminal blocks:** one 4.0 × 7.4 mm wire window per pole with a round top for the round cable (30 poles on the south,
   north and east walls), plus a Ø4 hole in the lid above each terminal screw. The poles
   sit 5.08 mm apart, so 4.0 mm leaves 1.08 mm webs between neighbouring openings: two
   lines with a 0.4 mm nozzle (`TERM_W` in the script).
@@ -54,15 +54,16 @@ four standoffs with M2.5 heat inserts in this variant.
   without support. Set `SMA = None` for a closed wall.
 - **UART debug:** 8 × 2 mm slot at the top of the north wall, under the lid, above
   the J1 header (EN/TXD/RXD/IO0). Lets debug wires out with the lid closed.
-- **Ventilation:** 1.6 × 3.4 mm slots with a 45° pointed top below the board in the long walls, and
-  1.6 × 12 mm slots in the lid above the relays and the centre area. Air flows in at
+- **Ventilation:** a row of 3.4 mm diamonds (45° sides) below the board in the long walls,
+  and a honeycomb of 3 mm hexagons in the lid above the relays and the centre area
+  (`VENT_D`, `LID_HEX`, `LID_VENT_ZONES` in the script). Air flows in at
   the bottom and out at the top.
 
 ## Closing
 
-- **Clips:** 4 tabs (8 × 1.2 mm, 0.6 mm catch) snap into windows in the north and
-  south walls. To open, push each catch inwards through its window with a small
-  screwdriver.
+- **Clips:** 4 tabs (8 × 1.2 mm, 0.8 mm catch) snap into 1.2 mm deep blind notches in
+  the inner face of the north and south walls; the outside of the wall stays closed. To
+  open, flex the long walls outwards and lift the lid.
 - **Screws (optional):** 4 external bosses with M2.5 × 5 × Ø3.5 heat inserts. Use
   M2.5 × 8 pan-head screws.
 
@@ -85,9 +86,9 @@ Starting point:
 - PETG, 0.4 mm nozzle, 0.2 mm layers, 3 perimeters, 20 % infill, no supports.
 - No web between two openings is thinner than 1 mm, so nothing drops out at 0.4 mm.
 - Base flat on its bottom face. Lid as exported: outer face on the bed.
-- Vent and terminal windows have 45° pointed tops and the MDB slot is open at the top,
-  so the base needs no supports. The only bridges left are the USB-C top (10 mm) and
-  the clip windows (8.8 mm).
+- Vents are 45° diamonds, terminal windows have round tops and the MDB slot is open at
+  the top, so the base needs no supports. The only bridge left is the USB-C top (10 mm);
+  the clip notch ceilings overhang 1.2 mm.
 
 ## Regenerating
 

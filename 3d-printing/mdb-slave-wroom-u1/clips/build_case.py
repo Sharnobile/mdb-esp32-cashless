@@ -11,6 +11,7 @@ so its outer face lies on the print bed. Geometry checks (solid validity, overla
 between parts, collisions with the board) are printed to stdout.
 """
 import json
+import math
 import os
 
 import FreeCAD as App
@@ -79,6 +80,12 @@ UART_X, UART_W = -33.15, 8.0                              # J1 UART debug cable 
 SMA = (-53.0, 18.0)                                       # x, z of the hole centre
 SMA_D = 6.6                                               # printed holes come out ~0.1 mm small
 SMA_CAP = 0.3                                             # teardrop cut-off above the circle top
+VENT_D = 3.4                                              # low wall vents: 45 deg diamonds, 5 mm pitch
+LID_HEX = (3.0, 1.2)                                      # lid vents: hexagon across flats, web
+LID_VENT_ZONES = [(45.2, 62.8, -7.5, 7.5),                # relays (x0 x1 y0 y1)
+                  (-24.8, -0.8, -7.5, 7.5)]               # centre area
+BUMP = 0.8                                                # clip catch height (0.6 held too loosely)
+CLIP_POCKET = 1.2                                         # blind clip notch depth into the wall
 SCREW_BOSSES = ([(x, s * (Y1 + WALL + 2.2)) for x in (-73.0, 73.0) for s in (-1, 1)]
                 if LID_SCREWS else [])
 
@@ -127,10 +134,39 @@ def wall_prism(side, pts):
     return Part.Face(Part.makePolygon(poly + poly[:1])).extrude(d)
 
 
-def peaked_window(side, a0, a1, z0, z1):
-    """Window with a 45 degree pointed roof above z1: prints without support or bridging."""
-    ac, w = (a0 + a1) / 2, (a1 - a0) / 2
-    return wall_prism(side, [(a0, z0), (a1, z0), (a1, z1), (ac, z1 + w), (a0, z1)])
+def arch_window(side, a0, a1, z0, z1):
+    """Window with a semicircular top ending at z1: fits a round cable, short arch bridge."""
+    r = (a1 - a0) / 2
+    zc = z1 - r
+    if side in "NS":
+        y = (Y0 - WALL - 1) if side == "S" else (Y1 - 1)
+        return box(a0, a1, y, y + WALL + 2, z0, zc).fuse(
+            Part.makeCylinder(r, WALL + 2, V(a0 + r, y, zc), V(0, 1, 0)))
+    x = (X0 - WALL - 1) if side == "W" else (X1 - 1)
+    return box(x, x + WALL + 2, a0, a1, z0, zc).fuse(
+        Part.makeCylinder(r, WALL + 2, V(x, a0 + r, zc), V(1, 0, 0)))
+
+
+def diamond_window(side, ac, zc, d):
+    """Square turned 45 degrees, d across corners: all four sides print without support."""
+    return wall_prism(side, [(ac, zc - d / 2), (ac + d / 2, zc), (ac, zc + d / 2), (ac - d / 2, zc)])
+
+
+def hex_field(x0, x1, y0, y1, af, web):
+    """Honeycomb of hexagonal holes through the lid, centred in the x0..x1 / y0..y1 zone.
+    af = across flats; holes in a row are `web` apart, odd rows are shifted half a pitch."""
+    p, r = af + web, af / math.sqrt(3)
+    dy = p * math.sqrt(3) / 2
+    nx, ny = int((x1 - x0 - af) // p) + 1, int((y1 - y0 - 2 * r) // dy) + 1
+    ox, oy = (x0 + x1 - (nx - 1) * p) / 2, (y0 + y1 - (ny - 1) * dy) / 2
+    holes = []
+    for j in range(ny):
+        for i in range(nx - j % 2):
+            cx, cy = ox + (i + 0.5 * (j % 2)) * p, oy + j * dy
+            pts = [V(cx + r * math.cos(math.radians(90 + 60 * k)), cy + r * math.sin(math.radians(90 + 60 * k)), H - 1)
+                   for k in range(7)]
+            holes.append(Part.Face(Part.makePolygon(pts)).extrude(V(0, 0, LID + 2)))
+    return holes
 
 
 def chamfered_window(side, a0, a1, z0, z1, c):
@@ -187,21 +223,21 @@ cuts.append(chamfered_window("W", USB_C[0] - 6.4, USB_C[0] + 6.4,
 # from there up.
 MDB_TAB_Z = PCB_Z + MDB[3] + 2.0
 cuts.append(wall_window("S", MDB[0] - 0.8, MDB[1] + 0.8, PCB_Z + PCB_T + 0.3, H + 3.0, 1.0))
-# Terminal block wire entries (one window per pole), 45 degree pointed roof
+# Terminal block wire entries (one window per pole), round top for the round cable
 for (px, py), side in TERMINALS:
     a = px if side in "NS" else py
-    cuts.append(peaked_window(side, a - TERM_W / 2, a + TERM_W / 2, PCB_Z + WIRE_Z[0], PCB_Z + WIRE_Z[1]))
+    cuts.append(arch_window(side, a - TERM_W / 2, a + TERM_W / 2, PCB_Z + WIRE_Z[0], PCB_Z + WIRE_Z[1]))
 # Antenna: 3 x 2 mm slot at the top of the north wall, under the lid
 cuts.append(box(ANTENNA_X - 1.5, ANTENNA_X + 1.5, Y1 - 1, Y1 + WALL + 1, H - 2.0, H + 1))
 # UART debug wires: 8 x 2 mm slot at the top of the north wall, above J1
 cuts.append(box(UART_X - UART_W / 2, UART_X + UART_W / 2, Y1 - 1, Y1 + WALL + 1, H - 2.0, H + 1))
-# Low ventilation: 1.6 x 3.4 vertical slots below the board, north and south walls,
-# 45 degree pointed roof (apex at board level)
+# Low ventilation: row of VENT_D diamonds below the board, north and south walls
+# (5 mm pitch leaves 1.1 mm webs)
 for x in [i * 5.0 for i in range(-14, 15)]:
     if any(abs(x - bx) < 5 for bx, _ in SCREW_BOSSES):
         continue
     for side in "NS":
-        cuts.append(peaked_window(side, x - 0.8, x + 0.8, FLOOR + 0.8, PCB_Z - 0.8))
+        cuts.append(diamond_window(side, x, (FLOOR + PCB_Z) / 2, VENT_D))
 # SMA jack: round hole with a teardrop top cut off 0.3 mm above the circle, so it prints
 # without support (2.1 mm bridge) and the thread still bears all round
 if SMA:
@@ -211,11 +247,11 @@ if SMA:
     t = r * 2 ** 0.5 - zt                                 # half width of the flat top
     cuts.append(Part.makeCylinder(r, WALL + 2, V(sx, Y1 - 1, sz), V(0, 1, 0)))
     cuts.append(wall_prism("N", [(sx - k, sz + k), (sx + k, sz + k), (sx + t, sz + zt), (sx - t, sz + zt)]))
-# Clip windows
+# Clip notches: blind pockets CLIP_POCKET deep in the inner wall face, the outside stays closed
 CLIP_W, CLIP_Z0, CLIP_Z1 = 8.0, H - 8.0, H - 5.6
 for x in CLIP_X:
-    for side in "NS":
-        cuts.append(wall_window(side, x - CLIP_W / 2 - 0.4, x + CLIP_W / 2 + 0.4, CLIP_Z0, CLIP_Z1, 0.4))
+    cuts.append(box(x - CLIP_W / 2 - 0.4, x + CLIP_W / 2 + 0.4, Y0 - CLIP_POCKET, Y0 + 1, CLIP_Z0, CLIP_Z1))
+    cuts.append(box(x - CLIP_W / 2 - 0.4, x + CLIP_W / 2 + 0.4, Y1 - 1, Y1 + CLIP_POCKET, CLIP_Z0, CLIP_Z1))
 for c in cuts:
     base = base.cut(c)
 base = base.removeSplitter()
@@ -236,8 +272,8 @@ lid = lid.fuse(lip)
 # MDB filler tab: closes the open MDB slot above the plug, FIT clearance to the slot sides
 lid = lid.fuse(box(MDB[0] - 0.8 + FIT, MDB[1] + 0.8 - FIT, OY0, Y0 + FIT + 0.01, MDB_TAB_Z, H + 0.01))
 
-# Clips: 8 x 1.2 mm tab, ~8 mm free length, 0.6 mm ramped catch.
-CLIP_T, BUMP = 1.2, 0.6
+# Clips: 8 x 1.2 mm tab, ~8 mm free length, BUMP ramped catch.
+CLIP_T = 1.2
 for x in CLIP_X:
     for sgn, yw in ((-1, Y0), (1, Y1)):
         y_out = yw - sgn * FIT
@@ -256,9 +292,9 @@ for (px, py), side in TERMINALS:                  # screwdriver access to termin
     lid_cuts.append(cyl(px, py, TERM_W / 2, H - 1, H + LID + 1))
 for x, y in LEDS:                                 # LED window
     lid_cuts.append(cyl(x, y, 2.0, H - 1, H + LID + 1))
-# High ventilation: 1.6 x 12 slots above the relays and the centre area
-for x in [46.0 + i * 3.2 for i in range(6)] + [-24.0 + i * 3.2 for i in range(8)]:
-    lid_cuts.append(box(x - 0.8, x + 0.8, -6.0, 6.0, H - 1, H + LID + 1))
+# High ventilation: honeycomb above the relays and the centre area
+for zone in LID_VENT_ZONES:
+    lid_cuts += hex_field(*zone, *LID_HEX)
 for c in lid_cuts:
     lid = lid.cut(c)
 lid = lid.removeSplitter()
@@ -299,11 +335,14 @@ if SMA:
     checks["sma_body_hits"] = [label for label, s in pcb_solids if body.common(s).Volume > 0.001]
     checks["sma_body_lid_mm3"] = round(body.common(lid).Volume, 3)
     assert not checks["sma_body_hits"] and checks["sma_body_lid_mm3"] == 0, checks
-if SCREW_BOSSES:
-    # Clip windows must stay reachable from outside: no screw boss in front of them.
-    checks["clip_boss_min_gap_mm"] = round(min(
-        abs(cx - bx) - (CLIP_W / 2 + 0.4) - 3.4 for cx in CLIP_X for bx, _ in SCREW_BOSSES), 2)
-    assert checks["clip_boss_min_gap_mm"] > 0.5, checks["clip_boss_min_gap_mm"]
+# MDB lid tab vs header top (the 2 mm left above it are for the plug latch, not modelled)
+checks["mdb_tab_header_gap_mm"] = round(MDB_TAB_Z - max(
+    s.BoundBox.ZMax for _, s in pcb_solids
+    if s.BoundBox.XMax > MDB[0] and s.BoundBox.XMin < MDB[1] and s.BoundBox.YMin < Y0 + 5), 2)
+assert checks["mdb_tab_header_gap_mm"] > 1.5, checks["mdb_tab_header_gap_mm"]
+# Catch must stay inside its notch: wall face to catch tip vs notch depth
+checks["clip_pocket_margin_mm"] = round(CLIP_POCKET - (BUMP - FIT), 2)
+assert checks["clip_pocket_margin_mm"] > 0.2, checks["clip_pocket_margin_mm"]
 
 
 # ---------------------------------------------------------------- export

@@ -181,13 +181,26 @@ class Sketch:
         for i, e in places:
             self._dim(["origin", "l%d" % (n + i + 1)], pos(self.s, e))
 
-    def peaked(self, a0, a1, z0, z1, w):
-        """Window a0..a1 x z0..z1 with a 45 degree pointed roof on top (w = a1 - a0)."""
-        ac, zt = "((%s) + (%s)) / 2" % (a0, a1), "(%s) + (%s) / 2" % (z1, w)
-        slant = "(%s) * 0.70710678" % w
-        self.polygon([(a0, z0), (a1, z0), (a1, z1), (ac, zt), (a0, z1)],
-                     [(0, w), (1, "(%s) - (%s)" % (z1, z0)), (2, slant), (4, "(%s) - (%s)" % (z1, z0))],
-                     [(0, z0), (4, a0)])
+    def diamond(self, ac, bc, d):
+        """Square turned 45 degrees, d across corners, centred on (ac, bc). Placed by the
+        distances from the origin to two neighbouring sides (normals (1, -1) and (1, 1))."""
+        h = "(%s) / 2" % d
+        self.polygon([(ac, "%s - %s" % (bc, h)), ("%s + %s" % (ac, h), bc), (ac, "%s + %s" % (bc, h)),
+                      ("%s - %s" % (ac, h), bc)],
+                     [(i, "(%s) * 0.70710678" % d) for i in range(3)],
+                     [(0, "((%s) - (%s) + %s) * 0.70710678" % (ac, bc, h)),
+                      (1, "((%s) + (%s) + %s) * 0.70710678" % (ac, bc, h))])
+
+    def hexagon(self, cx, cy, af):
+        """Regular hexagon, af across flats, a corner on +y (flats facing +-x)."""
+        r, w = "(%s) / 1.7320508" % af, "(%s) / 2" % af
+        self.polygon([(cx, "%s + %s" % (cy, r)), ("%s - %s" % (cx, w), "%s + %s / 2" % (cy, r)),
+                      ("%s - %s" % (cx, w), "%s - %s / 2" % (cy, r)), (cx, "%s - %s" % (cy, r)),
+                      ("%s + %s" % (cx, w), "%s - %s / 2" % (cy, r)), ("%s + %s" % (cx, w), "%s + %s / 2" % (cy, r))],
+                     [(i, r) for i in range(5)],
+                     [(1, "%s - %s" % (cx, w)),
+                      # side 0 (corner on +y to the upper-left corner), normal (0.5, -0.866)
+                      (0, "0.5 * (%s) - 0.8660254 * (%s + %s)" % (cx, cy, r))])
 
     def chamfered(self, a0, a1, z0, z1, c):
         """Rectangle with 45 degree corner chamfers of leg c."""
@@ -284,19 +297,29 @@ def build(variant):
     P("led_x", p["LEDS"][0][0], "LED window")
     P("led_y", p["LEDS"][0][1])
     P("led_d", 4.0, "LED window diameter")
-    P("vent_w", 1.6, "vent slot width (walls and lid)")
+    P("vent_d", p["VENT_D"], "wall vent diamond, across corners")
     P("vent_pitch", 5.0, "wall vent pitch")
     n_vent = sum(1 for i in range(-14, 15) if not any(abs(i * 5.0 - bx) < 5 for bx, _ in p["SCREW_BOSSES"]))
     P("vent_n", n_vent, "wall vents per long wall", unit="")
-    P("lid_vent_pitch", 3.2, "lid vent pitch")
-    P("lid_vent_l", 12.0, "lid vent length")
-    P("lid_vent_relay_x", 46.0, "first lid vent above the relays")
-    P("lid_vent_relay_n", 6, "lid vents above the relays", unit="")
-    P("lid_vent_centre_x", -24.0, "first lid vent in the centre area")
-    P("lid_vent_centre_n", 8, "lid vents in the centre area", unit="")
+    P("hex_af", p["LID_HEX"][0], "lid vent hexagon across flats")
+    P("hex_web", p["LID_HEX"][1], "web between lid vent hexagons")
+    P("hex_pitch", "hex_af + hex_web")
+    P("hex_row", "hex_pitch * 0.8660254", "lid vent row spacing")
+    hex_zones = []
+    for i, (zx0, zx1, zy0, zy1) in enumerate(p["LID_VENT_ZONES"]):
+        z = "lv%d" % (i + 1)
+        P(z + "_x0", zx0, "lid vent zone")
+        P(z + "_x1", zx1)
+        P(z + "_y0", zy0)
+        P(z + "_y1", zy1)
+        af, web = p["LID_HEX"]
+        nx = int((zx1 - zx0 - af) // (af + web)) + 1
+        ny = int((zy1 - zy0 - 2 * af / 3 ** 0.5) // ((af + web) * 3 ** 0.5 / 2)) + 1
+        hex_zones.append((z, nx, ny))
     P("clip_w", 8.0, "clip tab width")
     P("clip_t", 1.2, "clip tab thickness")
-    P("bump", 0.6, "clip catch height")
+    P("bump", p["BUMP"], "clip catch height")
+    P("clip_pocket", p["CLIP_POCKET"], "blind clip notch depth into the wall")
     P("clip_z0", "h - 8", "clip window bottom")
     P("clip_z1", "h - 5.6", "clip window top")
     P("clip1_x", p["CLIP_X"][0], "first clip pair")
@@ -418,30 +441,37 @@ def build(variant):
     s.group("Connector windows", sum(([n + " sketch", n] for n in f), []))
 
     # ---------------------------------------------------------------- terminal wire windows
+    # Round top: a rectangle up to the arc centre plus a circle, in two cuts (SolidCraft does not
+    # split a circle and an overlapping rectangle into regions).
     feats = []
+    zc = "pcb_z + wire_z1 - term_w / 2"
     for n, side, along_x, first, row in blocks:
-        name = wall_cut("%s wire window" % n, side, lambda k, first=first: k.peaked(
-            "%s - term_w / 2" % first, "%s + term_w / 2" % first, "pcb_z + wire_z0", "pcb_z + wire_z1", "term_w"))
-        s.cmd("solid.pattern.rectangular", features=[name], dir1=[1, 0, 0] if along_x else [0, 1, 0],
+        body = wall_cut("%s wire window" % n, side, lambda k, first=first: k.rect(
+            "%s - term_w / 2" % first, "%s + term_w / 2" % first, "pcb_z + wire_z0", zc))
+        top = wall_cut("%s wire window top" % n, side, lambda k, first=first: k.circle(first, zc, "term_w"))
+        s.cmd("solid.pattern.rectangular", features=[body, top], dir1=[1, 0, 0] if along_x else [0, 1, 0],
               count1=3, spacing1="term_pitch", name="%s wire windows" % n)
-        feats += [name + " sketch", name, "%s wire windows" % n]
+        feats += [body + " sketch", body, top + " sketch", top, "%s wire windows" % n]
     s.group("Terminal wire windows", feats)
 
     # ---------------------------------------------------------------- low vents
     first = "-(vent_n - 1) / 2 * vent_pitch"
-    vents = [wall_cut("Vent %s" % side, side, lambda k: k.peaked("%s - vent_w / 2" % first, "%s + vent_w / 2" % first,
-                                                                 "floor + 0.8", "pcb_z - 0.8", "vent_w")) for side in "SN"]
+    vents = [wall_cut("Vent %s" % side, side, lambda k: k.diamond(first, "(floor + pcb_z) / 2", "vent_d"))
+             for side in "SN"]
     s.cmd("solid.pattern.rectangular", features=vents, dir1=[1, 0, 0], count1="vent_n", spacing1="vent_pitch",
           name="Vent rows")
     s.group("Low vents", ["Vent S sketch", "Vent S", "Vent N sketch", "Vent N", "Vent rows"])
 
-    # ---------------------------------------------------------------- clip windows
-    clip_w = [wall_cut("Clip window %s" % side, side, lambda k: k.rect(
-        "clip1_x - clip_w / 2 - 0.4", "clip1_x + clip_w / 2 + 0.4", "clip_z0", "clip_z1", "0.4")) for side in "SN"]
-    s.cmd("solid.pattern.rectangular", features=clip_w, dir1=[1, 0, 0], count1=2, spacing1="clip2_x - clip1_x",
-          name="Clip windows")
-    s.group("Clip windows", ["Clip window S sketch", "Clip window S", "Clip window N sketch", "Clip window N",
-                               "Clip windows"])
+    # ---------------------------------------------------------------- clip notches
+    # blind pockets clip_pocket deep in the inner wall faces, cut down from the notch top
+    sk = Sketch(s, "Clip notches sketch", XY, "clip_z1")
+    sk.rect("clip1_x - clip_w / 2 - 0.4", "clip1_x + clip_w / 2 + 0.4", "-cav_y - clip_pocket", "-cav_y + 1")
+    sk.rect("clip1_x - clip_w / 2 - 0.4", "clip1_x + clip_w / 2 + 0.4", "cav_y - 1", "cav_y + clip_pocket")
+    sk.done()
+    extrude("Clip notch", "clip_z1 - clip_z0", direction="reverse", operation="cut", targets=base)
+    s.cmd("solid.pattern.rectangular", features=["Clip notch"], dir1=[1, 0, 0], count1=2,
+          spacing1="clip2_x - clip1_x", name="Clip notches")
+    s.group("Clip notches", ["Clip notches sketch", "Clip notch", "Clip notches"])
 
     # ---------------------------------------------------------------- lid
     sk = Sketch(s, "Lid plate sketch", XY, "h")
@@ -520,13 +550,17 @@ def build(variant):
         feats += [name + " sketch", name, "%s screwdriver holes" % n]
     name = lid_cut("LED window", lambda k: k.circle("led_x", "led_y", "led_d"))
     feats += [name + " sketch", name]
-    for nm, x0, n in (("relays", "lid_vent_relay_x", "lid_vent_relay_n"),
-                      ("centre", "lid_vent_centre_x", "lid_vent_centre_n")):
-        name = lid_cut("Lid vent %s" % nm, lambda k, x0=x0: k.rect("%s - vent_w / 2" % x0, "%s + vent_w / 2" % x0,
-                                                                   "-lid_vent_l / 2", "lid_vent_l / 2"))
-        s.cmd("solid.pattern.rectangular", features=[name], dir1=[1, 0, 0], count1=n, spacing1="lid_vent_pitch",
-              name="Lid vents %s" % nm)
-        feats += [name + " sketch", name, "Lid vents %s" % nm]
+    # Honeycomb: one hexagon per row, patterned along x; odd rows start half a pitch in and hold
+    # one hole less (as build_case.py's hex_field).
+    for z, nx, ny in hex_zones:
+        ox = "((%s_x0 + %s_x1 - %d * hex_pitch) / 2)" % (z, z, nx - 1)
+        oy = "((%s_y0 + %s_y1 - %d * hex_row) / 2)" % (z, z, ny - 1)
+        for j in range(ny):
+            cx, cy = "%s + %s * hex_pitch" % (ox, 0.5 * (j % 2)), "%s + %d * hex_row" % (oy, j)
+            name = lid_cut("Lid vent %s row %d" % (z, j + 1), lambda k, cx=cx, cy=cy: k.hexagon(cx, cy, "hex_af"))
+            s.cmd("solid.pattern.rectangular", features=[name], dir1=[1, 0, 0], count1=nx - j % 2,
+                  spacing1="hex_pitch", name="Lid vents %s row %d" % (z, j + 1))
+            feats += [name + " sketch", name, "Lid vents %s row %d" % (z, j + 1)]
     s.group("Lid cut-outs", feats)
     return s.finish()
 

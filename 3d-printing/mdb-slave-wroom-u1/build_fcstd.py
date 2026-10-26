@@ -310,17 +310,21 @@ def build(variant):
     LED_D = P("LedD", 4.0, "LED window diameter")
 
     d.section("Ventilation")
-    VENT_W = P("VentW", 1.6, "slot width (walls and lid)")
-    VENT_PITCH = P("VentPitch", 5.0, "wall slot pitch")
-    LVENT_PITCH = P("LidVentPitch", 3.2, "lid slot pitch")
-    LVENT_L = P("LidVentL", 12.0, "lid slot length")
-    LVENT_A = P("LidVentRelayX", 46.0, "first lid slot above the relays")
-    LVENT_B = P("LidVentCentreX", -24.0, "first lid slot in the centre area")
+    VENT_D = P("VentD", p["VENT_D"], "wall vent diamond, across corners")
+    VENT_PITCH = P("VentPitch", 5.0, "wall vent pitch")
+    HEX_AF = P("LidHexAF", p["LID_HEX"][0], "lid vent hexagon across flats")
+    HEX_WEB = P("LidHexWeb", p["LID_HEX"][1], "web between lid vent hexagons")
+    zones = []
+    for i, (zx0, zx1, zy0, zy1) in enumerate(p["LID_VENT_ZONES"]):
+        n = "LidVent%d" % (i + 1)
+        zones.append((p["LID_VENT_ZONES"][i], P(n + "X0", zx0, "lid vent zone"), P(n + "X1", zx1),
+                      P(n + "Y0", zy0), P(n + "Y1", zy1)))
 
     d.section("Clips")
     CLIP_W = P("ClipW", 8.0, "clip tab width")
     CLIP_T = P("ClipT", 1.2, "clip tab thickness")
-    BUMP = P("Bump", 0.6, "catch height")
+    BUMP = P("Bump", p["BUMP"], "catch height")
+    CLIP_POCKET = P("ClipPocket", p["CLIP_POCKET"], "blind clip notch depth into the wall")
     CLIP_Z0 = P("ClipZ0", "=%s - 8" % H, "clip window bottom (derived)")
     CLIP_Z1 = P("ClipZ1", "=%s - 5.6" % H, "clip window top (derived)")
     clips = [P("Clip%dX" % (i + 1), x, "clip position") for i, x in enumerate(p["CLIP_X"])]
@@ -394,13 +398,15 @@ def build(variant):
             return d.box(label, a0, a1, c0, c1, z0, z1, group)
         return d.box(label, c0, c1, a0, a1, z0, z1, group)
 
-    def peaked(label, side, a0, a1, z0, z1, group):
-        """Window with a 45 deg pointed roof above z1."""
+    def arched(label, side, a0, a1, z0, z1, group):
+        """Window with a semicircular top ending at z1."""
         plane, c0, c1 = wall_plane(side)
         g = d.folder(label + " parts", group)
-        ac, half = "((%s) + (%s)) / 2" % (a0, a1), "((%s) - (%s)) / 2" % (a1, a0)
-        return d.fuse(label, [plain(label + " body", plane, a0, a1, z0, z1, c0, c1, g),
-                              d.diamond(label + " roof", plane, ac, z1, half, c0, c1, g)], group)
+        ac, r = "((%s) + (%s)) / 2" % (a0, a1), "((%s) - (%s)) / 2" % (a1, a0)
+        zc = "(%s) - %s" % (z1, r)
+        return d.fuse(label, [plain(label + " body", plane, a0, a1, z0, zc, c0, c1, g),
+                              d.cyl(label + " top", ac, zc, r, c0, c1, g, axis="y" if plane == "xz" else "x")],
+                      group)
 
     def chamfered(label, side, a0, a1, z0, z1, c, group):
         """Window with 45 deg corner chamfers of leg c."""
@@ -447,25 +453,28 @@ def build(variant):
     for n, side, axis, first, other in blocks:
         for i in range(3):
             a = "(%s + %d * %s)" % (first, i, PITCH)
-            cuts.append(peaked("%s pole %d" % (n, i + 1), side, "%s - %s / 2" % (a, TERM_W),
+            cuts.append(arched("%s pole %d" % (n, i + 1), side, "%s - %s / 2" % (a, TERM_W),
                                "%s + %s / 2" % (a, TERM_W), "%s + %s" % (PCB_Z, WIRE_Z0),
                                "%s + %s" % (PCB_Z, WIRE_Z1), g))
 
-    g = d.folder("Low vent slots", cut_g)
+    g = d.folder("Low vents", cut_g)
     boss_x = [bx for bx, _ in p["SCREW_BOSSES"]]
     for i in range(-14, 15):
         if any(abs(i * 5.0 - bx) < 5 for bx in boss_x):
             continue
         x = "(%d * %s)" % (i, VENT_PITCH)
         for side in "NS":
-            cuts.append(peaked("Vent %s %+d" % (side, i), side, "%s - %s / 2" % (x, VENT_W),
-                               "%s + %s / 2" % (x, VENT_W), "%s + 0.8" % FLOOR, "%s - 0.8" % PCB_Z, g))
+            plane, c0, c1 = wall_plane(side)
+            cuts.append(d.diamond("Vent %s %+d" % (side, i), plane, x, "(%s + %s) / 2" % (FLOOR, PCB_Z),
+                                  "%s / 2" % VENT_D, c0, c1, g))
 
-    g = d.folder("Clip windows", cut_g)
+    g = d.folder("Clip notches", cut_g)
     for i, cx in enumerate(clips):
-        for side in "NS":
-            cuts.append(wall("Clip window %s%d" % (side, i + 1), side, "%s - %s / 2 - 0.4" % (cx, CLIP_W),
-                             "%s + %s / 2 + 0.4" % (cx, CLIP_W), CLIP_Z0, CLIP_Z1, "0.4", g))
+        a0, a1 = "%s - %s / 2 - 0.4" % (cx, CLIP_W), "%s + %s / 2 + 0.4" % (cx, CLIP_W)
+        cuts.append(d.box("Clip notch S%d" % (i + 1), a0, a1, "%s - %s" % (Y0, CLIP_POCKET), "%s + 1" % Y0,
+                          CLIP_Z0, CLIP_Z1, g))
+        cuts.append(d.box("Clip notch N%d" % (i + 1), a0, a1, "%s - 1" % Y1, "%s + %s" % (Y1, CLIP_POCKET),
+                          CLIP_Z0, CLIP_Z1, g))
 
     tools = d.fuse("All cuts", cuts, cut_g, refine=False)
     base = d.cut("Base", body, tools, base_g)
@@ -538,12 +547,27 @@ def build(variant):
     g = d.folder("LED window", lcut_g)
     for i, (lx, ly) in enumerate(led):
         lcuts.append(d.cyl("LED %d" % (i + 1), lx, ly, "%s / 2" % LED_D, top0, top1, g))
-    g = d.folder("Lid vent slots", lcut_g)
-    for start, n, nm in ((LVENT_A, 6, "relays"), (LVENT_B, 8, "centre")):
-        for i in range(n):
-            x = "(%s + %d * %s)" % (start, i, LVENT_PITCH)
-            lcuts.append(d.box("Vent %s %d" % (nm, i + 1), "%s - %s / 2" % (x, VENT_W), "%s + %s / 2" % (x, VENT_W),
-                               "-%s / 2" % LVENT_L, "%s / 2" % LVENT_L, top0, top1, g))
+    # Honeycomb: the hole counts are fixed when the tree is built (as in build_case.py's hex_field),
+    # the hole size, web and zone are live.
+    g = d.folder("Lid vent honeycomb", lcut_g)
+    af, web = p["LID_HEX"]
+    pitch, row = "(%s + %s)" % (HEX_AF, HEX_WEB), "((%s + %s) * 0.8660254)" % (HEX_AF, HEX_WEB)
+    for zi, ((zx0, zx1, zy0, zy1), X0z, X1z, Y0z, Y1z) in enumerate(zones):
+        nx = int((zx1 - zx0 - af) // (af + web)) + 1
+        ny = int((zy1 - zy0 - 2 * af / 3 ** 0.5) // ((af + web) * 3 ** 0.5 / 2)) + 1
+        ox = "((%s + %s - %d * %s) / 2)" % (X0z, X1z, nx - 1, pitch)
+        oy = "((%s + %s - %d * %s) / 2)" % (Y0z, Y1z, ny - 1, row)
+        for j in range(ny):
+            for i in range(nx - j % 2):
+                h = d._new("Part::Prism", "Lid vent %d hex %d-%d" % (zi + 1, j + 1, i + 1), g)
+                h.Polygon = 6
+                h.Placement.Rotation = App.Rotation(V(0, 0, 1), 30)     # a corner on +y, as in build_case.py
+                h.setExpression("Circumradius", "%s / 1.7320508" % HEX_AF)
+                h.setExpression("Height", "(%s) - (%s)" % (top1, top0))
+                h.setExpression(".Placement.Base.x", "%s + %s * %s" % (ox, i + 0.5 * (j % 2), pitch))
+                h.setExpression(".Placement.Base.y", "%s + %d * %s" % (oy, j, row))
+                h.setExpression(".Placement.Base.z", top0)
+                lcuts.append(h)
     lid = d.cut("Lid", lid_body, d.fuse("All lid cuts", lcuts, lcut_g, refine=False), lid_g)
     lid.Visibility = True
 
