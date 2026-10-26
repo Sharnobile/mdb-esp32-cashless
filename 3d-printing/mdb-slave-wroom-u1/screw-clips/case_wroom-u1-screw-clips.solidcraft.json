@@ -307,8 +307,16 @@
    "command": "parameters.add",
    "params": {
     "name": "term_w",
+    "expression": "3.2 mm",
+    "comment": "terminal wire window width"
+   }
+  },
+  {
+   "command": "parameters.add",
+   "params": {
+    "name": "term_hole",
     "expression": "4.0 mm",
-    "comment": "terminal wire window width and lid hole diameter"
+    "comment": "lid screwdriver hole diameter"
    }
   },
   {
@@ -475,7 +483,7 @@
    "command": "parameters.add",
    "params": {
     "name": "usb_w",
-    "expression": "12.8 mm",
+    "expression": "10.0 mm",
     "comment": "USB-C window width"
    }
   },
@@ -483,7 +491,7 @@
    "command": "parameters.add",
    "params": {
     "name": "usb_h",
-    "expression": "7.2 mm",
+    "expression": "4.6 mm",
     "comment": "USB-C window height"
    }
   },
@@ -491,7 +499,7 @@
    "command": "parameters.add",
    "params": {
     "name": "usb_chamfer",
-    "expression": "1.4 mm",
+    "expression": "1.0 mm",
     "comment": "USB-C window 45 degree corner chamfer"
    }
   },
@@ -2505,36 +2513,36 @@
    "params": {
     "points": [
      [
-      -4.620000000000001,
-      6.18
+      -3.62,
+      7.4799999999999995
      ],
      [
-      5.380000000000001,
-      6.18
+      4.38,
+      7.4799999999999995
      ],
      [
-      6.78,
-      7.58
+      5.38,
+      8.48
      ],
      [
-      6.78,
-      11.979999999999999
+      5.38,
+      11.079999999999998
      ],
      [
-      5.380000000000001,
-      13.379999999999999
+      4.38,
+      12.079999999999998
      ],
      [
-      -4.620000000000001,
-      13.379999999999999
+      -3.62,
+      12.079999999999998
      ],
      [
-      -6.0200000000000005,
-      11.979999999999999
+      -4.62,
+      11.079999999999998
      ],
      [
-      -6.0200000000000005,
-      7.58
+      -4.62,
+      8.48
      ]
     ],
     "closed": true,
@@ -3146,12 +3154,12 @@
    "command": "sketch.rectangle.two_point",
    "params": {
     "p0": [
-     -59.79,
+     -59.39,
      9.48
     ],
     "p1": [
-     -55.79,
-     14.920000000000002
+     -56.19,
+     15.320000000000002
     ]
    }
   },
@@ -3239,9 +3247,9 @@
    "params": {
     "center": [
      -57.79,
-     14.920000000000002
+     15.320000000000002
     ],
-    "diameter": 4.0
+    "diameter": 3.2
    }
   },
   {
@@ -3338,12 +3346,12 @@
    "command": "sketch.rectangle.two_point",
    "params": {
     "p0": [
-     -44.23,
+     -43.83,
      9.48
     ],
     "p1": [
-     -40.23,
-     14.920000000000002
+     -40.629999999999995,
+     15.320000000000002
     ]
    }
   },
@@ -3431,9 +3439,9 @@
    "params": {
     "center": [
      -42.23,
-     14.920000000000002
+     15.320000000000002
     ],
-    "diameter": 4.0
+    "diameter": 3.2
    }
   },
   {
@@ -3530,12 +3538,12 @@
    "command": "sketch.rectangle.two_point",
    "params": {
     "p0": [
-     -28.68,
+     -28.28,
      9.48
     ],
     "p1": [
-     -24.68,
-     14.920000000000002
+     -25.08,
+     15.320000000000002
     ]
    }
   },
@@ -3623,9 +3631,9 @@
    "params": {
     "center": [
      -26.68,
-     14.920000000000002
+     15.320000000000002
     ],
-    "diameter": 4.0
+    "diameter": 3.2
    }
   },
   {
@@ -3722,12 +3730,12 @@
    "command": "sketch.rectangle.two_point",
    "params": {
     "p0": [
-     -13.14,
+     -12.74,
      9.48
     ],
     "p1": [
-     -9.14,
-     14.920000000000002
+     -9.540000000000001,
+     15.320000000000002
     ]
    }
   },
@@ -3815,9 +3823,9 @@
    "params": {
     "center": [
      -11.14,
-     14.920000000000002
+     15.320000000000002
     ],
-    "diameter": 4.0
+    "diameter": 3.2
    }
   },
   {
@@ -3914,12 +3922,12 @@
    "command": "sketch.rectangle.two_point",
    "params": {
     "p0": [
-     7.09,
+     7.49,
      9.48
     ],
     "p1": [
-     11.09,
-     14.920000000000002
+     10.69,
+     15.320000000000002
     ]
    }
   },
@@ -4007,9 +4015,9 @@
    "params": {
     "center": [
      9.09,
-     14.920000000000002
+     15.320000000000002
     ],
-    "diameter": 4.0
+    "diameter": 3.2
    }
   },
   {
@@ -4106,12 +4114,12 @@
    "command": "sketch.rectangle.two_point",
    "params": {
     "p0": [
-     22.63,
+     23.029999999999998,
      9.48
     ],
     "p1": [
-     26.63,
-     14.920000000000002
+     26.23,
+     15.320000000000002
     ]
    }
   },
@@ -4199,9 +4207,9 @@
    "params": {
     "center": [
      24.63,
-     14.920000000000002
+     15.320000000000002
     ],
-    "diameter": 4.0
+    "diameter": 3.2
    }
   },
   {
@@ -4298,12 +4306,12 @@
    "command": "sketch.rectangle.two_point",
    "params": {
     "p0": [
-     -15.75,
+     -15.35,
      9.48
     ],
     "p1": [
-     -11.75,
-     14.920000000000002
+     -12.15,
+     15.320000000000002
     ]
    }
   },
@@ -4391,9 +4399,9 @@
    "params": {
     "center": [
      -13.75,
-     14.920000000000002
+     15.320000000000002
     ],
-    "diameter": 4.0
+    "diameter": 3.2
    }
   },
   {
@@ -4490,12 +4498,12 @@
    "command": "sketch.rectangle.two_point",
    "params": {
     "p0": [
-     0.7400000000000002,
+     1.1400000000000001,
      9.48
     ],
     "p1": [
-     4.74,
-     14.920000000000002
+     4.34,
+     15.320000000000002
     ]
    }
   },
@@ -4583,9 +4591,9 @@
    "params": {
     "center": [
      2.74,
-     14.920000000000002
+     15.320000000000002
     ],
-    "diameter": 4.0
+    "diameter": 3.2
    }
   },
   {
@@ -6565,7 +6573,7 @@
     "entities": [
      "c1"
     ],
-    "value": "term_w",
+    "value": "term_hole",
     "type": "diameter"
    }
   },
@@ -6648,7 +6656,7 @@
     "entities": [
      "c1"
     ],
-    "value": "term_w",
+    "value": "term_hole",
     "type": "diameter"
    }
   },
@@ -6731,7 +6739,7 @@
     "entities": [
      "c1"
     ],
-    "value": "term_w",
+    "value": "term_hole",
     "type": "diameter"
    }
   },
@@ -6814,7 +6822,7 @@
     "entities": [
      "c1"
     ],
-    "value": "term_w",
+    "value": "term_hole",
     "type": "diameter"
    }
   },
@@ -6897,7 +6905,7 @@
     "entities": [
      "c1"
     ],
-    "value": "term_w",
+    "value": "term_hole",
     "type": "diameter"
    }
   },
@@ -6980,7 +6988,7 @@
     "entities": [
      "c1"
     ],
-    "value": "term_w",
+    "value": "term_hole",
     "type": "diameter"
    }
   },
@@ -7063,7 +7071,7 @@
     "entities": [
      "c1"
     ],
-    "value": "term_w",
+    "value": "term_hole",
     "type": "diameter"
    }
   },
@@ -7146,7 +7154,7 @@
     "entities": [
      "c1"
     ],
-    "value": "term_w",
+    "value": "term_hole",
     "type": "diameter"
    }
   },

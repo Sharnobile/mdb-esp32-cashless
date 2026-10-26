@@ -266,7 +266,8 @@ def build(variant):
         P("boss_offset", 2.2, "boss centre outside the wall")
         P("boss_y", "out_y + boss_offset")
         P("lid_screw", p["LID_SCREW"], "M2.5 clearance hole in the lid")
-    P("term_w", p["TERM_W"], "terminal wire window width and lid hole diameter")
+    P("term_w", p["TERM_W"], "terminal wire window width")
+    P("term_hole", p["TERM_HOLE"], "lid screwdriver hole diameter")
     P("term_pitch", 5.08, "terminal pole pitch")
     P("wire_z0", p["WIRE_Z"][0], "wire window bottom above the board bottom")
     P("wire_z1", p["WIRE_Z"][1], "wire window top above the board bottom")
@@ -280,9 +281,9 @@ def build(variant):
                        P(n.lower() + "_row", fy if along_x else fx)))
     P("usb_y", p["USB_C"][0], "USB-C centre y")
     P("usb_z", p["USB_C"][1], "USB-C centre above the board bottom")
-    P("usb_w", 12.8, "USB-C window width")
-    P("usb_h", 7.2, "USB-C window height")
-    P("usb_chamfer", 1.4, "USB-C window 45 degree corner chamfer")
+    P("usb_w", p["USB_W"], "USB-C window width")
+    P("usb_h", p["USB_H"], "USB-C window height")
+    P("usb_chamfer", p["USB_CHAMFER"], "USB-C window 45 degree corner chamfer")
     P("mdb_x0", p["MDB"][0], "MDB connector x min")
     P("mdb_x1", p["MDB"][1], "MDB connector x max")
     P("mdb_top", p["MDB"][3], "MDB connector top above the board bottom")
@@ -544,7 +545,7 @@ def build(variant):
         feats += [name + " sketch", name]
     for n, side, along_x, first, row in blocks:
         x, y = (first, row) if along_x else (row, first)
-        name = lid_cut("%s screwdriver hole" % n, lambda k, x=x, y=y: k.circle(x, y, "term_w"))
+        name = lid_cut("%s screwdriver hole" % n, lambda k, x=x, y=y: k.circle(x, y, "term_hole"))
         s.cmd("solid.pattern.rectangular", features=[name], dir1=[1, 0, 0] if along_x else [0, 1, 0],
               count1=3, spacing1="term_pitch", name="%s screwdriver holes" % n)
         feats += [name + " sketch", name, "%s screwdriver holes" % n]

@@ -272,7 +272,8 @@ def build(variant):
                 bosses.append((bx, by, sy))
 
     d.section("Terminals")
-    TERM_W = P("TermW", p["TERM_W"], "wire window width / lid hole diameter")
+    TERM_W = P("TermW", p["TERM_W"], "wire window width")
+    TERM_HOLE = P("TermHole", p["TERM_HOLE"], "lid screwdriver hole diameter")
     PITCH = P("TermPitch", 5.08, "pole pitch")
     WIRE_Z0 = P("WireZ0", p["WIRE_Z"][0], "wire window bottom, above board bottom")
     WIRE_Z1 = P("WireZ1", p["WIRE_Z"][1], "wire window top, above board bottom")
@@ -290,9 +291,9 @@ def build(variant):
     d.section("Connectors")
     USB_Y = P("UsbY", p["USB_C"][0], "USB-C centre y")
     USB_Z = P("UsbZ", p["USB_C"][1], "USB-C centre z above board bottom")
-    USB_W = P("UsbW", 12.8, "USB-C window width")
-    USB_H = P("UsbH", 7.2, "USB-C window height")
-    USB_CH = P("UsbChamfer", 1.4, "USB-C window 45 deg corner chamfer")
+    USB_W = P("UsbW", p["USB_W"], "USB-C window width")
+    USB_H = P("UsbH", p["USB_H"], "USB-C window height")
+    USB_CH = P("UsbChamfer", p["USB_CHAMFER"], "USB-C window 45 deg corner chamfer")
     MDB_X0 = P("MdbX0", p["MDB"][0], "MDB connector x min")
     MDB_X1 = P("MdbX1", p["MDB"][1], "MDB connector x max")
     MDB_Z1 = P("MdbZ1", p["MDB"][3], "MDB connector top above board bottom")
@@ -543,7 +544,7 @@ def build(variant):
         for i in range(3):
             a = "(%s + %d * %s)" % (first, i, PITCH)
             x, y = (a, other) if axis == "x" else (other, a)
-            lcuts.append(d.cyl("%s hole %d" % (n, i + 1), x, y, "%s / 2" % TERM_W, top0, top1, g))
+            lcuts.append(d.cyl("%s hole %d" % (n, i + 1), x, y, "%s / 2" % TERM_HOLE, top0, top1, g))
     g = d.folder("LED window", lcut_g)
     for i, (lx, ly) in enumerate(led):
         lcuts.append(d.cyl("LED %d" % (i + 1), lx, ly, "%s / 2" % LED_D, top0, top1, g))
