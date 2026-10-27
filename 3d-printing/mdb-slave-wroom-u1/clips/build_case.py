@@ -71,7 +71,9 @@ for yf in (-13.75, 2.74):                                 # P8 P9 (east)
 WIRE_Z = (3.08 - 0.6, 9.32 + 0.6)                         # wire entry height, board frame
 
 MDB = (10.04, 24.04, -1.9, 12.3)                          # x0 x1 z0 z1 (board frame)
-USB_C = (0.38, 2.78)                                      # centre y, z (board frame)
+USB_C = (0.38, 3.33)                                      # centre y, z (board frame) of the receptacle
+# mouth (z 1.75..4.91 at the front face). 2.78 was the bbox centre, pulled down by the legs
+# below the board: the printed window sat 0.55 mm low.
 # The receptacle face is 0.18 mm inside the wall and a plug overmould starts >= 6 mm behind the
 # shell tip, so only the 8.25 x 2.4 plug shell passes the 2 mm wall: the window clears the
 # 8.94 x 3.26 receptacle by ~0.5 mm all round (12.8 x 7.2 looked oversized on the print).
