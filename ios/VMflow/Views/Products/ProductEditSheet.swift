@@ -22,13 +22,14 @@ struct ProductEditSheet: View {
 
     // Image picker / camera
     @State private var selectedPhoto: PhotosPickerItem?
-    @State private var isUploadingImage = false
     @State private var showCamera = false
-    /// Photo taken or picked in this sheet, shown as the preview. An existing
-    /// product uploads it right away; a new product has no id yet, so it is
-    /// held here and uploaded right after create (same as pending barcodes).
+    /// Photo taken or picked in this sheet, shown as the preview. Nothing is
+    /// uploaded before Save: Cancel must leave the product as it was. A new
+    /// product is uploaded right after create (same as pending barcodes).
     @State private var localImage: UIImage?
     @State private var pendingImageData: Data?
+    /// "Remove" on the saved image, applied on Save.
+    @State private var removeImageOnSave = false
 
     // Image search
     @State private var suggestedImages: [ProductsViewModel.SuggestedImage] = []
@@ -285,17 +286,12 @@ struct ProductEditSheet: View {
                     }
                     .font(.caption)
                 } else {
-                    ProductImage(imagePath: product?.imagePath, size: 100)
+                    ProductImage(imagePath: removeImageOnSave ? nil : product?.imagePath, size: 100)
                 }
 
                 // Equal-width tiles, icon above a one-line title: three
                 // icon+text labels side by side wrapped into word fragments
                 HStack(spacing: 8) { imageButtons }
-
-                if isUploadingImage {
-                    ProgressView("Uploading...")
-                        .font(.caption)
-                }
             }
             Spacer()
         }
@@ -317,47 +313,38 @@ struct ProductEditSheet: View {
             imageActionLabel(hasImage ? "Change" : "Upload", systemImage: "photo")
         }
         .buttonStyle(.bordered)
-        .disabled(isUploadingImage)
 
         if UIImagePickerController.isSourceTypeAvailable(.camera) {
             Button {
                 showCamera = true
             } label: {
-                imageActionLabel("Take Photo", systemImage: "camera")
+                imageActionLabel("Camera", systemImage: "camera")
             }
             .buttonStyle(.bordered)
-            .disabled(isUploadingImage)
         }
 
-        if isNew && localImage != nil {
+        if localImage != nil || (product?.imagePath != nil && !removeImageOnSave && selectedThumbnailUrl == nil) {
             Button(role: .destructive) {
-                localImage = nil
-                pendingImageData = nil
-            } label: {
-                imageActionLabel("Remove", systemImage: "trash")
-            }
-            .buttonStyle(.bordered)
-        } else if product?.imagePath != nil && selectedThumbnailUrl == nil {
-            Button(role: .destructive) {
-                Task {
-                    guard let prod = product, let path = prod.imagePath else { return }
-                    isUploadingImage = true
-                    await onDeleteImage(prod.id, path)
+                if localImage != nil {
+                    // Drop the unsaved photo; the saved image stays
                     localImage = nil
-                    isUploadingImage = false
+                    pendingImageData = nil
+                } else {
+                    removeImageOnSave = true
                 }
             } label: {
                 imageActionLabel("Remove", systemImage: "trash")
             }
             .buttonStyle(.bordered)
-            .disabled(isUploadingImage)
         }
     }
 
     private func imageActionLabel(_ title: LocalizedStringKey, systemImage: String) -> some View {
         VStack(spacing: 4) {
+            // Fixed height: the trash glyph is taller and pushed its tile down
             Image(systemName: systemImage)
                 .font(.body)
+                .frame(height: 22)
             Text(title)
                 .font(.caption)
                 .lineLimit(1)
@@ -668,6 +655,7 @@ struct ProductEditSheet: View {
         let price = Double(priceText.replacingOccurrences(of: ",", with: "."))
         let suggestedUrl = selectedSuggestedImageUrl
         let imageToUpload = pendingImageData
+        let removeImage = removeImageOnSave
         let barcodesToSave = pendingBarcodes
         let pricesToSave = pendingPurchasePrices
 
@@ -694,12 +682,14 @@ struct ProductEditSheet: View {
                 }
             }
 
-            // Photo taken / picked before the product existed
+            // Image changes only land here, on Save
             if let imageToUpload, let productId {
                 await onUploadImage(productId, imageToUpload)
             } else if let imageUrl = suggestedUrl, let productId {
                 // If a suggested image was selected, download and upload it
                 await viewModel.downloadAndUploadImage(productId: productId, imageUrl: imageUrl)
+            } else if removeImage, let product, let path = product.imagePath {
+                await onDeleteImage(product.id, path)
             }
 
             isSaving = false
@@ -708,7 +698,7 @@ struct ProductEditSheet: View {
     }
 
     private var hasImage: Bool {
-        localImage != nil || product?.imagePath != nil
+        localImage != nil || (product?.imagePath != nil && !removeImageOnSave)
     }
 
     private func handleImageSelection(_ item: PhotosPickerItem) async {
@@ -723,22 +713,16 @@ struct ProductEditSheet: View {
         selectedPhoto = nil
     }
 
-    /// Takes a photo from the camera or the library: shows it, then uploads it
-    /// (existing product) or keeps it for the upload after create (new product).
+    /// Takes a photo from the camera or the library: shows it and keeps it for
+    /// the upload on Save.
     private func useLocalImage(_ image: UIImage) async {
         guard let data = Self.productImageData(from: image) else { return }
         // An own photo replaces any suggested image selection
         selectedSuggestedImageUrl = nil
         selectedThumbnailUrl = nil
         localImage = image
-
-        guard let product else {
-            pendingImageData = data
-            return
-        }
-        isUploadingImage = true
-        await onUploadImage(product.id, data)
-        isUploadingImage = false
+        pendingImageData = data
+        removeImageOnSave = false
     }
 
     /// Scales down and re-encodes as JPEG. A camera photo is 12+ MP and several

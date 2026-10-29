@@ -26,7 +26,6 @@ data class ProductsUiState(
     /** Bumped per product when its image was replaced, see `ProductImage.cacheKey`. */
     val imageVersions: Map<String, Long> = emptyMap(),
     val isSaving: Boolean = false,
-    val isUploadingImage: Boolean = false,
     val error: String? = null
 ) {
     val filteredProducts: List<Product>
@@ -83,9 +82,11 @@ class ProductsViewModel : ViewModel() {
     fun clearError() = _uiState.update { it.copy(error = null) }
 
     /**
-     * Creates ([existing] == null) or updates a product. For a new product the
-     * photo and barcodes collected in the sheet are written right after the
-     * insert. [onDone] gets the product id on success, null on failure.
+     * Creates ([existing] == null) or updates a product. The sheet's image
+     * change ([pendingPhoto] or [removeImage]) is applied here for every
+     * product, so nothing reaches storage before Save; a new product's
+     * barcodes are written right after the insert. [onDone] gets the product
+     * id on success, null on failure.
      */
     fun saveProduct(
         existing: Product?,
@@ -94,6 +95,7 @@ class ProductsViewModel : ViewModel() {
         categoryId: String?,
         discontinued: Boolean,
         pendingPhoto: ByteArray?,
+        removeImage: Boolean,
         pendingBarcodes: List<String>,
         onDone: (String?) -> Unit
     ) {
@@ -121,8 +123,14 @@ class ProductsViewModel : ViewModel() {
                             .onFailure { e -> fail(e) }
                     }
                 }
+            }
+
+            if (productId != null) {
+                val previousPath = existing?.imagePath
                 if (pendingPhoto != null) {
                     ProductRepository.uploadImage(productId, pendingPhoto).onFailure { e -> fail(e) }
+                } else if (removeImage && previousPath != null) {
+                    ProductRepository.deleteImage(productId, previousPath).onFailure { e -> fail(e) }
                 }
             }
 
@@ -130,39 +138,6 @@ class ProductsViewModel : ViewModel() {
             if (productId != null) bumpImageVersion(productId)
             _uiState.update { it.copy(isSaving = false) }
             onDone(productId)
-        }
-    }
-
-    /** Existing product: the photo goes up immediately (same as iOS). */
-    fun uploadImage(productId: String, jpeg: ByteArray) {
-        viewModelScope.launch {
-            _uiState.update { it.copy(isUploadingImage = true) }
-            ProductRepository.uploadImage(productId, jpeg).fold(
-                onSuccess = { path ->
-                    _uiState.update { s ->
-                        s.copy(products = s.products.map { if (it.id == productId) it.copy(imagePath = path) else it })
-                    }
-                    bumpImageVersion(productId)
-                },
-                onFailure = { e -> fail(e) }
-            )
-            _uiState.update { it.copy(isUploadingImage = false) }
-        }
-    }
-
-    fun deleteImage(product: Product) {
-        val path = product.imagePath ?: return
-        viewModelScope.launch {
-            _uiState.update { it.copy(isUploadingImage = true) }
-            ProductRepository.deleteImage(product.id, path).fold(
-                onSuccess = {
-                    _uiState.update { s ->
-                        s.copy(products = s.products.map { if (it.id == product.id) it.copy(imagePath = null) else it })
-                    }
-                },
-                onFailure = { e -> fail(e) }
-            )
-            _uiState.update { it.copy(isUploadingImage = false) }
         }
     }
 

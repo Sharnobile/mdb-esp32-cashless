@@ -22794,24 +22794,24 @@
         }
       }
     },
-    "Take Photo": {
+    "Camera": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Foto aufnehmen"
+            "value": "Kamera"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Prendre une photo"
+            "value": "Caméra"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Foto maken"
+            "value": "Camera"
           }
         }
       }

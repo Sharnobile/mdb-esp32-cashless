@@ -78,8 +78,10 @@ import xyz.vmflow.ui.warehouse.WAREHOUSE_BARCODE_FORMATS
  *
  * Built for the "standing in front of a new product" case: a photo and
  * barcodes can be added before the product exists — they are kept here and
- * written right after the insert ([ProductsViewModel.saveProduct]). For an
- * existing product they are written immediately, like on iOS.
+ * written right after the insert ([ProductsViewModel.saveProduct]). Image
+ * changes (new photo, remove) only land on Save for an existing product too,
+ * so Cancel leaves it untouched; barcodes of an existing product are written
+ * immediately, like on iOS.
  *
  * [productId] null = new product. [initialBarcode] pre-fills a new product
  * from a scan that matched nothing (warehouse intake); the name is then
@@ -106,9 +108,11 @@ fun ProductEditSheet(
     var categoryId by remember { mutableStateOf(product?.category) }
     var discontinued by remember { mutableStateOf(product?.discontinued ?: false) }
 
-    /** Photo taken / picked in this sheet — the preview; for a new product also the pending upload. */
+    /** Photo taken / picked in this sheet — the preview and the upload on Save. */
     var localPreview by remember { mutableStateOf<Bitmap?>(null) }
     var pendingPhoto by remember { mutableStateOf<ByteArray?>(null) }
+    /** "Remove" on the saved image, applied on Save. */
+    var removeImageOnSave by remember { mutableStateOf(false) }
     var isProcessingPhoto by remember { mutableStateOf(false) }
 
     var barcodes by remember { mutableStateOf<List<ProductBarcode>>(emptyList()) }
@@ -136,7 +140,8 @@ fun ProductEditSheet(
                 return@launch
             }
             localPreview = photo.preview
-            if (productId == null) pendingPhoto = photo.jpeg else viewModel.uploadImage(productId, photo.jpeg)
+            pendingPhoto = photo.jpeg
+            removeImageOnSave = false
         }
     }
 
@@ -178,8 +183,8 @@ fun ProductEditSheet(
 
     val priceValid = ProductEditLogic.isPriceValid(priceText)
     val canSave = name.isNotBlank() && priceValid && !uiState.isSaving && !isProcessingPhoto
-    val busyWithImage = uiState.isUploadingImage || isProcessingPhoto
-    val hasImage = localPreview != null || product?.imagePath != null
+    val busyWithImage = isProcessingPhoto
+    val hasImage = localPreview != null || (product?.imagePath != null && !removeImageOnSave)
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
         Column(
@@ -208,6 +213,7 @@ fun ProductEditSheet(
                             categoryId = categoryId,
                             discontinued = discontinued,
                             pendingPhoto = pendingPhoto,
+                            removeImage = removeImageOnSave,
                             pendingBarcodes = pendingBarcodes.toList()
                         ) { savedId ->
                             if (savedId != null) {
@@ -248,7 +254,7 @@ fun ProductEditSheet(
                     )
                 } else {
                     ProductImage(
-                        imagePath = product?.imagePath,
+                        imagePath = if (removeImageOnSave) null else product?.imagePath,
                         contentDescription = null,
                         size = 96.dp,
                         cacheKey = product?.id?.let { uiState.imageVersions[it] }
@@ -282,12 +288,12 @@ fun ProductEditSheet(
                         TextButton(
                             enabled = !busyWithImage,
                             onClick = {
-                                if (isNew) {
+                                if (localPreview != null) {
+                                    // Drop the unsaved photo; the saved image stays
                                     localPreview = null
                                     pendingPhoto = null
-                                } else if (product != null) {
-                                    localPreview = null
-                                    viewModel.deleteImage(product)
+                                } else {
+                                    removeImageOnSave = true
                                 }
                             }
                         ) {
