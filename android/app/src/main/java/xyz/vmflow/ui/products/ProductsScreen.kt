@@ -63,7 +63,9 @@ fun ProductsScreen(viewModel: ProductsViewModel = viewModel()) {
     /** null = no sheet, [NEW_PRODUCT] = new product, else the product id. */
     var sheetProductId by remember { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(uiState.error) {
+    // While the sheet is open it shows the error itself (this snackbar would be behind it).
+    LaunchedEffect(uiState.error, sheetProductId) {
+        if (sheetProductId != null) return@LaunchedEffect
         uiState.error?.let {
             snackbarHostState.showSnackbar(it)
             viewModel.clearError()

@@ -59,12 +59,26 @@ suspend fun loadProductPhoto(context: Context, uri: Uri): ProductPhoto? = withCo
     }.getOrNull()
 }
 
+/** File the camera app writes the shot into; one fixed file in the cache. */
+fun productCaptureFile(context: Context): File =
+    File(File(context.cacheDir, "product_photos").apply { mkdirs() }, "capture.jpg")
+
 /**
- * Content URI the camera app writes the shot into (`TakePicture` needs one).
- * One fixed file in the cache: it is read right after capture, then unused.
+ * Content URI for [productCaptureFile] (`TakePicture` needs one). Deletes the
+ * previous shot first, so that afterwards a non-empty file can only be the
+ * new one — see [capturedPhotoAvailable].
  */
 fun productCaptureUri(context: Context): Uri {
-    val dir = File(context.cacheDir, "product_photos").apply { mkdirs() }
-    val file = File(dir, "capture.jpg")
+    val file = productCaptureFile(context)
+    file.delete()
     return FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
 }
+
+/**
+ * Whether the camera app delivered a shot. Not every camera app reports
+ * success: LineageOS' Aperture writes the photo but returns no RESULT_OK, so
+ * `TakePicture` says `false` and the photo was silently dropped. The file
+ * itself is the reliable signal.
+ */
+fun capturedPhotoAvailable(context: Context, reportedSaved: Boolean): Boolean =
+    reportedSaved || productCaptureFile(context).length() > 0

@@ -245,10 +245,15 @@ fun WarehouseScreen(viewModel: WarehouseViewModel = viewModel()) {
             viewModel = productsViewModel,
             productId = null,
             initialBarcode = newProductBarcode,
-            onDismiss = { createProductBarcode = null },
+            onDismiss = {
+                createProductBarcode = null
+                productsViewModel.clearError()
+            },
             onSaved = { productId ->
                 createdProductId = productId
                 viewModel.reloadProducts()
+                // e.g. the photo upload failed after the product was created
+                productsViewModel.uiState.value.error?.let(viewModel::showNotice)
             }
         )
     }

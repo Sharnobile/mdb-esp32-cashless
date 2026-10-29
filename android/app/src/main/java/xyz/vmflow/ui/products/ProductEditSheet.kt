@@ -126,6 +126,7 @@ fun ProductEditSheet(
     }
 
     fun usePhoto(uri: Uri) {
+        viewModel.clearError()
         scope.launch {
             isProcessingPhoto = true
             val photo = loadProductPhoto(context, uri)
@@ -142,7 +143,7 @@ fun ProductEditSheet(
     var captureUri by remember { mutableStateOf<Uri?>(null) }
     val takePicture = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { saved ->
         val uri = captureUri
-        if (saved && uri != null) usePhoto(uri)
+        if (uri != null && capturedPhotoAvailable(context, saved)) usePhoto(uri)
     }
     fun launchCamera() {
         val uri = productCaptureUri(context)
@@ -159,6 +160,7 @@ fun ProductEditSheet(
     }
 
     fun addBarcode(raw: String) {
+        viewModel.clearError()
         val code = raw.trim()
         if (code.isEmpty()) return
         if (barcodes.any { it.barcode == code } || code in pendingBarcodes) {
@@ -221,6 +223,15 @@ fun ProductEditSheet(
                         Text(stringResource(R.string.action_save))
                     }
                 }
+            }
+
+            // The list's snackbar sits behind this sheet, so errors show here.
+            uiState.error?.let { message ->
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error
+                )
             }
 
             // ── Image ──

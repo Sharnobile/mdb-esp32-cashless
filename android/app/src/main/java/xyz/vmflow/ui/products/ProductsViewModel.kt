@@ -1,5 +1,6 @@
 package xyz.vmflow.ui.products
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.coroutineScope
@@ -214,5 +215,12 @@ class ProductsViewModel : ViewModel() {
         it.copy(imageVersions = it.imageVersions + (productId to System.currentTimeMillis()))
     }
 
-    private fun fail(e: Throwable) = _uiState.update { it.copy(error = e.message) }
+    private fun fail(e: Throwable) {
+        Log.w(TAG, "Product operation failed", e)
+        _uiState.update { it.copy(error = e.message ?: e.toString()) }
+    }
+
+    private companion object {
+        const val TAG = "ProductsViewModel"
+    }
 }
