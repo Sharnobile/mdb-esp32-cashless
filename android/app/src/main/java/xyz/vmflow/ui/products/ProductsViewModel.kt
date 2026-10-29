@@ -66,6 +66,11 @@ class ProductsViewModel : ViewModel() {
         }
     }
 
+    /** Each visit of the tab: products and images may have changed on another device. */
+    fun refresh() {
+        viewModelScope.launch { loadProducts() }
+    }
+
     private suspend fun loadProducts() {
         ProductRepository.fetchProducts().fold(
             onSuccess = { p -> _uiState.update { it.copy(products = p) } },

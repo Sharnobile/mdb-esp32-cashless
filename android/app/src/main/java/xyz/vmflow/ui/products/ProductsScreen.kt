@@ -63,6 +63,10 @@ fun ProductsScreen(viewModel: ProductsViewModel = viewModel()) {
     /** null = no sheet, [NEW_PRODUCT] = new product, else the product id. */
     var sheetProductId by remember { mutableStateOf<String?>(null) }
 
+    // The view model outlives tab switches, so without this a product edited
+    // on another device (e.g. a photo taken on the iPhone) never showed up.
+    LaunchedEffect(Unit) { viewModel.refresh() }
+
     // While the sheet is open it shows the error itself (this snackbar would be behind it).
     LaunchedEffect(uiState.error, sheetProductId) {
         if (sheetProductId != null) return@LaunchedEffect

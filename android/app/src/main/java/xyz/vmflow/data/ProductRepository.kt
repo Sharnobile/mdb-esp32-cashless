@@ -50,10 +50,13 @@ private data class ProductBarcodeInsert(
 @Serializable
 private data class InsertedProductIdRow(val id: String)
 
+@Serializable
+private data class ImagePathRow(@SerialName("image_path") val imagePath: String? = null)
+
 /**
  * Product catalogue CRUD for the Products tab and the "new product" flow of
  * the warehouse intake. Mirrors iOS `ProductsViewModel.swift` (same tables,
- * columns, storage path `{product_id}.jpg` in `product-images`).
+ * columns; images go to `product-images` as `{product_id}-{ms}.jpg`, see [uploadImage]).
  */
 object ProductRepository {
     private const val IMAGE_BUCKET = "product-images"
@@ -121,15 +124,36 @@ object ProductRepository {
         Unit
     }
 
-    /** Uploads (upsert) a JPEG as `{id}.jpg` and points `image_path` at it. Returns the path. */
+    /**
+     * Uploads a JPEG under a new name (`{id}-{ms}.jpg`), points `image_path`
+     * at it and removes the previous object. A fixed `{id}.jpg` that is
+     * overwritten keeps its URL, and storage serves public objects with
+     * `Cache-Control: max-age=3600` — Coil here and URLSession on iOS kept
+     * showing the old picture. Same scheme as iOS `uploadProductImage`.
+     * Returns the new path.
+     */
     suspend fun uploadImage(productId: String, jpeg: ByteArray): Result<String> = runCatching {
-        val path = "$productId.jpg"
+        val previousPath = runCatching {
+            postgrest.from("products")
+                .select(Columns.raw("image_path")) {
+                    filter { eq("id", productId) }
+                    limit(1)
+                }
+                .decodeList<ImagePathRow>()
+                .firstOrNull()?.imagePath
+        }.getOrNull()
+
+        val path = "$productId-${System.currentTimeMillis()}.jpg"
         storage.from(IMAGE_BUCKET).upload(path, jpeg) {
             upsert = true
             contentType = ContentType.Image.JPEG
         }
         postgrest.from("products").update({ set("image_path", path) }) {
             filter { eq("id", productId) }
+        }
+        // Best effort: the product already points at the new file.
+        if (!previousPath.isNullOrEmpty() && previousPath != path) {
+            runCatching { storage.from(IMAGE_BUCKET).delete(listOf(previousPath)) }
         }
         path
     }

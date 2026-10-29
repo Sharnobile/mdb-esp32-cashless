@@ -290,20 +290,49 @@ final class ProductsViewModel: ObservableObject {
     // MARK: - Image Management
 
     /// Uploads a product image to the `product-images` storage bucket and updates the product's image_path.
+    ///
+    /// Every upload gets a new object name (`{id}-{ms}.{ext}`) and the previous
+    /// object is removed afterwards. Overwriting one fixed `{id}.jpg` left every
+    /// client showing the old picture: storage serves public objects with
+    /// `Cache-Control: max-age=3600`, so URLSession here and Coil on Android
+    /// kept their cached copy of the unchanged URL for up to an hour.
     func uploadProductImage(productId: UUID, imageData: Data, fileExtension: String = "jpg") async {
         isSaving = true
         error = nil
 
-        let path = "\(productId.uuidString).\(fileExtension)"
+        let stamp = Int(Date().timeIntervalSince1970 * 1000)
+        let path = "\(productId.uuidString.lowercased())-\(stamp).\(fileExtension)"
+        let contentType: String = switch fileExtension {
+        case "png": "image/png"
+        case "webp": "image/webp"
+        default: "image/jpeg"
+        }
 
         do {
-            // Upload to storage (upsert = overwrite if exists)
+            // Read the current path from the DB, not from `products`: the
+            // product detail sheet calls this on a view model that may not
+            // have loaded the list.
+            struct ImagePathRow: Decodable {
+                let imagePath: String?
+                enum CodingKeys: String, CodingKey { case imagePath = "image_path" }
+            }
+            var previousPath: String?
+            if let rows: [ImagePathRow] = try? await client
+                .from("products")
+                .select("image_path")
+                .eq("id", value: productId.uuidString)
+                .limit(1)
+                .execute()
+                .value {
+                previousPath = rows.first?.imagePath
+            }
+
             try await client.storage
                 .from("product-images")
                 .upload(
                     path: path,
                     file: imageData,
-                    options: FileOptions(contentType: "image/jpeg", upsert: true)
+                    options: FileOptions(contentType: contentType, upsert: true)
                 )
 
             // Update product's image_path
@@ -312,6 +341,11 @@ final class ProductsViewModel: ObservableObject {
                 .update(["image_path": path])
                 .eq("id", value: productId.uuidString)
                 .execute()
+
+            // Best effort: the product already points at the new file.
+            if let previousPath, !previousPath.isEmpty, previousPath != path {
+                _ = try? await client.storage.from("product-images").remove(paths: [previousPath])
+            }
 
             await loadProducts()
         } catch is CancellationError {
