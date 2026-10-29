@@ -20,9 +20,15 @@ struct ProductEditSheet: View {
     @State private var isSaving = false
     @State private var showDeleteConfirm = false
 
-    // Image picker
+    // Image picker / camera
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var isUploadingImage = false
+    @State private var showCamera = false
+    /// Photo taken or picked in this sheet, shown as the preview. An existing
+    /// product uploads it right away; a new product has no id yet, so it is
+    /// held here and uploaded right after create (same as pending barcodes).
+    @State private var localImage: UIImage?
+    @State private var pendingImageData: Data?
 
     // Image search
     @State private var suggestedImages: [ProductsViewModel.SuggestedImage] = []
@@ -174,12 +180,15 @@ struct ProductEditSheet: View {
             }
             .onChange(of: selectedPhoto) { _, newItem in
                 guard let newItem else { return }
-                // Manual photo pick clears any suggested image selection
-                selectedSuggestedImageUrl = nil
-                selectedThumbnailUrl = nil
                 Task {
                     await handleImageSelection(newItem)
                 }
+            }
+            .fullScreenCover(isPresented: $showCamera) {
+                CameraCaptureView { image in
+                    Task { await useLocalImage(image) }
+                }
+                .ignoresSafeArea()
             }
             .onChange(of: name) { _, _ in
                 triggerImageSearch()
@@ -250,7 +259,14 @@ struct ProductEditSheet: View {
         HStack {
             Spacer()
             VStack(spacing: 12) {
-                if let thumbUrl = selectedThumbnailUrl, let url = URL(string: thumbUrl) {
+                if let localImage {
+                    // Photo just taken / picked (uploaded, or pending until save)
+                    Image(uiImage: localImage)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 100, height: 100)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                } else if let thumbUrl = selectedThumbnailUrl, let url = URL(string: thumbUrl) {
                     // Show selected suggested image preview
                     AsyncImage(url: url) { phase in
                         switch phase {
@@ -272,36 +288,10 @@ struct ProductEditSheet: View {
                     ProductImage(imagePath: product?.imagePath, size: 100)
                 }
 
-                HStack(spacing: 16) {
-                    PhotosPicker(
-                        selection: $selectedPhoto,
-                        matching: .images,
-                        photoLibrary: .shared()
-                    ) {
-                        Label(
-                            product?.imagePath != nil ? "Change" : "Upload",
-                            systemImage: "photo"
-                        )
-                        .font(.subheadline)
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(isNew || isUploadingImage)
-
-                    if product?.imagePath != nil && selectedThumbnailUrl == nil {
-                        Button(role: .destructive) {
-                            Task {
-                                guard let prod = product, let path = prod.imagePath else { return }
-                                isUploadingImage = true
-                                await onDeleteImage(prod.id, path)
-                                isUploadingImage = false
-                            }
-                        } label: {
-                            Label("Remove", systemImage: "trash")
-                                .font(.subheadline)
-                        }
-                        .buttonStyle(.bordered)
-                        .disabled(isUploadingImage)
-                    }
+                // Side by side when it fits, stacked on narrow phones / large text
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 12) { imageButtons }
+                    VStack(spacing: 8) { imageButtons }
                 }
 
                 if isUploadingImage {
@@ -317,6 +307,62 @@ struct ProductEditSheet: View {
         suggestedImagesSection
     }
 
+    /// Library / camera / remove. A new product can take a photo too: it is
+    /// uploaded right after create.
+    @ViewBuilder
+    private var imageButtons: some View {
+        PhotosPicker(
+            selection: $selectedPhoto,
+            matching: .images,
+            photoLibrary: .shared()
+        ) {
+            Label(
+                hasImage ? "Change" : "Upload",
+                systemImage: "photo"
+            )
+            .font(.subheadline)
+        }
+        .buttonStyle(.bordered)
+        .disabled(isUploadingImage)
+
+        if UIImagePickerController.isSourceTypeAvailable(.camera) {
+            Button {
+                showCamera = true
+            } label: {
+                Label("Take Photo", systemImage: "camera")
+                    .font(.subheadline)
+            }
+            .buttonStyle(.bordered)
+            .disabled(isUploadingImage)
+        }
+
+        if isNew && localImage != nil {
+            Button(role: .destructive) {
+                localImage = nil
+                pendingImageData = nil
+            } label: {
+                Label("Remove", systemImage: "trash")
+                    .font(.subheadline)
+            }
+            .buttonStyle(.bordered)
+        } else if product?.imagePath != nil && selectedThumbnailUrl == nil {
+            Button(role: .destructive) {
+                Task {
+                    guard let prod = product, let path = prod.imagePath else { return }
+                    isUploadingImage = true
+                    await onDeleteImage(prod.id, path)
+                    localImage = nil
+                    isUploadingImage = false
+                }
+            } label: {
+                Label("Remove", systemImage: "trash")
+                    .font(.subheadline)
+            }
+            .buttonStyle(.bordered)
+            .disabled(isUploadingImage)
+        }
+    }
+
     // MARK: - Suggested Images
 
     /// True while the name is long enough for the automatic lookup to run. Used
@@ -324,12 +370,13 @@ struct ProductEditSheet: View {
     /// otherwise a too-narrow filter would hide its own off switch.
     private var imageSearchApplicable: Bool {
         product?.imagePath == nil
+            && localImage == nil
             && name.trimmingCharacters(in: .whitespaces).count >= 2
     }
 
     @ViewBuilder
     private var suggestedImagesSection: some View {
-        if imageSearchApplicable || isSearchingImages || !suggestedImages.isEmpty {
+        if localImage == nil, imageSearchApplicable || isSearchingImages || !suggestedImages.isEmpty {
             Toggle(isOn: $foodOnlyImages) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Food products only")
@@ -341,7 +388,10 @@ struct ProductEditSheet: View {
             }
         }
 
-        if isSearchingImages {
+        if localImage != nil {
+            // An own photo wins over web suggestions
+            EmptyView()
+        } else if isSearchingImages {
             HStack(spacing: 8) {
                 ProgressView()
                     .controlSize(.small)
@@ -411,6 +461,8 @@ struct ProductEditSheet: View {
         selectedSuggestedImageUrl = img.image
         selectedThumbnailUrl = img.thumbnail
         selectedPhoto = nil
+        localImage = nil
+        pendingImageData = nil
     }
 
     /// Debounced image search triggered by product name changes.
@@ -611,6 +663,7 @@ struct ProductEditSheet: View {
         let trimmedName = name.trimmingCharacters(in: .whitespaces)
         let price = Double(priceText.replacingOccurrences(of: ",", with: "."))
         let suggestedUrl = selectedSuggestedImageUrl
+        let imageToUpload = pendingImageData
         let barcodesToSave = pendingBarcodes
         let pricesToSave = pendingPurchasePrices
 
@@ -637,8 +690,11 @@ struct ProductEditSheet: View {
                 }
             }
 
-            // If a suggested image was selected, download and upload it
-            if let imageUrl = suggestedUrl, let productId {
+            // Photo taken / picked before the product existed
+            if let imageToUpload, let productId {
+                await onUploadImage(productId, imageToUpload)
+            } else if let imageUrl = suggestedUrl, let productId {
+                // If a suggested image was selected, download and upload it
                 await viewModel.downloadAndUploadImage(productId: productId, imageUrl: imageUrl)
             }
 
@@ -647,19 +703,100 @@ struct ProductEditSheet: View {
         }
     }
 
-    private func handleImageSelection(_ item: PhotosPickerItem) async {
-        guard let product else { return }
+    private var hasImage: Bool {
+        localImage != nil || product?.imagePath != nil
+    }
 
-        isUploadingImage = true
+    private func handleImageSelection(_ item: PhotosPickerItem) async {
         do {
-            if let data = try await item.loadTransferable(type: Data.self) {
-                await onUploadImage(product.id, data)
+            if let data = try await item.loadTransferable(type: Data.self),
+               let image = UIImage(data: data) {
+                await useLocalImage(image)
             }
         } catch {
             print("[ProductEditSheet] Failed to load image: \(error)")
         }
-        isUploadingImage = false
         selectedPhoto = nil
+    }
+
+    /// Takes a photo from the camera or the library: shows it, then uploads it
+    /// (existing product) or keeps it for the upload after create (new product).
+    private func useLocalImage(_ image: UIImage) async {
+        guard let data = Self.productImageData(from: image) else { return }
+        // An own photo replaces any suggested image selection
+        selectedSuggestedImageUrl = nil
+        selectedThumbnailUrl = nil
+        localImage = image
+
+        guard let product else {
+            pendingImageData = data
+            return
+        }
+        isUploadingImage = true
+        await onUploadImage(product.id, data)
+        isUploadingImage = false
+    }
+
+    /// Scales down and re-encodes as JPEG. A camera photo is 12+ MP and several
+    /// MB, over the 2 MiB limit of the `product-images` bucket; a product
+    /// thumbnail never needs more than ~1200 px. Library picks go through the
+    /// same path, so HEIC never gets uploaded with a JPEG content type either.
+    static func productImageData(from image: UIImage, maxDimension: CGFloat = 1200) -> Data? {
+        let longest = max(image.size.width, image.size.height)
+        let scale = longest > maxDimension ? maxDimension / longest : 1
+        let size = CGSize(width: image.size.width * scale, height: image.size.height * scale)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = true
+        // Drawing also bakes in the camera's EXIF orientation
+        let resized = UIGraphicsImageRenderer(size: size, format: format).image { _ in
+            image.draw(in: CGRect(origin: .zero, size: size))
+        }
+        return resized.jpegData(compressionQuality: 0.8)
+    }
+}
+
+/// System camera for taking a product photo directly (e.g. standing in front of
+/// a new product at intake). PhotosPicker only covers the library.
+private struct CameraCaptureView: UIViewControllerRepresentable {
+    let onCapture: (UIImage) -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.sourceType = .camera
+        picker.cameraCaptureMode = .photo
+        picker.delegate = context.coordinator
+        return picker
+    }
+
+    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onCapture: onCapture, onClose: { dismiss() })
+    }
+
+    final class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+        let onCapture: (UIImage) -> Void
+        let onClose: () -> Void
+        init(onCapture: @escaping (UIImage) -> Void, onClose: @escaping () -> Void) {
+            self.onCapture = onCapture
+            self.onClose = onClose
+        }
+
+        func imagePickerController(
+            _ picker: UIImagePickerController,
+            didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]
+        ) {
+            if let image = info[.originalImage] as? UIImage {
+                onCapture(image)
+            }
+            onClose()
+        }
+
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            onClose()
+        }
     }
 }
 
