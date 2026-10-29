@@ -58,7 +58,8 @@ import java.text.NumberFormat
 
 /**
  * Sticky-ish section header above each calendar day's rows, e.g. "Today · 3 entries".
- * [countRes] defaults to the dashboard activity feed's "entries" wording; pass a
+ * With [revenue] and [currencyFormat] set the day's sales total follows the count
+ * ("3 entries · 4,50 €"). [countRes] defaults to the dashboard activity feed's "entries" wording; pass a
  * different `<plurals>` (e.g. `dashboard_sales_count`) for other day-grouped feeds
  * that reuse this same header, like the machine detail Sales tab.
  */
@@ -68,7 +69,10 @@ fun DaySectionHeader(
     count: Int,
     modifier: Modifier = Modifier,
     countRes: Int = R.plurals.dashboard_entries_count,
+    revenue: Double? = null,
+    currencyFormat: NumberFormat? = null,
 ) {
+    val countText = pluralStringResource(countRes, count, count)
     Row(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween,
@@ -79,7 +83,11 @@ fun DaySectionHeader(
             fontWeight = FontWeight.SemiBold,
         )
         Text(
-            text = pluralStringResource(countRes, count, count),
+            text = if (revenue != null && currencyFormat != null) {
+                "$countText · ${currencyFormat.format(revenue)}"
+            } else {
+                countText
+            },
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

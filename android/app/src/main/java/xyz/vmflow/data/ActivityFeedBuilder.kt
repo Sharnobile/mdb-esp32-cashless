@@ -16,7 +16,15 @@ import xyz.vmflow.models.SlotChangeActivity
 import xyz.vmflow.models.TourActivity
 
 /** One calendar day's worth of feed items, newest first. */
-data class FeedDayGroup(val date: LocalDate, val items: List<ActivityFeedItem>)
+data class FeedDayGroup(val date: LocalDate, val items: List<ActivityFeedItem>) {
+    /** Summed revenue (EUR) of the day's sales; null when the day has no sales. */
+    val salesRevenue: Double?
+        get() {
+            val sales = items.filterIsInstance<ActivityFeedItem.Sale>()
+            if (sales.isEmpty()) return null
+            return sales.sumOf { it.sale.sale.itemPrice }
+        }
+}
 
 /**
  * Pure builders for the dashboard timeline — no I/O, so they are unit

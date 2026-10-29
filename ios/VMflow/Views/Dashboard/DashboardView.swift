@@ -567,7 +567,8 @@ extension DashboardView {
                         DaySectionHeader(
                             label: dayLabel(for: group.date),
                             count: group.items.count,
-                            unit: String(localized: "entries")
+                            unit: String(localized: "entries"),
+                            revenue: group.salesRevenue
                         )
                         ForEach(group.items) { item in
                             feedRow(for: item)
@@ -865,6 +866,15 @@ extension DashboardView {
     private struct FeedDayGroup {
         let date: Date
         let items: [ActivityFeedItem]
+
+        /// Summed revenue of the day's sales; nil when the day has no sales.
+        var salesRevenue: Double? {
+            let prices = items.compactMap { item -> Double? in
+                if case .sale(let s) = item { return s.sale.itemPrice ?? 0 }
+                return nil
+            }
+            return prices.isEmpty ? nil : prices.reduce(0, +)
+        }
     }
 
     private func groupFeedItemsByDay(_ items: [ActivityFeedItem]) -> [FeedDayGroup] {
