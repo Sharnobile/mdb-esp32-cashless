@@ -226,6 +226,8 @@ fun DashboardScreen(
                                 DaySectionHeader(
                                     label = dayLabel(group.date, remember { TimeZone.currentSystemDefault() }),
                                     count = group.items.size,
+                                    revenue = group.salesRevenue,
+                                    currencyFormat = currencyFormat,
                                     modifier = SectionPadding,
                                 )
                             }

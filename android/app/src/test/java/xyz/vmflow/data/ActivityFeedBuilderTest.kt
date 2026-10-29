@@ -11,6 +11,8 @@ import xyz.vmflow.models.ActivityLogRow
 import xyz.vmflow.models.IntakeTransactionRow
 import xyz.vmflow.models.NameOnly
 import xyz.vmflow.models.RefillActivity
+import xyz.vmflow.models.Sale
+import xyz.vmflow.models.SaleWithMachine
 
 class ActivityFeedBuilderTest {
 
@@ -226,6 +228,38 @@ class ActivityFeedBuilderTest {
     }
 
     // MARK: - groupByDay (dashboard feed day headers)
+
+    private fun sale(id: String, minutes: Long, price: Double) = ActivityFeedItem.Sale(
+        SaleWithMachine(
+            sale = Sale(id = id, itemPrice = price, createdAt = t(minutes).toString()),
+            machineName = "M1", productName = "Cola", productImagePath = null,
+        )
+    )
+
+    @Test
+    fun `day revenue sums only the sales of the day`() {
+        val refill = ActivityFeedItem.MachineRefilled(
+            RefillActivity(
+                id = "r", createdAt = t(1), machineName = "M1", traysRefilled = 1,
+                totalAdded = 1, userDisplay = null, tourId = null, products = emptyList(),
+            )
+        )
+        val groups = ActivityFeedBuilder.groupByDay(
+            listOf(sale("a", 0, 1.5), refill, sale("b", 2, 2.2)), TimeZone.UTC
+        )
+        assertEquals(3.7, groups.single().salesRevenue!!, 1e-9)
+    }
+
+    @Test
+    fun `day without sales has no revenue`() {
+        val refill = ActivityFeedItem.MachineRefilled(
+            RefillActivity(
+                id = "r", createdAt = t(1), machineName = "M1", traysRefilled = 1,
+                totalAdded = 1, userDisplay = null, tourId = null, products = emptyList(),
+            )
+        )
+        assertEquals(null, ActivityFeedBuilder.groupByDay(listOf(refill), TimeZone.UTC).single().salesRevenue)
+    }
 
     @Test
     fun `items on the same calendar day land in one group`() {

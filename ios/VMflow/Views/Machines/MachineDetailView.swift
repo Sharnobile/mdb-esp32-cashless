@@ -731,6 +731,8 @@ struct DaySectionHeader: View {
     let label: String
     let count: Int
     var unit: String = String(localized: "sales")
+    /// Summed sales revenue (EUR) shown after the count; nil hides it.
+    var revenue: Double? = nil
 
     var body: some View {
         HStack {
@@ -739,6 +741,11 @@ struct DaySectionHeader: View {
             Text("· \(count) \(unit)")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
+            if let revenue {
+                Text("· \(revenue, format: .currency(code: "EUR"))")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
             Spacer()
         }
         .padding(.vertical, 8)
