@@ -877,4 +877,33 @@
         <item quantity="one">%1$d vak toevoegen</item>
         <item quantity="other">%1$d vakken toevoegen</item>
     </plurals>
+
+    <!-- Products tab / product sheet -->
+    <string name="nav_products">Producten</string>
+    <string name="products_search">Producten zoeken</string>
+    <string name="products_show_discontinued">Uit assortiment tonen</string>
+    <string name="products_empty">Nog geen producten</string>
+    <string name="products_add">Product toevoegen</string>
+    <string name="product_new_title">Nieuw product</string>
+    <string name="product_edit_title">Product bewerken</string>
+    <string name="product_name">Productnaam</string>
+    <string name="product_price">Prijs (EUR)</string>
+    <string name="product_price_invalid">Geen geldige prijs</string>
+    <string name="product_category">Categorie</string>
+    <string name="product_category_none">Geen</string>
+    <string name="product_discontinued">Uit assortiment</string>
+    <string name="product_photo_take">Foto maken</string>
+    <string name="product_photo_pick">Foto kiezen</string>
+    <string name="product_photo_remove">Verwijderen</string>
+    <string name="product_photo_uploading">Uploaden…</string>
+    <string name="product_photo_failed">De foto kon niet worden gelezen</string>
+    <string name="product_camera_denied">Voor een foto is cameratoegang nodig</string>
+    <string name="product_barcodes">Barcodes</string>
+    <string name="product_barcode_scan">Barcode scannen</string>
+    <string name="product_barcode_manual">Barcode invoeren</string>
+    <string name="product_barcode_add">Toevoegen</string>
+    <string name="product_barcode_duplicate">Barcode %1$s is al toegevoegd</string>
+    <string name="product_delete">Product verwijderen</string>
+    <string name="product_delete_confirm">“%1$s” verwijderen? Dit kan niet ongedaan worden gemaakt.</string>
+    <string name="warehouse_intake_create_product">Nieuw product aanmaken</string>
 </resources>

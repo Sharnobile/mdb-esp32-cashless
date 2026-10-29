@@ -878,4 +878,33 @@
         <item quantity="one">%1$d Fach hinzufügen</item>
         <item quantity="other">%1$d Fächer hinzufügen</item>
     </plurals>
+
+    <!-- Products tab / product sheet -->
+    <string name="nav_products">Produkte</string>
+    <string name="products_search">Produkte suchen</string>
+    <string name="products_show_discontinued">Ausgelistete anzeigen</string>
+    <string name="products_empty">Noch keine Produkte</string>
+    <string name="products_add">Produkt anlegen</string>
+    <string name="product_new_title">Neues Produkt</string>
+    <string name="product_edit_title">Produkt bearbeiten</string>
+    <string name="product_name">Produktname</string>
+    <string name="product_price">Preis (EUR)</string>
+    <string name="product_price_invalid">Kein gültiger Preis</string>
+    <string name="product_category">Kategorie</string>
+    <string name="product_category_none">Keine</string>
+    <string name="product_discontinued">Ausgelistet</string>
+    <string name="product_photo_take">Foto aufnehmen</string>
+    <string name="product_photo_pick">Foto wählen</string>
+    <string name="product_photo_remove">Entfernen</string>
+    <string name="product_photo_uploading">Wird hochgeladen…</string>
+    <string name="product_photo_failed">Das Foto konnte nicht gelesen werden</string>
+    <string name="product_camera_denied">Für ein Foto wird der Kamerazugriff benötigt</string>
+    <string name="product_barcodes">Barcodes</string>
+    <string name="product_barcode_scan">Barcode scannen</string>
+    <string name="product_barcode_manual">Barcode eingeben</string>
+    <string name="product_barcode_add">Hinzufügen</string>
+    <string name="product_barcode_duplicate">Barcode %1$s ist bereits hinzugefügt</string>
+    <string name="product_delete">Produkt löschen</string>
+    <string name="product_delete_confirm">„%1$s“ löschen? Das kann nicht rückgängig gemacht werden.</string>
+    <string name="warehouse_intake_create_product">Neues Produkt anlegen</string>
 </resources>

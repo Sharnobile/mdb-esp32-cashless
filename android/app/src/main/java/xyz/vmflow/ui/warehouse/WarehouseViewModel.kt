@@ -291,6 +291,16 @@ class WarehouseViewModel : ViewModel() {
         )
     }
 
+    /** After a product was created from the intake: the picker and the stock list need it. */
+    fun reloadProducts() {
+        viewModelScope.launch {
+            coroutineScope {
+                launch { loadProducts() }
+                launch { refreshProductSummaries(_uiState.value.selectedWarehouseId) }
+            }
+        }
+    }
+
     private suspend fun loadProducts() {
         TrayRepository.fetchProducts().fold(
             onSuccess = { products -> _uiState.update { it.copy(products = products) } },

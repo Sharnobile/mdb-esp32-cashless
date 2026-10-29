@@ -29,7 +29,6 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
-import xyz.vmflow.BuildConfig
 import xyz.vmflow.data.MachineAnalysis
 
 /**
@@ -212,7 +211,7 @@ private fun MachineLayoutGridCell(cell: MachineLayoutCell, onClick: () -> Unit) 
         val imagePath = cell.imagePath
         if (!imagePath.isNullOrEmpty()) {
             AsyncImage(
-                model = "${BuildConfig.SUPABASE_URL}/storage/v1/object/public/product-images/$imagePath",
+                model = productImageUrl(imagePath),
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),

@@ -41,6 +41,8 @@ import xyz.vmflow.R
 import xyz.vmflow.data.OrderSuggestion
 import xyz.vmflow.data.PurchaseOrder
 import xyz.vmflow.models.Warehouse
+import xyz.vmflow.ui.products.ProductEditSheet
+import xyz.vmflow.ui.products.ProductsViewModel
 
 /**
  * Warehouse management screen: warehouse picker (only shown when the
@@ -75,6 +77,9 @@ fun WarehouseScreen(viewModel: WarehouseViewModel = viewModel()) {
     var receiveOrderId by remember { mutableStateOf<String?>(null) }
     var cancelCandidate by remember { mutableStateOf<PurchaseOrder?>(null) }
     var showHistory by remember { mutableStateOf(false) }
+    /** Unknown barcode from the intake scan the product sheet is open for. */
+    var createProductBarcode by remember { mutableStateOf<String?>(null) }
+    var createdProductId by remember { mutableStateOf<String?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(uiState.error) {
@@ -223,12 +228,34 @@ fun WarehouseScreen(viewModel: WarehouseViewModel = viewModel()) {
                                 viewModel.lookupBarcode(barcode, onFound, onNotFound)
                             },
                             onCheckDelivery = { order -> receiveOrderId = order.id },
-                            onCancelOrder = { order -> cancelCandidate = order }
+                            onCancelOrder = { order -> cancelCandidate = order },
+                            onCreateProduct = { barcode -> createProductBarcode = barcode },
+                            createdProductId = createdProductId
                         )
                     }
                 }
             }
         }
+    }
+
+    val newProductBarcode = createProductBarcode
+    if (newProductBarcode != null) {
+        val productsViewModel: ProductsViewModel = viewModel()
+        ProductEditSheet(
+            viewModel = productsViewModel,
+            productId = null,
+            initialBarcode = newProductBarcode,
+            onDismiss = {
+                createProductBarcode = null
+                productsViewModel.clearError()
+            },
+            onSaved = { productId ->
+                createdProductId = productId
+                viewModel.reloadProducts()
+                // e.g. the photo upload failed after the product was created
+                productsViewModel.uiState.value.error?.let(viewModel::showNotice)
+            }
+        )
     }
 
     val openProductId = drilldownProductId

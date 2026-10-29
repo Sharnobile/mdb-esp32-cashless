@@ -68,7 +68,7 @@ import java.time.format.FormatStyle
 import java.util.Locale
 
 /** MDB barcode formats a delivery label is realistically printed in — mirrors Task 8's brief for the warehouse scanner. */
-private val WAREHOUSE_BARCODE_FORMATS = setOf(
+internal val WAREHOUSE_BARCODE_FORMATS = setOf(
     Barcode.FORMAT_EAN_13,
     Barcode.FORMAT_EAN_8,
     Barcode.FORMAT_UPC_A,
@@ -108,6 +108,10 @@ fun WarehouseIntakeTab(
     /** Opens the receive sheet of an expected delivery (open purchase order). */
     onCheckDelivery: (xyz.vmflow.data.PurchaseOrder) -> Unit = {},
     onCancelOrder: (xyz.vmflow.data.PurchaseOrder) -> Unit = {},
+    /** A scanned barcode matched no product: create one for it (opens the product sheet). */
+    onCreateProduct: (barcode: String) -> Unit = {},
+    /** Set once a product created via [onCreateProduct] is saved — selected in the form. */
+    createdProductId: String? = null,
 ) {
     var selectedProductId by remember { mutableStateOf<String?>(null) }
     var productSearchText by remember { mutableStateOf("") }
@@ -117,6 +121,7 @@ fun WarehouseIntakeTab(
     var supplierName by remember { mutableStateOf("") }
     var showScanner by remember { mutableStateOf(false) }
     var barcodeNotFound by remember { mutableStateOf(false) }
+    var lastScannedCode by remember { mutableStateOf<String?>(null) }
     var lastSeenBookedTick by remember { mutableStateOf(uiState.intakeBookedTick) }
 
     val selectedProduct = uiState.products.firstOrNull { it.id == selectedProductId }
@@ -142,6 +147,13 @@ fun WarehouseIntakeTab(
             supplierName = ""
             barcodeNotFound = false
             lastSeenBookedTick = uiState.intakeBookedTick
+        }
+    }
+
+    LaunchedEffect(createdProductId) {
+        if (createdProductId != null) {
+            selectedProductId = createdProductId
+            barcodeNotFound = false
         }
     }
 
@@ -211,6 +223,18 @@ fun WarehouseIntakeTab(
                         color = MaterialTheme.colorScheme.error,
                         modifier = Modifier.padding(top = 4.dp)
                     )
+                    // Usually a brand-new product the refiller is holding:
+                    // create it right here, barcode pre-filled, photo on the spot.
+                    lastScannedCode?.let { code ->
+                        Button(
+                            onClick = { onCreateProduct(code) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 4.dp)
+                        ) {
+                            Text(stringResource(R.string.warehouse_intake_create_product))
+                        }
+                    }
                 }
             }
         }
@@ -319,6 +343,7 @@ fun WarehouseIntakeTab(
         QrScannerSheet(
             onResult = { code ->
                 showScanner = false
+                lastScannedCode = code
                 onLookupBarcode(
                     code,
                     { productId ->

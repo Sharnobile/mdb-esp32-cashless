@@ -3,10 +3,12 @@ package xyz.vmflow.ui.navigation
 import androidx.annotation.StringRes
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Dashboard
+import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material.icons.filled.Warehouse
 import androidx.compose.material.icons.outlined.Dashboard
+import androidx.compose.material.icons.outlined.Category
 import androidx.compose.material.icons.outlined.Inventory2
 import androidx.compose.material.icons.outlined.Storefront
 import androidx.compose.material.icons.outlined.Warehouse
@@ -18,7 +20,7 @@ import xyz.vmflow.Routes
  * The destinations reachable from the navigation bar / rail.
  *
  * Declaration order is display order. Material allows at most five
- * entries; Dashboard, Machines, Refill, Warehouse currently use 4 of them.
+ * entries; Dashboard, Machines, Refill, Warehouse, Products use all five.
  */
 enum class TopLevelDestination(
     val route: String,
@@ -49,6 +51,12 @@ enum class TopLevelDestination(
         labelRes = R.string.nav_warehouse,
         selectedIcon = Icons.Filled.Warehouse,
         unselectedIcon = Icons.Outlined.Warehouse,
+    ),
+    PRODUCTS(
+        route = Routes.PRODUCTS,
+        labelRes = R.string.nav_products,
+        selectedIcon = Icons.Filled.Category,
+        unselectedIcon = Icons.Outlined.Category,
     );
 
     companion object {

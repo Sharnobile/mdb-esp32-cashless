@@ -16,17 +16,33 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
-import xyz.vmflow.BuildConfig
+import xyz.vmflow.data.ServerStoreHolder
+
+/**
+ * Public URL of a `product-images` object on the server the user signed in
+ * to. Not `BuildConfig.SUPABASE_URL`: that is only the default entry, and
+ * with another server picked at login (e.g. a test instance) every image
+ * was fetched from the wrong host and never showed up.
+ */
+fun productImageUrl(imagePath: String): String =
+    "${ServerStoreHolder.instance.selectedServer.value.sanitizedUrl}/storage/v1/object/public/product-images/$imagePath"
 
 @Composable
 fun ProductImage(
     imagePath: String?,
     contentDescription: String?,
     modifier: Modifier = Modifier,
-    size: Dp = 48.dp
+    size: Dp = 48.dp,
+    /**
+     * Changes when the image behind the same path was replaced (a new upload
+     * always lands on `{id}.jpg`), so Coil fetches it instead of serving its
+     * cached copy. Null = plain URL.
+     */
+    cacheKey: Any? = null
 ) {
     if (imagePath != null) {
-        val imageUrl = "${BuildConfig.SUPABASE_URL}/storage/v1/object/public/product-images/$imagePath"
+        val base = productImageUrl(imagePath)
+        val imageUrl = if (cacheKey != null) "$base?v=$cacheKey" else base
         AsyncImage(
             model = imageUrl,
             contentDescription = contentDescription,

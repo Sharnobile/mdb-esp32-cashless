@@ -51,8 +51,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
-import xyz.vmflow.BuildConfig
 import xyz.vmflow.R
+import xyz.vmflow.ui.components.productImageUrl
 import xyz.vmflow.data.AnalysisGridSlot
 import androidx.compose.foundation.isSystemInDarkTheme
 import xyz.vmflow.ui.theme.StockGreen
@@ -522,7 +522,7 @@ private fun ReplaceProductSheet(
 private fun SuggestionThumbnail(imagePath: String?) {
     if (imagePath.isNullOrEmpty()) return
     AsyncImage(
-        model = "${BuildConfig.SUPABASE_URL}/storage/v1/object/public/product-images/$imagePath",
+        model = productImageUrl(imagePath),
         contentDescription = null,
         contentScale = ContentScale.Crop,
         modifier = Modifier

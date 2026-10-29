@@ -8,6 +8,7 @@ Native Android companion app for vending machine operators. Built with Kotlin + 
 - **Machine Management** — Browse machines sorted by stock urgency, view per-machine details (overview, trays, sales history)
 - **Tray Configuration** — Full CRUD for machine tray slots: add single/batch, edit, delete, quick stock adjustments
 - **Refill Wizard** — Multi-step guided refill tour (pack, refill per machine, summary) optimized for one-handed field use; planned slot re-assignments show as change notes the refiller accepts and confirms at the machine
+- **Products** — Catalogue tab: search, create and edit products (name, price, category, barcodes, discontinued) with a photo taken right there with the camera or picked from the gallery. A barcode the warehouse intake does not know can be turned into a new product on the spot, pre-filled with the barcode and a name from Open Food Facts
 - **Deals** — Retailer offers matching your products (from the dashboard banner or the top-bar tag icon): grouped by validity so offers that only start later are clearly marked ("valid from Mon, 28.09."), plus pin/archive, NEW markers and a purchase-price (EK) comparison
 
 ## Setup
@@ -80,6 +81,8 @@ app/src/main/java/xyz/vmflow/
     SlotChange.kt            — Slot change maths (pack needs, fill plan, leftovers)
     SlotChangeRepository.kt  — Slot change requests (load, queue, apply)
     WarehouseRepository.kt   — Warehouse stock queries
+    ProductRepository.kt     — Product CRUD, barcodes, image upload
+    ProductEditLogic.kt      — Product sheet helpers (price, barcode format, photo size)
     PurchaseOrderRepository.kt — Order list, purchase orders, expected deliveries
     OrderSuggestion.kt       — Order suggestion (port of the web's orderSuggestion.ts)
   ui/
@@ -88,6 +91,7 @@ app/src/main/java/xyz/vmflow/
     machines/                — Machine list, detail, cards
     trays/                   — Tray list, edit dialog, rows
     refill/                  — Wizard: packing, refill, summary, change notes
+    products/                — Product list, edit sheet, camera / gallery photo
     components/              — Reusable: StatusChip, StockBar, ProductImage
     theme/                   — Material 3 colors, typography, theme
 ```
