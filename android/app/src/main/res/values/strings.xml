@@ -882,4 +882,33 @@
         <item quantity="one">Add %1$d Tray</item>
         <item quantity="other">Add %1$d Trays</item>
     </plurals>
+
+    <!-- Products tab / product sheet -->
+    <string name="nav_products">Products</string>
+    <string name="products_search">Search products</string>
+    <string name="products_show_discontinued">Show discontinued</string>
+    <string name="products_empty">No products yet</string>
+    <string name="products_add">Add product</string>
+    <string name="product_new_title">New product</string>
+    <string name="product_edit_title">Edit product</string>
+    <string name="product_name">Product name</string>
+    <string name="product_price">Price (EUR)</string>
+    <string name="product_price_invalid">Not a valid price</string>
+    <string name="product_category">Category</string>
+    <string name="product_category_none">None</string>
+    <string name="product_discontinued">Discontinued</string>
+    <string name="product_photo_take">Take photo</string>
+    <string name="product_photo_pick">Choose photo</string>
+    <string name="product_photo_remove">Remove</string>
+    <string name="product_photo_uploading">Uploading…</string>
+    <string name="product_photo_failed">Could not read the photo</string>
+    <string name="product_camera_denied">Camera access is needed to take a photo</string>
+    <string name="product_barcodes">Barcodes</string>
+    <string name="product_barcode_scan">Scan barcode</string>
+    <string name="product_barcode_manual">Enter barcode</string>
+    <string name="product_barcode_add">Add</string>
+    <string name="product_barcode_duplicate">Barcode %1$s is already added</string>
+    <string name="product_delete">Delete product</string>
+    <string name="product_delete_confirm">Delete “%1$s”? This cannot be undone.</string>
+    <string name="warehouse_intake_create_product">Create new product</string>
 </resources>

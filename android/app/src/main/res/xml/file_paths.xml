@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Product photos taken with the camera (ui/products/ProductPhoto.kt). -->
+<paths>
+    <cache-path name="product_photos" path="product_photos/" />
+</paths>

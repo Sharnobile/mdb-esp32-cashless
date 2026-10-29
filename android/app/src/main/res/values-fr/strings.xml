@@ -926,4 +926,33 @@
         <item quantity="other">Ajouter %1$d plateaux</item>
         <item quantity="many">Ajouter %1$d plateaux</item>
     </plurals>
+
+    <!-- Products tab / product sheet -->
+    <string name="nav_products">Produits</string>
+    <string name="products_search">Rechercher des produits</string>
+    <string name="products_show_discontinued">Afficher les produits retirés</string>
+    <string name="products_empty">Aucun produit pour l’instant</string>
+    <string name="products_add">Ajouter un produit</string>
+    <string name="product_new_title">Nouveau produit</string>
+    <string name="product_edit_title">Modifier le produit</string>
+    <string name="product_name">Nom du produit</string>
+    <string name="product_price">Prix (EUR)</string>
+    <string name="product_price_invalid">Prix non valide</string>
+    <string name="product_category">Catégorie</string>
+    <string name="product_category_none">Aucune</string>
+    <string name="product_discontinued">Retiré</string>
+    <string name="product_photo_take">Prendre une photo</string>
+    <string name="product_photo_pick">Choisir une photo</string>
+    <string name="product_photo_remove">Retirer</string>
+    <string name="product_photo_uploading">Téléversement…</string>
+    <string name="product_photo_failed">Impossible de lire la photo</string>
+    <string name="product_camera_denied">L’accès à l’appareil photo est nécessaire pour prendre une photo</string>
+    <string name="product_barcodes">Codes-barres</string>
+    <string name="product_barcode_scan">Scanner un code-barres</string>
+    <string name="product_barcode_manual">Saisir un code-barres</string>
+    <string name="product_barcode_add">Ajouter</string>
+    <string name="product_barcode_duplicate">Le code-barres %1$s est déjà ajouté</string>
+    <string name="product_delete">Supprimer le produit</string>
+    <string name="product_delete_confirm">Supprimer « %1$s » ? Cette action est irréversible.</string>
+    <string name="warehouse_intake_create_product">Créer un nouveau produit</string>
 </resources>
