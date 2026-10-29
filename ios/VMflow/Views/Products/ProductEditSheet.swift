@@ -288,11 +288,9 @@ struct ProductEditSheet: View {
                     ProductImage(imagePath: product?.imagePath, size: 100)
                 }
 
-                // Side by side when it fits, stacked on narrow phones / large text
-                ViewThatFits(in: .horizontal) {
-                    HStack(spacing: 12) { imageButtons }
-                    VStack(spacing: 8) { imageButtons }
-                }
+                // Equal-width tiles, icon above a one-line title: three
+                // icon+text labels side by side wrapped into word fragments
+                HStack(spacing: 8) { imageButtons }
 
                 if isUploadingImage {
                     ProgressView("Uploading...")
@@ -316,11 +314,7 @@ struct ProductEditSheet: View {
             matching: .images,
             photoLibrary: .shared()
         ) {
-            Label(
-                hasImage ? "Change" : "Upload",
-                systemImage: "photo"
-            )
-            .font(.subheadline)
+            imageActionLabel(hasImage ? "Change" : "Upload", systemImage: "photo")
         }
         .buttonStyle(.bordered)
         .disabled(isUploadingImage)
@@ -329,8 +323,7 @@ struct ProductEditSheet: View {
             Button {
                 showCamera = true
             } label: {
-                Label("Take Photo", systemImage: "camera")
-                    .font(.subheadline)
+                imageActionLabel("Take Photo", systemImage: "camera")
             }
             .buttonStyle(.bordered)
             .disabled(isUploadingImage)
@@ -341,8 +334,7 @@ struct ProductEditSheet: View {
                 localImage = nil
                 pendingImageData = nil
             } label: {
-                Label("Remove", systemImage: "trash")
-                    .font(.subheadline)
+                imageActionLabel("Remove", systemImage: "trash")
             }
             .buttonStyle(.bordered)
         } else if product?.imagePath != nil && selectedThumbnailUrl == nil {
@@ -355,12 +347,24 @@ struct ProductEditSheet: View {
                     isUploadingImage = false
                 }
             } label: {
-                Label("Remove", systemImage: "trash")
-                    .font(.subheadline)
+                imageActionLabel("Remove", systemImage: "trash")
             }
             .buttonStyle(.bordered)
             .disabled(isUploadingImage)
         }
+    }
+
+    private func imageActionLabel(_ title: LocalizedStringKey, systemImage: String) -> some View {
+        VStack(spacing: 4) {
+            Image(systemName: systemImage)
+                .font(.body)
+            Text(title)
+                .font(.caption)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 2)
     }
 
     // MARK: - Suggested Images
