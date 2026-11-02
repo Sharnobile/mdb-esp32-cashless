@@ -30,7 +30,7 @@ LED = (-47.76, -3.43)             # WS2812B-2121 "LED D0", lid window is 4.0 mm
 LED_TOP = PCB_Z + 1.52 + 0.9      # no LED model in the STEP: 2121 package is ~0.9 mm high
 
 CAP_D, CAP_T, CAP_R = 8.0, 1.8, 0.9   # dome button on top of the lid, rounded top edge
-NECK_D = 3.85                     # in the 4.0 window (printed ~3.9): snug, add a drop of glue if loose
+NECK_D = 4.0                      # in the 4.0 window: 3.85 printed loose (fell out), 4.0 is a press fit
 STEM_D = 3.0                      # below the lid: clears the ESP32 module edge (y=-1.2) by 0.7 mm
 TIP_GAP = 0.6                     # air gap above the LED
 
