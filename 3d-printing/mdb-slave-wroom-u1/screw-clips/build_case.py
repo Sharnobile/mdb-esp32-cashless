@@ -103,6 +103,9 @@ MARK_FONTS = ["C:/Windows/Fonts/arialbd.ttf",             # first font file foun
               "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
               "/Library/Fonts/Arial Bold.ttf"]
 MARK_GROUP_H, MARK_POLE_H = 2.8, 2.6                      # cap heights
+MARK_BOLD = 0.12                                          # text outline offset per side: Arial Bold strokes
+                                                          # of 0.52-0.56 mm become ~0.8 mm, two 0.4 mm lines,
+                                                          # so first layer squish cannot close them
 MARK_GAP = 0.7                                            # hole edge to text
 MARK_GROUPS = ["1W1", "1W2", "1W1", "IN3",                # P4 P5 P6 P3 (south, P4 and P6 share bus #1)
                "IN2", "IN1",                              # P2 P1 (north)
@@ -324,7 +327,17 @@ def mark_text(s, h):
     font = next(f for f in MARK_FONTS if os.path.exists(f))
     ref = Part.Compound([w for c in Part.makeWireString("H", font, 10.0, 0) for w in c]).BoundBox.YLength
     faces = [Part.Face(c, "Part::FaceMakerBullseye") for c in Part.makeWireString(s, font, 10.0 * h / ref, 0) if c]
-    shape = Part.Compound(faces)
+    if MARK_BOLD:
+        # Outlines as polygons (0.01 mm deviation), offset with sharp (intersection) joins:
+        # round joins on the font splines leave micro arcs that break the STL mesh, and
+        # sharp joins fail on splines.
+        def poly(w):
+            pts = w.discretize(Deflection=0.01)
+            return Part.makePolygon(pts if pts[0].isEqual(pts[-1], 1e-6) else pts + pts[:1])
+        faces = [Part.Face([poly(w) for w in f.Wires], "Part::FaceMakerBullseye").makeOffset2D(MARK_BOLD, 2)
+                 for f in faces]
+    # fuse the letters: offset neighbours may overlap, and overlapping tools leave slivers
+    shape = faces[0].fuse(faces[1:]).removeSplitter() if len(faces) > 1 else faces[0]
     b = shape.BoundBox
     shape.translate(V(-b.Center.x, -b.Center.y, H + LID - MARK_DEPTH))
     return shape.extrude(V(0, 0, MARK_DEPTH + 1))
