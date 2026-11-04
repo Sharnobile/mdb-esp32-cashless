@@ -92,6 +92,23 @@ LID_HEX = (3.0, 1.2)                                      # lid vents: hexagon a
 LID_VENT_ZONES = [(45.2, 62.8, -7.5, 7.5),                # relays (x0 x1 y0 y1)
                   (-24.8, -0.8, -7.5, 7.5)]               # centre area
 BUMP = 0.8                                                # clip catch height (0.6 held too loosely)
+# Lid markings, engraved MARK_DEPTH into the outer face. The lid prints face down, so a
+# filament change at z = MARK_DEPTH gives two-tone marks on a single-extruder printer.
+# Per terminal block: group name on the wall side, one code per pole on the board side
+# (+ = 3V3, G = GND, S = signal), a NC/COM/NO switch symbol for the relays.
+# Pole order follows TERMINALS: south and east blocks list pin 1 first, north blocks pin 3.
+MARKINGS = True
+MARK_DEPTH = 0.6                                          # 3 layers of 0.2 mm
+MARK_FONTS = ["C:/Windows/Fonts/arialbd.ttf",             # first font file found is used
+              "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+              "/Library/Fonts/Arial Bold.ttf"]
+MARK_GROUP_H, MARK_POLE_H = 2.8, 2.6                      # cap heights
+MARK_GAP = 0.7                                            # hole edge to text
+MARK_GROUPS = ["1W1", "1W2", "1W1", "IN3",                # P4 P5 P6 P3 (south, P4 and P6 share bus #1)
+               "IN2", "IN1",                              # P2 P1 (north)
+               "R1", "R2"]                                # P8 P9 (east, relays K2 K3)
+MARK_POLES = {"S": "G+S", "N": "S+G"}                     # relays get the switch symbol instead
+MARK_LEGEND = ("+ = 3V3", 22.0, 0.0, 3.0)                 # text, x, y, cap height: free lid area
 SCREW_BOSSES = ([(x, s * (Y1 + WALL + 2.2)) for x in (-73.0, 73.0) for s in (-1, 1)]
                 if LID_SCREWS else [])
 
@@ -299,6 +316,75 @@ for x, y in LEDS:                                 # LED window
 # High ventilation: honeycomb above the relays and the centre area
 for zone in LID_VENT_ZONES:
     lid_cuts += hex_field(*zone, *LID_HEX)
+
+
+def mark_text(s, h):
+    """Engraving tool for a text line: cap height h, centred on the origin, MARK_DEPTH
+    below the lid top and 1 mm above it."""
+    font = next(f for f in MARK_FONTS if os.path.exists(f))
+    ref = Part.Compound([w for c in Part.makeWireString("H", font, 10.0, 0) for w in c]).BoundBox.YLength
+    faces = [Part.Face(c, "Part::FaceMakerBullseye") for c in Part.makeWireString(s, font, 10.0 * h / ref, 0) if c]
+    shape = Part.Compound(faces)
+    b = shape.BoundBox
+    shape.translate(V(-b.Center.x, -b.Center.y, H + LID - MARK_DEPTH))
+    return shape.extrude(V(0, 0, MARK_DEPTH + 1))
+
+
+def mark_at(tool, x, y):
+    tool = tool.copy()
+    tool.translate(V(x, y, 0))
+    return tool
+
+
+def mark_bar(x0, y0, x1, y1, w):
+    """Straight engraved stroke of width w between two points."""
+    d = V(x1 - x0, y1 - y0, 0)
+    n = V(-d.y, d.x, 0).normalize() * (w / 2)
+    z = H + LID - MARK_DEPTH
+    pts = [V(x0, y0, z) + n, V(x1, y1, z) + n, V(x1, y1, z) - n, V(x0, y0, z) - n]
+    return Part.Face(Part.makePolygon(pts + pts[:1])).extrude(V(0, 0, MARK_DEPTH + 1))
+
+
+def mark_dot(x, y, r):
+    return cyl(x, y, r, H + LID - MARK_DEPTH, H + LID + 1)
+
+
+def relay_symbol(px, ys, w=0.8):
+    """Change-over switch beside an east terminal block, poles ys = (NO, COM, NC) from TERMINALS:
+    a stub from each hole to its contact, the blade from the COM pivot resting on NC."""
+    edge = px - TERM_HOLE / 2 + 0.3                       # stubs start inside the hole
+    dot_x, piv_x = px - TERM_HOLE / 2 - 2.0, px - TERM_HOLE / 2 - 4.0
+    y_no, y_com, y_nc = ys
+    return [mark_bar(dot_x, y_no, edge, y_no, w), mark_dot(dot_x, y_no, 0.75),
+            mark_bar(dot_x, y_nc, edge, y_nc, w), mark_dot(dot_x, y_nc, 0.75),
+            mark_bar(piv_x, y_com, edge, y_com, w), mark_dot(piv_x, y_com, 0.9),
+            mark_bar(piv_x, y_com, dot_x, y_nc, w)]
+
+
+marks = []
+if MARKINGS:
+    off_g = TERM_HOLE / 2 + MARK_GAP + MARK_GROUP_H / 2   # hole centre to text centre
+    off_p = TERM_HOLE / 2 + MARK_GAP + MARK_POLE_H / 2
+    for k, name in enumerate(MARK_GROUPS):
+        block = TERMINALS[3 * k:3 * k + 3]
+        side = block[0][1]
+        (mx, my), _ = block[1]
+        label = mark_text(name, MARK_GROUP_H)
+        if side == "E":                                   # name on the wall side, symbol inside
+            label.rotate(V(0, 0, 0), V(0, 0, 1), 90)      # reads from the east end: too narrow upright
+            marks.append(mark_at(label, mx + off_g, my))
+            marks += relay_symbol(mx, [p[1] for p, _ in block])
+            continue
+        s = -1 if side == "S" else 1                      # +1: wall to the north
+        marks.append(mark_at(label, mx, my + s * off_g))
+        for ((px, py), _), code in zip(block, MARK_POLES[side]):
+            marks.append(mark_at(mark_text(code, MARK_POLE_H), px, py - s * off_p))
+    if MARK_LEGEND:
+        text, lx, ly, lh = MARK_LEGEND
+        marks.append(mark_at(mark_text(text, lh), lx, ly))
+    mb = Part.Compound(marks).BoundBox                    # keep 0.8 mm of rim outside the marks
+    assert OX0 + 0.8 < mb.XMin and mb.XMax < OX1 - 0.8 and OY0 + 0.8 < mb.YMin and mb.YMax < OY1 - 0.8, mb
+    lid_cuts += marks
 for c in lid_cuts:
     lid = lid.cut(c)
 lid = lid.removeSplitter()
