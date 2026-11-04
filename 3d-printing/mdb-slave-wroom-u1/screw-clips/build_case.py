@@ -397,10 +397,16 @@ if MARKINGS:
         marks.append(mark_at(mark_text(text, lh), lx, ly))
     mb = Part.Compound(marks).BoundBox                    # keep 0.8 mm of rim outside the marks
     assert OX0 + 0.8 < mb.XMin and mb.XMax < OX1 - 0.8 and OY0 + 0.8 < mb.YMin and mb.YMax < OY1 - 0.8, mb
-    lid_cuts += marks
 for c in lid_cuts:
     lid = lid.cut(c)
 lid = lid.removeSplitter()
+# Marks: engraved into the lid, and the same volume as a separate inlay body
+# (lid_marks.stl) for a second filament on a multi-material printer.
+lid_marks = None
+if marks:
+    mark_tool = marks[0].fuse(marks[1:])
+    lid_marks = lid.common(mark_tool).removeSplitter()
+    lid = lid.cut(mark_tool).removeSplitter()
 
 # ---------------------------------------------------------------- checks
 doc = App.newDocument("pcb")
@@ -462,7 +468,18 @@ lid.exportStep(os.path.join(HERE, "lid.step"))
 checks["base"]["stl_ok"] = stl(base, os.path.join(HERE, "base.stl"))
 lid_print = lid.copy()
 lid_print.rotate(V(0, 0, 0), V(1, 0, 0), 180)     # outer face on the print bed
-lid_print.translate(V(0, 0, -lid_print.BoundBox.ZMin))
+dz = -lid_print.BoundBox.ZMin
+lid_print.translate(V(0, 0, dz))
 checks["lid"]["stl_ok"] = stl(lid_print, os.path.join(HERE, "lid.stl"))
+if lid_marks:
+    # Same transform as lid.stl: imported together, both files keep their relative position.
+    marks_print = lid_marks.copy()
+    marks_print.rotate(V(0, 0, 0), V(1, 0, 0), 180)
+    marks_print.translate(V(0, 0, dz))
+    checks["lid_marks"] = {"valid": lid_marks.isValid(), "solids": len(lid_marks.Solids),
+                           "volume_mm3": round(lid_marks.Volume, 1),
+                           "lid_overlap_mm3": round(lid.common(lid_marks).Volume, 3),
+                           "z_range_print_mm": [round(marks_print.BoundBox.ZMin, 2), round(marks_print.BoundBox.ZMax, 2)],
+                           "stl_ok": stl(marks_print, os.path.join(HERE, "lid_marks.stl"))}
 
 print(json.dumps(checks, indent=2))
