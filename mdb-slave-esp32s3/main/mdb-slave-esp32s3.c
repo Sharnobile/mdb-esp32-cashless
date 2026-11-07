@@ -183,7 +183,12 @@ static TickType_t mqtt_last_connected_tick = 0;
 
 char my_company_id[40];   // UUID from Supabase companies table
 char my_device_id[40];    // UUID from Supabase embeddeds table
-char my_passkey[18];
+// The passkey is exactly PASSKEY_LEN characters and the XOR envelope covers
+// exactly PASSKEY_LEN bytes. The extra byte holds the NUL terminator that
+// strcpy()/nvs_get_str() write; with [18] that NUL landed one byte past the
+// array (harmless only thanks to linker padding).
+#define PASSKEY_LEN 18
+char my_passkey[PASSKEY_LEN + 1];
 static char my_srv_url[128] = {0};  // Backend server URL for OTA downloads
 
 // MDB address — initialised from Kconfig, overridden by NVS at boot
@@ -631,8 +636,8 @@ void vTaskMdbEvent(void *pvParameters) {
 
 	mdb_build_peripheral_id();
 
-	time_t session_begin_time = 0;
-	time_t vend_request_time = 0;
+	int64_t session_begin_time = 0;   // esp_timer seconds (monotonic)
+	int64_t vend_request_time = 0;    // esp_timer seconds (monotonic)
 
 	uint16_t fundsAvailable = 0;
 	uint16_t itemPrice = 0;
@@ -882,7 +887,7 @@ void vTaskMdbEvent(void *pvParameters) {
 							available_tx = 3;
 						}
 
-						time( &session_begin_time);
+						session_begin_time = esp_timer_get_time() / 1000000;
 
 						ESP_LOGI(TAG, "BEGIN_SESSION: funds=%u level=%u bytes=%d",
 							fundsAvailable, vmc_feature_level, available_tx);
@@ -897,6 +902,13 @@ void vTaskMdbEvent(void *pvParameters) {
 					} else if (vend_approved_todo) {
 						// Vend approved
 						vend_approved_todo = false;
+						// Approve and deny are mutually exclusive answers to one
+						// VEND_REQUEST. A deny queued in the meantime (30 s timeout
+						// vs. a late BLE approval) used to go out on the next POLL,
+						// drop machine_state to IDLE and make the VMC's
+						// VEND_SUCCESS look like a duplicate: product dispensed,
+						// sale never recorded.
+						vend_denied_todo = false;
 
 						mdb_payload[0] = 0x05;
 						if (vmc_feature_level >= 3) {
@@ -916,6 +928,7 @@ void vTaskMdbEvent(void *pvParameters) {
 					} else if (vend_denied_todo) {
 						// Vend denied
 						vend_denied_todo = false;
+						vend_approved_todo = false;
 
 						mdb_payload[0] = 0x06;
 						available_tx = 1;
@@ -938,7 +951,10 @@ void vTaskMdbEvent(void *pvParameters) {
 
 					} else {
 
-						time_t now = time(NULL);
+						// Monotonic clock: time(NULL) jumps by decades at the first
+						// SNTP sync (instant false timeout) and can step backwards
+						// (timeout never fires, machine stuck in VEND_STATE).
+						int64_t now = esp_timer_get_time() / 1000000;
 
 						// Vend timeout: deny if no approval/denial within 30s
 						// Prevents machine from hanging in VEND_STATE (display stuck on credit,
@@ -968,11 +984,14 @@ void vTaskMdbEvent(void *pvParameters) {
 
 						machine_state = VEND_STATE;
 						mdb_last_cmd = "VEND_REQUEST";
-						time(&vend_request_time);
+						vend_request_time = esp_timer_get_time() / 1000000;
 
-                        if(fundsAvailable && (fundsAvailable != 0xffff)){
+                        // fundsAvailable == 0 here means the session credit was
+                        // spent by an earlier vend (see VEND_SUCCESS): deny now
+                        // rather than wait 30 s for an approval that cannot come.
+                        if (fundsAvailable != 0xffff) {
 
-                            if (itemPrice <= fundsAvailable) {
+                            if (fundsAvailable && itemPrice <= fundsAvailable) {
                                 vend_approved_todo = true;
                             } else {
                                 vend_denied_todo = true;
@@ -1025,6 +1044,15 @@ void vTaskMdbEvent(void *pvParameters) {
 						}
 
 						machine_state = IDLE_STATE;
+
+						// Spend the credit. Without this a multi-vend VMC could
+						// get a second VEND_REQUEST approved against the full
+						// initial balance (2.00 credit -> 1.50 + 1.50).
+						// 0xffff = app-approved session, each vend approved
+						// explicitly, so there is no balance to track.
+						if (fundsAvailable != 0xffff) {
+							fundsAvailable = (itemPrice < fundsAvailable) ? (uint16_t)(fundsAvailable - itemPrice) : 0;
+						}
 
 						/* PIPE_BLE — immediate notify to companion app */
 						uint8_t payload_ble[19];
@@ -1342,11 +1370,11 @@ void vTaskMdbEvent(void *pvParameters) {
 // Decode payload from communication between BLE and MQTT
 uint8_t xorDecodeWithPasskey(uint16_t *itemPrice, uint16_t *itemNumber, uint8_t *payload) {
 
-	for(int x = 0; x < sizeof(my_passkey); x++){
+	for(int x = 0; x < PASSKEY_LEN; x++){
 		payload[x + 1] ^= my_passkey[x];
 	}
 
-	int p_len = sizeof(my_passkey) + 1;
+	int p_len = PASSKEY_LEN + 1;
 
 	uint8_t chk = 0x00;
 	for(int x= 0; x < p_len - 1; x++){
@@ -1383,8 +1411,17 @@ uint8_t xorDecodeWithPasskey(uint16_t *itemPrice, uint16_t *itemNumber, uint8_t 
                             ((uint32_t) payload[4] << 8)  |
                             ((uint32_t) payload[5] << 0);
 
-    if(itemPrice)
-        *itemPrice = TO_SCALE_FACTOR( FROM_SCALE_FACTOR(itemPrice32, 1, 2), CONFIG_MDB_SCALE_FACTOR, CONFIG_MDB_DECIMAL_PLACES);
+    if(itemPrice) {
+        // MDB amounts are 16-bit and 0xffff is the "app-approved session"
+        // sentinel. An out-of-range amount used to wrap silently (700.00
+        // became 44.64, 655.36 became 0 = "cancel session"): reject it.
+        long long scaled = TO_SCALE_FACTOR( FROM_SCALE_FACTOR(itemPrice32, 1, 2), CONFIG_MDB_SCALE_FACTOR, CONFIG_MDB_DECIMAL_PLACES);
+        if (scaled < 0 || scaled >= 0xffff) {
+            ESP_LOGW(TAG, "xorDecode: amount out of MDB range (cmd=0x%02x scaled=%lld)", payload[0], scaled);
+            return 0;
+        }
+        *itemPrice = (uint16_t) scaled;
+    }
 
     if(itemNumber)
         *itemNumber = ((uint16_t) payload[6] << 8) | ((uint16_t) payload[7] << 0);
@@ -1397,7 +1434,7 @@ void xorEncodeWithPasskey(uint8_t cmd, uint16_t itemPrice, uint16_t itemNumber, 
 
     uint32_t itemPrice32 = TO_SCALE_FACTOR( FROM_SCALE_FACTOR(itemPrice, CONFIG_MDB_SCALE_FACTOR, CONFIG_MDB_DECIMAL_PLACES), 1, 2);
 
-	esp_fill_random(payload + 1, sizeof(my_passkey));
+	esp_fill_random(payload + 1, PASSKEY_LEN);
 
 	time_t now = time(NULL);
 
@@ -1417,7 +1454,7 @@ void xorEncodeWithPasskey(uint8_t cmd, uint16_t itemPrice, uint16_t itemNumber, 
     payload[12] = paxCounter >> 8;	// paxCounter
 	payload[13] = paxCounter;
 
-	int p_len = sizeof(my_passkey) + 1;
+	int p_len = PASSKEY_LEN + 1;
 
 	uint8_t chk = 0x00;
 	for(int x= 0; x < p_len - 1; x++){
@@ -1425,7 +1462,7 @@ void xorEncodeWithPasskey(uint8_t cmd, uint16_t itemPrice, uint16_t itemNumber, 
 	}
 	payload[p_len - 1] = chk;
 
-	for(int x = 0; x < sizeof(my_passkey); x++){
+	for(int x = 0; x < PASSKEY_LEN; x++){
 		payload[x + 1] ^= my_passkey[x];
 	}
 }
@@ -1476,7 +1513,7 @@ static size_t card_payload_encode(uint8_t *payload, const rfid_card_t *card) {
 	payload[chk_idx] = chk;
 
 	for (size_t i = 1; i <= chk_idx; i++)
-		payload[i] ^= my_passkey[(i - 1) % sizeof(my_passkey)];
+		payload[i] ^= my_passkey[(i - 1) % PASSKEY_LEN];
 
 	return chk_idx + 1;
 }
@@ -1546,7 +1583,7 @@ void readTelemetryDEX() {
     // uart_set_line_inverse(UART_NUM_1, UART_SIGNAL_RXD_INV | UART_SIGNAL_TXD_INV);
 
 	// -------------------------------------- First Handshake --------------------------------------
-	uint8_t data[32];
+	uint8_t data[32] = {0};  // reads that time out leave it untouched
 
 	// ENQ ->
 	uart_write_bytes(UART_NUM_1, "\x05", 1);
@@ -1648,10 +1685,13 @@ void readTelemetryDEX() {
 
 		for (;;) {
 
-			uart_read_bytes(UART_NUM_1, &data, 1, pdMS_TO_TICKS(200));
+			// A timed-out read leaves data[] untouched: after DLE STX that
+			// is a stale 0x10, which looped forever pushing 0x10 into the
+			// ring (and every hourly telemetry task piled up behind it).
+			if (uart_read_bytes(UART_NUM_1, &data, 1, pdMS_TO_TICKS(200)) != 1) return;
 			if (data[0] == 0x10) { // DLE
 
-				uart_read_bytes(UART_NUM_1, &data, 1, pdMS_TO_TICKS(200));
+				if (uart_read_bytes(UART_NUM_1, &data, 1, pdMS_TO_TICKS(200)) != 1) return;
 
 				if (data[0] == 0x17) { // ETB
 
@@ -1772,6 +1812,9 @@ void readTelemetryDDCMP() {
 //
 	n_bytes_message = ((buffer_rx[2] & 0x3f) * 256) + buffer_rx[1];
 	n_bytes_message += 2; // crc16
+	// The DDCMP count field allows up to 16385 bytes; buffer_rx lives on a
+	// 4 KB task stack. A corrupted header must not overrun it.
+	if (n_bytes_message > sizeof(buffer_rx)) return;
 
 	if( uart_read_bytes(UART_NUM_1, &buffer_rx, n_bytes_message, pdMS_TO_TICKS(200)) != n_bytes_message)
 		return;
@@ -1840,6 +1883,9 @@ void readTelemetryDDCMP() {
 
 	n_bytes_message = ((buffer_rx[2] & 0x3f) * 256) + buffer_rx[1];
 	n_bytes_message += 2; // crc16
+	// The DDCMP count field allows up to 16385 bytes; buffer_rx lives on a
+	// 4 KB task stack. A corrupted header must not overrun it.
+	if (n_bytes_message > sizeof(buffer_rx)) return;
 
 	if( uart_read_bytes(UART_NUM_1, &buffer_rx, n_bytes_message, pdMS_TO_TICKS(200)) != n_bytes_message)
 		return;
@@ -1874,6 +1920,9 @@ void readTelemetryDDCMP() {
 
 		n_bytes_message = ((buffer_rx[2] & 0x3f) * 256) + buffer_rx[1];
 		n_bytes_message += 2; // crc16
+		// The DDCMP count field allows up to 16385 bytes; buffer_rx lives on a
+		// 4 KB task stack. A corrupted header must not overrun it.
+		if (n_bytes_message > sizeof(buffer_rx)) return;
 
 		if( uart_read_bytes(UART_NUM_1, &buffer_rx, n_bytes_message, pdMS_TO_TICKS(200)) != n_bytes_message)
 			break;
@@ -2253,6 +2302,24 @@ void ble_pax_event_handler(uint16_t devices_count){
     mqtt_publish_safe(mqttClient, topic, (char*) &payload, sizeof(payload), 1, 0);
 }
 
+// Bounded copy of a BLE string field into a fixed buffer. The GATT write
+// handler (nimble.c) NUL-terminates the payload, so strnlen() on src is safe.
+// need_nul=false allows a field that fills dst exactly (WiFi SSID is 32
+// bytes with no terminator). Returns false, leaving dst untouched, when the
+// field does not fit: an oversized write used to overflow into the
+// neighbouring globals.
+static bool ble_copy_field(char *dst, size_t dst_size, const char *src, bool need_nul) {
+    size_t max = need_nul ? dst_size - 1 : dst_size;
+    size_t n = strnlen(src, max + 1);
+    if (n > max) {
+        ESP_LOGW(TAG, "BLE: field too long (%u > %u) — ignored", (unsigned) n, (unsigned) max);
+        return false;
+    }
+    memset(dst, 0, dst_size);
+    memcpy(dst, src, n);
+    return true;
+}
+
 void ble_event_handler(char *ble_payload) {
 
     printf("ble_event_handler %x\n", (uint8_t) ble_payload[0]);
@@ -2263,9 +2330,8 @@ void ble_event_handler(char *ble_payload) {
 		ESP_ERROR_CHECK( nvs_open("vmflow", NVS_READWRITE, &handle) );
 
 		size_t s_len;
-		if (nvs_get_str(handle, "device_id", NULL, &s_len) != ESP_OK) {
-
-			strcpy((char*) &my_device_id, ble_payload + 1);
+		if (nvs_get_str(handle, "device_id", NULL, &s_len) != ESP_OK
+		    && ble_copy_field(my_device_id, sizeof(my_device_id), ble_payload + 1, true)) {
 
 			ESP_ERROR_CHECK( nvs_set_str(handle, "device_id", (char*) &my_device_id) );
 			ESP_ERROR_CHECK( nvs_commit(handle) );
@@ -2287,16 +2353,15 @@ void ble_event_handler(char *ble_payload) {
 		ESP_ERROR_CHECK( nvs_open("vmflow", NVS_READWRITE, &handle) );
 
 		size_t s_len;
-		if (nvs_get_str(handle, "passkey", NULL, &s_len) != ESP_OK) {
-
-			strcpy((char*) &my_passkey, ble_payload + 1);
+		if (nvs_get_str(handle, "passkey", NULL, &s_len) != ESP_OK
+		    && ble_copy_field(my_passkey, sizeof(my_passkey), ble_payload + 1, true)) {
 
 			ESP_ERROR_CHECK( nvs_set_str(handle, "passkey", (char*) &my_passkey) );
 			ESP_ERROR_CHECK( nvs_commit(handle) );
 
             xEventGroupSetBits(xLedEventGroup, BIT_EVT_PSSKEY | BIT_EVT_TRIGGER);
 
-			ESP_LOGI( TAG, "PASSKEY= %s", my_passkey);
+			ESP_LOGI( TAG, "PASSKEY set (%u chars)", (unsigned) strlen(my_passkey));
 		}
 		nvs_close(handle);
 
@@ -2338,10 +2403,10 @@ void ble_event_handler(char *ble_payload) {
 		wifi_config_t wifi_config = {0};
 		esp_wifi_get_config(WIFI_IF_STA, &wifi_config);
 
-		strcpy((char*) wifi_config.sta.ssid, ble_payload + 1);
+		if (!ble_copy_field((char*) wifi_config.sta.ssid, sizeof(wifi_config.sta.ssid), ble_payload + 1, false)) break;
 		esp_wifi_set_config(WIFI_IF_STA, &wifi_config);
 
-	    ESP_LOGI( TAG, "SSID= %s", wifi_config.sta.ssid);
+	    ESP_LOGI( TAG, "SSID= %.32s", (char*) wifi_config.sta.ssid);  // may fill all 32 bytes, no NUL
         break;
     }
     case 0x07: {
@@ -2352,12 +2417,12 @@ void ble_event_handler(char *ble_payload) {
         wifi_config_t wifi_config = {0};
 		esp_wifi_get_config(WIFI_IF_STA, &wifi_config);
 
-		strcpy((char*) wifi_config.sta.password, ble_payload + 1);
+		if (!ble_copy_field((char*) wifi_config.sta.password, sizeof(wifi_config.sta.password), ble_payload + 1, true)) break;
 		esp_wifi_set_config(WIFI_IF_STA, &wifi_config);
 
 		esp_wifi_connect();
 
-	    ESP_LOGI( TAG, "PASSWORD= %s", wifi_config.sta.password);
+	    ESP_LOGI( TAG, "PASSWORD set (%u chars)", (unsigned) strlen((char*) wifi_config.sta.password));
 		break;
     }
 	}
@@ -2693,14 +2758,21 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 
 	    ESP_LOGI( TAG, "TOPIC= %.*s", event->topic_len, event->topic);
 	    ESP_LOGI( TAG, "DATA_LEN= %d", event->data_len);
-	    ESP_LOGI( TAG, "DATA= %.*s", event->data_len, event->data);
+	    // Payloads are binary XOR envelopes or JSON that can carry URLs and
+	    // secrets: dump them at DEBUG only.
+	    ESP_LOGD( TAG, "DATA= %.*s", event->data_len, event->data);
 
 		size_t topic_len = event->topic_len;
 
 		if (topic_len > 7 && strncmp(event->topic + event->topic_len - 7, "/credit", 7) == 0) {
 
 			uint16_t newFunds;
-			if(xorDecodeWithPasskey(&newFunds, NULL, (uint8_t*) event->data)){
+			// xorDecodeWithPasskey() reads and rewrites PASSKEY_LEN + 1 bytes
+			// in place: a shorter (or fragmented) message would be read past
+			// its end. Same guard as /config.
+			if (event->data_len != PASSKEY_LEN + 1 || event->current_data_offset != 0) {
+				ESP_LOGW(TAG, "credit: bad payload length %d — ignored", event->data_len);
+			} else if(xorDecodeWithPasskey(&newFunds, NULL, (uint8_t*) event->data)){
 
                 if (newFunds == 0) {
                     // Cancel current session (credit reset)
@@ -2765,10 +2837,22 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 		    }
 
 		    /* Validate URL starts with the trusted server URL (prevents arbitrary downloads) */
-		    if (strlen(my_srv_url) > 0 && strncmp(j_url->valuestring, my_srv_url, strlen(my_srv_url)) != 0) {
-		        ESP_LOGE(TAG, "OTA: URL '%s' does not match trusted server '%s'", j_url->valuestring, my_srv_url);
-		        cJSON_Delete(root);
-		        break;
+		    /* A bare prefix match let "https://srv.example.evil.com/x.bin"
+		     * pass for srv_url "https://srv.example": the character after
+		     * the prefix must end the host part ('/' or end of string). */
+		    size_t srv_len = strlen(my_srv_url);
+		    while (srv_len > 0 && my_srv_url[srv_len - 1] == '/') srv_len--;
+		    if (srv_len > 0) {
+		        const char *u = j_url->valuestring;
+		        if (strncmp(u, my_srv_url, srv_len) != 0 || (u[srv_len] != '/' && u[srv_len] != '\0')) {
+		            ESP_LOGE(TAG, "OTA: URL '%s' does not match trusted server '%s'", u, my_srv_url);
+		            cJSON_Delete(root);
+		            break;
+		        }
+		    } else {
+		        /* Legacy devices provisioned before srv_url existed: keep OTA
+		         * working, but make the unvalidated download visible. */
+		        ESP_LOGW(TAG, "OTA: no srv_url in NVS — URL not validated");
 		    }
 
 		    /* Copy URL for the OTA task (freed inside the task) */
@@ -4605,17 +4689,16 @@ void app_main(void) {
     nvs_handle_t handle;
 	if (nvs_open("vmflow", NVS_READONLY, &handle) == ESP_OK) {
 
-	    size_t s_len = 0;
-	    if (nvs_get_str(handle, "passkey", NULL, &s_len) == ESP_OK) {
-            nvs_get_str(handle, "passkey", my_passkey, &s_len);
+	    // Pass the real buffer size: nvs_get_str() then refuses an oversized
+	    // value (ESP_ERR_NVS_INVALID_LENGTH) instead of writing past the array.
+	    size_t s_len = sizeof(my_passkey);
+	    if (nvs_get_str(handle, "passkey", my_passkey, &s_len) == ESP_OK) {
 
-            s_len = 0;
-            if (nvs_get_str(handle, "company_id", NULL, &s_len) == ESP_OK) {
-                nvs_get_str(handle, "company_id", my_company_id, &s_len);
+            s_len = sizeof(my_company_id);
+            if (nvs_get_str(handle, "company_id", my_company_id, &s_len) == ESP_OK) {
 
-                s_len = 0;
-                if (nvs_get_str(handle, "device_id", NULL, &s_len) == ESP_OK) {
-                    nvs_get_str(handle, "device_id", my_device_id, &s_len);
+                s_len = sizeof(my_device_id);
+                if (nvs_get_str(handle, "device_id", my_device_id, &s_len) == ESP_OK) {
 
                     snprintf(myhost, sizeof(myhost), "%s.vmflow.xyz", my_device_id);
 

@@ -45,7 +45,7 @@
 // change only on re-provisioning (queue assumed empty then).
 extern char my_company_id[40];
 extern char my_device_id[40];
-extern char my_passkey[18];
+extern char my_passkey[];  // PASSKEY_LEN (18) chars + NUL
 
 extern void xorEncodeWithPasskey(uint8_t cmd, uint16_t itemPrice,
                                  uint16_t itemNumber, uint16_t paxCounter,
@@ -107,8 +107,16 @@ typedef struct {
 
 static fast_path_slot_t s_fast_tracked[FAST_PATH_TRACK_MAX];
 
-static void load_u32(nvs_handle_t h, const char *key, uint32_t *out) {
-    if (nvs_get_u32(h, key, out) != ESP_OK) *out = 0;
+// Only a missing key means "0" (fresh device). Any other read error is
+// reported so the caller does not mistake an unreadable cursor for an empty
+// queue and wipe the pending slots.
+static bool load_u32(nvs_handle_t h, const char *key, uint32_t *out) {
+    esp_err_t err = nvs_get_u32(h, key, out);
+    if (err == ESP_OK) return true;
+    *out = 0;
+    if (err == ESP_ERR_NVS_NOT_FOUND) return true;
+    ESP_LOGE(TAG, "read %s failed: %s", key, esp_err_to_name(err));
+    return false;
 }
 
 void sale_queue_init(void) {
@@ -120,10 +128,18 @@ void sale_queue_init(void) {
         ESP_LOGE(TAG, "nvs_open(%s) failed — queue will be in-memory only", NS);
         return;
     }
-    load_u32(h, K_HEAD,     &s_head);
-    load_u32(h, K_TAIL,     &s_tail);
+    bool cursors_ok = load_u32(h, K_HEAD, &s_head);
+    cursors_ok     &= load_u32(h, K_TAIL, &s_tail);
     load_u32(h, K_OVERFLOW, &s_overflow);
     load_u32(h, K_LAST_SEQ, &s_seq_reserved_to);
+
+    // Do not run the stale-slot cleanup below on cursors we cannot trust:
+    // it would erase sales that are still pending.
+    bool skip_cleanup = !cursors_ok || (s_tail - s_head > SALE_QUEUE_CAPACITY);
+    if (skip_cleanup) {
+        ESP_LOGE(TAG, "queue cursors unreadable or inconsistent (head=%u tail=%u) — skipping slot cleanup",
+                 (unsigned)s_head, (unsigned)s_tail);
+    }
 
     // One-time cleanup for devices that ran older firmware: a slot blob
     // used to stay in NVS after its PUBACK, and because the slot index is
@@ -134,7 +150,7 @@ void sale_queue_init(void) {
     uint32_t pending_now = s_tail - s_head;
     if (pending_now > SALE_QUEUE_CAPACITY) pending_now = SALE_QUEUE_CAPACITY;
     int freed = 0;
-    for (uint32_t slot = 0; slot < SALE_QUEUE_CAPACITY; slot++) {
+    for (uint32_t slot = 0; !skip_cleanup && slot < SALE_QUEUE_CAPACITY; slot++) {
         // Pending slots are head .. tail-1 (mod capacity).
         uint32_t offset = (slot + SALE_QUEUE_CAPACITY - (s_head % SALE_QUEUE_CAPACITY)) % SALE_QUEUE_CAPACITY;
         if (offset < pending_now) continue;
@@ -308,6 +324,23 @@ static void fast_path_demote_all_locked(void) {
     }
 }
 
+// MDB retransmit dedup state (see sale_queue_enqueue). Guarded by s_lock.
+static uint8_t    s_dedup_cmd   = 0;
+static uint16_t   s_dedup_price = 0;
+static uint16_t   s_dedup_item  = 0;
+static TickType_t s_dedup_tick  = 0;
+
+// Armed for every first attempt, accepted or not: when the queue rejects a
+// sale the caller publishes it once through the v1 fallback, so a VMC
+// retransmit must still be suppressed or that fallback would publish a
+// duplicate (v1 carries no sale_seq, the backend cannot dedup it).
+static void dedup_arm_locked(uint8_t cmd, uint16_t item_price, uint16_t item_number) {
+    s_dedup_cmd   = cmd;
+    s_dedup_price = item_price;
+    s_dedup_item  = item_number;
+    s_dedup_tick  = xTaskGetTickCount();
+}
+
 bool sale_queue_enqueue(uint8_t cmd, uint16_t item_price, uint16_t item_number) {
     if (s_lock == NULL) {
         ESP_LOGE(TAG, "enqueue before init — dropping sale");
@@ -324,11 +357,6 @@ bool sale_queue_enqueue(uint8_t cmd, uint16_t item_price, uint16_t item_number) 
     // Returns true (not false!) so the caller does NOT fall back to the
     // unprotected v1 direct-publish path.
     {
-        static uint8_t  s_dedup_cmd   = 0;
-        static uint16_t s_dedup_price = 0;
-        static uint16_t s_dedup_item  = 0;
-        static TickType_t s_dedup_tick = 0;
-
         TickType_t now_tick = xTaskGetTickCount();
         if (cmd == s_dedup_cmd
             && item_price == s_dedup_price
@@ -340,10 +368,7 @@ bool sale_queue_enqueue(uint8_t cmd, uint16_t item_price, uint16_t item_number) 
             xSemaphoreGive(s_lock);
             return true;
         }
-        s_dedup_cmd   = cmd;
-        s_dedup_price = item_price;
-        s_dedup_item  = item_number;
-        s_dedup_tick  = now_tick;
+        dedup_arm_locked(cmd, item_price, item_number);
     }
 
     uint32_t pending = s_tail - s_head;
@@ -365,13 +390,14 @@ bool sale_queue_enqueue(uint8_t cmd, uint16_t item_price, uint16_t item_number) 
 
     // SNTP clock sync: if never locked we record occurred_at=0 + flag, the
     // webhook substitutes server receive time rather than rejecting.
-    sntp_sync_status_t sync = sntp_get_sync_status();
-    bool time_ok = (sync == SNTP_SYNC_STATUS_COMPLETED);
-    time_t now_sec = time_ok ? time(NULL) : 0;
-    if (time_ok && now_sec < 1672531200) { // plausible unix time ≥ 2023-01-01
-        time_ok = false;
-        now_sec = 0;
-    }
+    // Do NOT use sntp_get_sync_status() here: ESP-IDF resets the status to
+    // RESET once it has returned COMPLETED, so only the first sale after
+    // each SNTP sync (hourly by default) was timestamped and every later
+    // one went out as occurred_at=0 / time_uncertain. A plausible wall
+    // clock is the real criterion: it stays valid between syncs.
+    time_t now_sec = time(NULL);
+    bool time_ok = (now_sec >= 1672531200); // plausible unix time ≥ 2023-01-01
+    if (!time_ok) now_sec = 0;
 
     uint32_t seq = alloc_seq_locked();
     if (seq == 0) {
@@ -447,26 +473,43 @@ bool sale_queue_enqueue(uint8_t cmd, uint16_t item_price, uint16_t item_number) 
     return true;
 }
 
-// Loads the head record. Caller must hold s_lock. Returns false when queue empty.
-static bool load_head_record(sale_record_t *out) {
-    if (s_tail == s_head) return false;
+typedef enum {
+    HEAD_OK,         // record loaded
+    HEAD_EMPTY,      // queue empty
+    HEAD_RETRY,      // transient NVS error: keep the record, try again later
+    HEAD_CORRUPT,    // record missing or malformed: skip it
+} head_load_t;
+
+// Loads the head record. Caller must hold s_lock.
+static head_load_t load_head_record(sale_record_t *out) {
+    if (s_tail == s_head) return HEAD_EMPTY;
     uint32_t slot = s_head % SALE_QUEUE_CAPACITY;
     char key[8];
     snprintf(key, sizeof(key), SLOT_KEY_FMT, (unsigned)slot);
 
     nvs_handle_t h;
-    if (nvs_open(NS, NVS_READONLY, &h) != ESP_OK) return false;
+    esp_err_t err = nvs_open(NS, NVS_READONLY, &h);
+    if (err != ESP_OK) {
+        // Not evidence that the sale is gone: skipping here used to delete
+        // a valid pending sale on a passing NVS hiccup.
+        ESP_LOGW(TAG, "head slot %u: nvs_open failed (%s) — retrying later",
+                 (unsigned)slot, esp_err_to_name(err));
+        return HEAD_RETRY;
+    }
 
     size_t len = sizeof(sale_record_t);
-    esp_err_t err = nvs_get_blob(h, key, out, &len);
+    err = nvs_get_blob(h, key, out, &len);
     nvs_close(h);
 
-    if (err != ESP_OK || len != sizeof(sale_record_t)) {
-        ESP_LOGE(TAG, "head slot %u corrupt (err=%s len=%u) — advancing past it",
-                 (unsigned)slot, esp_err_to_name(err), (unsigned)len);
-        return false;
+    if (err == ESP_OK && len == sizeof(sale_record_t)) return HEAD_OK;
+    if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND && err != ESP_ERR_NVS_INVALID_LENGTH) {
+        ESP_LOGW(TAG, "head slot %u: read failed (%s) — retrying later",
+                 (unsigned)slot, esp_err_to_name(err));
+        return HEAD_RETRY;
     }
-    return true;
+    ESP_LOGE(TAG, "head slot %u corrupt (err=%s len=%u) — advancing past it",
+             (unsigned)slot, esp_err_to_name(err), (unsigned)len);
+    return HEAD_CORRUPT;
 }
 
 // Builds a 19-byte v2 sale payload with idempotency fields.
@@ -609,9 +652,9 @@ static void sale_queue_publish_task(void *arg) {
             continue;
         }
         sale_record_t rec;
-        bool have = load_head_record(&rec);
-        if (!have) {
-            if (s_tail != s_head) {
+        head_load_t have = load_head_record(&rec);
+        if (have != HEAD_OK) {
+            if (have == HEAD_CORRUPT) {
                 // corrupt slot — skip it so we don't deadlock
                 uint32_t new_head = s_head + 1;
                 nvs_handle_t h;
